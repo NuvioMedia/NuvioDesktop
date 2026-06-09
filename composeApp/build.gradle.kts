@@ -744,8 +744,29 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Nuvio"
             packageVersion = desktopReleaseVersionName
+            modules("java.net.http", "jdk.crypto.ec")
             macOS {
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon.icns"))
+                packageVersion = if (desktopReleaseVersionName.startsWith("0.")) {
+                    "1." + desktopReleaseVersionName.substringAfter("0.")
+                } else {
+                    desktopReleaseVersionName
+                }
+                infoPlist {
+                    extraKeysRawXml = """
+                        <key>CFBundleURLTypes</key>
+                        <array>
+                            <dict>
+                                <key>CFBundleURLName</key>
+                                <string>Trakt Auth</string>
+                                <key>CFBundleURLSchemes</key>
+                                <array>
+                                    <string>nuvio</string>
+                                </array>
+                            </dict>
+                        </array>
+                    """.trimIndent().replaceIndent("    ")
+                }
             }
             windows {
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon.ico"))

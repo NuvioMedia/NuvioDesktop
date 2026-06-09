@@ -21,6 +21,10 @@ import com.nuvio.app.features.player.desktop.registerDesktopAppFullscreenToggle
 import java.awt.Color as AwtColor
 import javax.swing.JComponent
 
+import java.awt.Desktop
+import java.awt.desktop.OpenURIEvent
+import com.nuvio.app.features.trakt.TraktAuthRepository
+
 private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
 private const val NuvioDesktopIconPath = "icons/nuvio-app-icon.png"
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
@@ -28,6 +32,15 @@ private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 fun main() {
     configureDesktopChrome()
     preloadNativePlayerBridgeAsync()
+
+    if (Desktop.isDesktopSupported()) {
+        val desktop = Desktop.getDesktop()
+        if (desktop.isSupported(Desktop.Action.APP_OPEN_URI)) {
+            desktop.setOpenURIHandler { event: OpenURIEvent ->
+                TraktAuthRepository.onAuthCallbackReceived(event.uri.toString())
+            }
+        }
+    }
 
     application {
         val smokePlayerUrl = (
