@@ -1,6 +1,7 @@
 package com.nuvio.app
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -73,7 +74,9 @@ fun main() {
             }
 
             if (smokePlayerUrl == null) {
-                App()
+                CompositionLocalProvider(LocalDesktopWindow provides window) {
+                    App()
+                }
             } else {
                 PlatformPlayerSurface(
                     sourceUrl = smokePlayerUrl,

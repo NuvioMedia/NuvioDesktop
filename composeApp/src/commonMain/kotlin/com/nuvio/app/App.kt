@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import com.nuvio.app.features.player.ManageFullscreenKeyboardShortcuts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.hoverable
@@ -698,6 +699,12 @@ private fun MainAppContent(
             warmProfileBoundRepositories()
         }
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
+        val isHomeRouteActive = selectedTab == AppScreenTab.Home &&
+            currentBackStackEntry?.destination?.hasRoute<TabsRoute>() == true
+        ManageFullscreenKeyboardShortcuts(
+            isHomeRouteActive = isHomeRouteActive,
+            onBack = { navController.popBackStack() },
+        )
         val liquidGlassNativeTabBarEnabled by remember {
             ThemeSettingsRepository.liquidGlassNativeTabBarEnabled
         }.collectAsStateWithLifecycle()
