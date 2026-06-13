@@ -1,7 +1,6 @@
 package com.nuvio.app.features.home
 
 import com.nuvio.app.features.addons.ManagedAddon
-import com.nuvio.app.features.catalog.CATALOG_PAGE_SIZE
 
 data class MetaPreview(
     val id: String,
@@ -39,11 +38,12 @@ data class HomeCatalogSection(
     val items: List<MetaPreview>,
     val availableItemCount: Int = items.size,
     val supportsPagination: Boolean = false,
+    val hasMore: Boolean = false,
     val genre: String? = null,
 )
 
 fun HomeCatalogSection.canOpenCatalog(previewLimit: Int): Boolean =
-    availableItemCount > previewLimit || (supportsPagination && availableItemCount >= CATALOG_PAGE_SIZE)
+    availableItemCount > previewLimit || hasMore
 
 data class HomeUiState(
     val isLoading: Boolean = false,

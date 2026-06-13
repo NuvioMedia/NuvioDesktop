@@ -244,6 +244,7 @@ object HomeRepository {
                 items = emptyList(),
                 availableItemCount = 0,
                 supportsPagination = supportsPagination,
+                hasMore = false,
             )
         }
 
@@ -258,6 +259,7 @@ object HomeRepository {
             items = items,
             availableItemCount = page.rawItemCount,
             supportsPagination = supportsPagination,
+            hasMore = supportsPagination && page.nextSkip != null,
         )
     }
 

@@ -167,10 +167,18 @@ object CatalogRepository {
                     }
                     val supportsPagination = request.supportsPagination || page.rawItemCount >= CATALOG_PAGE_SIZE
                     val loadedNewItems = reset || mergedItems.size > current.items.size
+                    val paginationState = nextCatalogPaginationState(
+                        supportsPagination = supportsPagination,
+                        requestedSkip = requestedSkip,
+                        page = page,
+                        loadedNewItems = loadedNewItems,
+                        consecutiveDuplicatePages = if (reset) 0 else current.consecutiveDuplicatePages,
+                    )
                     _uiState.value = CatalogUiState(
                         items = mergedItems,
                         isLoading = false,
-                        nextSkip = if (supportsPagination && loadedNewItems) page.nextSkip else null,
+                        nextSkip = paginationState.nextSkip,
+                        consecutiveDuplicatePages = paginationState.consecutiveDuplicatePages,
                         errorMessage = null,
                     )
                 },
