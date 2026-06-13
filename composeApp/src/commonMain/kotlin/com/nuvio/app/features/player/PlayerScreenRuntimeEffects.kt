@@ -90,7 +90,6 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         activeTorrentInfoHash,
         activeTorrentFileIdx,
         activeTorrentFilename,
-        activeTorrentMagnetUri,
         activeTorrentTrackers,
         p2pSettingsUiState.p2pEnabled,
     ) {
@@ -107,7 +106,6 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         p2pResolvedSourceUrl = null
         val requestedFileIdx = activeTorrentFileIdx
         val requestedFilename = activeTorrentFilename
-        val requestedMagnetUri = activeTorrentMagnetUri
         val requestedTrackers = activeTorrentTrackers
         errorMessage = null
         playerController = null
@@ -121,7 +119,6 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
                     infoHash = infoHash,
                     fileIdx = requestedFileIdx,
                     filename = requestedFilename,
-                    magnetUri = requestedMagnetUri,
                     trackers = requestedTrackers,
                 ),
             )
@@ -247,8 +244,17 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
     BindPlayerMetadataAndSkipEffects()
 
     DisposableEffect(playbackSession.videoId, activeSourceUrl, activeSourceAudioUrl) {
+        val effectVideoId = playbackSession.videoId
+        val effectSourceUrl = activeSourceUrl
+        val effectSourceAudioUrl = activeSourceAudioUrl
         onDispose {
-            flushWatchProgress()
+            if (
+                playbackSession.videoId == effectVideoId &&
+                activeSourceUrl == effectSourceUrl &&
+                activeSourceAudioUrl == effectSourceAudioUrl
+            ) {
+                flushWatchProgress()
+            }
         }
     }
 
@@ -554,6 +560,7 @@ internal fun PlayerScreenRuntime.tryRefreshCredentialedSourceAfterError(message:
         activeSourceAudioUrl = null
         activeSourceHeaders = sanitizePlaybackHeaders(stream.behaviorHints.proxyHeaders?.request)
         activeSourceResponseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response)
+        activeStreamType = stream.streamType
         activeStreamTitle = stream.streamLabel
         activeStreamSubtitle = stream.streamSubtitle
         activeProviderName = stream.addonName

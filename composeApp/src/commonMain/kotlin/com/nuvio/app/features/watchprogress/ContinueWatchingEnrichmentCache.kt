@@ -1,6 +1,9 @@
 package com.nuvio.app.features.watchprogress
 
 import com.nuvio.app.core.storage.ProfileScopedKey
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -63,6 +66,8 @@ internal object ContinueWatchingEnrichmentCache {
 
     private const val storageKey = "cw_enrichment_cache"
     private var lastPayloadHash: Int? = null
+    private val _cacheCleared = MutableStateFlow(0)
+    val cacheCleared: StateFlow<Int> = _cacheCleared.asStateFlow()
 
     fun getNextUpSnapshot(): List<CachedNextUpItem> =
         loadPayload()?.nextUp ?: emptyList()
@@ -98,6 +103,7 @@ internal object ContinueWatchingEnrichmentCache {
     fun clearAll() {
         ContinueWatchingEnrichmentStorage.removePayload(ProfileScopedKey.of(storageKey))
         lastPayloadHash = null
+        _cacheCleared.value += 1
     }
 
     private fun loadPayload(): CachedEnrichmentPayload? {

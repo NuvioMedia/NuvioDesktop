@@ -2,6 +2,7 @@ package com.nuvio.app.features.library
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.auth.AuthRepository
+import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.features.home.PosterShape
@@ -16,11 +17,6 @@ import com.nuvio.app.features.trakt.effectiveLibrarySourceMode as resolveEffecti
 import com.nuvio.app.features.trakt.shouldUseTraktLibrary
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
-import kotlinx.coroutines.runBlocking
-import nuvio.composeapp.generated.resources.Res
-import nuvio.composeapp.generated.resources.library_local_tab_title
-import nuvio.composeapp.generated.resources.library_other
-import org.jetbrains.compose.resources.getString
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,6 +29,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -41,6 +38,12 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
+import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.library_local_tab_title
+import nuvio.composeapp.generated.resources.library_other
+import nuvio.composeapp.generated.resources.trakt_lists_update_failed
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
 
 @Serializable
 private data class StoredLibraryPayload(
@@ -217,7 +220,13 @@ object LibraryRepository {
         if (isTraktLibrarySourceActive()) {
             syncScope.launch {
                 runCatching { TraktLibraryRepository.toggleWatchlist(item) }
-                    .onFailure { e -> log.e(e) { "Failed to toggle Trakt watchlist" } }
+                    .onFailure { e ->
+                        log.e(e) { "Failed to toggle Trakt watchlist" }
+                        NuvioToastController.show(
+                            e.message?.takeIf { it.isNotBlank() }
+                                ?: getString(Res.string.trakt_lists_update_failed),
+                        )
+                    }
                 publish()
             }
             return
@@ -476,11 +485,16 @@ object LibraryRepository {
 }
 
 internal const val LOCAL_LIBRARY_LIST_KEY = "local"
+private const val DEFAULT_LOCAL_LIBRARY_TAB_TITLE = "Nuvio Library"
+private const val DEFAULT_LIBRARY_OTHER_TITLE = "Other"
 
 internal fun localLibraryListTab(): TraktListTab =
     TraktListTab(
         key = LOCAL_LIBRARY_LIST_KEY,
-        title = runBlocking { getString(Res.string.library_local_tab_title) },
+        title = localizedStringOrDefault(
+            resource = Res.string.library_local_tab_title,
+            fallback = DEFAULT_LOCAL_LIBRARY_TAB_TITLE,
+        ),
         type = TraktListType.WATCHLIST,
     )
 
@@ -552,7 +566,7 @@ private fun PosterShape.toSyncName(): String =
 
 internal fun String.toLibraryDisplayTitle(): String {
     val normalized = trim()
-    if (normalized.isBlank()) return runBlocking { getString(Res.string.library_other) }
+    if (normalized.isBlank()) return localizedLibraryOtherTitle()
 
     return normalized
         .split('-', '_', ' ')
@@ -560,5 +574,15 @@ internal fun String.toLibraryDisplayTitle(): String {
         .joinToString(" ") { token ->
             token.lowercase().replaceFirstChar { char -> char.uppercase() }
         }
-        .ifBlank { runBlocking { getString(Res.string.library_other) } }
+        .ifBlank { localizedLibraryOtherTitle() }
 }
+
+private fun localizedLibraryOtherTitle(): String =
+    localizedStringOrDefault(
+        resource = Res.string.library_other,
+        fallback = DEFAULT_LIBRARY_OTHER_TITLE,
+    )
+
+private fun localizedStringOrDefault(resource: StringResource, fallback: String): String =
+    runCatching { runBlocking { getString(resource) } }
+        .getOrDefault(fallback)

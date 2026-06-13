@@ -113,6 +113,16 @@
         <span class="center-spinner" aria-hidden="true"></span>
       </section>
 
+      <section class="playback-error" id="playbackError" aria-label="Playback error" aria-hidden="true">
+        <div class="playback-error-content">
+          <h1 class="playback-error-title" id="playbackErrorTitle">Playback error</h1>
+          <p class="playback-error-message" id="playbackErrorMessage"></p>
+          <button class="playback-error-action" id="playbackErrorAction" type="button" data-command="back">
+            <span id="playbackErrorActionLabel">Go back</span>
+          </button>
+        </div>
+      </section>
+
       <section class="pause-metadata-overlay" id="pauseMetadataOverlay" aria-hidden="true">
         <div class="pause-metadata-content">
           <div class="pause-kicker" id="pauseWatchingLabel">You're watching</div>
@@ -171,7 +181,6 @@
             <button class="action" data-command="audio"><svg><use href="#icon-audio"></use></svg><span id="audioLabel">Audio</span></button>
             <button class="action optional" id="sourcesButton" data-command="sources"><svg><use href="#icon-swap"></use></svg><span id="sourcesLabel">Sources</span></button>
             <button class="action optional" id="episodesButton" data-command="episodes"><svg><use href="#icon-video"></use></svg><span id="episodesLabel">Episodes</span></button>
-            <button class="action optional" id="externalButton" data-command="external"><svg><use href="#icon-open"></use></svg><span id="externalLabel">External</span></button>
           </div>
         </div>
       </section>

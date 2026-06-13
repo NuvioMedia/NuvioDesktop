@@ -177,6 +177,25 @@ fun newestDirectory(root: File): File? =
         ?.listFiles(File::isDirectory)
         ?.maxByOrNull { semanticVersionSortKey(it.name) }
 
+fun jpackageCompatibleVersion(version: String): String {
+    val versionCore = version.substringBefore('-').substringBefore('+').trim()
+    val parts = versionCore.split('.').filter { it.isNotBlank() }
+    require(parts.isNotEmpty() && parts.size <= 3) {
+        "Desktop package version must use one to three numeric components: $version"
+    }
+    val numbers = parts.map { part ->
+        part.toIntOrNull() ?: error("Desktop package version component is not numeric: $version")
+    }.toMutableList()
+    require(numbers.all { it >= 0 }) {
+        "Desktop package version components must not be negative: $version"
+    }
+    while (numbers.size < 3) {
+        numbers += 0
+    }
+    numbers[0] = numbers[0].coerceAtLeast(1)
+    return numbers.joinToString(".")
+}
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidApplication)
@@ -194,6 +213,21 @@ val releaseStorePassword = supabaseProps.getProperty("NUVIO_RELEASE_STORE_PASSWO
 val releaseKeyAlias = supabaseProps.getProperty("NUVIO_RELEASE_KEY_ALIAS")?.takeIf { it.isNotBlank() }
 val releaseKeyPassword = supabaseProps.getProperty("NUVIO_RELEASE_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
 val releaseKeystore = releaseStoreFile?.let(rootProject::file)
+
+fun localOrEnvProperty(name: String): String? =
+    (
+        providers.gradleProperty(name).orNull
+            ?: System.getenv(name)
+            ?: supabaseProps.getProperty(name)
+        )
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+
+val macosSigningIdentity = localOrEnvProperty("NUVIO_MACOS_SIGNING_IDENTITY")
+val macosNotaryAppleId = localOrEnvProperty("NUVIO_MACOS_NOTARY_APPLE_ID")
+val macosNotaryTeamId = localOrEnvProperty("NUVIO_MACOS_NOTARY_TEAM_ID")
+val macosNotaryPassword = localOrEnvProperty("NUVIO_MACOS_NOTARY_PASSWORD")
+
 val appVersionConfigFile = rootProject.file("iosApp/Configuration/Version.xcconfig")
 val releaseAppVersionName = readXcconfigValue(appVersionConfigFile, "MARKETING_VERSION")
     ?: error("MARKETING_VERSION is missing from ${appVersionConfigFile.path}")
@@ -225,6 +259,7 @@ val desktopReleaseVersionCode = (
     ?.takeIf { it.isNotBlank() }
     ?.toIntOrNull()
     ?: 1
+val desktopReleasePackageVersion = jpackageCompatibleVersion(desktopReleaseVersionName)
 val iosDistribution = (
     providers.gradleProperty("nuvio.ios.distribution").orNull
         ?: System.getenv("NUVIO_IOS_DISTRIBUTION")
@@ -241,6 +276,7 @@ val iosDistributionSourceDir = if (iosDistribution == "full") {
 }
 val iosFrameworkBundleId = "com.nuvio.media"
 val fullCommonSourceDir = project.file("src/fullCommonMain/kotlin")
+val fullPluginSourceDir = fullCommonSourceDir.resolve("com/nuvio/app/features/plugins")
 val generatedRuntimeConfigDir = layout.buildDirectory.dir("generated/runtime-config/kotlin")
 val requestedGradleTasks = gradle.startParameter.taskNames.map { taskName ->
     taskName.substringAfterLast(':').lowercase()
@@ -692,10 +728,13 @@ kotlin {
             implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("lib-*.aar"))))
         }
         val desktopMain by getting {
+            kotlin.srcDir(fullPluginSourceDir)
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.ktor.client.cio)
+                implementation(libs.quickjs.kt)
+                implementation(libs.ksoup)
             }
         }
         commonMain.dependencies {
@@ -743,16 +782,39 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Nuvio"
-            packageVersion = desktopReleaseVersionName
+            packageVersion = desktopReleasePackageVersion
+            vendor = "Nuvio Media"
+            modules("java.net.http")
             macOS {
+                bundleID = "com.nuvio.media.desktop"
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon.icns"))
+                if (macosSigningIdentity != null) {
+                    signing {
+                        sign.set(true)
+                        identity.set(macosSigningIdentity)
+                    }
+                }
+                if (macosNotaryAppleId != null && macosNotaryTeamId != null && macosNotaryPassword != null) {
+                    notarization {
+                        appleID.set(macosNotaryAppleId)
+                        teamID.set(macosNotaryTeamId)
+                        password.set(macosNotaryPassword)
+                    }
+                }
             }
             windows {
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon.ico"))
+                shortcut = true
+                menu = true
+                menuGroup = "Nuvio"
             }
             linux {
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon.png"))
             }
+        }
+
+        buildTypes.release.proguard {
+            isEnabled.set(false)
         }
     }
 }
@@ -762,6 +824,10 @@ afterEvaluate {
         add("fullImplementation", files("libs/quickjs-kt-android-1.0.5-nuvio.aar"))
         add("fullImplementation", libs.ksoup)
     }
+}
+
+configurations.matching { it.name == "iosMainImplementation" }.configureEach {
+    project.dependencies.add(name, libs.ktor.client.darwin)
 }
 
 dependencies {
@@ -808,14 +874,6 @@ android {
     sourceSets.getByName("full") {
         manifest.srcFile("src/androidFull/AndroidManifest.xml")
         java.srcDir(fullCommonSourceDir)
-    }
-    splits {
-        abi {
-            isEnable = !isAndroidAppBundleBuild
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
-            isUniversalApk = false
-        }
     }
     packaging {
         resources {

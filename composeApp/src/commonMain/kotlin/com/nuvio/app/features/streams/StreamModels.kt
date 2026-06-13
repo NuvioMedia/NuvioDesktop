@@ -17,6 +17,8 @@ data class StreamItem(
     val sourceName: String? = null,
     val addonName: String,
     val addonId: String,
+    val addonLogo: String? = null,
+    val streamType: String? = null,
     val behaviorHints: StreamBehaviorHints = StreamBehaviorHints(),
     val clientResolve: StreamClientResolve? = null,
     val debridCacheStatus: StreamDebridCacheStatus? = null,
@@ -31,13 +33,22 @@ data class StreamItem(
     val directPlaybackUrl: String?
         get() = url ?: externalUrl
 
+    /**
+     * First URL that can be handed directly to a player or HTTP consumer.
+     * `magnet:` and `torrent://` URLs are filtered out, falling back to
+     * [externalUrl] when [url] carries one of those schemes.
+     */
     val playableDirectUrl: String?
         get() = listOfNotNull(url, externalUrl)
-            .firstOrNull { !it.isMagnetLink() }
+            .firstOrNull { !it.isMagnetLink() && !it.isTorrentSchemeUrl() }
 
     val torrentMagnetUri: String?
-        get() = listOfNotNull(url, externalUrl, clientResolve?.magnetUri)
+        get() = listOfNotNull(url, externalUrl)
             .firstOrNull { it.isMagnetLink() }
+
+    val torrentSchemeUri: String?
+        get() = listOfNotNull(url, externalUrl)
+            .firstOrNull { it.isTorrentSchemeUrl() }
 
     val isDirectDebridStream: Boolean
         get() = clientResolve?.isDirectDebridCandidate == true
@@ -49,7 +60,9 @@ data class StreamItem(
         get() = !isDirectDebridStream && (
             !infoHash.isNullOrBlank() ||
             url.isMagnetLink() ||
-            externalUrl.isMagnetLink()
+            externalUrl.isMagnetLink() ||
+            url.isTorrentSchemeUrl() ||
+            externalUrl.isTorrentSchemeUrl()
         )
 
     val isCachedDebridTorrentStream: Boolean
@@ -61,27 +74,20 @@ data class StreamItem(
     val p2pInfoHash: String?
         get() = infoHash.normalizedInfoHash()
             ?: clientResolve?.infoHash.normalizedInfoHash()
-            ?: clientResolve?.magnetUri.extractBtihInfoHash()
             ?: torrentMagnetUri.extractBtihInfoHash()
+            ?: torrentSchemeUri.extractTorrentSchemeInfoHash()
 
     val p2pFileIdx: Int?
-        get() = fileIdx ?: clientResolve?.fileIdx
-
-    val p2pFilename: String?
-        get() = behaviorHints.filename ?: clientResolve?.filename
+        get() = fileIdx ?: torrentSchemeUri.extractTorrentSchemeFileIdx()
 
     val p2pTrackers: List<String>
-        get() = p2pSourceHints
+        get() = sources
             .asSequence()
             .filter { it.startsWith("tracker:") }
             .map { it.removePrefix("tracker:").trim() }
             .filter { it.isNotEmpty() }
             .distinct()
             .toList()
-
-    val p2pSourceHints: List<String>
-        get() = (sources + clientResolve?.sources.orEmpty())
-            .distinct()
 
     val isAddonDebridCandidate: Boolean
         get() = isInstalledAddonStream && (needsLocalDebridResolve || isDirectDebridStream)
@@ -99,8 +105,37 @@ data class StreamBadge(
     val borderColor: String = "",
 )
 
+fun normalizeStreamType(raw: String?): String? =
+    raw?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+
 private fun String?.isMagnetLink(): Boolean =
     this?.trimStart()?.startsWith("magnet:", ignoreCase = true) == true
+
+private fun String?.isTorrentSchemeUrl(): Boolean =
+    this?.trimStart()?.startsWith("torrent://", ignoreCase = true) == true
+
+private fun String?.extractTorrentSchemeInfoHash(): String? {
+    val raw = this?.trimStart()?.takeIf { it.isTorrentSchemeUrl() } ?: return null
+    return raw.removeRange(0, "torrent://".length)
+        .substringBefore('/')
+        .substringBefore('?')
+        .trim()
+        .takeIf { it.isValidInfoHash() }
+}
+
+private fun String?.extractTorrentSchemeFileIdx(): Int? {
+    val raw = this?.trimStart()?.takeIf { it.isTorrentSchemeUrl() } ?: return null
+    val path = raw.removeRange(0, "torrent://".length).substringBefore('?')
+    if ('/' !in path) return null
+    return path.substringAfter('/')
+        .trim()
+        .takeIf { segment -> segment.isNotEmpty() && segment.all { it.isDigit() } }
+        ?.toIntOrNull()
+}
+
+private fun String.isValidInfoHash(): Boolean =
+    (length == 40 && all { it in '0'..'9' || it.lowercaseChar() in 'a'..'f' }) ||
+        (length == 32 && all { it in '2'..'7' || it.lowercaseChar() in 'a'..'z' })
 
 private fun String?.normalizedInfoHash(): String? =
     this

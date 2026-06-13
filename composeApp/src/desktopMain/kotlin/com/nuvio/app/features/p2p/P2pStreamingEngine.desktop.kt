@@ -9,10 +9,6 @@ actual object P2pStreamingEngine {
 
     actual val state: StateFlow<P2pStreamingState> = _state.asStateFlow()
 
-    actual fun warmup() = Unit
-
-    actual fun cooldownWarmup() = Unit
-
     actual suspend fun startStream(request: P2pStreamRequest): String {
         _state.value = P2pStreamingState.Error("P2P streaming is not available on desktop yet.")
         throw P2pStreamingException("P2P streaming is not available on desktop yet.")

@@ -278,11 +278,20 @@ fun HomeScreen(
     }
     val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
     val activeProfileId = profileState.activeProfile?.profileIndex ?: 1
+    val cwCacheClearVersion by ContinueWatchingEnrichmentCache.cacheCleared.collectAsStateWithLifecycle()
 
     var nextUpItemsBySeries by remember(activeProfileId) { mutableStateOf<Map<String, Pair<Long, ContinueWatchingItem>>>(emptyMap()) }
     var processedNextUpContentIds by remember(activeProfileId) { mutableStateOf<Set<String>>(emptySet()) }
 
-    val cachedSnapshots = remember(activeProfileId) { ContinueWatchingEnrichmentCache.getSnapshots() }
+    LaunchedEffect(activeProfileId, cwCacheClearVersion) {
+        if (cwCacheClearVersion == 0) return@LaunchedEffect
+        nextUpItemsBySeries = emptyMap()
+        processedNextUpContentIds = emptySet()
+    }
+
+    val cachedSnapshots = remember(activeProfileId, cwCacheClearVersion) {
+        ContinueWatchingEnrichmentCache.getSnapshots()
+    }
     val shouldValidateMissingNextUpSeeds = remember(
         isTraktProgressActive,
         watchProgressUiState.hasLoadedRemoteProgress,

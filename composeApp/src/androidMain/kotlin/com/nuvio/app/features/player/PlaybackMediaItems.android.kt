@@ -7,11 +7,13 @@ import java.util.Locale
 internal fun playbackMediaItemFromUrl(
     url: String,
     responseHeaders: Map<String, String> = emptyMap(),
+    streamType: String? = null,
 ): MediaItem {
     val builder = MediaItem.Builder().setUri(url)
     inferPlaybackMimeType(
         url = url,
         responseHeaders = responseHeaders,
+        streamType = streamType,
     )?.let(builder::setMimeType)
     return builder.build()
 }
@@ -19,9 +21,25 @@ internal fun playbackMediaItemFromUrl(
 private fun inferPlaybackMimeType(
     url: String,
     responseHeaders: Map<String, String>,
+    streamType: String?,
 ): String? =
-    inferMimeTypeFromResponseHeaders(responseHeaders)
+    inferMimeTypeFromStreamType(streamType)
+        ?: inferMimeTypeFromResponseHeaders(responseHeaders)
         ?: inferMimeTypeFromPath(url)
+
+private fun inferMimeTypeFromStreamType(streamType: String?): String? {
+    val normalized = streamType
+        ?.trim()
+        ?.lowercase(Locale.US)
+        ?.takeIf { it.isNotBlank() }
+        ?: return null
+    return when (normalized) {
+        "hls", "m3u8" -> MimeTypes.APPLICATION_M3U8
+        "dash", "mpd" -> MimeTypes.APPLICATION_MPD
+        "smoothstreaming", "ss" -> MimeTypes.APPLICATION_SS
+        else -> null
+    }
+}
 
 private fun inferMimeTypeFromResponseHeaders(headers: Map<String, String>): String? {
     if (headers.isEmpty()) return null

@@ -13,6 +13,7 @@ import kotlinx.serialization.json.put
 internal actual object StreamBadgeSettingsStorage {
     private const val streamBadgeRulesKey = "stream_badge_rules"
     private const val showFileSizeBadgesKey = "show_file_size_badges"
+    private const val showAddonLogoKey = "show_addon_logo"
     private const val streamBadgePlacementKey = "stream_badge_placement"
     private const val legacyDebridStreamBadgeRulesKey = "debrid_stream_badge_rules"
     private val syncKeys = listOf(streamBadgeRulesKey, showFileSizeBadgesKey, streamBadgePlacementKey)
@@ -23,6 +24,8 @@ internal actual object StreamBadgeSettingsStorage {
     actual fun saveStreamBadgeRules(rules: String) = saveString(streamBadgeRulesKey, rules)
     actual fun loadShowFileSizeBadges(): Boolean? = loadBoolean(showFileSizeBadgesKey)
     actual fun saveShowFileSizeBadges(enabled: Boolean) = saveBoolean(showFileSizeBadgesKey, enabled)
+    actual fun loadShowAddonLogo(): Boolean? = loadBoolean(showAddonLogoKey)
+    actual fun saveShowAddonLogo(enabled: Boolean) = saveBoolean(showAddonLogoKey, enabled)
     actual fun loadStreamBadgePlacement(): String? = loadString(streamBadgePlacementKey)
     actual fun saveStreamBadgePlacement(placement: String) = saveString(streamBadgePlacementKey, placement)
 
