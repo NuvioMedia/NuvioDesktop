@@ -825,7 +825,7 @@ compose.desktop {
                 ?.let { "-Dnuvio.dev.player.lookup=true" },
         ).toMutableList().apply {
             if (isLinuxHost) {
-                add("-Djava.library.path=\$APPDIR/lib/native")
+                add("-Djava.library.path=\$APPDIR/../native")
             }
             val mediampDir = System.getenv("NUVIO_MEDIAMP_RUNTIME_DIR")?.takeIf { it.isNotBlank() }
             if (mediampDir != null) {
@@ -937,7 +937,7 @@ if (isLinuxHost) {
             val configFile = distDir.resolve("lib/app/Nuvio.cfg")
             if (configFile.exists()) {
                 val content = configFile.readLines().toMutableList()
-                val jlpEntry = "java-options=-Djava.library.path=\$APPDIR/lib/native"
+                val jlpEntry = "java-options=-Djava.library.path=\$APPDIR/../native"
                 val hasCorrect = content.any { it == jlpEntry }
                 if (!hasCorrect) {
                     content.removeAll { "java.library.path" in it }
