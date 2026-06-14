@@ -1,5 +1,6 @@
 package com.nuvio.app.features.home
 
+import com.nuvio.app.features.catalog.CatalogTarget
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -44,9 +45,12 @@ class HomeCatalogSectionTest {
             title = "Popular",
             subtitle = "Addon",
             addonName = "Addon",
-            type = "movie",
-            manifestUrl = "https://example.com/manifest.json",
-            catalogId = "popular",
+            target = CatalogTarget.Addon(
+                manifestUrl = "https://example.com/manifest.json",
+                contentType = "movie",
+                catalogId = "popular",
+                supportsPagination = hasMore,
+            ),
             items = listOf(
                 MetaPreview(
                     id = "tt1",
@@ -55,7 +59,6 @@ class HomeCatalogSectionTest {
                 ),
             ),
             availableItemCount = availableItemCount,
-            supportsPagination = hasMore,
             hasMore = hasMore,
         )
 }

@@ -1,6 +1,7 @@
 package com.nuvio.app.features.home
 
 import com.nuvio.app.features.addons.ManagedAddon
+import com.nuvio.app.features.catalog.CatalogTarget
 
 data class MetaPreview(
     val id: String,
@@ -32,14 +33,10 @@ data class HomeCatalogSection(
     val title: String,
     val subtitle: String,
     val addonName: String,
-    val type: String,
-    val manifestUrl: String,
-    val catalogId: String,
+    val target: CatalogTarget,
     val items: List<MetaPreview>,
     val availableItemCount: Int = items.size,
-    val supportsPagination: Boolean = false,
     val hasMore: Boolean = false,
-    val genre: String? = null,
 )
 
 fun HomeCatalogSection.canOpenCatalog(previewLimit: Int): Boolean =
