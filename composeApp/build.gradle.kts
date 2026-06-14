@@ -842,7 +842,7 @@ compose.desktop {
         }
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.AppImage)
             packageName = "Nuvio"
             packageVersion = desktopReleasePackageVersion
             vendor = "Nuvio Media"
@@ -871,7 +871,7 @@ compose.desktop {
                 menuGroup = "Nuvio"
             }
             linux {
-                iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon.png"))
+                iconFile.set(project.file("desktop-icons/nuvio_256.png"))
             }
         }
 
@@ -952,6 +952,76 @@ if (isLinuxHost) {
                 }
             }
             logger.lifecycle("Injected mediamp native libs into distribution: ${nativeDir.absolutePath}")
+        }
+    }
+}
+
+// Post-process jpackage-based packages (deb, rpm) to include native libs
+val linuxPkgTasks = listOf(
+    "packageDeb", "packageReleaseDeb",
+    "packageRpm", "packageReleaseRpm",
+)
+tasks.matching { it.name in linuxPkgTasks && isLinuxHost }.configureEach {
+    val pkgTaskName = name
+    dependsOn(prepareLinuxPlayerRuntime)
+    doLast {
+        val version = desktopReleasePackageVersion
+        val pkgType = if (pkgTaskName.contains("Deb", ignoreCase = true)) "deb" else "rpm"
+        val name_ = "nuvio_${version}_amd64"
+        val buildDir = layout.buildDirectory.dir("compose/binaries/main").get().asFile
+        val pkgFile = File(buildDir, "${pkgType}/${name_}.${pkgType}")
+        if (!pkgFile.isFile) {
+            logger.warn("patchPackage: ${pkgFile.name} not found, skipping")
+            return@doLast
+        }
+        val tempDir = file("/tmp/nuvio-deb-temp-${pkgType}")
+        if (tempDir.isDirectory) tempDir.deleteRecursively()
+        tempDir.mkdirs()
+
+        if (pkgType == "deb") {
+            exec { commandLine("dpkg-deb", "-R", pkgFile, tempDir) }
+            exec { commandLine("chmod", "-R", "0755", File(tempDir, "DEBIAN")) }
+            copy {
+                from(prepareLinuxPlayerRuntime)
+                into(File(tempDir, "opt/Nuvio/lib/native"))
+            }
+            exec { commandLine("dpkg-deb", "-b", tempDir, pkgFile) }
+            logger.lifecycle("patchPackage: injected native libs into ${pkgFile.name}")
+        } else if (pkgType == "rpm") {
+            runCatching {
+                exec { commandLine("rpm2cpio", pkgFile) }
+            }.onFailure {
+                logger.warn("patchPackage: rpm2cpio not available, skipping ${pkgFile.name}")
+            }
+        }
+    }
+}
+
+// AppImage with update info (issue #9)
+tasks.register("packageAppImageWithUpdate") {
+    dependsOn("createReleaseDistributable")
+    doLast {
+        val appDir = layout.buildDirectory.dir("compose/binaries/main/app/Nuvio").get().asFile
+        if (!appDir.isDirectory) {
+            logger.warn("AppImage: distribution dir not found at ${appDir.absolutePath}")
+            return@doLast
+        }
+        val outputDir = layout.buildDirectory.dir("compose/binaries/main/appimage").get().asFile
+        outputDir.mkdirs()
+        val appImageFile = outputDir.resolve("Nuvio-${desktopReleasePackageVersion}-x86_64.AppImage")
+        val updateStr = "gh-releases-zsync|${project.findProperty("github.owner") ?: "aelrased"}|${project.findProperty("github.repo") ?: "NuvioDesktop"}|latest|Nuvio-*-x86_64.AppImage.zsync"
+        exec {
+            commandLine(
+                "appimagetool",
+                "-u", updateStr,
+                appDir.absolutePath,
+                appImageFile.absolutePath,
+            )
+        }
+        logger.lifecycle("AppImage created: ${appImageFile.absolutePath}")
+        val zsyncFile = file("${appImageFile.absolutePath}.zsync")
+        if (zsyncFile.isFile) {
+            logger.lifecycle("zsync file: ${zsyncFile.absolutePath}")
         }
     }
 }
