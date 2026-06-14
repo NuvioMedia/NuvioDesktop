@@ -30,3 +30,4 @@ tools
 AGENTS.md
 **/target/
 mediamp/mediamp-mpv/libmpv/lib/
+backup/mediamp_backup/mediamp-mpv/libmpv/lib/

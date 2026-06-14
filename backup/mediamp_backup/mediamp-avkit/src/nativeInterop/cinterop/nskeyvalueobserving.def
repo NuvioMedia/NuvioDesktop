@@ -1,0 +1,14 @@
+package = platform.Foundation
+language = Objective-C
+
+---
+#import <Foundation/Foundation.h>
+
+@protocol NSKeyValueObserving
+@required
+// https://developer.apple.com/documentation/objectivec/nsobject/1416553-observevalueforkeypath
+- (void) observeValueForKeyPath:(NSString *)keyPath
+    ofObject:(id)object
+    change:(NSDictionary<NSKeyValueChangeKey, id> *)change
+    context:(void *)context;
+@end;
