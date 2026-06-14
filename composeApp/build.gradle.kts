@@ -981,9 +981,21 @@ tasks.matching { it.name in linuxPkgTasks && isLinuxHost }.configureEach {
         if (pkgType == "deb") {
             exec { commandLine("dpkg-deb", "-R", pkgFile, tempDir) }
             exec { commandLine("chmod", "-R", "0755", File(tempDir, "DEBIAN")) }
+            val controlFile = File(tempDir, "DEBIAN/control")
+            if (controlFile.isFile) {
+                var control = controlFile.readText()
+                if (!control.contains("libmpv2")) {
+                    control = control.replace(
+                        Regex("^(Depends: .*)$", setOf(RegexOption.MULTILINE)),
+                        "$1, libmpv2"
+                    )
+                    controlFile.writeText(control)
+                    logger.lifecycle("patchPackage: appended libmpv2 to Depends")
+                }
+            }
             copy {
                 from(prepareLinuxPlayerRuntime)
-                into(File(tempDir, "opt/Nuvio/lib/native"))
+                into(File(tempDir, "opt/nuvio/lib/native"))
             }
             exec { commandLine("dpkg-deb", "-b", tempDir, pkgFile) }
             logger.lifecycle("patchPackage: injected native libs into ${pkgFile.name}")
