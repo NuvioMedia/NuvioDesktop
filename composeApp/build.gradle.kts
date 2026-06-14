@@ -812,24 +812,34 @@ compose.desktop {
         val smokePlayerUrl = providers.gradleProperty("nuvio.desktop.smokePlayerUrl").orNull
             ?: System.getenv("NUVIO_DESKTOP_SMOKE_PLAYER_URL")
         jvmArgs += listOfNotNull(
-            "-Dapple.awt.application.appearance=NSAppearanceNameDarkAqua",
             "-Dskiko.renderApi=OPENGL",
             "--add-opens=java.desktop/java.awt=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.lwawt=ALL-UNNAMED",
-            "--add-opens=java.desktop/sun.lwawt.macosx=ALL-UNNAMED",
-            "--add-opens=java.desktop/sun.awt.windows=ALL-UNNAMED",
+            if (isMacHost) "-Dapple.awt.application.appearance=NSAppearanceNameDarkAqua" else null,
+            if (isMacHost) "--add-opens=java.desktop/sun.lwawt.macosx=ALL-UNNAMED" else null,
+            if (isWindowsHost) "--add-opens=java.desktop/sun.awt.windows=ALL-UNNAMED" else null,
             smokePlayerUrl?.takeIf { it.isNotBlank() }?.let { "-Dnuvio.desktop.smokePlayerUrl=$it" },
             System.getenv("NUVIO_MEDIAMP_RUNTIME_DIR")?.takeIf { it.isNotBlank() }
                 ?.let { "-Dnuvio.mediamp.runtime.dir=$it" },
             System.getenv("NUVIO_DEV_PLAYER_LOOKUP")?.takeIf { it.equals("true", ignoreCase = true) }
                 ?.let { "-Dnuvio.dev.player.lookup=true" },
-            if (isLinuxHost) "-Djava.library.path=\$APPDIR/lib/native" else null,
-            if (isWindowsHost) "-Djava.library.path=" + listOf(
-                mediampvBuildCiDir.absolutePath.replace("\\", "/"),
-                mediampvBuildCiDir.resolve("Release").absolutePath.replace("\\", "/"),
-                rootDir.resolve("mediamp/mediamp-mpv/libmpv/lib/windows/x86_64").absolutePath.replace("\\", "/"),
-            ).joinToString(";") else null,
-        )
+        ).toMutableList().apply {
+            if (isLinuxHost) {
+                add("-Djava.library.path=\$APPDIR/lib/native")
+            }
+            val mediampDir = System.getenv("NUVIO_MEDIAMP_RUNTIME_DIR")?.takeIf { it.isNotBlank() }
+            if (mediampDir != null) {
+                val libmpvDir = "${project.rootDir}/mediamp/mediamp-mpv/libmpv/lib/linux/x86_64"
+                add("-Djava.library.path=${mediampDir}:${libmpvDir}")
+            }
+            if (isWindowsHost) {
+                add("-Djava.library.path=" + listOf(
+                    mediampvBuildCiDir.absolutePath.replace("\\", "/"),
+                    mediampvBuildCiDir.resolve("Release").absolutePath.replace("\\", "/"),
+                    rootDir.resolve("mediamp/mediamp-mpv/libmpv/lib/windows/x86_64").absolutePath.replace("\\", "/"),
+                ).joinToString(";"))
+            }
+        }
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
@@ -928,7 +938,9 @@ if (isLinuxHost) {
             if (configFile.exists()) {
                 val content = configFile.readLines().toMutableList()
                 val jlpEntry = "java-options=-Djava.library.path=\$APPDIR/lib/native"
-                if (content.none { "java.library.path" in it }) {
+                val hasCorrect = content.any { it == jlpEntry }
+                if (!hasCorrect) {
+                    content.removeAll { "java.library.path" in it }
                     val javaOptionsIdx = content.indexOfFirst { it == "[JavaOptions]" }
                     if (javaOptionsIdx >= 0) {
                         val insertAt = content.subList(javaOptionsIdx + 1, content.size)
