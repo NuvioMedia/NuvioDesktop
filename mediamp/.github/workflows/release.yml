@@ -1,0 +1,280 @@
+# This file was generated using Kotlin DSL (.github/workflows/src.main.kts).
+# If you want to modify the workflow, please change the Kotlin file and regenerate this YAML file.
+# Generated with https://github.com/typesafegithub/github-workflows-kt
+
+name: 'Release'
+on:
+  push:
+    tags:
+    - 'v*'
+permissions:
+  actions: 'write'
+  contents: 'write'
+jobs:
+  create-release:
+    name: 'Create Release'
+    runs-on: 'ubuntu-latest'
+    outputs:
+      uploadUrl: '${{ steps.step-4.outputs.upload_url }}'
+      id: '${{ steps.step-4.outputs.id }}'
+    steps:
+    - id: 'step-0'
+      uses: 'actions/checkout@v4'
+      with:
+        lfs: 'true'
+    - id: 'step-1'
+      name: 'Get Tag'
+      uses: 'dawidd6/action-get-tag@v1'
+    - id: 'step-2'
+      uses: 'bhowell2/github-substring-action@v1.0.0'
+      with:
+        value: '${{ steps.step-1.outputs.tag }}'
+        index_of_str: 'v'
+        default_return_value: '${{ steps.step-1.outputs.tag }}'
+    - id: 'step-3'
+      name: 'Generate Release Notes'
+      run: |-
+        # Specify the file path
+        FILE_PATH="ci-helper/release-template.md"
+
+        # Read the file content
+        file_content=$(cat "$FILE_PATH")
+
+        modified_content="$file_content"
+        # Replace 'string_to_find' with 'string_to_replace_with' in the content
+        modified_content="${modified_content//\$GIT_TAG/${{ steps.step-1.outputs.tag }}}"
+        modified_content="${modified_content//\$TAG_VERSION/${{ steps.step-2.outputs.substring }}}"
+
+        # Output the result as a step output
+        echo "result<<EOF" >> $GITHUB_OUTPUT
+        echo "$modified_content" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    - id: 'step-4'
+      name: 'Create Release'
+      uses: 'softprops/action-gh-release@v1'
+      with:
+        body: '${{ steps.step-3.outputs.result }}'
+        name: '${{ steps.step-2.outputs.substring }}'
+        tag_name: '${{ steps.step-1.outputs.tag }}'
+        draft: 'true'
+        prerelease: '${{ contains(steps.step-1.outputs.tag, ''-'') }}'
+      env:
+        GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+  release_github-windows-2022:
+    name: 'Windows Server 2022 x86_64'
+    runs-on:
+    - 'windows-2022'
+    needs:
+    - 'create-release'
+    steps:
+    - id: 'step-0'
+      uses: 'actions/checkout@v4'
+      with:
+        lfs: 'true'
+        submodules: 'recursive'
+    - id: 'step-1'
+      name: 'Get Tag'
+      uses: 'dawidd6/action-get-tag@v1'
+    - id: 'step-2'
+      uses: 'bhowell2/github-substring-action@v1.0.0'
+      with:
+        value: '${{ steps.step-1.outputs.tag }}'
+        index_of_str: 'v'
+        default_return_value: '${{ steps.step-1.outputs.tag }}'
+    - id: 'step-3'
+      name: 'Setup JBR 21 for other OS'
+      uses: 'gmitch215/setup-java@6d2c5e1f82f180ae79f799f0ed6e3e5efb4e664d'
+      with:
+        java-version: '21'
+        distribution: 'jetbrains'
+      env:
+        GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+    - id: 'step-4'
+      run: 'echo "jvm.toolchain.version=21" >> local.properties'
+    - id: 'step-5'
+      name: 'Setup Gradle'
+      uses: 'gradle/actions/setup-gradle@v3'
+      with:
+        cache-disabled: 'true'
+    - id: 'step-6'
+      name: 'Clean and download dependencies'
+      uses: 'nick-fields/retry@v2'
+      with:
+        timeout_minutes: '60'
+        max_attempts: '3'
+        command: './gradlew "--scan" "--no-configuration-cache" "-Porg.gradle.daemon.idletimeout=60000" "-Pkotlin.native.ignoreDisabledTargets=true" "-Dfile.encoding=UTF-8" "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" "-DBoost_INCLUDE_DIR=C:/vcpkg/installed/x64-windows/include" "-Dorg.gradle.jvmargs=-Xmx4g" "-Dkotlin.daemon.jvm.options=-Xmx4g" "-Pani.android.abis=x86_64"'
+    - id: 'step-7'
+      name: 'Update Release Version Name'
+      env:
+        GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+        GITHUB_REPOSITORY: '${{ secrets.GITHUB_REPOSITORY }}'
+        CI_RELEASE_ID: '${{ needs.create-release.outputs.id }}'
+        CI_TAG: '${{ steps.step-1.outputs.tag }}'
+      run: './gradlew updateReleaseVersionNameFromGit "--scan" "--no-configuration-cache" "-Porg.gradle.daemon.idletimeout=60000" "-Pkotlin.native.ignoreDisabledTargets=true" "-Dfile.encoding=UTF-8" "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" "-DBoost_INCLUDE_DIR=C:/vcpkg/installed/x64-windows/include" "-Dorg.gradle.jvmargs=-Xmx4g" "-Dkotlin.daemon.jvm.options=-Xmx4g" "-Pani.android.abis=x86_64"'
+  release_self-hosted-macos-15:
+    name: 'macOS 15 AArch64 (Self-Hosted)'
+    runs-on:
+    - 'self-hosted'
+    - 'macOS'
+    - 'ARM64'
+    needs:
+    - 'create-release'
+    if: '${{ github.repository == ''open-ani/mediamp'' }}'
+    steps:
+    - id: 'step-0'
+      uses: 'actions/checkout@v4'
+      with:
+        lfs: 'true'
+        submodules: 'recursive'
+    - id: 'step-1'
+      name: 'Get Tag'
+      uses: 'dawidd6/action-get-tag@v1'
+    - id: 'step-2'
+      uses: 'bhowell2/github-substring-action@v1.0.0'
+      with:
+        value: '${{ steps.step-1.outputs.tag }}'
+        index_of_str: 'v'
+        default_return_value: '${{ steps.step-1.outputs.tag }}'
+    - id: 'step-3'
+      name: 'Resolve JBR location'
+      run: |-
+        # Expand jbrLocationExpr
+        jbr_location_expr=$(eval echo ${{ runner.tool_cache }}/jbrsdk_jcef-21.0.5-osx-aarch64-b631.8.tar.gz)
+        echo "jbrLocation=$jbr_location_expr" >> $GITHUB_OUTPUT
+    - id: 'step-4'
+      name: 'Get JBR 21 for macOS AArch64'
+      env:
+        jbrLocation: '${{ steps.step-3.outputs.jbrLocation }}'
+      run: |-
+        jbr_location="$jbrLocation"
+        checksum_url="https://cache-redirector.jetbrains.com/intellij-jbr/jbrsdk_jcef-21.0.5-osx-aarch64-b631.8.tar.gz.checksum"
+        checksum_file="checksum.tmp"
+        wget -q -O $checksum_file $checksum_url
+
+        expected_checksum=$(awk '{print $1}' $checksum_file)
+        file_checksum=""
+
+        if [ -f "$jbr_location" ]; then
+            file_checksum=$(shasum -a 512 "$jbr_location" | awk '{print $1}')
+        fi
+
+        if [ "$file_checksum" != "$expected_checksum" ]; then
+            wget -q --tries=3 https://cache-redirector.jetbrains.com/intellij-jbr/jbrsdk_jcef-21.0.5-osx-aarch64-b631.8.tar.gz -O "$jbr_location"
+            file_checksum=$(shasum -a 512 "$jbr_location" | awk '{print $1}')
+        fi
+
+        if [ "$file_checksum" != "$expected_checksum" ]; then
+            echo "Checksum verification failed!" >&2
+            rm -f $checksum_file
+            exit 1
+        fi
+
+        rm -f $checksum_file
+        file "$jbr_location"
+    - id: 'step-5'
+      name: 'Setup JBR 21 for macOS AArch64'
+      uses: 'gmitch215/setup-java@6d2c5e1f82f180ae79f799f0ed6e3e5efb4e664d'
+      with:
+        java-version: '21'
+        distribution: 'jdkfile'
+        jdkFile: '${{ steps.step-3.outputs.jbrLocation }}'
+      env:
+        GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+    - id: 'step-6'
+      run: 'echo "jvm.toolchain.version=21" >> local.properties'
+    - id: 'step-7'
+      run: 'chmod -R 777 .'
+    - id: 'step-8'
+      name: 'Setup Gradle'
+      uses: 'gradle/actions/setup-gradle@v3'
+      with:
+        cache-disabled: 'true'
+    - id: 'step-9'
+      name: 'Clean and download dependencies'
+      uses: 'nick-fields/retry@v2'
+      with:
+        timeout_minutes: '60'
+        max_attempts: '3'
+        command: './gradlew "--scan" "--no-configuration-cache" "-Porg.gradle.daemon.idletimeout=60000" "-Pkotlin.native.ignoreDisabledTargets=true" "-Dfile.encoding=UTF-8" "-Dorg.gradle.jvmargs=-Xmx4g" "-Dkotlin.daemon.jvm.options=-Xmx4g" "--parallel" "-Pani.android.abis=arm64-v8a"'
+    - id: 'step-10'
+      name: 'Update Release Version Name'
+      env:
+        GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+        GITHUB_REPOSITORY: '${{ secrets.GITHUB_REPOSITORY }}'
+        CI_RELEASE_ID: '${{ needs.create-release.outputs.id }}'
+        CI_TAG: '${{ steps.step-1.outputs.tag }}'
+      run: './gradlew updateReleaseVersionNameFromGit "--scan" "--no-configuration-cache" "-Porg.gradle.daemon.idletimeout=60000" "-Pkotlin.native.ignoreDisabledTargets=true" "-Dfile.encoding=UTF-8" "-Dorg.gradle.jvmargs=-Xmx4g" "-Dkotlin.daemon.jvm.options=-Xmx4g" "--parallel" "-Pani.android.abis=arm64-v8a"'
+    - id: 'step-11'
+      name: 'Cleanup temp files'
+      continue-on-error: true
+      run: 'chmod +x ./ci-helper/cleanup-temp-files-macos.sh && ./ci-helper/cleanup-temp-files-macos.sh'
+  release_github-macos-15-intel:
+    name: 'macOS 15 x86_64 (GitHub)'
+    runs-on:
+    - 'macos-15-intel'
+    needs:
+    - 'create-release'
+    - 'release_github-windows-2022'
+    - 'release_self-hosted-macos-15'
+    steps:
+    - id: 'step-0'
+      uses: 'actions/checkout@v4'
+      with:
+        lfs: 'true'
+        submodules: 'recursive'
+    - id: 'step-1'
+      name: 'Get Tag'
+      uses: 'dawidd6/action-get-tag@v1'
+    - id: 'step-2'
+      uses: 'bhowell2/github-substring-action@v1.0.0'
+      with:
+        value: '${{ steps.step-1.outputs.tag }}'
+        index_of_str: 'v'
+        default_return_value: '${{ steps.step-1.outputs.tag }}'
+    - id: 'step-3'
+      name: 'Free space for macOS'
+      continue-on-error: true
+      run: 'chmod +x ./ci-helper/free-space-macos.sh && ./ci-helper/free-space-macos.sh'
+    - id: 'step-4'
+      name: 'Setup JBR 21 for other OS'
+      uses: 'gmitch215/setup-java@6d2c5e1f82f180ae79f799f0ed6e3e5efb4e664d'
+      with:
+        java-version: '21'
+        distribution: 'jetbrains'
+      env:
+        GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+    - id: 'step-5'
+      run: 'echo "jvm.toolchain.version=21" >> local.properties'
+    - id: 'step-6'
+      run: 'chmod -R 777 .'
+    - id: 'step-7'
+      name: 'Install dependencies for macOS'
+      run: 'brew install ninja'
+    - id: 'step-8'
+      name: 'Setup Gradle'
+      uses: 'gradle/actions/setup-gradle@v3'
+      with:
+        cache-disabled: 'true'
+    - id: 'step-9'
+      name: 'Clean and download dependencies'
+      uses: 'nick-fields/retry@v2'
+      with:
+        timeout_minutes: '60'
+        max_attempts: '3'
+        command: './gradlew "--scan" "--no-configuration-cache" "-Porg.gradle.daemon.idletimeout=60000" "-Pkotlin.native.ignoreDisabledTargets=true" "-Dfile.encoding=UTF-8" "-Dorg.gradle.jvmargs=-Xmx4g" "-Dkotlin.daemon.jvm.options=-Xmx4g"'
+    - id: 'step-10'
+      name: 'Update Release Version Name'
+      env:
+        GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+        GITHUB_REPOSITORY: '${{ secrets.GITHUB_REPOSITORY }}'
+        CI_RELEASE_ID: '${{ needs.create-release.outputs.id }}'
+        CI_TAG: '${{ steps.step-1.outputs.tag }}'
+      run: './gradlew updateReleaseVersionNameFromGit "--scan" "--no-configuration-cache" "-Porg.gradle.daemon.idletimeout=60000" "-Pkotlin.native.ignoreDisabledTargets=true" "-Dfile.encoding=UTF-8" "-Dorg.gradle.jvmargs=-Xmx4g" "-Dkotlin.daemon.jvm.options=-Xmx4g"'
+    - id: 'step-11'
+      env:
+        ORG_GRADLE_PROJECT_mavenCentralUsername: '${{ secrets.ORG_GRADLE_PROJECT_mavenCentralUsername }}'
+        ORG_GRADLE_PROJECT_mavenCentralPassword: '${{ secrets.ORG_GRADLE_PROJECT_mavenCentralPassword }}'
+        ORG_GRADLE_PROJECT_signingInMemoryKey: '${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKey }}'
+        ORG_GRADLE_PROJECT_signingInMemoryKeyId: '${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKeyId }}'
+        ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: '${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKeyPassword }}'
+      run: './gradlew publish "--scan" "--no-configuration-cache" "-Porg.gradle.daemon.idletimeout=60000" "-Pkotlin.native.ignoreDisabledTargets=true" "-Dfile.encoding=UTF-8" "-Dorg.gradle.jvmargs=-Xmx4g" "-Dkotlin.daemon.jvm.options=-Xmx4g"'
