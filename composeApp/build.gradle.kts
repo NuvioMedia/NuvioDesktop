@@ -601,6 +601,41 @@ abstract class GenerateNativeRuntimeIndexTask : DefaultTask() {
     }
 }
 
+val mediampvRustDir = rootDir.resolve("mediamp/mediamp-mpv-rust")
+val mediampvBuildCiDir = rootDir.resolve("mediamp/mediamp-mpv/build-ci")
+
+val buildRustMediampv = tasks.register<Exec>("buildRustMediampv") {
+    description = "Build mediampv native library via cargo for Windows desktop"
+    enabled = isWindowsHost
+    workingDir = mediampvRustDir
+    commandLine("cargo", "build", "--release")
+    inputs.file(mediampvRustDir.resolve("Cargo.toml"))
+    inputs.dir(mediampvRustDir.resolve("src"))
+    outputs.file(mediampvRustDir.resolve("target/release/mediampv.dll"))
+}
+
+val mediampPrebuiltWinDir = rootDir.resolve("mediamp/mediamp-mpv/libmpv/lib/windows/x86_64")
+
+val prepareWindowsRustMediampv = tasks.register<Copy>("prepareWindowsRustMediampv") {
+    description = "Copy mediampv.dll, libmpv-2.dll and all ffmpeg DLLs to dev lookup directory"
+    enabled = isWindowsHost
+    dependsOn(buildRustMediampv)
+    into(mediampvBuildCiDir)
+    from(mediampvRustDir.resolve("target/release")) {
+        include("mediampv.dll")
+    }
+    if (mediampPrebuiltWinDir.isDirectory) {
+        from(mediampPrebuiltWinDir) {
+            include("*.dll")
+        }
+    } else {
+        val libmpv = windowsLibmpvDll
+        if (libmpv?.exists() == true) {
+            from(libmpv)
+        }
+    }
+}
+
 tasks.withType<Jar>().configureEach {
     if (isMacHost && name == "desktopJar") {
         dependsOn(buildMacosPlayerBridge)
@@ -643,7 +678,7 @@ if (isWindowsHost) {
         "packageReleaseUberJarForCurrentOS",
     )
     tasks.matching { it.name in desktopNativePlayerTasks }.configureEach {
-        dependsOn(buildWindowsPlayerBridge, prepareWindowsPlayerRuntime, generateWindowsPlayerRuntimeIndex)
+        dependsOn(buildWindowsPlayerBridge, prepareWindowsPlayerRuntime, generateWindowsPlayerRuntimeIndex, prepareWindowsRustMediampv)
     }
 }
 
@@ -730,6 +765,8 @@ kotlin {
         val desktopMain by getting {
             kotlin.srcDir(fullPluginSourceDir)
             dependencies {
+                implementation(project(":mediamp:mediamp-api"))
+                implementation(project(":mediamp:mediamp-mpv"))
                 implementation(compose.desktop.currentOs)
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.ktor.client.cio)
@@ -765,6 +802,10 @@ kotlin {
     }
 }
 
+val isLinuxHost = org.gradle.internal.os.OperatingSystem.current().isLinux
+val linuxBuildCiDir = file("${rootDir}/mediamp/mediamp-mpv/build-ci")
+val linuxRuntimeStagingDir = layout.buildDirectory.dir("native/linux-runtime")
+
 compose.desktop {
     application {
         mainClass = "com.nuvio.app.MainKt"
@@ -772,11 +813,22 @@ compose.desktop {
             ?: System.getenv("NUVIO_DESKTOP_SMOKE_PLAYER_URL")
         jvmArgs += listOfNotNull(
             "-Dapple.awt.application.appearance=NSAppearanceNameDarkAqua",
+            "-Dskiko.renderApi=OPENGL",
             "--add-opens=java.desktop/java.awt=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.lwawt=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.lwawt.macosx=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.awt.windows=ALL-UNNAMED",
             smokePlayerUrl?.takeIf { it.isNotBlank() }?.let { "-Dnuvio.desktop.smokePlayerUrl=$it" },
+            System.getenv("NUVIO_MEDIAMP_RUNTIME_DIR")?.takeIf { it.isNotBlank() }
+                ?.let { "-Dnuvio.mediamp.runtime.dir=$it" },
+            System.getenv("NUVIO_DEV_PLAYER_LOOKUP")?.takeIf { it.equals("true", ignoreCase = true) }
+                ?.let { "-Dnuvio.dev.player.lookup=true" },
+            if (isLinuxHost) "-Djava.library.path=\$APPDIR/lib/native" else null,
+            if (isWindowsHost) "-Djava.library.path=" + listOf(
+                mediampvBuildCiDir.absolutePath.replace("\\", "/"),
+                mediampvBuildCiDir.resolve("Release").absolutePath.replace("\\", "/"),
+                rootDir.resolve("mediamp/mediamp-mpv/libmpv/lib/windows/x86_64").absolutePath.replace("\\", "/"),
+            ).joinToString(";") else null,
         )
 
         nativeDistributions {
@@ -815,6 +867,89 @@ compose.desktop {
 
         buildTypes.release.proguard {
             isEnabled.set(false)
+        }
+    }
+}
+
+// ==================== Linux Native Runtime Packaging ====================
+
+val prepareLinuxPlayerRuntime = tasks.register<Sync>("prepareLinuxPlayerRuntime") {
+    enabled = isLinuxHost && linuxBuildCiDir.isDirectory
+    from(linuxBuildCiDir) {
+        include("*.so")
+    }
+    into(linuxRuntimeStagingDir.map { it.dir("native") })
+    doLast {
+        if (!enabled) return@doLast
+        val nativeDir = destinationDir
+        val hasPatchelf = runCatching {
+            project.exec {
+                commandLine("patchelf", "--version")
+                isIgnoreExitValue = true
+            }.exitValue == 0
+        }.getOrDefault(false)
+        if (hasPatchelf) {
+            nativeDir.listFiles { f -> f.name.endsWith(".so") }.orEmpty().forEach { soFile ->
+                project.exec {
+                    commandLine("patchelf", "--set-rpath", "\$ORIGIN", soFile.absolutePath)
+                }
+            }
+            logger.lifecycle("prepareLinuxPlayerRuntime: set RUNPATH=\$ORIGIN on native libs in ${nativeDir.absolutePath}")
+        } else {
+            logger.warn("prepareLinuxPlayerRuntime: patchelf not found — RUNPATH not set, native libs may not load")
+            logger.warn("  Install: sudo apt install patchelf  (Debian/Ubuntu)  |  sudo pacman -S patchelf  (Arch)")
+        }
+    }
+}
+
+tasks.withType<Jar>().configureEach {
+    if (isLinuxHost && name == "desktopJar") {
+        dependsOn(prepareLinuxPlayerRuntime)
+        from(prepareLinuxPlayerRuntime) {
+            into("native/linux")
+        }
+    }
+}
+
+if (isLinuxHost) {
+    val linuxDistTasks = listOf("createDistributable", "createReleaseDistributable")
+    tasks.matching { it.name in linuxDistTasks }.configureEach {
+        dependsOn(prepareLinuxPlayerRuntime)
+        doLast {
+            val distDir = layout.buildDirectory.dir("compose/binaries/main/app/Nuvio").get().asFile
+            if (!distDir.isDirectory) return@doLast
+            val nativeDir = distDir.resolve("lib/native")
+            nativeDir.mkdirs()
+            copy {
+                from(prepareLinuxPlayerRuntime)
+                into(nativeDir)
+            }
+            val configFile = distDir.resolve("lib/app/Nuvio.cfg")
+            if (configFile.exists()) {
+                val content = configFile.readLines().toMutableList()
+                val jlpEntry = "java-options=-Djava.library.path=\$APPDIR/lib/native"
+                if (content.none { "java.library.path" in it }) {
+                    val javaOptionsIdx = content.indexOfFirst { it == "[JavaOptions]" }
+                    if (javaOptionsIdx >= 0) {
+                        val insertAt = content.subList(javaOptionsIdx + 1, content.size)
+                            .indexOfFirst { !it.startsWith("java-options=") }
+                            .let { idx -> if (idx < 0) content.size else javaOptionsIdx + 1 + idx }
+                        content.add(insertAt, jlpEntry)
+                        configFile.writeText(content.joinToString("\n") + "\n")
+                    }
+                }
+            }
+            logger.lifecycle("Injected mediamp native libs into distribution: ${nativeDir.absolutePath}")
+        }
+    }
+}
+
+tasks.withType<JavaExec>().configureEach {
+    if (name in listOf("run", "runRelease") && isLinuxHost) {
+        val mediampDir = System.getenv("NUVIO_MEDIAMP_RUNTIME_DIR")?.takeIf { it.isNotBlank() }
+        if (mediampDir != null) {
+            val libmpvDir = "${project.rootDir}/mediamp/mediamp-mpv/libmpv/lib/linux/x86_64"
+            jvmArgs("-Djava.library.path=${mediampDir}:${libmpvDir}")
         }
     }
 }

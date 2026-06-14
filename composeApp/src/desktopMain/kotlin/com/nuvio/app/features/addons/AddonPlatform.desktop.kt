@@ -11,6 +11,8 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 
+private val restrictedHeaders = setOf("connection", "content-length", "expect", "host", "upgrade")
+
 internal actual object AddonStorage {
     private val store = DesktopStorage.store("nuvio_addons")
     private val json = Json { ignoreUnknownKeys = true }
@@ -92,7 +94,7 @@ actual suspend fun httpRequestRaw(
         )
 
     headers.forEach { (key, value) ->
-        if (key.isNotBlank() && value.isNotBlank()) {
+        if (key.isNotBlank() && value.isNotBlank() && key.trim().lowercase() !in restrictedHeaders) {
             requestBuilder.header(key, value)
         }
     }

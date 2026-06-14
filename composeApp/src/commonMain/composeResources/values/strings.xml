@@ -378,6 +378,7 @@
     <string name="compose_player_subtitles">Subtitles</string>
     <string name="compose_player_text_opacity">Text Opacity</string>
     <string name="compose_player_brightness_level">Brightness %1$s</string>
+    <string name="compose_player_volume">Volume</string>
     <string name="compose_player_volume_level">Volume %1$s</string>
     <string name="compose_player_muted">Muted</string>
     <string name="compose_player_downloaded">Downloaded</string>

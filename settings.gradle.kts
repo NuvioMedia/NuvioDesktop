@@ -29,3 +29,6 @@ dependencyResolutionManagement {
 }
 
 include(":composeApp")
+include(":mediamp:mediamp-api")
+include(":mediamp:mediamp-internal-utils")
+include(":mediamp:mediamp-mpv")

@@ -244,6 +244,36 @@ private fun PlayerScreenRuntime.handleDoubleTapSeek(
     }
 }
 
+internal fun PlayerScreenRuntime.currentPlayerVolume(): PlayerAudioLevel? =
+    playerController?.currentVolume() ?: gestureController?.currentVolume()
+
+internal fun PlayerScreenRuntime.setPlayerVolume(level: Float) {
+    val nextLevel = playerController?.setVolume(level) ?: gestureController?.setVolume(level)
+    if (nextLevel != null) {
+        visibleVolumeLevel = nextLevel
+        if (!nextLevel.isMuted && nextLevel.fraction > 0.001f) {
+            lastNonMutedVolume = nextLevel.fraction
+        }
+        showVolumeFeedback(nextLevel)
+        controlsVisible = true
+    }
+}
+
+internal fun PlayerScreenRuntime.adjustVolume(delta: Float) {
+    val current = currentPlayerVolume()?.fraction ?: lastNonMutedVolume
+    setPlayerVolume(current + delta)
+}
+
+internal fun PlayerScreenRuntime.toggleMute() {
+    val current = currentPlayerVolume()
+    if (current?.isMuted == true || (current?.fraction ?: 0f) <= 0.001f) {
+        setPlayerVolume(lastNonMutedVolume.coerceIn(0.05f, 1f))
+    } else {
+        lastNonMutedVolume = current?.fraction?.coerceIn(0.05f, 1f) ?: lastNonMutedVolume
+        setPlayerVolume(0f)
+    }
+}
+
 internal fun PlayerScreenRuntime.cycleResizeMode() {
     val nextMode = resizeMode.next()
     resizeMode = nextMode
@@ -313,6 +343,11 @@ internal fun PlayerScreenRuntime.rememberSurfaceGestureCallbacks(): PlayerSurfac
     val onSurfaceDoubleTap = rememberUpdatedState { offset: Offset ->
         if (playerControlsLocked) {
             revealLockedOverlay()
+            return@rememberUpdatedState
+        }
+        val fs = toggleFullscreen
+        if (fs != null) {
+            fs()
             return@rememberUpdatedState
         }
         if (!playerSettingsUiState.touchGesturesEnabled) {

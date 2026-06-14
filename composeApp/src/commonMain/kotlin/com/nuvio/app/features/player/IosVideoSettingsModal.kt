@@ -225,7 +225,7 @@ internal fun IosVideoSettingsModal(
 }
 
 @Composable
-private fun ToggleRow(
+internal fun ToggleRow(
     title: String,
     description: String,
     checked: Boolean,
@@ -244,7 +244,7 @@ private fun ToggleRow(
 }
 
 @Composable
-private fun PictureSlider(
+internal fun PictureSlider(
     title: String,
     value: Int,
     onValueChanged: (Int) -> Unit,
@@ -272,7 +272,7 @@ private fun PictureSlider(
 }
 
 @Composable
-private fun <T> OptionGroup(
+internal fun <T> OptionGroup(
     title: String,
     options: List<T>,
     selected: T,

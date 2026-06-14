@@ -12,6 +12,7 @@ import nuvio.composeapp.generated.resources.lang_polish
 import nuvio.composeapp.generated.resources.lang_portuguese_portugal
 import nuvio.composeapp.generated.resources.lang_spanish
 import nuvio.composeapp.generated.resources.lang_turkish
+import nuvio.composeapp.generated.resources.lang_arabic
 import nuvio.composeapp.generated.resources.lang_norwegian
 import org.jetbrains.compose.resources.StringResource
 
@@ -19,6 +20,7 @@ enum class AppLanguage(
     val code: String,
     val labelRes: StringResource,
 ) {
+    ARABIC("ar", Res.string.lang_arabic),
     CZECH("cs", Res.string.lang_czech),
     ENGLISH("en", Res.string.lang_english),
     FRENCH("fr", Res.string.lang_french),

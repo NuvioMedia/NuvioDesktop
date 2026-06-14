@@ -81,6 +81,14 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         !isP2pPlaybackActive || initialLoadCompleted || p2pStats == null -> null
         else -> (p2pStats.preloadedBytes.toFloat() / P2pInitialPreloadTargetBytes.toFloat()).coerceIn(0f, 1f)
     }
+    LaunchedEffect(playerController, gestureController, activeSourceUrl) {
+        val current = currentPlayerVolume()
+        visibleVolumeLevel = current
+        if (current != null && !current.isMuted && current.fraction > 0.001f) {
+            lastNonMutedVolume = current.fraction
+        }
+    }
+
     val showP2pRebufferStats = isP2pPlaybackActive &&
         initialLoadCompleted &&
         playbackSnapshot.isLoading &&
@@ -473,6 +481,9 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             onSeekForward = { seekBy(10_000L) },
             onResizeModeClick = { cycleResizeMode() },
             onSpeedClick = { cyclePlaybackSpeed() },
+            volumeLevel = visibleVolumeLevel,
+            onVolumeChange = ::setPlayerVolume,
+            onMuteClick = ::toggleMute,
             onSubtitleClick = {
                 refreshTracks()
                 showSubtitleModal = true

@@ -142,5 +142,33 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
         )
         runtime.BindPlayerRuntimeEffects()
         runtime.RenderPlayerRuntimeUi()
+
+        val fullscreenController = rememberPlayerFullscreenController()
+        runtime.toggleFullscreen = {
+            if (fullscreenController.isFullscreenSupported) {
+                fullscreenController.toggleFullscreen()
+            }
+        }
+        BindPlayerKeyboardShortcuts(
+            enabled = runtime.errorMessage == null,
+            handlers = PlayerKeyboardShortcutHandlers(
+                toggleFullscreen = { fullscreenController.toggleFullscreen() },
+                togglePlayback = { runtime.togglePlayback() },
+                seekForward = { runtime.seekBy(10000L) },
+                seekBackward = { runtime.seekBy(-10000L) },
+                volumeUp = { runtime.adjustVolume(0.1f) },
+                volumeDown = { runtime.adjustVolume(-0.1f) },
+                toggleMute = { runtime.toggleMute() },
+                cyclePlaybackSpeed = { runtime.cyclePlaybackSpeed() },
+                playNextEpisode = { runtime.playNextEpisode() },
+                skipActiveSegment = {
+                    val interval = runtime.activeSkipInterval
+                    if (interval != null) {
+                        runtime.playerController?.seekTo((interval.endTime * 1000).toLong())
+                        runtime.skipIntervalDismissed = true
+                    }
+                },
+            ),
+        )
     }
 }

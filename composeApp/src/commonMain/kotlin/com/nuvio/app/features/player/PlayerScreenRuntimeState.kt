@@ -89,6 +89,10 @@ internal class PlayerScreenRuntime(
     var parentalGuideLabels: ParentalGuideLabels = ParentalGuideLabels("", "", "", "", "", "", "", "")
 
     var gestureController: PlayerGestureController? = null
+    var toggleFullscreen: (() -> Unit)? = null
+
+    var visibleVolumeLevel: PlayerAudioLevel? = null
+    var lastNonMutedVolume: Float = 0.5f
 
     var controlsVisible by mutableStateOf(true)
     var playerControlsLocked by mutableStateOf(false)
