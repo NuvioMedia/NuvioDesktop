@@ -1241,6 +1241,18 @@ tasks.register("packageAppImageWithUpdate") {
             logger.warn("AppImage: distribution dir not found at ${appDir.absolutePath}")
             return@doLast
         }
+        // jpackage's app-image has no AppRun; the AppImage runtime requires one as its
+        // entrypoint. Without it the image fails to launch with "execv error: No such file
+        // or directory". Generate a minimal AppRun that execs the jpackage launcher.
+        val appRun = appDir.resolve("AppRun")
+        appRun.writeText(
+            "#!/bin/sh\n" +
+            "HERE=\"\$(dirname \"\$(readlink -f \"\${0}\")\")\"\n" +
+            "cd \"\${HERE}\" || exit 1\n" +
+            "exec \"\${HERE}/bin/Nuvio\" \"\$@\"\n"
+        )
+        appRun.setExecutable(true)
+
         val outputDir = layout.buildDirectory.dir("compose/binaries/main/appimage").get().asFile
         outputDir.mkdirs()
         val appImageFile = outputDir.resolve("Nuvio-${desktopReleasePackageVersion}-x86_64.AppImage")
