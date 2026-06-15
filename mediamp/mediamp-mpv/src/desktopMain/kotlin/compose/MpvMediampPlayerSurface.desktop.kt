@@ -1,28 +1,32 @@
-/*
- * Copyright (C) 2024-2026 OpenAni and contributors.
- *
- * Use of this source code is governed by the Apache License version 2 license, which can be found at the following link.
- *
- * https://github.com/open-ani/mediamp/blob/main/LICENSE
- */
 @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 
 package org.openani.mediamp.mpv.compose
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.ComposeWindow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.window.LocalWindow
+import com.sun.jna.Native
 import org.jetbrains.skia.BackendTexture
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
@@ -30,9 +34,13 @@ import org.jetbrains.skia.Rect
 import org.jetbrains.skia.SurfaceOrigin
 import org.openani.mediamp.InternalMediampApi
 import org.openani.mediamp.PlaybackState
+import org.openani.mediamp.internal.Platform
+import org.openani.mediamp.internal.currentPlatform
 import org.openani.mediamp.mpv.MpvMediampPlayer
+import org.openani.mediamp.mpv.utils.ChildHwndProvider
 import org.openani.mediamp.mpv.utils.OpenGLComponentProvider
 import org.openani.mediamp.mpv.utils.findSkiaLayer
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 @OptIn(InternalMediampApi::class)
@@ -41,9 +49,167 @@ actual fun MpvMediampPlayerSurface(
     player: MpvMediampPlayer,
     modifier: Modifier,
 ) {
+    if (currentPlatform() is Platform.Windows) {
+        WindowsWidSurface(player, modifier)
+    } else {
+        LegacyGlSurface(player, modifier)
+    }
+}
+
+@OptIn(InternalMediampApi::class)
+@Composable
+private fun WindowsWidSurface(
+    player: MpvMediampPlayer,
+    modifier: Modifier,
+) {
     val window = LocalWindow.current as ComposeWindow
-    val components = remember(window) {
-        window.findSkiaLayer()?.let { OpenGLComponentProvider(it) }
+    val provider = remember(window) {
+        ChildHwndProvider(Native.getWindowPointer(window))
+    }
+    var childHwnd by remember { mutableLongStateOf(0L) }
+    var surfaceSize by remember { mutableStateOf(IntSize.Zero) }
+    var surfaceOffset by remember { mutableStateOf(IntOffset.Zero) }
+    var initialized by remember { mutableStateOf(false) }
+    val fullscreenRevision = LocalWindowFullscreenRevision.current
+
+    // Create HWND early (before any user interaction) so wid is set
+    // before loadfile. Initial position/size is corrected by layout below.
+    DisposableEffect(window, player) {
+        val hwnd = provider.create(
+            x = surfaceOffset.x,
+            y = surfaceOffset.y,
+            width = surfaceSize.width.coerceAtLeast(320),
+            height = surfaceSize.height.coerceAtLeast(240),
+        )
+        if (hwnd != 0L) {
+            childHwnd = hwnd
+        }
+
+        onDispose {
+            if (initialized) {
+                player.impl.command("stop")
+            }
+            provider.destroy()
+            childHwnd = 0L
+        }
+    }
+
+    // Initialize player in background to prevent UI freeze
+    LaunchedEffect(childHwnd) {
+        if (childHwnd == 0L) return@LaunchedEffect
+        if (!initialized) {
+            val initResult = player.initialize(childHwnd)
+            println("MPV_SURFACE initialize($childHwnd)=$initResult (async init)")
+            initialized = true
+        }
+    }
+
+    // Reposition HWND after layout provides correct position/size
+    LaunchedEffect(childHwnd, surfaceOffset, surfaceSize) {
+        if (childHwnd == 0L) return@LaunchedEffect
+        provider.setPos(
+            x = surfaceOffset.x,
+            y = surfaceOffset.y,
+            width = surfaceSize.width.coerceAtLeast(1),
+            height = surfaceSize.height.coerceAtLeast(1),
+        )
+    }
+
+    // When fullscreen transitions occur, recreate the child HWND and update
+    // mpv's wid. The parent window's style changes (WS_OVERLAPPEDWINDOW ↔
+    // WS_POPUP) can orphan the child HWND's rendering surface. Forcing a new
+    // HWND + setWid makes mpv recreate its video output from scratch.
+    LaunchedEffect(fullscreenRevision) {
+        if (!initialized || childHwnd == 0L) return@LaunchedEffect
+        if (fullscreenRevision == 0) return@LaunchedEffect  // skip initial emission
+
+        println("MPV_SURFACE fullscreenTransition revision=$fullscreenRevision player=${System.identityHashCode(player)}")
+
+        // Get current playback position before detaching (seconds)
+        val currentPosSec = runCatching {
+            player.impl.getPropertyDouble("time-pos")
+        }.getOrDefault(0.0)
+
+        // First detach MPV from the old HWND so it doesn't try to render
+        // to a window that will be orphaned by the parent style change.
+        player.impl.command("set", "wid", "0")
+        // Give mpv a moment to detach
+        delay(30)
+
+        val oldHwnd = childHwnd
+        childHwnd = 0L
+
+        // Create new child HWND parented to the (already restyled) Compose window
+        val newHwnd = provider.create(
+            x = surfaceOffset.x,
+            y = surfaceOffset.y,
+            width = surfaceSize.width.coerceAtLeast(320),
+            height = surfaceSize.height.coerceAtLeast(240),
+        )
+        if (newHwnd == 0L) {
+            println("MPV_SURFACE fullscreenTransition create failed, reverting to old HWND")
+            childHwnd = oldHwnd
+            // Try to reattach the old HWND after style change
+            player.setWid(oldHwnd)
+            return@LaunchedEffect
+        }
+
+        childHwnd = newHwnd
+
+        // Attach MPV to the new child HWND; setWid handles VO reconfiguration
+        val widResult = player.setWid(newHwnd)
+        println("MPV_SURFACE setWid($newHwnd)=$widResult (fullscreenTransition)")
+
+        if (widResult) {
+            // Restore playback position if we had one
+            if (currentPosSec > 0.0) {
+                player.impl.command("set", "time-pos", currentPosSec.toString())
+            }
+        }
+
+        // Destroy old HWND after a brief delay so MPV has time to switch
+        if (oldHwnd != 0L && oldHwnd != newHwnd) {
+            delay(50)
+            provider.destroyHwnd(oldHwnd)
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .background(Color.Black)
+            .onGloballyPositioned { coordinates: LayoutCoordinates ->
+                val pos = coordinates.localToWindow(Offset.Zero)
+                surfaceOffset = IntOffset(pos.x.roundToInt(), pos.y.roundToInt())
+            }
+            .onSizeChanged { size: IntSize ->
+                surfaceSize = size
+            }
+    )
+}
+
+@OptIn(InternalMediampApi::class)
+@Composable
+private fun LegacyGlSurface(
+    player: MpvMediampPlayer,
+    modifier: Modifier,
+) {
+    val window = LocalWindow.current as ComposeWindow
+    val fullscreenRevision = LocalWindowFullscreenRevision.current
+    var currentSkiaLayer by remember { mutableStateOf(window.findSkiaLayer()) }
+
+    LaunchedEffect(window) {
+        while (true) {
+            kotlinx.coroutines.delay(100)
+            val newLayer = window.findSkiaLayer()
+            if (newLayer !== currentSkiaLayer) {
+                println("MPV_DESKTOP_SURFACE skiaLayerChanged old=${System.identityHashCode(currentSkiaLayer)} new=${System.identityHashCode(newLayer)}")
+                currentSkiaLayer = newLayer
+            }
+        }
+    }
+
+    val components = remember(currentSkiaLayer) {
+        currentSkiaLayer?.let { OpenGLComponentProvider(it) }
     }
 
     var textureId by remember(player) { mutableIntStateOf(0) }
@@ -55,6 +221,8 @@ actual fun MpvMediampPlayerSurface(
     var lastLoggedReadPixels by remember(player) { mutableStateOf<String?>(null) }
     var lastLoggedMpvProps by remember(player) { mutableStateOf<String?>(null) }
     var pendingTextureSize by remember(player) { mutableStateOf<Size?>(null) }
+    var hadSuccessfulRender by remember(player) { mutableStateOf(false) }
+    var skipRenderRecovery by remember(player) { mutableStateOf(false) }
     val interpolator = remember(player) { FrameInterpolator() }
     val renderDebugMode = remember {
         System.getProperty("nuvio.mpv.render.debug")
@@ -132,21 +300,8 @@ actual fun MpvMediampPlayerSurface(
         return contextCreated
     }
 
-    // Bind the render context to BOTH the GL components and the player. When
-    // the upstream wrapper recreates the player (source / episode switch keyed
-    // on the stream identity) the components instance can be the same window,
-    // so keying only on `components` would skip the render-context creation
-    // for the new player and leave it rendering nowhere. Keying on the player
-    // ensures every fresh MpvMediampPlayer gets its own render context bound
-    // to the current SkiaLayer GL device/context.
     DisposableEffect(components, player) {
         if (components == null) return@DisposableEffect onDispose { }
-
-        // On Linux, GL context is NOT current during composition phase. The
-        // Canvas callback below is where OpenGL context is bound to the thread,
-        // so we defer context creation to the first Canvas frame instead.
-        // On Windows, wglMakeCurrent tolerates being called without a current
-        // context, so the Canvas path also works there.
 
         onDispose {
             releaseTextureResources()
@@ -161,8 +316,33 @@ actual fun MpvMediampPlayerSurface(
         interpolator.frameLoop()
     }
 
+    // When fullscreen transitions occur, force a full pipeline reset on the
+    // LegacyGlSurface path (Linux/macOS). Without this, mpv's render context
+    // can hold stale dimensions after the window resizes, producing a black
+    // frame. Releasing all resources and resetting currentSize ensures the
+    // Canvas recreates the texture and render context from scratch.
+    LaunchedEffect(fullscreenRevision) {
+        if (fullscreenRevision == 0) return@LaunchedEffect
+
+        println("MPV_SURFACE_LINUX fullscreenTransition revision=$fullscreenRevision player=${System.identityHashCode(player)}")
+
+        releaseTextureResources()
+        runCatching { player.releaseRenderContext() }
+        renderContextInitialized = false
+        lastContextSignature = null
+        textureId = 0
+        player.currentSize = null
+        pendingTextureSize = null
+        hadSuccessfulRender = false
+
+        runCatching {
+            components?.directContext?.resetGLAll()
+        }
+    }
+
     Canvas(modifier = modifier) {
         interpolator.updateSubscription
+        skipRenderRecovery = false
 
         if (components == null) return@Canvas
         if (player.getCurrentPlaybackState() == PlaybackState.DESTROYED) return@Canvas
@@ -203,9 +383,6 @@ actual fun MpvMediampPlayerSurface(
                 return@Canvas
             }
 
-            // Defer texture recreation when the size is still changing — going
-            // fullscreen can trigger 3+ rapid resize events and recreating the
-            // texture on each one produces visible black flicker.
             if (player.currentSize != null && textureId != 0) {
                 if (pendingTextureSize != physicalSize) {
                     pendingTextureSize = physicalSize
@@ -231,22 +408,18 @@ actual fun MpvMediampPlayerSurface(
                 lastLoggedSurfaceSize = surfaceSizeKey
             }
 
-            // Keep old Skia wrappers alive during texture recreation so
-            // drawImageRect below never sees null (which would produce a
-            // black frame). Close them only after the new texture is fully
-            // adopted.
             val oldImage = player.image
             val oldBackendTexture = player.backendTexture
+            val hadSize = player.currentSize
+            val hadTextureId = textureId
             player.image = null
             player.backendTexture = null
             textureId = 0
             player.currentSize = null
 
-            // Keep libmpv's render context alive on normal size changes. The
-            // render API documents that freeing an active render context
-            // disables video; resize only needs a fresh GL render target.
             runCatching { components.directContext.resetGLAll() }
 
+            val hadTexture = hadSize != null && hadTextureId != 0
             val newTextureId = player.createTexture(targetWidth, targetHeight)
 
             if (newTextureId != 0) {
@@ -285,12 +458,15 @@ actual fun MpvMediampPlayerSurface(
                             "textureAdoptFailed size=$surfaceSizeKey texture=$newTextureId " +
                                 "player=${System.identityHashCode(player)}",
                         )
+                        if (hadTexture) {
+                            recreateRenderContext(components, reason = "textureAdoptFailedRecovery", surfaceSizeKey = surfaceSizeKey)
+                        }
                     } else {
-                        // Close old resources only after new ones are ready
                         oldImage?.close()
                         oldBackendTexture?.close()
                         textureId = newTextureId
                         player.currentSize = physicalSize
+                        skipRenderRecovery = true
                         if (lastLoggedTextureSize != surfaceSizeKey) {
                             logSurface(
                                 "textureAllocated size=$surfaceSizeKey dpi=${components.currentDpi} texture=$textureId " +
@@ -301,15 +477,24 @@ actual fun MpvMediampPlayerSurface(
                     }
                 }
             } else {
-                // Texture creation failed — leave currentSize null so the next
-                // frame retries instead of getting stuck rendering nothing.
-                player.currentSize = null
-                oldImage?.close()
-                oldBackendTexture?.close()
-                logSurface(
-                    "textureCreateFailed size=$surfaceSizeKey signature=$currentContextSignature " +
-                        "player=${System.identityHashCode(player)}",
-                )
+                // Don't recreate context on initial texture creation failure —
+                // mpv may not have a decoded frame yet, and createTexture can return
+                // 0 transiently during startup. Only trigger recovery if we had a
+                // previously working texture that now fails.
+                if (hadTexture) {
+                    recreateRenderContext(components, reason = "textureCreateFailedRecovery", surfaceSizeKey = surfaceSizeKey)
+                } else {
+                    player.currentSize = null
+                    oldImage?.close()
+                    oldBackendTexture?.close()
+                    if (lastLoggedSurfaceSize != surfaceSizeKey) {
+                        logSurface(
+                            "textureCreateDeferred size=$surfaceSizeKey signature=$currentContextSignature " +
+                                "player=${System.identityHashCode(player)}",
+                        )
+                        lastLoggedSurfaceSize = surfaceSizeKey
+                    }
+                }
             }
         }
 
@@ -322,9 +507,6 @@ actual fun MpvMediampPlayerSurface(
                 else -> runCatching { player.renderFrame() }
                     .getOrDefault(false)
             }
-            // Always reset GL state after renderFrame(), even on failure, to
-            // prevent corrupted GL state from triggering a SIGSEGV in Skiko's
-            // GrDirectContext::resetContext on the next frame.
             runCatching { components.directContext.resetGLAll() }
             if (!renderResult) {
                 val failureKey = "$surfaceSizeKey:$textureId:$currentContextSignature"
@@ -335,8 +517,14 @@ actual fun MpvMediampPlayerSurface(
                     )
                     lastLoggedRenderFailure = failureKey
                 }
+                if (hadSuccessfulRender && !skipRenderRecovery) {
+                    runCatching { player.releaseTexture() }
+                    releaseSkiaTextureResources()
+                    recreateRenderContext(components, reason = "renderFrameRecovery", surfaceSizeKey = surfaceSizeKey)
+                }
                 return@Canvas
             }
+            hadSuccessfulRender = true
             if (renderDebugMode == "readpixels") {
                 val stats = runCatching { player.readTextureStats() }.getOrDefault("readTextureStatsFailed")
                 if (lastLoggedReadPixels != stats) {

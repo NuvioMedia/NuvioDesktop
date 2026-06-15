@@ -1,0 +1,76 @@
+name: Build macOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'composeApp/**'
+      - 'mediamp/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-macos:
+    name: Build macOS DMG (arm64)
+    runs-on: macos-14  # Apple Silicon runner
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.2'
+
+      - name: Restore mpv macOS libs cache
+        id: cache-mpv
+        uses: actions/cache@v4
+        with:
+          path: MPVKit/dist
+          key: mpv-macos-${{ runner.arch }}-0.41.0-r12
+
+      - name: Download mpv macOS libs
+        if: steps.cache-mpv.outputs.cache-hit != 'true'
+        run: bash scripts/setup-macos-libs.sh
+
+      - name: Build native player bridge
+        run: ./gradlew :composeApp:buildMacosPlayerBridge --no-daemon
+
+      - name: Package DMG
+        run: ./gradlew :composeApp:packageDmg --no-daemon
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nuvio-macOS-arm64
+          path: composeApp/build/compose/binaries/**/*.dmg
+          retention-days: 30
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-logs
+          path: |
+            composeApp/build/reports/
+            ~/.gradle/daemon/
+          retention-days: 7

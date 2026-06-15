@@ -1,8 +1,10 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputDirectory
@@ -328,9 +330,8 @@ val mpvKitGeneratedLibSearchArgs = mpvKitGeneratedPkgConfigDirs
 val missingMpvKitMacosFrameworks = if (mpvKitLibmpvPkgConfigFile.exists()) emptyList() else listOf("mpv.pc")
 val missingMpvKitMacosMessage = """
     MPVKit macOS libmpv artifacts are missing for $macosPlayerBridgeArch: ${missingMpvKitMacosFrameworks.joinToString()}.
-    Build MPVKit's macOS runtime first:
-      cd ${mpvKitRoot.absolutePath}
-      make build platform=macos
+    The setup task will auto-download them from Soia's mpv release.
+    Or run manually: scripts/setup-macos-libs.sh
     Or pass -Pnuvio.mpvkit.dir=/absolute/path/to/MPVKit.
 """.trimIndent()
 val missingMpvKitMacosShellMessage = missingMpvKitMacosMessage.replace("'", "'\"'\"'")
@@ -338,14 +339,66 @@ val macosPlayerBridgeSourceFile = macosPlayerBridgeSource.asFile
 val macosPlayerBridgeOutputFile = macosPlayerBridgeOutput.get().asFile
 val macosPlayerBridgeJavaHome = providers.systemProperty("java.home").get()
 val mpvKitLibmpvStaticLib = File(mpvKitLibmpvRoot, "lib/libmpv.a")
+val mpvKitLibmpvDynamicLib = File(mpvKitLibmpvRoot, "lib/libmpv.2.dylib")
+val mpvKitHasValidLib = mpvKitLibmpvStaticLib.exists() || mpvKitLibmpvDynamicLib.exists()
+
+// Auto-setup task: downloads mpv macOS libs + headers if MPVKit is empty
+val setupMacosMpvLibs = tasks.register<Exec>("setupMacosMpvLibs") {
+    description = "Download mpv macOS libraries from Soia release + headers from official mpv repo"
+    onlyIf { isMacHost && !mpvKitHasValidLib }
+    workingDir = rootProject.layout.projectDirectory.asFile
+    commandLine("bash", "scripts/setup-macos-libs.sh")
+}
+
 if (isMacHost) {
     macosPlayerBridgeOutputFile.parentFile.mkdirs()
 }
-val macosPlayerBridgeCommand = if (missingMpvKitMacosFrameworks.isNotEmpty()) {
-    listOf(
+val macosPlayerBridgeCommand = if (!isMacHost) {
+    // Not on macOS — task will be disabled, provide a no-op command
+    listOf("/bin/sh", "-c", "true")
+} else if (missingMpvKitMacosFrameworks.isNotEmpty()) {
+    mutableListOf(
         "/bin/sh",
         "-c",
-        "printf '%s\\n' '$missingMpvKitMacosShellMessage' >&2; exit 1",
+        """
+        set -eu
+        # Check if setup script already ran (libs present but mpv.pc might not be found yet)
+        if [ -f ${shellQuote(mpvKitLibmpvDynamicLib.absolutePath)} ]; then
+            echo "[buildMacosPlayerBridge] libmpv.2.dylib found, but mpv.pc not in pkg-config path."
+        fi
+        # Let the build continue — if pkg-config fails, we'll see the error
+        SDKROOT="${'$'}(xcrun --sdk macosx --show-sdk-path)"
+        SWIFTC="${'$'}(xcrun --toolchain XcodeDefault --find swiftc)"
+        SWIFT_TOOLCHAIN="${'$'}{SWIFTC%/usr/bin/swiftc}"
+        SWIFT_LIB="${'$'}{SWIFT_TOOLCHAIN}/usr/lib/swift/macosx"
+        DEFAULT_PC="${'$'}(pkg-config --variable pc_path pkg-config)"
+        export PKG_CONFIG_LIBDIR=${shellQuote(mpvKitGeneratedPkgConfigDirs.joinToString(":"))}:"${'$'}{DEFAULT_PC}"
+        exec xcrun clang++ \
+          -std=c++17 \
+          -dynamiclib \
+          -fobjc-arc \
+          -ObjC++ \
+          -arch ${shellQuote(macosPlayerBridgeArch)} \
+          -isysroot "${'$'}{SDKROOT}" \
+          -mmacosx-version-min=11.0 \
+          ${shellQuote(macosPlayerBridgeSourceFile.absolutePath)} \
+          -o ${shellQuote(macosPlayerBridgeOutputFile.absolutePath)} \
+          -I${shellQuote("$macosPlayerBridgeJavaHome/include")} \
+          -I${shellQuote("$macosPlayerBridgeJavaHome/include/darwin")} \
+          -I${shellQuote(File(mpvKitLibmpvRoot, "include").absolutePath)} \
+          $mpvKitGeneratedLibSearchArgs \
+          -L"${'$'}{SWIFT_LIB}" \
+          -L/usr/lib/swift \
+          -framework AppKit \
+          -framework WebKit \
+          -framework Metal \
+          -framework Security \
+          -lswiftCompatibility56 \
+          -lswiftCompatibilityConcurrency \
+          -lswiftCompatibilityPacks \
+          -lc++ \
+          ${'$'}(pkg-config --libs mpv)
+        """.trimIndent(),
     )
 } else {
     mutableListOf(
@@ -390,9 +443,13 @@ val macosPlayerBridgeCommand = if (missingMpvKitMacosFrameworks.isNotEmpty()) {
 val buildMacosPlayerBridge = tasks.register<Exec>("buildMacosPlayerBridge") {
     notCompatibleWithConfigurationCache("Builds a host-local player bridge against MPVKit's macOS libmpv artifacts.")
     enabled = isMacHost
+    dependsOn(setupMacosMpvLibs)
     inputs.file(macosPlayerBridgeSource)
     if (mpvKitLibmpvStaticLib.exists()) {
         inputs.file(mpvKitLibmpvStaticLib)
+    }
+    if (mpvKitLibmpvDynamicLib.exists()) {
+        inputs.file(mpvKitLibmpvDynamicLib)
     }
     if (mpvKitLibmpvPkgConfigFile.exists()) {
         inputs.file(mpvKitLibmpvPkgConfigFile)
@@ -680,6 +737,71 @@ if (isWindowsHost) {
     tasks.matching { it.name in desktopNativePlayerTasks }.configureEach {
         dependsOn(buildWindowsPlayerBridge, prepareWindowsPlayerRuntime, generateWindowsPlayerRuntimeIndex, prepareWindowsRustMediampv)
     }
+
+    val portableLauncherDir = layout.buildDirectory.dir("portable-launcher")
+
+    val generatePortableLauncher by tasks.registering {
+        outputs.dir(portableLauncherDir)
+        doLast {
+            portableLauncherDir.get().asFile.mkdirs()
+            portableLauncherDir.get().asFile.resolve("Run.bat").writeText(
+                """@echo off
+                |start "" "%~dp0Nuvio.exe" %*
+                |""".trimMargin()
+            )
+        }
+    }
+
+    val fixReleaseDistributableConfig by tasks.registering {
+        notCompatibleWithConfigurationCache("Modifies jpackage-generated config in place")
+        dependsOn("createReleaseDistributable")
+        doLast {
+            val cfgFile = layout.buildDirectory.file("compose/binaries/main-release/app/Nuvio/app/Nuvio.cfg").get().asFile
+            if (cfgFile.exists()) {
+                val content = cfgFile.readText()
+                val updated = content.replace(
+                    Regex("(?m)^java-options=-Djava\\.library\\.path=.*$"),
+                    "java-options=-Djava.library.path=\\${'$'}APPDIR/lib/native"
+                )
+                cfgFile.writeText(updated)
+            }
+        }
+    }
+
+    val packageReleasePortable by tasks.registering(Zip::class) {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        dependsOn(
+            "createReleaseDistributable",
+            fixReleaseDistributableConfig,
+            generatePortableLauncher,
+            buildWindowsPlayerBridge,
+            prepareWindowsPlayerRuntime,
+            generateWindowsPlayerRuntimeIndex,
+            prepareWindowsRustMediampv,
+        )
+
+        val distDir = layout.buildDirectory.dir("compose/binaries/main-release/app/Nuvio")
+        from(distDir)
+
+        from(windowsPlayerBridgeOutput) { into("lib/native") }
+        from(windowsPlayerBridgePdb) { into("lib/native") }
+        from(windowsPlayerRuntimeOutput) { into("lib/native") }
+        from(mediampvRustDir.resolve("target/release/mediampv.dll")) { into("lib/native") }
+        from(mediampvBuildCiDir) {
+            include("*.dll")
+            into("lib/native")
+        }
+        from(portableLauncherDir)
+
+        val portableMarkerFile = layout.buildDirectory.file("compose/tmp/portable-marker/Nuvio.portable")
+        doFirst {
+            portableMarkerFile.get().asFile.also { it.parentFile.mkdirs() }.writeText("")
+        }
+        from(portableMarkerFile)
+
+        archiveFileName.set("Nuvio-${desktopReleasePackageVersion}-x86_64-portable.zip")
+        destinationDirectory.set(layout.buildDirectory.dir("compose/binaries/main-release/portable"))
+    }
 }
 
 tasks.withType<KotlinCompilationTask<*>>().configureEach {
@@ -842,7 +964,12 @@ compose.desktop {
         }
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.AppImage)
+            val hostOs = System.getProperty("os.name").lowercase()
+            when {
+                hostOs.contains("windows") -> targetFormats(TargetFormat.Exe, TargetFormat.Msi)
+                hostOs.contains("mac") -> targetFormats(TargetFormat.Dmg)
+                else -> targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.AppImage)
+            }
             packageName = "Nuvio"
             packageVersion = desktopReleasePackageVersion
             vendor = "Nuvio Media"
@@ -869,6 +996,8 @@ compose.desktop {
                 shortcut = true
                 menu = true
                 menuGroup = "Nuvio"
+                exePackageVersion = desktopReleasePackageVersion
+                msiPackageVersion = desktopReleasePackageVersion
             }
             linux {
                 iconFile.set(project.file("desktop-icons/nuvio_256.png"))
@@ -879,6 +1008,106 @@ compose.desktop {
             isEnabled.set(false)
         }
     }
+}
+
+// ==================== Windows Native Runtime Packaging ====================
+
+val packageWindowsNativeRuntime = tasks.register<Copy>("packageWindowsNativeRuntime") {
+    enabled = isWindowsHost
+    group = "compose desktop"
+    description = "Copies MediaMP/MPV native DLLs into the Windows app image."
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    val mediampNativeBuildDir = mediampvBuildCiDir
+    val mediampPrebuiltDir = rootDir.resolve("mediamp/mediamp-mpv/libmpv/lib/windows/x86_64")
+    val nativeDir = layout.buildDirectory.dir("compose/binaries/main-release/app/Nuvio/lib/native")
+    val launcherDir = layout.buildDirectory.dir("compose/binaries/main-release/app/Nuvio")
+
+    from(mediampNativeBuildDir) {
+        include("*.dll")
+    }
+    from(mediampNativeBuildDir.resolve("Release")) {
+        include("*.dll")
+    }
+    from(mediampPrebuiltDir) {
+        include("*.dll")
+    }
+    from(windowsPlayerRuntimeOutput) {
+        include("*.dll")
+    }
+    from(windowsPlayerBridgeOutput.map { it.asFile.parentFile }) {
+        include("*.dll", "*.pdb")
+    }
+    into(nativeDir)
+
+    doLast {
+        val launcherDirectory = launcherDir.get().asFile
+        val nativeDirectory = nativeDir.get().asFile
+        nativeDirectory.listFiles { f -> f.isFile && f.extension.equals("dll", ignoreCase = true) }
+            .orEmpty()
+            .forEach { dll ->
+                dll.copyTo(launcherDirectory.resolve(dll.name), overwrite = true)
+            }
+    }
+}
+
+tasks.matching { it.name == "createReleaseDistributable" }.configureEach {
+    finalizedBy(packageWindowsNativeRuntime)
+}
+
+packageWindowsNativeRuntime.configure {
+    mustRunAfter(tasks.matching { it.name == "createReleaseDistributable" })
+}
+
+val packageReleaseInnoExe = tasks.register<Exec>("packageReleaseInnoExe") {
+    enabled = isWindowsHost
+    group = "compose desktop"
+    description = "Builds a Windows installer with Inno Setup (no WiX), using the release app image."
+    dependsOn("createReleaseDistributable")
+    dependsOn(packageWindowsNativeRuntime)
+
+    val appImageDir = layout.buildDirectory.dir("compose/binaries/main-release/app/Nuvio").get().asFile.absolutePath
+    val outputDir = layout.buildDirectory.dir("compose/binaries/main-release/inno").get().asFile.absolutePath
+    val scriptPath = layout.projectDirectory.file("scripts/package-release-inno.ps1").asFile.absolutePath
+    val setupIcon = layout.projectDirectory.file("src/desktopMain/resources/icons/nuvio-app-icon.ico").asFile.absolutePath
+    val appIcon = layout.projectDirectory.file("src/desktopMain/resources/icons/nuvio-app-icon.ico").asFile.absolutePath
+    val sidebarPng = layout.projectDirectory.file("src/desktopMain/resources/icons/nuvio-installer-sidebar.png").asFile.absolutePath
+
+    commandLine(
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        scriptPath,
+        "-AppDir",
+        appImageDir,
+        "-OutputDir",
+        outputDir,
+        "-AppVersion",
+        desktopReleasePackageVersion,
+        "-AppBuild",
+        desktopReleaseVersionCode.toString(),
+        "-SetupIcon",
+        setupIcon,
+        "-AppIcon",
+        appIcon,
+        "-SidebarPng",
+        sidebarPng,
+    )
+}
+
+tasks.matching {
+    it.name == "packageReleaseDistributionForCurrentOS" ||
+        it.name == "packageReleaseExe" ||
+        it.name == "packageReleaseMsi"
+}.configureEach {
+    dependsOn("createReleaseDistributable")
+    dependsOn(packageWindowsNativeRuntime)
+}
+
+tasks.matching { it.name == "runReleaseDistributable" }.configureEach {
+    dependsOn(packageWindowsNativeRuntime)
 }
 
 // ==================== Linux Native Runtime Packaging ====================
@@ -893,16 +1122,17 @@ val prepareLinuxPlayerRuntime = tasks.register<Sync>("prepareLinuxPlayerRuntime"
         if (!enabled) return@doLast
         val nativeDir = destinationDir
         val hasPatchelf = runCatching {
-            project.exec {
-                commandLine("patchelf", "--version")
-                isIgnoreExitValue = true
-            }.exitValue == 0
+            ProcessBuilder("patchelf", "--version")
+                .inheritIO()
+                .start()
+                .waitFor() == 0
         }.getOrDefault(false)
         if (hasPatchelf) {
             nativeDir.listFiles { f -> f.name.endsWith(".so") }.orEmpty().forEach { soFile ->
-                project.exec {
-                    commandLine("patchelf", "--set-rpath", "\$ORIGIN", soFile.absolutePath)
-                }
+                ProcessBuilder("patchelf", "--set-rpath", "\$ORIGIN", soFile.absolutePath)
+                    .inheritIO()
+                    .start()
+                    .waitFor()
             }
             logger.lifecycle("prepareLinuxPlayerRuntime: set RUNPATH=\$ORIGIN on native libs in ${nativeDir.absolutePath}")
         } else {
