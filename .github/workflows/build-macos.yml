@@ -19,9 +19,17 @@ concurrency:
 
 jobs:
   build-macos:
-    name: Build macOS DMG (arm64)
-    runs-on: macos-14  # Apple Silicon runner
+    name: Build macOS DMG (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+          - arch: x86_64
+            runner: macos-13
 
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +53,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: MPVKit/dist
-          key: mpv-macos-${{ runner.arch }}-0.41.0-r12
+          key: mpv-macos-${{ matrix.arch }}-0.41.0-r12
 
       - name: Create local.properties for CI
         run: touch local.properties
@@ -63,7 +71,7 @@ jobs:
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
-          name: Nuvio-macOS-arm64
+          name: Nuvio-macOS-${{ matrix.arch }}
           path: composeApp/build/compose/binaries/**/*.dmg
           retention-days: 30
 
@@ -71,7 +79,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: gradle-logs
+          name: gradle-logs-${{ matrix.arch }}
           path: |
             composeApp/build/reports/
             ~/.gradle/daemon/
