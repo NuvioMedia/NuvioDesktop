@@ -47,6 +47,9 @@ jobs:
           path: MPVKit/dist
           key: mpv-macos-${{ runner.arch }}-0.41.0-r12
 
+      - name: Create local.properties for CI
+        run: touch local.properties
+
       - name: Download mpv macOS libs
         if: steps.cache-mpv.outputs.cache-hit != 'true'
         run: bash scripts/setup-macos-libs.sh
