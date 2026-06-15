@@ -345,7 +345,8 @@ val mpvKitHasValidLib = mpvKitLibmpvStaticLib.exists() || mpvKitLibmpvDynamicLib
 // Auto-setup task: downloads mpv macOS libs + headers if MPVKit is empty
 val setupMacosMpvLibs = tasks.register<Exec>("setupMacosMpvLibs") {
     description = "Download mpv macOS libraries from Soia release + headers from official mpv repo"
-    onlyIf("needs setup on macOS when MPVKit is empty") {
+    notCompatibleWithConfigurationCache("Downloads external binaries")
+    onlyIf("macOS host with empty MPVKit") {
         isMacHost && !mpvKitHasValidLib
     }
     workingDir = rootProject.layout.projectDirectory.asFile
@@ -370,9 +371,6 @@ val macosPlayerBridgeCommand = if (!isMacHost) {
         fi
         # Let the build continue — if pkg-config fails, we'll see the error
         SDKROOT="${'$'}(xcrun --sdk macosx --show-sdk-path)"
-        SWIFTC="${'$'}(xcrun --toolchain XcodeDefault --find swiftc)"
-        SWIFT_TOOLCHAIN="${'$'}{SWIFTC%/usr/bin/swiftc}"
-        SWIFT_LIB="${'$'}{SWIFT_TOOLCHAIN}/usr/lib/swift/macosx"
         DEFAULT_PC="${'$'}(pkg-config --variable pc_path pkg-config)"
         export PKG_CONFIG_LIBDIR=${shellQuote(mpvKitGeneratedPkgConfigDirs.joinToString(":"))}:"${'$'}{DEFAULT_PC}"
         exec xcrun clang++ \
@@ -389,8 +387,6 @@ val macosPlayerBridgeCommand = if (!isMacHost) {
           -I${shellQuote("$macosPlayerBridgeJavaHome/include/darwin")} \
           -I${shellQuote(File(mpvKitLibmpvRoot, "include").absolutePath)} \
           $mpvKitGeneratedLibSearchArgs \
-          -L"${'$'}{SWIFT_LIB}" \
-          -L/usr/lib/swift \
           -framework AppKit \
           -framework WebKit \
           -framework Metal \
@@ -409,9 +405,6 @@ val macosPlayerBridgeCommand = if (!isMacHost) {
         """
         set -eu
         SDKROOT="${'$'}(xcrun --sdk macosx --show-sdk-path)"
-        SWIFTC="${'$'}(xcrun --toolchain XcodeDefault --find swiftc)"
-        SWIFT_TOOLCHAIN="${'$'}{SWIFTC%/usr/bin/swiftc}"
-        SWIFT_LIB="${'$'}{SWIFT_TOOLCHAIN}/usr/lib/swift/macosx"
         DEFAULT_PC="${'$'}(pkg-config --variable pc_path pkg-config)"
         export PKG_CONFIG_LIBDIR=${shellQuote(mpvKitGeneratedPkgConfigDirs.joinToString(":"))}:"${'$'}{DEFAULT_PC}"
         exec xcrun clang++ \
@@ -428,8 +421,6 @@ val macosPlayerBridgeCommand = if (!isMacHost) {
           -I${shellQuote("$macosPlayerBridgeJavaHome/include/darwin")} \
           -I${shellQuote(File(mpvKitLibmpvRoot, "include").absolutePath)} \
           $mpvKitGeneratedLibSearchArgs \
-          -L"${'$'}{SWIFT_LIB}" \
-          -L/usr/lib/swift \
           -framework AppKit \
           -framework WebKit \
           -framework Metal \
