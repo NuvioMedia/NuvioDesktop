@@ -345,7 +345,9 @@ val mpvKitHasValidLib = mpvKitLibmpvStaticLib.exists() || mpvKitLibmpvDynamicLib
 // Auto-setup task: downloads mpv macOS libs + headers if MPVKit is empty
 val setupMacosMpvLibs = tasks.register<Exec>("setupMacosMpvLibs") {
     description = "Download mpv macOS libraries from Soia release + headers from official mpv repo"
-    onlyIf { isMacHost && !mpvKitHasValidLib }
+    onlyIf("needs setup on macOS when MPVKit is empty") {
+        isMacHost && !mpvKitHasValidLib
+    }
     workingDir = rootProject.layout.projectDirectory.asFile
     commandLine("bash", "scripts/setup-macos-libs.sh")
 }
@@ -393,9 +395,9 @@ val macosPlayerBridgeCommand = if (!isMacHost) {
           -framework WebKit \
           -framework Metal \
           -framework Security \
-          -lswiftCompatibility56 \
-          -lswiftCompatibilityConcurrency \
-          -lswiftCompatibilityPacks \
+          -framework IOKit \
+          -framework OpenGL \
+          -framework QuartzCore \
           -lc++ \
           ${'$'}(pkg-config --libs mpv)
         """.trimIndent(),
@@ -432,9 +434,9 @@ val macosPlayerBridgeCommand = if (!isMacHost) {
           -framework WebKit \
           -framework Metal \
           -framework Security \
-          -lswiftCompatibility56 \
-          -lswiftCompatibilityConcurrency \
-          -lswiftCompatibilityPacks \
+          -framework IOKit \
+          -framework OpenGL \
+          -framework QuartzCore \
           -lc++ \
           ${'$'}(pkg-config --libs --static mpv)
         """.trimIndent(),
