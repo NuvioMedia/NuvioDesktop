@@ -15,6 +15,7 @@ internal interface DesktopPlayerBackend {
     suspend fun load(request: DesktopPlayerRequest)
     fun setResizeMode(resizeMode: PlayerResizeMode)
     fun releaseSoft()
+    fun resetForReuse()
     fun close()
 
     @Composable

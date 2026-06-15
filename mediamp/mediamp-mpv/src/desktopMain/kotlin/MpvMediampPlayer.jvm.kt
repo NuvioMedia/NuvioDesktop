@@ -41,15 +41,10 @@ actual class MpvMediampPlayer(
     internal var backendTexture: BackendTexture? = null
     internal var image: Image? = null
 
-    @Volatile
-    var lastMpvError: String? = null
+    private var initialized = false
 
     private val eventListener = object : EventListener {
         override fun onPropertyChange(name: String) {
-            // The mpv log already prints [event_loop] property change: <name>
-            // via the JNI event loop wrapper, so we don't need to re-log here.
-            // Property observers (string/bool/long/double) below carry their
-            // values, which is the interesting info.
         }
 
         override fun onPropertyChange(name: String, value: Boolean) {
@@ -83,15 +78,6 @@ actual class MpvMediampPlayer(
             }
         }
 
-        override fun onEndFile(reason: Int, error: String) {
-            System.err.println("[mediamp-debug] onEndFile reason=$reason error='$error'")
-            if (reason == 1 && error.isNotEmpty()) {
-                System.err.println("[mediamp-debug] onEndFile ERROR: $error")
-                lastMpvError = error
-                playbackState.value = PlaybackState.ERROR
-            }
-        }
-
     }
 
     override val impl: MPVHandle get() = handle
@@ -116,37 +102,37 @@ actual class MpvMediampPlayer(
 
     @InternalMediampApi
     fun createRenderContext(devicePtr: Long, contextPtr: Long, drawablePtr: Long = 0L): Boolean {
-        return createRenderContext(handle.ptr, devicePtr, contextPtr, drawablePtr)
+        return if (initialized) createRenderContext(handle.ptr, devicePtr, contextPtr, drawablePtr) else false
     }
 
     @InternalMediampApi
     fun releaseRenderContext(): Boolean {
-        return destroyRenderContext(handle.ptr)
+        return if (initialized) destroyRenderContext(handle.ptr) else false
     }
 
     @InternalMediampApi
     fun createTexture(width: Int, height: Int): Int {
-        return createTexture(handle.ptr, width, height)
+        return if (initialized) createTexture(handle.ptr, width, height) else 0
     }
 
     @InternalMediampApi
     fun releaseTexture(): Boolean {
-        return releaseTexture(handle.ptr)
+        return if (initialized) releaseTexture(handle.ptr) else false
     }
 
     @InternalMediampApi
     fun renderFrame(): Boolean {
-        return renderFrameToTexture(handle.ptr)
+        return if (initialized) renderFrameToTexture(handle.ptr) else false
     }
 
     @InternalMediampApi
     fun debugRenderSolid(red: Float, green: Float, blue: Float, alpha: Float): Boolean {
-        return debugRenderSolid(handle.ptr, red, green, blue, alpha)
+        return if (initialized) debugRenderSolid(handle.ptr, red, green, blue, alpha) else false
     }
 
     @InternalMediampApi
     fun readTextureStats(): String {
-        return readTextureStats(handle.ptr)
+        return if (initialized) readTextureStats(handle.ptr) else ""
     }
 
     init {
@@ -155,9 +141,27 @@ actual class MpvMediampPlayer(
         if (configDir != null) {
             handle.option("config-dir", configDir)
         }
-        // handle.option("gpu-shader-cache-dir", File(cacheDir, "mpv_gpu_cache").absolutePath)
-        // handle.option("icc-cache-dir", File(cacheDir, "mpv_icc_cache").absolutePath)
         handle.option("profile", "fast")
+        handle.option("input-default-bindings", "yes")
+
+        val cacheMegs = if (limitDemuxer()) 32 else 64
+        handle.option("demuxer-max-bytes", "${cacheMegs * 1024 * 1024}")
+        handle.option("demuxer-max-back-bytes", "${cacheMegs * 1024 * 1024}")
+        handle.option("vd-lavc-film-grain", "cpu")
+
+        // Initialize immediately with platform-specific options, except on Windows
+        // where we must wait for the child HWND to be created.
+        if (currentPlatform() !is Platform.Windows) {
+            initialize(0L)
+        }
+    }
+
+    @InternalMediampApi
+    fun initialize(hwnd: Long = 0L): Boolean {
+        if (initialized) return true
+        val isWin = currentPlatform() is Platform.Windows
+        println("MPV_INIT start hwnd=$hwnd isWin=$isWin")
+        val useWid = isWin && hwnd != 0L
 
         var hardwareDecoderCodecs = "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1"
 
@@ -170,51 +174,29 @@ actual class MpvMediampPlayer(
             }
 
             is Platform.Windows -> {
-                handle.option("gpu-context", "win,opengl")
-                handle.option("opengl-es", "no")
-
                 handle.option("ao", "wasapi")
-                handle.option("vo", "libmpv")
-                handle.option("fbo-format", "rgba8")
-                handle.option("dither-depth", "no")
-                // Some Windows GPU/driver combinations corrupt HEVC Main10
-                // frames when libmpv renders hardware-decoded frames into the
-                // OpenGL FBO used by Compose. Software-decode HEVC on Windows
-                // while preserving hardware decode for other codecs.
-                hardwareDecoderCodecs = "h264,mpeg4,mpeg2video,vp8,vp9,av1"
+                handle.option("opengl-es", "no")
+                if (useWid) {
+                    val widResult = handle.option("wid", hwnd.toString())
+                    println("MPV_INIT option(wid,${hwnd})=$widResult")
+                }
+                val voResult = handle.option("vo", "gpu")
+                println("MPV_INIT option(vo,gpu)=$voResult")
+                hardwareDecoderCodecs = "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1"
             }
 
             is Platform.MacOS -> {
                 handle.option("gpu-context", "macvk")
-
                 handle.option("ao", "avfoundation")
                 handle.option("vo", "libmpv")
             }
 
             is Platform.Linux -> {
-                val sessionType = System.getenv("XDG_SESSION_TYPE")?.lowercase() ?: ""
-                val isWayland = sessionType == "wayland" || System.getenv("WAYLAND_DISPLAY")?.isNotEmpty() == true
-                val gpuContext = when {
-                    isWayland -> "wayland"
-                    System.getenv("DISPLAY")?.isNotEmpty() == true -> "x11egl"
-                    else -> "auto"
-                }
-
                 handle.option("ao", "pipewire,pulseaudio,alsa")
                 handle.option("vo", "libmpv")
-                handle.option("fbo-format", "rgba8")
-                handle.option("gpu-context", gpuContext)
-                handle.option("vulkan-device-index", "0")
-
                 handle.option("hwdec-extra-hw-frames", "16")
 
                 hardwareDecoderCodecs = "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1"
-                // Linux: GPU decode stacks (CUDA/VAAPI/Vulkan) are unreliable
-                // on most desktop envs and produce "non-existing PPS 0 referenced"
-                // stalls on HLS streams with corrupt mid-segment packets.
-                // Force software decode at init time (overrides the generic
-                // "auto" set below). Users with a known-good GPU stack can opt
-                // in via NUVIO_MPV_DIAGNOSTIC_HWDEC.
                 val forceLinuxSoftwareDecode =
                     System.getProperty("nuvio.mpv.diagnostic.hwdec") == null &&
                         System.getenv("NUVIO_MPV_DIAGNOSTIC_HWDEC") == null
@@ -226,24 +208,12 @@ actual class MpvMediampPlayer(
             else -> {}
         }
 
-
         val defaultHwdec = if (currentPlatform() is Platform.Linux) "no" else "auto"
         handle.option("hwdec", defaultHwdec)
         handle.option("hwdec-codecs", hardwareDecoderCodecs)
-        // handle.option("tls-verify", "yes")
-        // handle.option("tls-ca-file", "${this.context.filesDir.path}/cacert.pem")
-        handle.option("input-default-bindings", "yes")
 
-        // Limit demuxer cache since the defaults are too high for mobile devices   
-        val cacheMegs = if (limitDemuxer()) 32 else 64
-        handle.option("demuxer-max-bytes", "${cacheMegs * 1024 * 1024}")
-        handle.option("demuxer-max-back-bytes", "${cacheMegs * 1024 * 1024}")
-        // screenshot
-        // handle.option("screenshot-directory", screenshotDir.path)
-        // workaround for <https://github.com/mpv-player/mpv/issues/14651>
-        handle.option("vd-lavc-film-grain", "cpu")
-
-        handle.initialize()
+        val initResult = handle.initialize()
+        println("MPV_INIT handle.initialize() = $initResult")
 
         handle.option("save-position-on-quit", "no")
         handle.option("force-window", "no")
@@ -254,11 +224,46 @@ actual class MpvMediampPlayer(
         handle.observeProperty("duration/full", MPVFormat.MPV_FORMAT_INT64)
         handle.observeProperty("pause", MPVFormat.MPV_FORMAT_FLAG)
         handle.observeProperty("paused-for-cache", MPVFormat.MPV_FORMAT_FLAG)
-        handle.observeProperty("speed", MPVFormat.MPV_FORMAT_STRING) // todo
+        handle.observeProperty("speed", MPVFormat.MPV_FORMAT_STRING)
 
-        handle.observeProperty("media-title", MPVFormat.MPV_FORMAT_STRING) // to
+        handle.observeProperty("media-title", MPVFormat.MPV_FORMAT_STRING)
         handle.observeProperty("metadata", MPVFormat.MPV_FORMAT_NONE)
         handle.observeProperty("hwdec-current", MPVFormat.MPV_FORMAT_NONE)
+
+        initialized = true
+        return true
+    }
+
+    @InternalMediampApi
+    fun setWid(hwnd: Long): Boolean {
+        if (!initialized || hwnd == 0L) return false
+
+        // Set wid via command (works during playback)
+        val cmdResult = handle.command("set", "wid", hwnd.toString())
+        println("MPV_WID command(set,wid,$hwnd)=$cmdResult")
+        if (cmdResult) {
+            // Force VO reconfiguration to pick up the new wid by
+            // setting vo to its current value.
+            val currentVo = runCatching { handle.getPropertyString("vo") }.getOrNull()
+            if (currentVo != null && currentVo.isNotBlank()) {
+                handle.command("set", "vo", currentVo)
+            }
+            return true
+        }
+
+        // Fallback: try property set
+        val result = handle.setPropertyString("wid", hwnd.toString())
+        println("MPV_WID setPropertyString(wid,$hwnd)=$result")
+        if (!result) {
+            val optResult = handle.option("wid", hwnd.toString())
+            println("MPV_WID option(wid,$hwnd)=$optResult (after init)")
+        } else {
+            val currentVo = runCatching { handle.getPropertyString("vo") }.getOrNull()
+            if (currentVo != null && currentVo.isNotBlank()) {
+                handle.command("set", "vo", currentVo)
+            }
+        }
+        return result
     }
 
     @InternalMediampApi
@@ -274,8 +279,6 @@ actual class MpvMediampPlayer(
     override suspend fun setMediaDataImpl(data: MediaData): MPVPlayerData = when (data) {
         is UriMediaData -> {
             val headers = data.headers
-            System.err.println("[mediamp-debug] setMediaDataImpl uri=${data.uri} headersPresent=${headers.isNotEmpty()}")
-            lastMpvError = null
 
             // 清除播放列表
             handle.command("stop")
@@ -287,8 +290,8 @@ actual class MpvMediampPlayer(
                     ?: """Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3""",
             )
             handle.option("http-header-fields-clr", "")
-            if (headers.isNotEmpty()) {
-                handle.option("http-header-fields", headers.entries.joinToString(",") { "${it.key}: ${it.value}" })
+            headers.forEach { (key, value) ->
+                handle.option("http-header-fields", "$key: $value")
             }
 
             MPVPlayerData(data)
@@ -300,21 +303,12 @@ actual class MpvMediampPlayer(
     }
 
     override fun resumeImpl() {
-        System.err.println("[mediamp-debug] resumeImpl() called playbackState=${playbackState.value} openResource=${openResource.value} player=${System.identityHashCode(this)}")
-        if (playbackState.value != PlaybackState.READY) {
-            lastMpvError = null
-        }
         when (playbackState.value) {
             PlaybackState.READY -> {
-                val media = openResource.value
-                if (media == null) {
-                    System.err.println("[mediamp-debug] resumeImpl SKIP: openResource.value is NULL")
-                    return
-                }
-                System.err.println("[mediamp-debug] resumeImpl PROCEED: media.mediaData=${media.mediaData::class.simpleName}")
+                val media = openResource.value ?: return
+                handle.option("pause", "true")
                 when (val data = media.mediaData) {
                     is UriMediaData -> {
-                        System.err.println("[mediamp-debug] loadfile uri=${data.uri} headers=${data.headers}")
                         handle.command("loadfile", data.uri)
                         playbackState.value = PlaybackState.PLAYING
                     }
@@ -357,7 +351,6 @@ actual class MpvMediampPlayer(
     override fun closeImpl() {
         handle.command("stop")
         playbackState.value = PlaybackState.DESTROYED
-        lastMpvError = null
         releaseRenderContext()
         handle.destroy()
         handle.close()

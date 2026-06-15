@@ -5,15 +5,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.desktop.DesktopBorderlessFullscreenController
+import com.nuvio.app.desktop.DesktopPlayerRegistry
 import com.nuvio.app.desktop.DesktopRuntimeLog
 import com.nuvio.app.features.player.PlatformPlayerSurface
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
@@ -22,6 +22,7 @@ import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
 import com.nuvio.app.features.player.desktop.registerDesktopAppFullscreenToggle
 import java.awt.Color as AwtColor
 import javax.swing.JComponent
+import kotlin.system.exitProcess
 
 private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
 private const val NuvioDesktopIconPath = "icons/nuvio-app-icon.png"
@@ -39,10 +40,15 @@ fun main() {
             )
             ?.takeIf { it.isNotBlank() }
         val windowState = rememberWindowState(width = 1280.dp, height = 820.dp)
-        val restoreWindowPlacement = remember { mutableStateOf(WindowPlacement.Floating) }
 
         Window(
-            onCloseRequest = ::exitApplication,
+            onCloseRequest = {
+                DesktopPlayerRegistry.releaseAll("windowClose")
+                DesktopPlayerRegistry.closeAll("windowClose")
+                DesktopPlayerRegistry.awaitAllCloses(timeoutMs = 1500L)
+                exitApplication()
+                exitProcess(0)
+            },
             title = if (smokePlayerUrl == null) "Nuvio" else "Nuvio Player Smoke",
             state = windowState,
             icon = painterResource(NuvioDesktopIconPath),
@@ -59,14 +65,7 @@ fun main() {
             DisposableEffect(window, windowState) {
                 val unregisterFullscreenToggle = registerDesktopAppFullscreenToggle { targetWindow ->
                     if (targetWindow != null && targetWindow !== window) return@registerDesktopAppFullscreenToggle
-                    if (windowState.placement == WindowPlacement.Fullscreen) {
-                        windowState.placement = restoreWindowPlacement.value
-                    } else {
-                        restoreWindowPlacement.value = windowState.placement
-                            .takeUnless { it == WindowPlacement.Fullscreen }
-                            ?: WindowPlacement.Floating
-                        windowState.placement = WindowPlacement.Fullscreen
-                    }
+                    DesktopBorderlessFullscreenController.toggle(window)
                 }
                 val uninstallFullscreenShortcuts = installDesktopAppFullscreenShortcuts(window)
                 onDispose {

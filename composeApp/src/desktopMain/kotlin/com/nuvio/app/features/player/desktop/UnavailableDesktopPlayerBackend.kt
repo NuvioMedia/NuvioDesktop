@@ -47,6 +47,7 @@ internal class UnavailableDesktopPlayerBackend(
     override suspend fun load(request: DesktopPlayerRequest) = Unit
     override fun setResizeMode(resizeMode: PlayerResizeMode) = Unit
     override fun releaseSoft() = Unit
+    override fun resetForReuse() = Unit
     override fun close() = Unit
 
     @Composable

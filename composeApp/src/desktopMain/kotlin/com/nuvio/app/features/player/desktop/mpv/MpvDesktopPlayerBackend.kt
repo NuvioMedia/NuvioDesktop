@@ -209,6 +209,13 @@ internal class MpvDesktopPlayerBackend private constructor(
         stateFlow.value = stateFlow.value.copy(phase = DesktopPlayerPhase.Closed)
     }
 
+    override fun resetForReuse() {
+        if (nativeClosed) return
+        DesktopRuntimeLog.info("MPV resetForReuse id=$id")
+        stopped = false
+        player.playbackState.value = PlaybackState.CREATED
+    }
+
     override fun close() {
         if (nativeClosed) return
         emitFramePacingSummary("close")
@@ -250,12 +257,10 @@ internal class MpvDesktopPlayerBackend private constructor(
                 backendName = backendName,
                 diagnostics = runtime.diagnostics,
                 error = if (playbackState == PlaybackState.ERROR) {
-                    val mpvError = player.lastMpvError
-                    val msg = mpvError ?: "MPV playback state is ERROR"
                     DesktopPlayerError.PlaybackFailed(
                         backendName = backendName,
-                        technicalMessage = "MPV: $msg",
-                        uiMessage = msg,
+                        technicalMessage = "MPV: playback state is ERROR",
+                        uiMessage = "MPV playback state is ERROR",
                     )
                 } else {
                     null

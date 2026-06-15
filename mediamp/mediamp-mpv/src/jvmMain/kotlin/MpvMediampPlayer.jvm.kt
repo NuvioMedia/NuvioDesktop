@@ -41,9 +41,6 @@ actual class MpvMediampPlayer(
     internal var backendTexture: BackendTexture? = null
     internal var image: Image? = null
 
-    @Volatile
-    var lastMpvError: String? = null
-
     private val eventListener = object : EventListener {
         override fun onPropertyChange(name: String) {
 
@@ -77,15 +74,6 @@ actual class MpvMediampPlayer(
                 "media-title" -> mediaProperties.value =
                     if (mediaProperties.value == null) MediaProperties(value, -1)
                     else mediaProperties.value?.copy(title = value)
-            }
-        }
-
-        override fun onEndFile(reason: Int, error: String) {
-            System.err.println("[mediamp-debug] onEndFile reason=$reason error='$error'")
-            if (reason == 1 && error.isNotEmpty()) {
-                System.err.println("[mediamp-debug] onEndFile ERROR: $error")
-                lastMpvError = error
-                playbackState.value = PlaybackState.ERROR
             }
         }
 
@@ -249,7 +237,6 @@ actual class MpvMediampPlayer(
     override suspend fun setMediaDataImpl(data: MediaData): MPVPlayerData = when (data) {
         is UriMediaData -> {
             val headers = data.headers
-            lastMpvError = null
 
             // 清除播放列表
             handle.command("stop")
@@ -320,7 +307,6 @@ actual class MpvMediampPlayer(
 
     override fun closeImpl() {
         handle.command("stop")
-        lastMpvError = null
         handle.destroy()
         handle.close()
         playbackState.value = PlaybackState.DESTROYED

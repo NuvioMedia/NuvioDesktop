@@ -1,6 +1,7 @@
 package com.nuvio.app.features.player.desktop
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -9,14 +10,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.nuvio.app.desktop.DesktopBorderlessFullscreenController
 import com.nuvio.app.desktop.DesktopPlayerRegistry
 import com.nuvio.app.desktop.DesktopRuntimeLog
+import org.openani.mediamp.mpv.compose.LocalWindowFullscreenRevision
 import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.player.PlayerPlaybackSnapshot
 import com.nuvio.app.features.player.PlayerResizeMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicReference
+
+private val savedBackend = AtomicReference<DesktopPlayerBackend?>(null)
 
 @Composable
 internal fun DesktopPlayerSurfaceHost(
@@ -42,8 +48,14 @@ internal fun DesktopPlayerSurfaceHost(
 
     var activeSessionKey by remember { mutableStateOf<String?>(null) }
     var lastPositionMs by remember { mutableStateOf(0L) }
+
     val backend = remember {
-        DesktopPlayerBackendFactory.createDesktopBackend()
+        val saved = savedBackend.getAndSet(null)
+        if (saved != null) {
+            DesktopRuntimeLog.info("DesktopPlayerSurfaceHost reused backend=${saved.backendName}")
+            saved.resetForReuse()
+        }
+        saved ?: DesktopPlayerBackendFactory.createDesktopBackend()
     }
 
     DisposableEffect(backend) {
@@ -60,7 +72,7 @@ internal fun DesktopPlayerSurfaceHost(
             DesktopRuntimeLog.info("DesktopPlayerSurfaceHost dispose backend=${backend.backendName}")
             DesktopPlayerRegistry.unregister(registryId)
             backend.releaseSoft()
-            backend.close()
+            savedBackend.set(backend)
         }
     }
 
@@ -103,7 +115,11 @@ internal fun DesktopPlayerSurfaceHost(
         backend.setResizeMode(resizeMode)
     }
 
-    backend.Surface(modifier)
+    CompositionLocalProvider(
+        LocalWindowFullscreenRevision provides DesktopBorderlessFullscreenController.revision,
+    ) {
+        backend.Surface(modifier)
+    }
 }
 
 private fun String.sha256Prefix(): String {

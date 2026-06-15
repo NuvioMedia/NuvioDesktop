@@ -2165,8 +2165,6 @@ document.addEventListener("keydown", event => {
     return;
   }
   if (event.key === "Escape") {
-    event.preventDefault();
-    send("back", 0);
     return;
   }
   if (playbackErrorText()) return;
