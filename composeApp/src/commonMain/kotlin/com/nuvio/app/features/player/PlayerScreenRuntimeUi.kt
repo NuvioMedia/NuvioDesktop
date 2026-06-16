@@ -268,7 +268,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             playerSettingsUiState.introSubmitEnabled &&
             playerSettingsUiState.introDbApiKey.isNotBlank() &&
             !activeSubmitIntroImdbId().isNullOrBlank(),
-        showVideoSettings = isIos,
+        showVideoSettings = isIos || isDesktop,
         showSources = activeVideoId != null,
         showEpisodes = isSeries,
         showExternalPlayer = args.onOpenInExternalPlayer != null,
@@ -492,13 +492,9 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 refreshTracks()
                 showAudioModal = true
             },
-            onVideoSettingsClick = if (isIos) {
-                {
-                    showVideoSettingsModal = true
-                    controlsVisible = true
-                }
-            } else {
-                null
+            onVideoSettingsClick = {
+                showVideoSettingsModal = true
+                controlsVisible = true
             },
             onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
             onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
@@ -625,10 +621,8 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
             if (playerControlsLocked) unlockPlayerControls() else lockPlayerControls()
         }
         PlayerControlsAction.VideoSettings -> {
-            if (isIos) {
-                showVideoSettingsModal = true
-                controlsVisible = true
-            }
+            showVideoSettingsModal = true
+            controlsVisible = true
         }
         PlayerControlsAction.DoubleTapSeekBack -> {
             prepareDoubleTapSeekForNativeFallback(PlayerSeekDirection.Backward)

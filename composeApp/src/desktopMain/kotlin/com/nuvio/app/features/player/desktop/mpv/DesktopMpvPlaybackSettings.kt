@@ -199,10 +199,26 @@ internal fun mpvRuntimeOptions(tuning: DesktopMpvVideoTuning): List<MpvRuntimeOp
     // codec enabled, mpv spams init errors (CUDA_ERROR_NO_DEVICE, VK_KHR_video
     // decode unsupported, etc.) and may stall. Force software decode on Linux
     // unless the user explicitly opted in via NUVIO_MPV_DIAGNOSTIC_HWDEC.
+    //
+    // Windows with vo=libmpv (offscreen GL renderer): GPU-decoded frames must
+    // be in system memory for the render API to access. Non-copy hwdec modes
+    // (d3d11va, nvdec, cuda) keep frames on the GPU, causing mpv to silently
+    // fall back to software decoding. Always use a copy-back mode on Windows
+    // unless the user explicitly overrides via NUVIO_MPV_DIAGNOSTIC_HWDEC.
     val hwdecValue = when {
         isOsLinux() &&
             System.getProperty("nuvio.mpv.diagnostic.hwdec") == null &&
             System.getenv("NUVIO_MPV_DIAGNOSTIC_HWDEC") == null -> "no"
+        isOsWindows() &&
+            System.getProperty("nuvio.mpv.diagnostic.hwdec") == null &&
+            System.getenv("NUVIO_MPV_DIAGNOSTIC_HWDEC") == null -> {
+            val userValue = settings.hardwareDecoderMode.mpvValue
+            if (userValue == "auto" || userValue == "d3d11va" || userValue == "nvdec" || userValue == "cuda") {
+                "d3d11va-copy"
+            } else {
+                userValue
+            }
+        }
         else -> settings.hardwareDecoderMode.mpvValue
     }
     return listOf(
@@ -349,7 +365,11 @@ internal fun loadHardwareDecoderMode(): PlayerHardwareDecoderMode {
 
 private fun defaultHardwareDecoderMode(): PlayerHardwareDecoderMode {
     val osName = System.getProperty("os.name").lowercase()
-    return if (osName.startsWith("linux")) PlayerHardwareDecoderMode.Off else PlayerHardwareDecoderMode.Auto
+    return when {
+        osName.startsWith("linux") -> PlayerHardwareDecoderMode.Off
+        osName.startsWith("windows") -> PlayerHardwareDecoderMode.D3d11vaCopy
+        else -> PlayerHardwareDecoderMode.Auto
+    }
 }
 
 private inline fun <reified T : Enum<T>> loadEnum(key: String, default: T): T =

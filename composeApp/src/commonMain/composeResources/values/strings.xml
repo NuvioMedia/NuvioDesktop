@@ -845,6 +845,7 @@
     <string name="settings_playback_external_player_forward_subtitles">Forward Subtitles to External Player</string>
     <string name="settings_playback_external_player_forward_subtitles_description">Fetch addon subtitles in your preferred language and pass them to the external player.</string>
     <string name="settings_playback_external_player_none_available">No supported external players installed</string>
+    <string name="settings_playback_external_player_browse">Browse for player…</string>
     <string name="settings_playback_player_preference">Player</string>
     <string name="settings_playback_player_preference_internal">Internal</string>
     <string name="settings_playback_player_preference_external">External</string>

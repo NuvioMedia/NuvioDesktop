@@ -49,11 +49,7 @@ actual fun MpvMediampPlayerSurface(
     player: MpvMediampPlayer,
     modifier: Modifier,
 ) {
-    if (currentPlatform() is Platform.Windows) {
-        WindowsWidSurface(player, modifier)
-    } else {
-        LegacyGlSurface(player, modifier)
-    }
+    LegacyGlSurface(player, modifier)
 }
 
 @OptIn(InternalMediampApi::class)
@@ -334,10 +330,7 @@ private fun LegacyGlSurface(
         player.currentSize = null
         pendingTextureSize = null
         hadSuccessfulRender = false
-
-        runCatching {
-            components?.directContext?.resetGLAll()
-        }
+        runCatching { components?.directContext?.resetGLAll() }
     }
 
     Canvas(modifier = modifier) {
@@ -416,8 +409,6 @@ private fun LegacyGlSurface(
             player.backendTexture = null
             textureId = 0
             player.currentSize = null
-
-            runCatching { components.directContext.resetGLAll() }
 
             val hadTexture = hadSize != null && hadTextureId != 0
             val newTextureId = player.createTexture(targetWidth, targetHeight)

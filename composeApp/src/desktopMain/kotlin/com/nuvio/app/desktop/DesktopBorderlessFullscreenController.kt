@@ -2,6 +2,7 @@ package com.nuvio.app.desktop
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.window.WindowPlacement
@@ -12,6 +13,7 @@ import com.sun.jna.win32.StdCallLibrary
 import java.awt.Frame
 import java.awt.Rectangle
 import java.awt.Toolkit
+import javax.swing.SwingUtilities
 
 internal object DesktopBorderlessFullscreenController {
     private const val GWL_STYLE = -16
@@ -35,6 +37,8 @@ internal object DesktopBorderlessFullscreenController {
     private const val SWP_SHOWWINDOW = 0x0040
     private const val HWND_TOPMOST = -1
 
+    private const val FULLSCREEN_DEBOUNCE_MS = 300L
+
     private val isWindows: Boolean
         get() = System.getProperty("os.name")?.contains("Windows", ignoreCase = true) == true
 
@@ -46,6 +50,8 @@ internal object DesktopBorderlessFullscreenController {
             .getOrNull()
     }
 
+    private var lastToggleTime = 0L
+
     var revision by mutableIntStateOf(0)
         private set
 
@@ -53,6 +59,18 @@ internal object DesktopBorderlessFullscreenController {
         get() = snapshot != null
 
     fun toggle(window: ComposeWindow) {
+        val now = System.currentTimeMillis()
+        if (now - lastToggleTime < FULLSCREEN_DEBOUNCE_MS) {
+            DesktopRuntimeLog.info("borderlessFullscreen: toggle debounced")
+            return
+        }
+        lastToggleTime = now
+
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater { toggle(window) }
+            return
+        }
+
         if (isFullscreen(window)) {
             exit(window)
         } else {
@@ -61,6 +79,11 @@ internal object DesktopBorderlessFullscreenController {
     }
 
     fun enter(window: ComposeWindow) {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater { enter(window) }
+            return
+        }
+
         if (!isWindows) {
             enterComposeFullscreen(window)
             return
@@ -103,20 +126,15 @@ internal object DesktopBorderlessFullscreenController {
             window.bounds = targetBounds
             window.toFront()
             window.requestFocus()
-            // Force window content to sync after style change
             Toolkit.getDefaultToolkit().sync()
             window.repaint()
-            // Force focus on the window so the repaint is processed
             window.requestFocus()
         }.onSuccess {
             DesktopRuntimeLog.info(
                 "borderlessFullscreen: entered bounds=${targetBounds.shortLog()} previousPlacement=${snapshot?.placement}",
             )
-            // Notify composition about fullscreen change
-            bumpRevision()
-            // Additional flush to ensure window repaint completes
             Toolkit.getDefaultToolkit().sync()
-            window.repaint()
+            bumpRevision()
         }.onFailure {
             DesktopRuntimeLog.error("borderlessFullscreen: enter failed, restoring window state", it)
             restoreSnapshot(window)
@@ -125,6 +143,11 @@ internal object DesktopBorderlessFullscreenController {
     }
 
     fun exit(window: ComposeWindow) {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater { exit(window) }
+            return
+        }
+
         val active = snapshot
         if (active?.window === window) {
             restoreSnapshot(window)
@@ -167,6 +190,7 @@ internal object DesktopBorderlessFullscreenController {
             exStyle = null,
             mode = FullscreenMode.ComposeFallback,
         )
+
         window.placement = WindowPlacement.Fullscreen
         DesktopRuntimeLog.warn("borderlessFullscreen: entered Compose fullscreen fallback")
         bumpRevision()

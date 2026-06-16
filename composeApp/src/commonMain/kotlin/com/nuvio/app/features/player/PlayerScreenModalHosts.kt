@@ -147,7 +147,7 @@ internal fun PlayerScreenModalHosts(
         onDismiss = onSubtitleModalDismissed,
     )
 
-    IosVideoSettingsModal(
+    PlatformVideoSettingsModal(
         visible = showVideoSettingsModal,
         settings = playerSettings,
         onSettingsChanged = onVideoSettingsChanged,

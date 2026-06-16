@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,12 +15,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
@@ -185,29 +189,116 @@ internal fun PlayerControlsShell(
             }
 
             if (showPlaybackControls) {
-                ProgressControls(
-                    playbackSnapshot = playbackSnapshot,
-                    displayedPositionMs = displayedPositionMs,
-                    metrics = metrics,
-                    resizeMode = resizeMode,
-                    volumeLevel = volumeLevel,
-                    onScrubChange = onScrubChange,
-                    onScrubFinished = onScrubFinished,
-                    onResizeModeClick = onResizeModeClick,
-                    onSpeedClick = onSpeedClick,
-                    onVolumeChange = onVolumeChange,
-                    onMuteClick = onMuteClick,
-                    onSubtitleClick = onSubtitleClick,
-                    onAudioClick = onAudioClick,
-                    onSourcesClick = onSourcesClick,
-                    onEpisodesClick = onEpisodesClick,
-                    onOpenInExternalPlayer = onOpenInExternalPlayer,
+                val aspectRatioPainter = appIconPainter(AppIconResource.PlayerAspectRatio)
+                val subtitlesPainter = appIconPainter(AppIconResource.PlayerSubtitles)
+                val audioPainter = appIconPainter(AppIconResource.PlayerAudioFilled)
+
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .padding(horizontal = metrics.horizontalPadding)
                         .padding(bottom = metrics.sliderBottomOffset),
-                )
+                ) {
+                    ProgressControls(
+                        playbackSnapshot = playbackSnapshot,
+                        displayedPositionMs = displayedPositionMs,
+                        metrics = metrics,
+                        onScrubChange = onScrubChange,
+                        onScrubFinished = onScrubFinished,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .border(
+                                width = 1.dp,
+                                color = Color.White.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(24.dp),
+                            ),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    PlayerActionPillButton(
+                                        label = stringResource(resizeMode.labelRes),
+                                        painter = aspectRatioPainter,
+                                        onClick = onResizeModeClick,
+                                    )
+                                    PlayerActionPillButton(
+                                        label = formatPlaybackSpeedLabel(playbackSnapshot.playbackSpeed),
+                                        icon = Icons.Rounded.Speed,
+                                        onClick = onSpeedClick,
+                                    )
+                                    PlayerActionPillButton(
+                                        label = stringResource(Res.string.compose_player_subs),
+                                        painter = subtitlesPainter,
+                                        onClick = onSubtitleClick,
+                                    )
+                                    PlayerActionPillButton(
+                                        label = stringResource(Res.string.compose_player_audio),
+                                        painter = audioPainter,
+                                        onClick = onAudioClick,
+                                    )
+                                    if (onSourcesClick != null) {
+                                        PlayerActionPillButton(
+                                            label = stringResource(Res.string.compose_player_sources),
+                                            icon = Icons.Rounded.SwapHoriz,
+                                            onClick = onSourcesClick,
+                                        )
+                                    }
+                                    if (onEpisodesClick != null) {
+                                        PlayerActionPillButton(
+                                            label = stringResource(Res.string.compose_player_episodes),
+                                            icon = Icons.Rounded.VideoLibrary,
+                                            onClick = onEpisodesClick,
+                                        )
+                                    }
+                                    if (onOpenInExternalPlayer != null) {
+                                        PlayerActionPillButton(
+                                            label = stringResource(Res.string.streams_open_external_player),
+                                            icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                                            onClick = onOpenInExternalPlayer,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (volumeLevel != null) {
+                            Spacer(Modifier.width(8.dp))
+
+                            Surface(
+                                color = Color.Black.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(24.dp),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                                modifier = Modifier.fillMaxHeight(),
+                            ) {
+                                PlayerVolumeSlider(
+                                    volumeLevel = volumeLevel,
+                                    onVolumeChange = onVolumeChange,
+                                    onMuteClick = onMuteClick,
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -490,26 +581,11 @@ private fun ProgressControls(
     playbackSnapshot: PlayerPlaybackSnapshot,
     displayedPositionMs: Long,
     metrics: PlayerLayoutMetrics,
-    resizeMode: PlayerResizeMode,
-    volumeLevel: PlayerAudioLevel?,
     onScrubChange: (Long) -> Unit,
     onScrubFinished: (Long) -> Unit,
-    onResizeModeClick: () -> Unit,
-    onSpeedClick: () -> Unit,
-    onVolumeChange: (Float) -> Unit,
-    onMuteClick: () -> Unit,
-    onSubtitleClick: () -> Unit,
-    onAudioClick: () -> Unit,
-    onSourcesClick: (() -> Unit)? = null,
-    onEpisodesClick: (() -> Unit)? = null,
-    onOpenInExternalPlayer: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val durationMs = playbackSnapshot.durationMs.coerceAtLeast(1L)
-    val aspectRatioPainter = appIconPainter(AppIconResource.PlayerAspectRatio)
-    val subtitlesPainter = appIconPainter(AppIconResource.PlayerSubtitles)
-    val audioPainter = appIconPainter(AppIconResource.PlayerAudioFilled)
-    var showVolumeSlider by remember { mutableStateOf(false) }
 
     Column(modifier = modifier) {
         Slider(
@@ -533,91 +609,7 @@ private fun ProgressControls(
             TimePill(text = formatPlaybackTime(displayedPositionMs), fontSize = metrics.timeSize)
             TimePill(text = formatPlaybackTime(durationMs), fontSize = metrics.timeSize)
         }
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Surface(
-                color = Color.Black.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(24.dp),
-                ),
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    if (showVolumeSlider && volumeLevel != null) {
-                        PlayerVolumeSlider(
-                            volumeLevel = volumeLevel,
-                            onVolumeChange = onVolumeChange,
-                            onMuteClick = onMuteClick,
-                        )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        PlayerActionPillButton(
-                            label = stringResource(resizeMode.labelRes),
-                            painter = aspectRatioPainter,
-                            onClick = onResizeModeClick,
-                        )
-                        PlayerActionPillButton(
-                            label = formatPlaybackSpeedLabel(playbackSnapshot.playbackSpeed),
-                            icon = Icons.Rounded.Speed,
-                            onClick = onSpeedClick,
-                        )
-                        if (volumeLevel != null) {
-                            PlayerActionPillButton(
-                                label = stringResource(Res.string.compose_player_volume),
-                                icon = if (volumeLevel.isMuted) {
-                                    Icons.AutoMirrored.Rounded.VolumeOff
-                                } else {
-                                    Icons.AutoMirrored.Rounded.VolumeUp
-                                },
-                                onClick = { showVolumeSlider = !showVolumeSlider },
-                            )
-                        }
-                        PlayerActionPillButton(
-                            label = stringResource(Res.string.compose_player_subs),
-                            painter = subtitlesPainter,
-                            onClick = onSubtitleClick,
-                        )
-                        PlayerActionPillButton(
-                            label = stringResource(Res.string.compose_player_audio),
-                            painter = audioPainter,
-                            onClick = onAudioClick,
-                        )
-                        if (onSourcesClick != null) {
-                            PlayerActionPillButton(
-                                label = stringResource(Res.string.compose_player_sources),
-                                icon = Icons.Rounded.SwapHoriz,
-                                onClick = onSourcesClick,
-                            )
-                        }
-                        if (onEpisodesClick != null) {
-                            PlayerActionPillButton(
-                                label = stringResource(Res.string.compose_player_episodes),
-                                icon = Icons.Rounded.VideoLibrary,
-                                onClick = onEpisodesClick,
-                            )
-                        }
-                        if (onOpenInExternalPlayer != null) {
-                            PlayerActionPillButton(
-                                label = stringResource(Res.string.streams_open_external_player),
-                                icon = Icons.AutoMirrored.Rounded.OpenInNew,
-                                onClick = onOpenInExternalPlayer,
-                            )
-                        }
-                    }
-                }
-            }
-        }
+
     }
 }
 
@@ -827,3 +819,5 @@ private fun PlayerVolumeSlider(
         )
     }
 }
+
+// test

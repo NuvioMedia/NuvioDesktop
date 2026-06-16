@@ -78,6 +78,8 @@ import com.nuvio.app.features.plugins.PluginsUiState
 import com.nuvio.app.features.plugins.PluginRepository
 import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamAutoPlaySource
+import com.nuvio.app.features.player.CUSTOM_PLAYER_PREFIX
+import com.nuvio.app.features.player.pickExternalPlayerExecutable
 import com.nuvio.app.isIos
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
@@ -289,8 +291,15 @@ private fun PlaybackSettingsSection(
         P2pSettingsRepository.ensureLoaded()
         P2pSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
+    val customPlayer = autoPlayPlayerSettings.externalPlayerId?.let { id ->
+        if (id.startsWith(CUSTOM_PLAYER_PREFIX)) {
+            val path = id.removePrefix(CUSTOM_PLAYER_PREFIX)
+            val name = path.substringAfterLast('\\').substringAfterLast('/')
+            ExternalPlayerApp(id, name)
+        } else null
+    }
     val availableExternalPlayers = if (externalPlayerSupported) {
-        ExternalPlayerPlatform.availablePlayers()
+        ExternalPlayerPlatform.availablePlayers() + listOfNotNull(customPlayer)
     } else {
         emptyList()
     }
@@ -324,6 +333,7 @@ private fun PlaybackSettingsSection(
                 )
                 if (externalPlayerSupported) {
                     SettingsGroupDivider(isTablet = isTablet)
+                    // Player preference picker: Internal / External
                     SettingsNavigationRow(
                         title = stringResource(Res.string.settings_playback_player_preference),
                         description = if (autoPlayPlayerSettings.externalPlayerEnabled) {
@@ -333,6 +343,28 @@ private fun PlaybackSettingsSection(
                         },
                         isTablet = isTablet,
                         onClick = { showExternalPlayerDialog = true },
+                    )
+                    if (autoPlayPlayerSettings.externalPlayerEnabled) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsNavigationRow(
+                        title = stringResource(Res.string.settings_playback_player_preference),
+                        description = if (autoPlayPlayerSettings.externalPlayerEnabled) {
+                            stringResource(Res.string.settings_playback_player_preference_external)
+                        } else {
+                            stringResource(Res.string.settings_playback_player_preference_internal)
+                        },
+                        isTablet = isTablet,
+                        onClick = { showExternalPlayerAppDialog = true },
+                    )
+                }
+                if (autoPlayPlayerSettings.externalPlayerEnabled) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_external_player_forward_subtitles),
+                        description = stringResource(Res.string.settings_playback_external_player_forward_subtitles_description),
+                        checked = autoPlayPlayerSettings.externalPlayerForwardSubtitles,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setExternalPlayerForwardSubtitles,
                     )
                     if (isIos && autoPlayPlayerSettings.externalPlayerEnabled) {
                         SettingsGroupDivider(isTablet = isTablet)
@@ -1248,6 +1280,13 @@ private fun PlaybackSettingsSection(
                 showExternalPlayerAppDialog = false
             },
             onDismiss = { showExternalPlayerAppDialog = false },
+            onBrowseForPlayer = {
+                val path = pickExternalPlayerExecutable()
+                if (path != null) {
+                    PlayerSettingsRepository.setExternalPlayerId("$CUSTOM_PLAYER_PREFIX$path")
+                }
+                showExternalPlayerAppDialog = false
+            },
         )
     }
 
@@ -1583,6 +1622,7 @@ private fun ExternalPlayerSelectionDialog(
     selectedPlayerId: String?,
     onPlayerSelected: (String) -> Unit,
     onDismiss: () -> Unit,
+    onBrowseForPlayer: (() -> Unit)? = null,
 ) {
     BasicAlertDialog(
         onDismissRequest = onDismiss,
@@ -1659,6 +1699,22 @@ private fun ExternalPlayerSelectionDialog(
                     }
                 }
 
+                if (onBrowseForPlayer != null) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onBrowseForPlayer() },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    ) {
+                        Text(
+                            text = stringResource(Res.string.settings_playback_external_player_browse),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = stringResource(Res.string.settings_playback_dialog_close),

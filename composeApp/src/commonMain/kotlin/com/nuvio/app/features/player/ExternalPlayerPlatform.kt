@@ -1,5 +1,7 @@
 package com.nuvio.app.features.player
 
+internal const val CUSTOM_PLAYER_PREFIX = "custom::"
+
 data class ExternalPlayerApp(
     val id: String,
     val name: String,

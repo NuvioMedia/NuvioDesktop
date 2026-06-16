@@ -149,19 +149,13 @@ actual class MpvMediampPlayer(
         handle.option("demuxer-max-back-bytes", "${cacheMegs * 1024 * 1024}")
         handle.option("vd-lavc-film-grain", "cpu")
 
-        // Initialize immediately with platform-specific options, except on Windows
-        // where we must wait for the child HWND to be created.
-        if (currentPlatform() !is Platform.Windows) {
-            initialize(0L)
-        }
+        initialize(0L)
     }
 
     @InternalMediampApi
     fun initialize(hwnd: Long = 0L): Boolean {
         if (initialized) return true
-        val isWin = currentPlatform() is Platform.Windows
-        println("MPV_INIT start hwnd=$hwnd isWin=$isWin")
-        val useWid = isWin && hwnd != 0L
+        println("MPV_INIT start hwnd=$hwnd")
 
         var hardwareDecoderCodecs = "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1"
 
@@ -176,12 +170,7 @@ actual class MpvMediampPlayer(
             is Platform.Windows -> {
                 handle.option("ao", "wasapi")
                 handle.option("opengl-es", "no")
-                if (useWid) {
-                    val widResult = handle.option("wid", hwnd.toString())
-                    println("MPV_INIT option(wid,${hwnd})=$widResult")
-                }
-                val voResult = handle.option("vo", "gpu")
-                println("MPV_INIT option(vo,gpu)=$voResult")
+                handle.option("vo", "libmpv")
                 hardwareDecoderCodecs = "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1"
             }
 
@@ -208,7 +197,11 @@ actual class MpvMediampPlayer(
             else -> {}
         }
 
-        val defaultHwdec = if (currentPlatform() is Platform.Linux) "no" else "auto"
+        val defaultHwdec = when {
+            currentPlatform() is Platform.Linux -> "no"
+            currentPlatform() is Platform.Windows -> "d3d11va-copy"
+            else -> "auto"
+        }
         handle.option("hwdec", defaultHwdec)
         handle.option("hwdec-codecs", hardwareDecoderCodecs)
 

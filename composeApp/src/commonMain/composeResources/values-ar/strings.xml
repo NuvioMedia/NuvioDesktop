@@ -1752,6 +1752,7 @@
     <string name="settings_playback_external_player_forward_subtitles">إرسال الترجمات للمشغل الخارجي</string>
     <string name="settings_playback_external_player_forward_subtitles_description">جلب ترجمات الإضافة بلغتك المفضلة وإرسالها إلى المشغل الخارجي.</string>
     <string name="settings_playback_external_player_none_available">لا توجد مشغلات خارجية مدعومة مثبتة</string>
+    <string name="settings_playback_external_player_browse">تصفح لاختيار مشغل…</string>
     <string name="settings_playback_intro_submit_enabled">تفعيل إرسال المقدمة</string>
     <string name="settings_playback_intro_submit_enabled_description">إظهار زر لإرسال الطوابع الزمنية للمقدمة/الخاتمة إلى قاعدة البيانات المجتمعية.</string>
     <string name="settings_playback_introdb_api_key">مفتاح IntroDB API</string>

@@ -63,6 +63,7 @@ data class PluginScraper(
     }
 }
 
+@Serializable
 data class PluginRuntimeResult(
     val title: String,
     val name: String? = null,

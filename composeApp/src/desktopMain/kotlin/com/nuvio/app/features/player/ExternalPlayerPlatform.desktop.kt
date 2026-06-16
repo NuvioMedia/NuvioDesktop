@@ -59,6 +59,11 @@ internal actual object ExternalPlayerPlatform {
             DesktopRuntimeLog.warn("externalPlayer open rejected: no configured player")
             return ExternalPlayerOpenResult.NotConfigured
         }
+
+        if (playerId.startsWith(CUSTOM_PLAYER_PREFIX)) {
+            return openCustomPlayer(request, playerId)
+        }
+
         val knownDefinition = allDefinitions.firstOrNull { it.id == playerId }
             ?: run {
                 DesktopRuntimeLog.warn("externalPlayer open rejected: unknown configured id=$playerId")
@@ -109,11 +114,95 @@ internal actual object ExternalPlayerPlatform {
         playerId: String?,
     ): ExternalPlayerIntentResult {
         if (playerId.isNullOrBlank()) return ExternalPlayerIntentResult.NotConfigured
+
+        if (playerId.startsWith(CUSTOM_PLAYER_PREFIX)) {
+            return buildCustomPlayerIntent(request, playerId)
+        }
+
         val install = detectedPlayers.firstOrNull { it.definition.id == playerId }
             ?: return ExternalPlayerIntentResult.NotConfigured
         val commandResult = buildDesktopPlayerCommand(install, request)
         val command = commandResult.command
             ?: return ExternalPlayerIntentResult.Failed
         return ExternalPlayerIntentResult.Success(command)
+    }
+
+    private fun openCustomPlayer(
+        request: ExternalPlayerPlaybackRequest,
+        playerId: String,
+    ): ExternalPlayerOpenResult {
+        val executablePath = playerId.removePrefix(CUSTOM_PLAYER_PREFIX)
+        val exeFile = File(executablePath)
+        if (!exeFile.isFile) {
+            DesktopRuntimeLog.warn("custom external player not found at $executablePath")
+            return ExternalPlayerOpenResult.NoPlayerAvailable
+        }
+        val kind = resolvePlayerKind(executablePath)
+        val install = DesktopPlayerInstall(
+            definition = DesktopPlayerDefinition(
+                id = playerId,
+                name = exeFile.nameWithoutExtension,
+                kind = kind,
+            ),
+            executablePath = executablePath,
+        )
+        val commandResult = buildDesktopPlayerCommand(install, request)
+        val command = commandResult.command
+            ?: run {
+                DesktopRuntimeLog.warn(
+                    "Custom external player launch rejected: exe=$executablePath reason=${commandResult.failureReason}",
+                )
+                return ExternalPlayerOpenResult.Failed
+            }
+        return runCatching {
+            val startMs = System.currentTimeMillis()
+            val process = ProcessBuilder(command)
+                .redirectOutput(Redirect.DISCARD)
+                .redirectError(Redirect.DISCARD)
+                .start()
+            val processPid = runCatching { process.pid() }.getOrNull()
+            DesktopRuntimeLog.info(
+                "custom externalPlayer launched exe=$executablePath kind=$kind " +
+                    "pid=${processPid ?: "unknown"} elapsedLaunchMs=${System.currentTimeMillis() - startMs}",
+            )
+            DesktopExternalPlaybackWindowController.minimizeToTray(playerId, processPid)
+            ExternalPlayerOpenResult.Opened
+        }.getOrElse { throwable ->
+            DesktopRuntimeLog.error("Custom external player launch failed exe=$executablePath", throwable)
+            ExternalPlayerOpenResult.Failed
+        }
+    }
+
+    private fun buildCustomPlayerIntent(
+        request: ExternalPlayerPlaybackRequest,
+        playerId: String,
+    ): ExternalPlayerIntentResult {
+        val executablePath = playerId.removePrefix(CUSTOM_PLAYER_PREFIX)
+        if (!File(executablePath).isFile) return ExternalPlayerIntentResult.Failed
+        val kind = resolvePlayerKind(executablePath)
+        val install = DesktopPlayerInstall(
+            definition = DesktopPlayerDefinition(
+                id = playerId,
+                name = File(executablePath).nameWithoutExtension,
+                kind = kind,
+            ),
+            executablePath = executablePath,
+        )
+        val commandResult = buildDesktopPlayerCommand(install, request)
+        val command = commandResult.command
+            ?: return ExternalPlayerIntentResult.Failed
+        return ExternalPlayerIntentResult.Success(command)
+    }
+
+    private fun resolvePlayerKind(executablePath: String): DesktopPlayerKind {
+        val name = File(executablePath).name.lowercase()
+        return when {
+            name.contains("mpc") -> DesktopPlayerKind.Mpc
+            name.contains("vlc") -> DesktopPlayerKind.Vlc
+            name.contains("mpv") -> DesktopPlayerKind.Mpv
+            name.contains("kodi") -> DesktopPlayerKind.Kodi
+            name.contains("iina") -> DesktopPlayerKind.Iina
+            else -> DesktopPlayerKind.Vlc
+        }
     }
 }

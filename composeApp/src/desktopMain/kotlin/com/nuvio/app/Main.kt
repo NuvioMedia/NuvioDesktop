@@ -30,6 +30,9 @@ private const val NuvioDesktopIconPath = "icons/nuvio-app-icon.png"
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 
 fun main() {
+    System.setProperty("java.net.preferIPv4Stack", "true")
+    System.setProperty("java.net.useSystemProxies", "false")
+
     DesktopRuntimeLog.initialize(enabled = true)
     configureDesktopChrome()
     preloadNativePlayerBridgeAsync()

@@ -1004,6 +1004,7 @@ kotlin {
                 implementation(libs.ktor.client.cio)
                 implementation(libs.quickjs.kt)
                 implementation(libs.ksoup)
+                implementation("net.java.dev.jna:jna-platform:5.13.0")
             }
         }
         commonMain.dependencies {
