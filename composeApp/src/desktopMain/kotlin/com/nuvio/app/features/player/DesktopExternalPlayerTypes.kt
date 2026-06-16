@@ -1,7 +1,7 @@
 package com.nuvio.app.features.player
 
 internal enum class DesktopPlayerKind {
-    Mpc, Vlc, Mpv, Kodi,
+    Mpc, Vlc, Mpv, Kodi, Iina,
 }
 
 internal data class DesktopPlayerDefinition(

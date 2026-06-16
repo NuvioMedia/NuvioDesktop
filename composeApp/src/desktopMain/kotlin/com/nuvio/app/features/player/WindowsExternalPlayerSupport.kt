@@ -139,6 +139,7 @@ internal fun buildDesktopPlayerCommand(
         DesktopPlayerKind.Vlc -> buildVlcCommand(install.executablePath, request.copy(sourceUrl = url))
         DesktopPlayerKind.Mpv -> buildMpvCommand(install.executablePath, request.copy(sourceUrl = url))
         DesktopPlayerKind.Kodi -> buildKodiCommand(install.executablePath, request.copy(sourceUrl = url))
+        DesktopPlayerKind.Iina -> buildMacosIinaCommand(install.executablePath, request.copy(sourceUrl = url))
     } }
     return DesktopPlayerCommandResult(cmd.command, cmd.failureReason, cmd.logFilePath)
 }
@@ -287,6 +288,36 @@ private fun buildKodiCommand(
     return WindowsExternalPlayerCommandResult(command)
 }
 
+private fun buildMacosIinaCommand(
+    executablePath: String,
+    request: ExternalPlayerPlaybackRequest,
+): WindowsExternalPlayerCommandResult {
+    val command = mutableListOf(
+        executablePath,
+        "--keep-running",
+        "--mpv-force-window=yes",
+        "--mpv-cache=yes",
+        "--mpv-cache-secs=60",
+        "--mpv-demuxer-max-bytes=256MiB",
+        "--mpv-demuxer-max-back-bytes=128MiB",
+        "--mpv-demuxer-readahead-secs=60",
+    )
+    request.resumePositionMs.toStartSeconds()?.let { startSeconds ->
+        command += "--mpv-start=$startSeconds"
+    }
+    if (request.sourceHeaders.isNotEmpty()) {
+        val headerList = request.sourceHeaders.toMpvHeaderFields()
+            ?: return WindowsExternalPlayerCommandResult(null, "selected stream has invalid HTTP headers")
+        command += "--mpv-http-header-fields=$headerList"
+    }
+    val subtitleUrl = request.subtitles?.firstOrNull()?.url?.takeIf { it.isNotBlank() }
+    if (subtitleUrl != null) {
+        command += "--mpv-sub-file=$subtitleUrl"
+    }
+    command += request.sourceUrl
+    return WindowsExternalPlayerCommandResult(command)
+}
+
 private fun findWindowsExternalPlayerExecutable(
     definition: WindowsExternalPlayerDefinition,
     getenv: (String) -> String?,
@@ -349,6 +380,8 @@ private fun DesktopPlayerKind.seekSupportNote(): String = when (this) {
         "mpv receives headers, audio URL, resume, and bounded demuxer cache flags from Nuvio"
     DesktopPlayerKind.Kodi ->
         "Kodi receives start time and direct URL"
+    DesktopPlayerKind.Iina ->
+        "IINA receives headers, resume, and mpv-passthrough flags from Nuvio"
 }
 
 internal fun List<String>.redactExternalPlayerCommand(): List<String> =

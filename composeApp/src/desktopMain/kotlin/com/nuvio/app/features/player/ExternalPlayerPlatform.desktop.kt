@@ -6,19 +6,26 @@ import java.io.File
 import java.lang.ProcessBuilder.Redirect
 
 internal actual object ExternalPlayerPlatform {
-    private val isWindows: Boolean by lazy {
-        System.getProperty("os.name")?.contains("Windows", ignoreCase = true) == true
+    private val osName: String by lazy {
+        System.getProperty("os.name")?.lowercase().orEmpty()
     }
 
+    private val isWindows: Boolean by lazy { osName.contains("windows") }
+    private val isMacos: Boolean by lazy { osName.contains("mac") }
+
     private val allDefinitions: List<DesktopPlayerDefinition> by lazy {
-        if (isWindows) windowsDesktopPlayerDefinitions else linuxDesktopPlayerDefinitions
+        when {
+            isWindows -> windowsDesktopPlayerDefinitions
+            isMacos -> macosDesktopPlayerDefinitions
+            else -> linuxDesktopPlayerDefinitions
+        }
     }
 
     private val detectedPlayers: List<DesktopPlayerInstall> by lazy {
-        val players = if (isWindows) {
-            detectWindowsExternalPlayers().map { it.toDesktopPlayerInstall() }
-        } else {
-            detectLinuxExternalPlayers().map { it.toDesktopPlayerInstall() }
+        val players = when {
+            isWindows -> detectWindowsExternalPlayers().map { it.toDesktopPlayerInstall() }
+            isMacos -> detectMacosExternalPlayers().map { it.toDesktopPlayerInstall() }
+            else -> detectLinuxExternalPlayers().map { it.toDesktopPlayerInstall() }
         }
         DesktopRuntimeLog.info(
             "externalPlayer detection complete count=${players.size} ids=${players.joinToString { it.definition.id }}",
