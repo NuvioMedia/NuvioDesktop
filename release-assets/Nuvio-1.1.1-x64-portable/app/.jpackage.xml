@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<jpackage-state version="21.0.11" platform="windows">
+  <app-version>1.1.1</app-version>
+  <main-launcher>Nuvio</main-launcher>
+  <main-class>com.nuvio.app.MainKt</main-class>
+  <signed>false</signed>
+  <app-store>false</app-store></jpackage-state>
