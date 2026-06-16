@@ -593,21 +593,38 @@ val windowsWebView2IncludeDir = File(windowsWebView2Root, "build/native/include"
 val windowsWebView2NativeDir = File(windowsWebView2Root, "build/native/$windowsPlayerBridgeArch")
 val windowsWebView2LoaderLib = File(windowsWebView2NativeDir, "WebView2Loader.dll.lib")
 val windowsWebView2LoaderDll = File(windowsWebView2NativeDir, "WebView2Loader.dll")
-val windowsLibmpvRuntimeDir = providers.gradleProperty("nuvio.windows.libmpv.runtimeDir").orNull
+val bundledWindowsLibmpvRuntimeDir = layout.projectDirectory.dir("src/desktopMain/native/windows/runtime").asFile
+val windowsLibmpvRuntimeDirOverride = providers.gradleProperty("nuvio.windows.libmpv.runtimeDir").orNull
     ?.takeIf { it.isNotBlank() }
     ?.let(::File)
-    ?: listOf(
-        File("C:/Program Files (x86)/Nuvio/app/native"),
-        File("C:/Program Files/Nuvio/app/native"),
-    ).firstOrNull { File(it, "libmpv-2.dll").exists() }
-val windowsLibmpvDll = providers.gradleProperty("nuvio.windows.libmpv.dll").orNull
+val windowsLibmpvRuntimeDir = windowsLibmpvRuntimeDirOverride
+    ?: bundledWindowsLibmpvRuntimeDir.takeIf { File(it, "libmpv-2.dll").exists() }
+val windowsLibmpvDllOverride = providers.gradleProperty("nuvio.windows.libmpv.dll").orNull
     ?.takeIf { it.isNotBlank() }
     ?.let(::File)
+val windowsLibmpvDll = windowsLibmpvDllOverride
     ?: windowsLibmpvRuntimeDir?.resolve("libmpv-2.dll")
     ?: listOf(
         File("C:/msys64/ucrt64/bin/libmpv-2.dll"),
         File("C:/msys64/mingw64/bin/libmpv-2.dll"),
     ).firstOrNull(File::exists)
+val windowsCppRuntimeDllNames = listOf(
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+    "msvcp140.dll",
+    "msvcp140_1.dll",
+    "msvcp140_2.dll",
+    "msvcp140_atomic_wait.dll",
+    "msvcp140_codecvt_ids.dll",
+    "concrt140.dll",
+)
+val windowsCppRuntimeDlls = if (isWindowsHost) {
+    windowsCppRuntimeDllNames
+        .map { File("C:/Windows/System32", it) }
+        .filter(File::exists)
+} else {
+    emptyList()
+}
 val windowsVsWhere = File("C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe")
 val windowsVcvarsRelativePath = when (windowsPlayerBridgeArch) {
     "x86" -> "VC\\Auxiliary\\Build\\vcvars32.bat"
@@ -729,6 +746,9 @@ val prepareWindowsPlayerRuntime = tasks.register<Sync>("prepareWindowsPlayerRunt
     into(windowsPlayerRuntimeOutput)
     if (windowsWebView2LoaderDll.exists()) {
         from(windowsWebView2LoaderDll)
+    }
+    windowsCppRuntimeDlls.forEach { dllFile ->
+        from(dllFile)
     }
     when {
         windowsLibmpvRuntimeDir?.exists() == true -> {
@@ -1084,7 +1104,12 @@ compose.desktop {
             packageName = "Nuvio"
             packageVersion = desktopReleasePackageVersion
             vendor = "Nuvio Media"
-            modules("java.net.http")
+            modules(
+                "java.instrument",
+                "java.management",
+                "java.net.http",
+                "jdk.unsupported",
+            )
             macOS {
                 bundleID = "com.nuvio.media.desktop"
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon.icns"))

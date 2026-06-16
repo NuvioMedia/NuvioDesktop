@@ -9,6 +9,17 @@ internal fun interface NativePlayerEventSink {
 }
 
 internal object NativePlayerBridge {
+    private val windowsNativeRuntimeDependencyNames = listOf(
+        "vcruntime140.dll",
+        "vcruntime140_1.dll",
+        "msvcp140.dll",
+        "msvcp140_1.dll",
+        "msvcp140_2.dll",
+        "msvcp140_atomic_wait.dll",
+        "msvcp140_codecvt_ids.dll",
+        "concrt140.dll",
+        "WebView2Loader.dll",
+    )
     private val preloadStarted = AtomicBoolean(false)
 
     init {
@@ -107,6 +118,7 @@ internal object NativePlayerBridge {
         val platformDir = nativeDirectoryName(platform)
         findLocalBuildLibrary(platformDir, libraryName)?.let { localLibrary ->
             copyLocalRuntimeResources(platformDir, localLibrary.parentFile)
+            loadNativeRuntimeDependencies(platform, localLibrary.parentFile)
             System.load(localLibrary.absolutePath)
             return
         }
@@ -122,7 +134,19 @@ internal object NativePlayerBridge {
         input.use { source ->
             file.outputStream().use { target -> source.copyTo(target) }
         }
+        loadNativeRuntimeDependencies(platform, dir)
         System.load(file.absolutePath)
+    }
+
+    private fun loadNativeRuntimeDependencies(platform: DesktopHostOs, directory: File) {
+        if (platform != DesktopHostOs.WINDOWS) return
+
+        windowsNativeRuntimeDependencyNames.forEach { name ->
+            val dependency = directory.resolve(name)
+            if (dependency.exists()) {
+                System.load(dependency.absolutePath)
+            }
+        }
     }
 
     private fun extractBundledRuntimeResources(platformDir: String, dir: File) {
@@ -282,6 +306,8 @@ internal object NativePlayerBridge {
 
 internal fun preloadNativePlayerBridgeAsync() {
     if (DesktopHostOs.current == DesktopHostOs.MACOS || DesktopHostOs.current == DesktopHostOs.WINDOWS) {
-        NativePlayerBridge.preloadAsync()
+        runCatching {
+            NativePlayerBridge.preloadAsync()
+        }
     }
 }
