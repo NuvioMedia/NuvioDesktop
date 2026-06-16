@@ -395,6 +395,7 @@ val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generat
 
 val isMacHost = System.getProperty("os.name").contains("mac", ignoreCase = true)
 val isWindowsHost = System.getProperty("os.name").contains("win", ignoreCase = true)
+val isLinuxHost = System.getProperty("os.name").contains("linux", ignoreCase = true)
 val mpvKitDir = providers.gradleProperty("nuvio.mpvkit.dir")
     .orElse(rootProject.layout.projectDirectory.dir("MPVKit").asFile.absolutePath)
 val macosPlayerBridgeSource = layout.projectDirectory.file("src/desktopMain/native/macos/player_bridge.mm")
@@ -917,7 +918,7 @@ compose.desktop {
         )
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.AppImage)
             packageName = "Nuvio"
             packageVersion = desktopReleasePackageVersion
             vendor = "Nuvio Media"
@@ -1085,6 +1086,46 @@ if (isMacHost) {
         finalDmgName.set("Nuvio-macOS-$macosDmgArchName-$desktopReleaseVersionName.dmg")
         defaultDmgName.set("Nuvio-$desktopReleasePackageVersion.dmg")
         keychainProfile.set(macosNotaryKeychainProfile.orEmpty())
+    }
+}
+
+// ==================== Linux Packaging Tasks ====================
+
+// AppImage with update info
+tasks.register("packageAppImageWithUpdate") {
+    dependsOn("createReleaseDistributable")
+    doLast {
+        val appDir = layout.buildDirectory.dir("compose/binaries/main/app/Nuvio").get().asFile
+        if (!appDir.isDirectory) {
+            logger.warn("AppImage: distribution dir not found at ${appDir.absolutePath}")
+            return@doLast
+        }
+        val appRun = appDir.resolve("AppRun")
+        appRun.writeText(
+            "#!/bin/sh\n" +
+            "HERE=\"\$(dirname \"\$(readlink -f \"\${0}\")\")\"\n" +
+            "cd \"\${HERE}\" || exit 1\n" +
+            "exec \"\${HERE}/bin/Nuvio\" \"\$@\"\n"
+        )
+        appRun.setExecutable(true)
+
+        val outputDir = layout.buildDirectory.dir("compose/binaries/main/appimage").get().asFile
+        outputDir.mkdirs()
+        val appImageFile = outputDir.resolve("Nuvio-${desktopReleasePackageVersion}-x86_64.AppImage")
+        val updateStr = "gh-releases-zsync|${project.findProperty("github.owner") ?: "aelrased"}|${project.findProperty("github.repo") ?: "NuvioDesktop"}|latest|Nuvio-*-x86_64.AppImage.zsync"
+        exec {
+            commandLine(
+                "appimagetool",
+                "-u", updateStr,
+                appDir.absolutePath,
+                appImageFile.absolutePath,
+            )
+        }
+        logger.lifecycle("AppImage created: ${appImageFile.absolutePath}")
+        val zsyncFile = file("${appImageFile.absolutePath}.zsync")
+        if (zsyncFile.isFile) {
+            logger.lifecycle("zsync file: ${zsyncFile.absolutePath}")
+        }
     }
 }
 
