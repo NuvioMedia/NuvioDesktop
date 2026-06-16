@@ -175,6 +175,9 @@
         </div>
         <div class="action-row">
           <div class="action-pill">
+            <button class="action playback-action" id="toggle" data-command="toggle" aria-label="Play">
+              <svg><use id="toggleIcon" href="#icon-play"></use></svg><span id="toggleLabel">Play</span>
+            </button>
             <button class="action" data-command="resize"><svg><use href="#icon-aspect"></use></svg><span id="resizeLabel">Fit</span></button>
             <button class="action" data-command="speed"><svg><use href="#icon-speed"></use></svg><span id="speedLabel">1x</span></button>
             <button class="action" data-command="subtitles"><svg><use href="#icon-subs"></use></svg><span id="subtitlesLabel">Subs</span></button>
@@ -182,6 +185,7 @@
             <button class="action optional" id="sourcesButton" data-command="sources"><svg><use href="#icon-swap"></use></svg><span id="sourcesLabel">Sources</span></button>
             <button class="action optional" id="episodesButton" data-command="episodes"><svg><use href="#icon-video"></use></svg><span id="episodesLabel">Episodes</span></button>
           </div>
+          <div class="time-label" id="timeLabel">00:00 / 00:00</div>
         </div>
       </section>
       <section class="locked-overlay" id="lockedOverlay" aria-label="Locked player controls">

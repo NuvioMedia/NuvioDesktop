@@ -10,6 +10,7 @@ expect object AppFeaturePolicy {
     val downloadsEnabled: Boolean
     val notificationsEnabled: Boolean
     val p2pEnabled: Boolean
+    val externalPlayerSupported: Boolean
     val trailerPlaybackMode: TrailerPlaybackMode
     val heroTrailerPlaybackSupported: Boolean
     val inAppUpdaterEnabled: Boolean

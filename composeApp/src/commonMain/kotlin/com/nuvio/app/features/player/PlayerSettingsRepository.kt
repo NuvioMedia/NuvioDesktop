@@ -222,8 +222,16 @@ object PlayerSettingsRepository {
         holdToSpeedEnabled = PlayerSettingsStorage.loadHoldToSpeedEnabled() ?: true
         holdToSpeedValue = PlayerSettingsStorage.loadHoldToSpeedValue() ?: 2f
         touchGesturesEnabled = PlayerSettingsStorage.loadTouchGesturesEnabled() ?: true
-        externalPlayerEnabled = PlayerSettingsStorage.loadExternalPlayerEnabled() ?: false
-        externalPlayerForwardSubtitles = PlayerSettingsStorage.loadExternalPlayerForwardSubtitles() ?: false
+        externalPlayerEnabled = if (AppFeaturePolicy.externalPlayerSupported) {
+            PlayerSettingsStorage.loadExternalPlayerEnabled() ?: false
+        } else {
+            false
+        }
+        externalPlayerForwardSubtitles = if (AppFeaturePolicy.externalPlayerSupported) {
+            PlayerSettingsStorage.loadExternalPlayerForwardSubtitles() ?: false
+        } else {
+            false
+        }
         externalPlayerId = PlayerSettingsStorage.loadExternalPlayerId()
             ?: ExternalPlayerPlatform.defaultPlayerId()
         preferredAudioLanguage =
@@ -383,18 +391,21 @@ object PlayerSettingsRepository {
 
     fun setExternalPlayerEnabled(enabled: Boolean) {
         ensureLoaded()
-        if (enabled && externalPlayerId.isNullOrBlank()) {
+        val normalizedEnabled = enabled && AppFeaturePolicy.externalPlayerSupported
+        if (normalizedEnabled && externalPlayerId.isNullOrBlank()) {
             externalPlayerId = ExternalPlayerPlatform.defaultPlayerId()
                 ?: ExternalPlayerPlatform.availablePlayers().firstOrNull()?.id
             PlayerSettingsStorage.saveExternalPlayerId(externalPlayerId)
         }
-        if (externalPlayerEnabled == enabled) {
+        if (externalPlayerEnabled == normalizedEnabled) {
             publish()
             return
         }
-        externalPlayerEnabled = enabled
+        externalPlayerEnabled = normalizedEnabled
         publish()
-        PlayerSettingsStorage.saveExternalPlayerEnabled(enabled)
+        if (AppFeaturePolicy.externalPlayerSupported) {
+            PlayerSettingsStorage.saveExternalPlayerEnabled(normalizedEnabled)
+        }
     }
 
     fun setExternalPlayerId(playerId: String?) {
@@ -408,10 +419,13 @@ object PlayerSettingsRepository {
 
     fun setExternalPlayerForwardSubtitles(enabled: Boolean) {
         ensureLoaded()
-        if (externalPlayerForwardSubtitles == enabled) return
-        externalPlayerForwardSubtitles = enabled
+        val normalizedEnabled = enabled && AppFeaturePolicy.externalPlayerSupported
+        if (externalPlayerForwardSubtitles == normalizedEnabled) return
+        externalPlayerForwardSubtitles = normalizedEnabled
         publish()
-        PlayerSettingsStorage.saveExternalPlayerForwardSubtitles(enabled)
+        if (AppFeaturePolicy.externalPlayerSupported) {
+            PlayerSettingsStorage.saveExternalPlayerForwardSubtitles(normalizedEnabled)
+        }
     }
 
     fun setPreferredAudioLanguage(language: String) {
@@ -841,8 +855,8 @@ object PlayerSettingsRepository {
             holdToSpeedEnabled = holdToSpeedEnabled,
             holdToSpeedValue = holdToSpeedValue,
             touchGesturesEnabled = touchGesturesEnabled,
-            externalPlayerEnabled = externalPlayerEnabled,
-            externalPlayerForwardSubtitles = externalPlayerForwardSubtitles,
+            externalPlayerEnabled = externalPlayerEnabled && AppFeaturePolicy.externalPlayerSupported,
+            externalPlayerForwardSubtitles = externalPlayerForwardSubtitles && AppFeaturePolicy.externalPlayerSupported,
             externalPlayerId = externalPlayerId,
             preferredAudioLanguage = preferredAudioLanguage,
             secondaryPreferredAudioLanguage = secondaryPreferredAudioLanguage,

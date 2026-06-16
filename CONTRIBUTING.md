@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Nuvio.
+Thanks for helping improve Nuvio Desktop.
 
 ## Strict rules - read before opening anything
 
@@ -44,7 +44,7 @@ UI PRs are accepted only when they fix a specific, documented glitch or bug, suc
 - Overlapping or clipped text
 - Unreadable content
 - Incorrect visual state
-- Navigation, gesture, or focus glitches
+- Navigation, keyboard/mouse, window focus, or fullscreen glitches
 - A visible regression from a previous version
 - A crash, blank screen, or unusable screen caused by UI code
 
@@ -61,7 +61,7 @@ Cosmetic-only UI PRs will be closed, even if the change is small.
 
 ## Behavior changes
 
-Behavior includes, but is not limited to, playback, stream/source selection, resume state, watched state, search, sync, settings defaults, navigation, gestures, error handling, caching, networking, storage, downloads, offline behavior, and account-related flows.
+Behavior includes, but is not limited to, playback, stream/source selection, resume state, watched state, search, sync, settings defaults, navigation, keyboard/mouse input, windowing, fullscreen, error handling, caching, networking, storage, downloads, offline behavior, and account-related flows.
 
 Do not open a PR that changes behavior unless one of these is true:
 
@@ -107,31 +107,21 @@ To keep issues fixable, bug reports should include:
 
 - A short, specific issue title that describes the bug
 - App version (release version or commit hash)
-- Platform (Android / iOS / Desktop) + device model + OS version
-- Install method (release build / TestFlight / CI / built from source)
+- Desktop platform (Windows / macOS / Linux), hardware, and OS version
+- Install method (GitHub Release desktop installer/package / CI / built from source)
 - Steps to reproduce (exact steps)
 - Expected vs actual behavior
 - Frequency (always/sometimes/once)
 
 Do not leave the title as just `[Bug]:` or another generic placeholder.
 
-Logs are optional for most issues, but they are **required** for crash / force-close reports.
+Logs are optional for most issues, but they are **required** for crash reports.
 
 ### How to capture logs (optional)
 
-**Android:**
-
-```sh
-adb logcat -d | tail -n 300
-```
-
-**iOS:**
-
-Attach a crash log from Xcode Organizer or Console.app, or reproduce while connected to Xcode and copy the relevant log output.
-
 **Desktop:**
 
-Copy the relevant terminal/console output from around the time the issue occurred.
+Copy the relevant terminal/console output, installer logs, updater logs, or Windows Event Viewer crash details from around the time the issue occurred.
 
 ---
 
@@ -155,6 +145,7 @@ Please make sure your PR is all of the following:
 
 - Allowed by this policy
 - Small in scope and focused on one problem
+- Scoped to the desktop app, desktop packaging, desktop documentation, or shared code required for desktop behavior
 - Clearly aligned with the current direction of the project
 - Not cosmetic-only
 - Not changing behavior unless it fixes a linked bug or has explicit approval

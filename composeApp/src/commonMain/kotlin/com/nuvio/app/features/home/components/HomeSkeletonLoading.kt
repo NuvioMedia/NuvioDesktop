@@ -33,9 +33,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.isDesktop
+import com.nuvio.app.core.ui.desktopCatalogShelfPosterBaseWidthDp
 import com.nuvio.app.core.ui.landscapePosterHeightForWidth
 import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
+import kotlin.math.roundToInt
 
 @Composable
 private fun rememberHomeSkeletonBrush(): Brush {
@@ -191,15 +193,18 @@ fun HomeSkeletonRow(
 ) {
     val brush = rememberHomeSkeletonBrush()
     val posterCardStyle = rememberPosterCardStyleUiState()
+    val basePosterWidthDp = desktopCatalogShelfPosterBaseWidthDp(posterCardStyle.widthDp)
     val skeletonWidth = if (posterCardStyle.catalogLandscapeModeEnabled) {
-        landscapePosterWidth(posterCardStyle.widthDp)
+        landscapePosterWidth(basePosterWidthDp)
     } else {
-        posterCardStyle.widthDp.dp
+        basePosterWidthDp.dp
     }
     val skeletonHeight = if (posterCardStyle.catalogLandscapeModeEnabled) {
         landscapePosterHeightForWidth(skeletonWidth)
     } else {
-        posterCardStyle.heightDp.dp
+        ((posterCardStyle.heightDp * basePosterWidthDp.toFloat()) / posterCardStyle.widthDp)
+            .roundToInt()
+            .dp
     }
 
     Column(

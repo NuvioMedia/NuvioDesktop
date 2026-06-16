@@ -55,6 +55,7 @@ jobs:
               "Summary",
               "PR type",
               "Why",
+              "Desktop scope",
               "Issue or approval",
               "UI / behavior impact",
               "Policy check",

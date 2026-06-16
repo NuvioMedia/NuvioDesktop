@@ -1764,6 +1764,13 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     return [self doubleProperty:"speed" fallback:_cachedSpeed.load()];
 }
 
+- (void)adjustVolume:(double)delta {
+    if (!_mpv) return;
+    double current = [self doubleProperty:"volume" fallback:100.0];
+    double next = fmax(0.0, fmin(100.0, current + delta));
+    mpv_set_property(_mpv, "volume", MPV_FORMAT_DOUBLE, &next);
+}
+
 - (void)setResizeMode:(int)mode {
     if (!_mpv) return;
     NSString *panscan = @"0.0";
@@ -2431,6 +2438,20 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSpeed(
     MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
     runOnMainAsync(^{
         [player setSpeed:speed];
+    });
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_adjustVolume(
+    JNIEnv * /* env */,
+    jobject /* bridge */,
+    jlong handle,
+    jfloat delta
+) {
+    if (handle == 0) return;
+    MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
+    runOnMainAsync(^{
+        [player adjustVolume:delta];
     });
 }
 

@@ -29,10 +29,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -61,6 +63,10 @@ import nuvio.composeapp.generated.resources.settings_trakt_connect
 import nuvio.composeapp.generated.resources.settings_trakt_connected_as
 import nuvio.composeapp.generated.resources.settings_trakt_default_user
 import nuvio.composeapp.generated.resources.settings_trakt_disconnect
+import nuvio.composeapp.generated.resources.settings_trakt_device_code_copied
+import nuvio.composeapp.generated.resources.settings_trakt_device_finish_sign_in
+import nuvio.composeapp.generated.resources.settings_trakt_device_instructions
+import nuvio.composeapp.generated.resources.settings_trakt_open_activation
 import nuvio.composeapp.generated.resources.settings_trakt_failed_open_browser
 import nuvio.composeapp.generated.resources.settings_trakt_features
 import nuvio.composeapp.generated.resources.settings_trakt_finish_sign_in
@@ -669,9 +675,12 @@ private fun TraktConnectionCard(
     uiState: TraktAuthUiState,
 ) {
     val uriHandler = LocalUriHandler.current
+    val clipboardManager = LocalClipboardManager.current
     val horizontalPadding = if (isTablet) 20.dp else 16.dp
     val verticalPadding = if (isTablet) 18.dp else 16.dp
     val failedOpenBrowserMessage = stringResource(Res.string.settings_trakt_failed_open_browser)
+    val codeCopiedMessage = stringResource(Res.string.settings_trakt_device_code_copied)
+    var localStatusMessage by rememberSaveable(uiState.pendingDeviceUserCode) { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -716,17 +725,61 @@ private fun TraktConnectionCard(
             }
 
             TraktConnectionMode.AWAITING_APPROVAL -> {
+                val isDeviceCodeFlow = uiState.usesDeviceCodeFlow
                 Text(
-                    text = stringResource(Res.string.settings_trakt_finish_sign_in),
+                    text = stringResource(
+                        if (isDeviceCodeFlow) {
+                            Res.string.settings_trakt_device_finish_sign_in
+                        } else {
+                            Res.string.settings_trakt_finish_sign_in
+                        },
+                    ),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
-                    text = stringResource(Res.string.settings_trakt_approval_redirect),
+                    text = stringResource(
+                        if (isDeviceCodeFlow) {
+                            Res.string.settings_trakt_device_instructions
+                        } else {
+                            Res.string.settings_trakt_approval_redirect
+                        },
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (isDeviceCodeFlow && !uiState.pendingDeviceUserCode.isNullOrBlank()) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                clipboardManager.setText(AnnotatedString(uiState.pendingDeviceUserCode))
+                                localStatusMessage = codeCopiedMessage
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = uiState.pendingDeviceUserCode,
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            uiState.pendingDeviceVerificationUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                                Text(
+                                    text = url,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
+                }
                 Button(
                     onClick = {
                         val authUrl = TraktAuthRepository.pendingAuthorizationUrl()
@@ -741,7 +794,15 @@ private fun TraktConnectionCard(
                     },
                     enabled = !uiState.isLoading,
                 ) {
-                    Text(stringResource(Res.string.settings_trakt_open_login))
+                    Text(
+                        stringResource(
+                            if (isDeviceCodeFlow) {
+                                Res.string.settings_trakt_open_activation
+                            } else {
+                                Res.string.settings_trakt_open_login
+                            },
+                        ),
+                    )
                 }
                 Button(
                     onClick = TraktAuthRepository::onCancelAuthorization,
@@ -793,7 +854,7 @@ private fun TraktConnectionCard(
             }
         }
 
-        uiState.statusMessage?.takeIf { it.isNotBlank() }?.let { message ->
+        (localStatusMessage ?: uiState.statusMessage)?.takeIf { it.isNotBlank() }?.let { message ->
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodySmall,

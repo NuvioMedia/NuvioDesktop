@@ -31,6 +31,7 @@ internal object NativePlayerBridge {
     external fun seekTo(handle: Long, positionMs: Long)
     external fun seekBy(handle: Long, offsetMs: Long)
     external fun setSpeed(handle: Long, speed: Float)
+    external fun adjustVolume(handle: Long, delta: Float)
     external fun setResizeMode(handle: Long, mode: Int)
     external fun durationMs(handle: Long): Long
     external fun positionMs(handle: Long): Long

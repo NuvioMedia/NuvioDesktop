@@ -342,10 +342,10 @@ data class CatalogRoute(
         title = title,
         subtitle = subtitle,
         targetKind = when (target) {
-            is CatalogTarget.Addon -> CatalogTargetKind.ADDON.name
-            is CatalogTarget.Library -> CatalogTargetKind.LIBRARY.name
-            is CatalogTarget.CollectionSource -> CatalogTargetKind.COLLECTION_SOURCE.name
-        },
+            is CatalogTarget.Addon -> CatalogTargetKind.ADDON
+            is CatalogTarget.Library -> CatalogTargetKind.LIBRARY
+            is CatalogTarget.CollectionSource -> CatalogTargetKind.COLLECTION_SOURCE
+        }.name,
         contentType = target.contentType,
         supportsPagination = target.supportsPagination,
         manifestUrl = (target as? CatalogTarget.Addon)?.manifestUrl,
@@ -789,6 +789,7 @@ private fun MainAppContent(
         val authState by AuthRepository.state.collectAsStateWithLifecycle()
         val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
     val playerSettingsUiState by PlayerSettingsRepository.uiState.collectAsStateWithLifecycle()
+    val externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported
     val p2pSettingsUiState by P2pSettingsRepository.uiState.collectAsStateWithLifecycle()
     val watchedUiState by WatchedRepository.uiState.collectAsStateWithLifecycle()
     val downloadsUiState by DownloadsRepository.uiState.collectAsStateWithLifecycle()
@@ -1075,6 +1076,8 @@ private fun MainAppContent(
         }
 
         suspend fun openExternalPlayback(launch: PlayerLaunch): Boolean {
+            if (!externalPlayerSupported) return false
+
             lastExternalPlayerLaunch = launch
 
             // Persist binge group for subsequent episode plays (same as internal player)
@@ -1155,7 +1158,7 @@ private fun MainAppContent(
                         initialPositionMs = if (startFromBeginning) 0L else (resumePositionMs ?: 0L),
                         initialProgressFraction = if (startFromBeginning) null else resumeProgressFraction,
                     )
-                    if (playerSettingsUiState.externalPlayerEnabled) {
+                    if (externalPlayerSupported && playerSettingsUiState.externalPlayerEnabled) {
                         openExternalPlayback(playerLaunch)
                         true
                     } else {
@@ -1224,7 +1227,7 @@ private fun MainAppContent(
                             initialPositionMs = targetResumePositionMs,
                             initialProgressFraction = targetResumeProgressFraction,
                         )
-                    if (playerSettingsUiState.externalPlayerEnabled) {
+                    if (externalPlayerSupported && playerSettingsUiState.externalPlayerEnabled) {
                         coroutineScope.launch { openExternalPlayback(playerLaunch) }
                         return
                     }
@@ -2042,7 +2045,7 @@ private fun MainAppContent(
                                     initialPositionMs = launch.resumePositionMs ?: 0L,
                                     initialProgressFraction = launch.resumeProgressFraction,
                                 )
-                            if (playerSettings.externalPlayerEnabled) {
+                            if (externalPlayerSupported && playerSettings.externalPlayerEnabled) {
                                 openExternalPlayback(playerLaunch)
                                 StreamsRepository.setOverlayVisible(false)
                                 reuseNavigated = true
@@ -2176,7 +2179,7 @@ private fun MainAppContent(
                                 initialPositionMs = launch.resumePositionMs ?: 0L,
                                 initialProgressFraction = launch.resumeProgressFraction,
                             )
-                        if (playerSettings.externalPlayerEnabled) {
+                        if (externalPlayerSupported && playerSettings.externalPlayerEnabled) {
                             openExternalPlayback(playerLaunch)
                             StreamsRepository.consumeAutoPlay()
                             StreamsRepository.cancelLoading()
@@ -2303,7 +2306,7 @@ private fun MainAppContent(
                             initialProgressFraction = resolvedResumeProgressFraction,
                         )
 
-                        if (!forceInternal && (forceExternal || playerSettings.externalPlayerEnabled)) {
+                        if (!forceInternal && externalPlayerSupported && (forceExternal || playerSettings.externalPlayerEnabled)) {
                             coroutineScope.launch { openExternalPlayback(playerLaunch) }
                             StreamsRepository.cancelLoading()
                             return
@@ -2469,7 +2472,7 @@ private fun MainAppContent(
                             PlayerLaunchStore.remove(route.launchId)
                             navController.popBackStack()
                         },
-                        onOpenInExternalPlayer = { request ->
+                        onOpenInExternalPlayer = if (externalPlayerSupported) { { request ->
                             val playerLaunch = PlayerLaunch(
                                 title = launch.title,
                                 sourceUrl = request.sourceUrl,
@@ -2512,7 +2515,7 @@ private fun MainAppContent(
                                     NuvioToastController.show(externalPlayerFailedText)
                                 }
                             }
-                        },
+                        } } else null,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -2610,7 +2613,7 @@ private fun MainAppContent(
                                         initialPositionMs = resumeEntry?.lastPositionMs?.takeIf { it > 0L } ?: 0L,
                                         initialProgressFraction = resumeEntry?.progressFraction?.takeIf { it > 0f },
                                 )
-                                if (playerSettingsUiState.externalPlayerEnabled) {
+                                if (externalPlayerSupported && playerSettingsUiState.externalPlayerEnabled) {
                                     coroutineScope.launch { openExternalPlayback(playerLaunch) }
                                     return@DownloadsScreen
                                 }

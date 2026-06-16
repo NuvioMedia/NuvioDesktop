@@ -16,6 +16,7 @@ import com.nuvio.app.desktop.DesktopBorderlessFullscreenController
 import com.nuvio.app.desktop.DesktopPlayerRegistry
 import com.nuvio.app.desktop.DesktopRuntimeLog
 import com.nuvio.app.features.player.PlatformPlayerSurface
+import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
 import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcuts
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
@@ -40,6 +41,7 @@ fun main() {
             )
             ?.takeIf { it.isNotBlank() }
         val windowState = rememberWindowState(width = 1280.dp, height = 820.dp)
+        val fullscreenController = remember { DesktopAppFullscreenController() }
 
         Window(
             onCloseRequest = {
@@ -65,10 +67,11 @@ fun main() {
             DisposableEffect(window, windowState) {
                 val unregisterFullscreenToggle = registerDesktopAppFullscreenToggle { targetWindow ->
                     if (targetWindow != null && targetWindow !== window) return@registerDesktopAppFullscreenToggle
-                    DesktopBorderlessFullscreenController.toggle(window)
+                    fullscreenController.toggle(window, windowState)
                 }
                 val uninstallFullscreenShortcuts = installDesktopAppFullscreenShortcuts(window)
                 onDispose {
+                    fullscreenController.dispose(window)
                     uninstallFullscreenShortcuts()
                     unregisterFullscreenToggle()
                 }

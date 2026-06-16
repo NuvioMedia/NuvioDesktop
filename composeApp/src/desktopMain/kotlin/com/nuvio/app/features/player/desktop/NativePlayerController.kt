@@ -110,6 +110,7 @@ internal class NativePlayerController(
 
     fun updateControls(state: PlayerControlsState) {
         controlsState = state
+        host.setControlsVisible(state.controlsVisible)
         val currentHandle = handle
         val structureKey = state.nativeControlsStructureKey()
         val current = currentHandle.takeIf { it != 0L } ?: return
@@ -133,6 +134,7 @@ internal class NativePlayerController(
 
     private fun handlePlayerEvent(type: String, value: Double) {
         when (type) {
+            "cursorActivity" -> host.noteCursorActivity()
             "scrubChange" -> {
                 if (!onScrubChange(value.toLong())) {
                     updateLocalProgress(value.toLong())
@@ -182,8 +184,17 @@ internal class NativePlayerController(
             PlayerControlsAction.KeyboardSeekBack -> fallbackSeekBy(-10_000L)
             PlayerControlsAction.SeekForward,
             PlayerControlsAction.KeyboardSeekForward -> fallbackSeekBy(10_000L)
+            PlayerControlsAction.KeyboardVolumeDown -> adjustFallbackVolume(-5f)
+            PlayerControlsAction.KeyboardVolumeUp -> adjustFallbackVolume(5f)
             PlayerControlsAction.Speed -> cycleFallbackSpeed()
             else -> Unit
+        }
+    }
+
+    private fun adjustFallbackVolume(delta: Float) {
+        val current = handle
+        if (current != 0L) {
+            NativePlayerBridge.adjustVolume(current, delta)
         }
     }
 
@@ -222,6 +233,7 @@ internal class NativePlayerController(
     }
 
     fun dispose() {
+        host.resetCursorVisibility()
         disposePlayerHandle()
     }
 
@@ -443,6 +455,8 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
         "keyboardSeekBack" -> PlayerControlsAction.KeyboardSeekBack
         "seekForward" -> PlayerControlsAction.SeekForward
         "keyboardSeekForward" -> PlayerControlsAction.KeyboardSeekForward
+        "keyboardVolumeDown" -> PlayerControlsAction.KeyboardVolumeDown
+        "keyboardVolumeUp" -> PlayerControlsAction.KeyboardVolumeUp
         "resize" -> PlayerControlsAction.ResizeMode
         "speed" -> PlayerControlsAction.Speed
         "subtitles" -> PlayerControlsAction.Subtitles

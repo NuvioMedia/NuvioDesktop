@@ -352,7 +352,8 @@ fun StreamsScreen(
 
         StreamActionsSheet(
             stream = streamActionsTarget,
-            externalPlayerEnabled = playerSettings.externalPlayerEnabled,
+            externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported,
+            externalPlayerEnabled = AppFeaturePolicy.externalPlayerSupported && playerSettings.externalPlayerEnabled,
             showDownloadAction = AppFeaturePolicy.downloadsEnabled,
             onDismiss = { streamActionsTarget = null },
             onCopyLink = { stream ->
@@ -1010,6 +1011,7 @@ private fun StreamSourceHeader(
 @Composable
 private fun StreamActionsSheet(
     stream: StreamItem?,
+    externalPlayerSupported: Boolean,
     externalPlayerEnabled: Boolean,
     showDownloadAction: Boolean,
     onDismiss: () -> Unit,
@@ -1073,23 +1075,25 @@ private fun StreamActionsSheet(
                     }
                 },
             )
-            NuvioBottomSheetDivider()
-            NuvioBottomSheetActionRow(
-                icon = Icons.AutoMirrored.Rounded.OpenInNew,
-                title = stringResource(
-                    if (externalPlayerEnabled) {
-                        Res.string.streams_open_internal_player
-                    } else {
-                        Res.string.streams_open_external_player
+            if (externalPlayerSupported) {
+                NuvioBottomSheetDivider()
+                NuvioBottomSheetActionRow(
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                    title = stringResource(
+                        if (externalPlayerEnabled) {
+                            Res.string.streams_open_internal_player
+                        } else {
+                            Res.string.streams_open_external_player
+                        },
+                    ),
+                    onClick = {
+                        onOpen(stream, !externalPlayerEnabled)
+                        coroutineScope.launch {
+                            dismissNuvioBottomSheet(sheetState = sheetState, onDismiss = onDismiss)
+                        }
                     },
-                ),
-                onClick = {
-                    onOpen(stream, !externalPlayerEnabled)
-                    coroutineScope.launch {
-                        dismissNuvioBottomSheet(sheetState = sheetState, onDismiss = onDismiss)
-                    }
-                },
-            )
+                )
+            }
             if (showDownloadAction) {
                 NuvioBottomSheetDivider()
                 NuvioBottomSheetActionRow(

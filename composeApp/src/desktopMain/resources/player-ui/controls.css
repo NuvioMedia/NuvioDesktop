@@ -13,8 +13,8 @@
   --slider-scale: .82;
   --overlay-bottom: calc(var(--slider-bottom) + var(--slider-touch) + 98px);
   --time: 12px;
-  --header-icon: 20px;
-  --header-button: 36px;
+  --header-icon: 22px;
+  --header-button: 38px;
   --side-pad: 10px;
   --side-icon: 26px;
   --play-pad: 13px;
@@ -51,8 +51,8 @@
     --slider-touch: 24px;
     --slider-scale: .78;
     --time: 12px;
-    --header-icon: 20px;
-    --header-button: 36px;
+    --header-icon: 22px;
+    --header-button: 38px;
     --side-pad: 12px;
     --side-icon: 30px;
     --play-pad: 15px;
@@ -73,8 +73,8 @@
     --slider-touch: 26px;
     --slider-scale: .74;
     --time: 13px;
-    --header-icon: 22px;
-    --header-button: 38px;
+    --header-icon: 24px;
+    --header-button: 42px;
     --side-pad: 13px;
     --side-icon: 32px;
     --play-pad: 16px;
@@ -95,8 +95,8 @@
     --slider-touch: 28px;
     --slider-scale: .72;
     --time: 14px;
-    --header-icon: 24px;
-    --header-button: 40px;
+    --header-icon: 26px;
+    --header-button: 44px;
     --side-pad: 14px;
     --side-icon: 34px;
     --play-pad: 18px;
@@ -116,7 +116,7 @@ body {
   margin: 0;
   overflow: hidden;
   background: transparent;
-  color: #fff;
+  color: var(--theme-control-foreground);
   font-family: "Nuvio JetBrains Sans", "JetBrains Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
   user-select: none;
@@ -142,6 +142,10 @@ button:disabled {
   position: relative;
   width: 100%;
   height: 100%;
+}
+
+.player.cursor-hidden {
+  cursor: none;
 }
 
 .player:focus {
@@ -350,7 +354,7 @@ button:disabled {
   flex-direction: column;
   gap: 0;
   opacity: 1;
-  padding: 0 14px 10px;
+  padding: 0 0 10px;
 }
 
 .title {
@@ -502,7 +506,7 @@ button:disabled {
   overflow: hidden;
   border-radius: 16px;
   background: rgba(30, 30, 30, .85);
-  color: #fff;
+  color: var(--theme-control-foreground);
   opacity: 0;
   pointer-events: none;
   transform: scale(.8);
@@ -543,7 +547,7 @@ button:disabled {
   height: 3px;
   overflow: hidden;
   border-radius: 0 0 16px 16px;
-  background: rgba(255, 255, 255, .15);
+  background: var(--theme-timeline-track);
 }
 
 .skip-prompt.show-progress .skip-progress-track {
@@ -553,7 +557,7 @@ button:disabled {
 .skip-progress-fill {
   width: 0%;
   height: 100%;
-  background: rgba(30, 30, 30, .85);
+  background: var(--theme-timeline-fill);
 }
 
 .next-episode-card {
@@ -568,7 +572,7 @@ button:disabled {
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, .12);
   background: rgba(25, 25, 25, .89);
-  color: #fff;
+  color: var(--theme-control-foreground);
   opacity: 0;
   pointer-events: none;
   transform: translateX(50%) scale(.98);
@@ -631,7 +635,7 @@ button:disabled {
 .next-episode-title {
   display: block;
   margin-top: 2px;
-  color: #fff;
+  color: var(--theme-control-foreground);
   font-size: 12px;
   line-height: 1.25;
   font-weight: 600;
@@ -660,14 +664,15 @@ button:disabled {
   padding: 5px 8px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, .2);
-  color: #fff;
+  color: var(--theme-control-foreground);
   font-size: 11px;
   line-height: 1.2;
   white-space: nowrap;
 }
 
 .next-episode-card:not(.playable) .next-episode-action {
-  color: rgba(255, 255, 255, .72);
+  color: var(--theme-control-foreground);
+  opacity: .72;
 }
 
 .next-episode-action svg {
@@ -690,6 +695,7 @@ button:disabled {
   place-items: center;
   border-radius: 999px;
   background: rgba(0, 0, 0, .35);
+  color: var(--theme-control-foreground);
 }
 
 .header-button,
@@ -721,13 +727,13 @@ button:disabled {
 
 .header-button:hover,
 .locked-button:hover {
-  background: rgba(255, 255, 255, .14);
+  background: var(--theme-selected-surface);
 }
 
 .side-control:hover,
 .play-control:hover,
 .action:hover {
-  background: rgba(255, 255, 255, .12);
+  background: var(--theme-selected-surface);
 }
 
 .header-button:active,
@@ -1234,6 +1240,7 @@ button:disabled {
   display: grid;
   place-items: center;
   border-radius: 999px;
+  color: var(--theme-control-foreground);
 }
 
 .side-control {
@@ -1291,6 +1298,7 @@ button:disabled {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, .18);
   background: rgba(0, 0, 0, .52);
+  color: var(--theme-control-foreground);
 }
 
 .locked-button svg {
@@ -1302,21 +1310,24 @@ button:disabled {
   font-size: 15px;
   line-height: 1.25;
   font-weight: 600;
-  color: rgba(255, 255, 255, .92);
+  color: var(--theme-control-foreground);
 }
 
 .scrub {
-  width: calc(100% - 28px);
-  height: var(--slider-touch);
-  transform: scaleY(var(--slider-scale));
+  width: 100%;
+  height: 10px;
+  display: block;
+  padding: 0;
+  transform: none;
   transform-origin: center;
-  margin: 0 14px;
+  margin: 0;
   appearance: none;
   background: transparent;
+  cursor: pointer;
 }
 
 .scrub::-webkit-slider-runnable-track {
-  height: 4px;
+  height: 10px;
   border-radius: 999px;
   background:
     linear-gradient(to right, var(--theme-timeline-fill) 0 var(--progress, 0%), var(--theme-timeline-track) var(--progress, 0%) 100%);
@@ -1324,44 +1335,47 @@ button:disabled {
 
 .scrub::-webkit-slider-thumb {
   appearance: none;
-  width: 14px;
-  height: 14px;
-  margin-top: -5px;
+  width: 10px;
+  height: 10px;
+  margin-top: 0;
   border-radius: 999px;
-  background: var(--theme-control-foreground);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .18);
-  transition:
-    transform var(--motion-fast) var(--ease-out),
-    box-shadow var(--motion-standard) ease;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0;
 }
 
 .scrub:active::-webkit-slider-thumb {
-  transform: scale(1.18);
-  box-shadow: 0 0 0 6px rgba(255, 255, 255, .16);
+  transform: none;
+  box-shadow: none;
 }
 
 .time-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 14px 8px;
+  display: none;
 }
 
 .time-pill {
-  border-radius: 12px;
-  padding: 4px 10px;
-  border: 1px solid rgba(255, 255, 255, .2);
-  background: rgba(0, 0, 0, .5);
-  font-size: var(--time);
-  line-height: 1.25;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
+  display: none;
 }
 
 .action-row {
+  margin-top: 16px;
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
   min-width: 0;
+}
+
+.time-label {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--theme-control-foreground);
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .7);
 }
 
 .action-pill {
@@ -1384,7 +1398,7 @@ button:disabled {
   gap: 8px;
   padding: 12px;
   border-radius: 22px;
-  color: #fff;
+  color: var(--theme-control-foreground);
   white-space: nowrap;
 }
 
@@ -1401,6 +1415,85 @@ button:disabled {
   font-size: 12px;
   line-height: 1.2;
   font-weight: 500;
+}
+
+@media (min-width: 761px) {
+  .action-row {
+    justify-content: space-between;
+    gap: 18px;
+  }
+
+  .action-pill {
+    flex: 0 1 auto;
+    gap: 10px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .action {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+    display: grid;
+    place-items: center;
+    gap: 0;
+    padding: 0;
+    border-radius: 999px;
+    transform-origin: center;
+  }
+
+  .action svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .action span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .action:hover {
+    background: var(--theme-selected-surface-hover);
+    transform: translateZ(0) scale(1.04);
+  }
+
+  .action.focused {
+    background: var(--theme-accent);
+    color: var(--theme-on-accent);
+    box-shadow: none;
+    transform: translateZ(0) scale(1.04);
+  }
+
+  .action.focused:hover {
+    background: var(--theme-accent-strong);
+    transform: translateZ(0) scale(1.06);
+  }
+
+  .action.focused svg {
+    color: currentColor;
+  }
+
+  .action:active,
+  .action.is-pressed,
+  .action.focused:active,
+  .action.focused.is-pressed {
+    transform: translateZ(0) scale(.96);
+  }
+
+  .time-label {
+    font-size: 28px;
+  }
 }
 
 .modal-layer {
@@ -1965,8 +2058,12 @@ button:disabled {
 
 button:focus-visible,
 .scrub:focus-visible {
-  outline: 2px solid rgba(158, 202, 255, .95);
+  outline: 2px solid var(--theme-focus);
   outline-offset: 3px;
+}
+
+button.action:focus-visible {
+  outline: none;
 }
 
 .track-empty {

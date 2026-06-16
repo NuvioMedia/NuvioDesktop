@@ -597,6 +597,10 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
             prepareSeekByForNativeFallback(10_000L, revealControls = false)
             return false
         }
+        PlayerControlsAction.KeyboardVolumeDown,
+        PlayerControlsAction.KeyboardVolumeUp -> {
+            return false
+        }
         PlayerControlsAction.ResizeMode -> cycleResizeMode()
         PlayerControlsAction.Speed -> cyclePlaybackSpeed()
         PlayerControlsAction.Subtitles -> {
@@ -642,6 +646,10 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
     when (type) {
         "hideChrome" -> {
             controlsVisible = false
+        }
+        "keepChromeVisible" -> {
+            controlsVisible = true
+            controlsActivityTick += 1
         }
         "reloadSources" -> {
             prepareSourcesForPlayerControls(forceRefresh = true)

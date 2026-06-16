@@ -1,9 +1,15 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,24 +35,29 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.nuvio.app.isDesktop
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.home_view_all
 import nuvio.composeapp.generated.resources.poster_logo_content_description
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 enum class NuvioPosterShape {
     Poster,
@@ -156,6 +167,7 @@ fun NuvioPosterCard(
     title: String,
     imageUrl: String?,
     modifier: Modifier = Modifier,
+    basePosterWidthDp: Int? = null,
     shape: NuvioPosterShape = NuvioPosterShape.Poster,
     detailLine: String? = null,
     showTitleBelow: Boolean = true,
@@ -167,10 +179,11 @@ fun NuvioPosterCard(
 ) {
     val posterCardStyle = rememberPosterCardStyleUiState()
     val tokens = MaterialTheme.nuvio
-    val cardWidth = shape.cardWidth(basePosterWidthDp = posterCardStyle.widthDp)
+    val effectiveBasePosterWidthDp = basePosterWidthDp ?: posterCardStyle.widthDp
+    val cardWidth = shape.cardWidth(basePosterWidthDp = effectiveBasePosterWidthDp)
     val cardShape = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
     val catalogLogoOverlaySize = catalogLogoOverlaySize(
-        basePosterWidthDp = posterCardStyle.widthDp,
+        basePosterWidthDp = effectiveBasePosterWidthDp,
         shape = shape,
     )
     val shouldShowTitleBelow = showTitleBelow && !posterCardStyle.hideLabelsEnabled
@@ -345,6 +358,18 @@ private fun NuvioViewAllPill(
     }
 }
 
+internal const val NuvioDesktopCatalogShelfPosterScale = 1.3f
+private const val DesktopPosterHoverScale = 1.045f
+
+internal fun desktopCatalogShelfPosterBaseWidthDp(
+    basePosterWidthDp: Int,
+): Int =
+    if (isDesktop) {
+        (basePosterWidthDp * NuvioDesktopCatalogShelfPosterScale).roundToInt()
+    } else {
+        basePosterWidthDp
+    }
+
 private val NuvioPosterShape.aspectRatio: Float
     get() = when (this) {
         NuvioPosterShape.Poster -> 0.675f
@@ -385,16 +410,43 @@ private fun NuvioPosterShape.cardWidth(basePosterWidthDp: Int): Dp =
         NuvioPosterShape.Landscape -> landscapePosterWidth(basePosterWidthDp)
     }
 
+@Composable
+internal fun Modifier.desktopPosterHoverScale(
+    enabled: Boolean = true,
+): Modifier {
+    if (!enabled || !isDesktop) return this
+
+    val hoverSource = remember { MutableInteractionSource() }
+    val hovered by hoverSource.collectIsHoveredAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (hovered) DesktopPosterHoverScale else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "desktop_poster_hover_scale",
+    )
+
+    return this.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
+        .zIndex(if (hovered) 1f else 0f)
+        .hoverable(hoverSource)
+}
+
 @OptIn(ExperimentalFoundationApi::class)
+@Composable
 internal fun Modifier.posterCardClickable(
     onClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
 ): Modifier =
     if (onClick != null || onLongClick != null) {
-        combinedClickable(
-            onClick = { onClick?.invoke() },
-            onLongClick = onLongClick,
-        )
+        desktopPosterHoverScale()
+            .combinedClickable(
+                onClick = { onClick?.invoke() },
+                onLongClick = onLongClick,
+            )
             .secondaryClick(onLongClick)
     } else {
         this

@@ -1,5 +1,5 @@
-name: Feature request
-description: Suggest an improvement or new feature.
+name: Desktop feature request
+description: Suggest a desktop app improvement or new feature.
 title: "[Feature]: "
 labels:
   - enhancement
@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        One feature request per issue, please. The more real-world your use case is, the easier it is to evaluate.
+        One desktop feature request per issue, please. The more real-world your use case is, the easier it is to evaluate.
 
         Feature requests are reviewed as product proposals first.
         Please do not open a pull request for a new feature, major UX change, or broad cosmetic update unless a maintainer has explicitly approved it first.
@@ -27,12 +27,15 @@ body:
         - Watch Progress
         - Subtitles
         - Audio
-        - Navigation / Gestures
+        - Windowing / Fullscreen
+        - Keyboard / Mouse input
+        - Navigation
         - UI / Layout
         - Settings
         - Sync (Trakt / remote)
         - Downloads / Offline
-        - Platform-specific (iOS only / Android only / Desktop only)
+        - Installer / Updater
+        - Platform-specific (Windows / macOS / Linux)
         - Other
     validations:
       required: true

@@ -81,6 +81,7 @@ internal fun settingsSearchEntries(
     pluginsEnabled: Boolean,
     downloadsEnabled: Boolean,
     notificationsEnabled: Boolean,
+    externalPlayerSupported: Boolean,
     liquidGlassNativeTabBarSupported: Boolean,
     switchProfileAvailable: Boolean,
     checkForUpdatesAvailable: Boolean,
@@ -516,12 +517,12 @@ internal fun settingsSearchEntries(
                 stringResource(Res.string.settings_playback_show_loading_overlay),
                 stringResource(Res.string.settings_playback_show_loading_overlay_description),
             ),
-            PlaybackSearchRow(
+            if (externalPlayerSupported) PlaybackSearchRow(
                 "external-player",
                 stringResource(Res.string.settings_playback_external_player),
                 stringResource(Res.string.settings_playback_external_player_description_android),
-            ),
-            if (isIos) PlaybackSearchRow(
+            ) else null,
+            if (externalPlayerSupported && isIos) PlaybackSearchRow(
                 "external-player-app",
                 stringResource(Res.string.settings_playback_external_player_app),
             ) else null,

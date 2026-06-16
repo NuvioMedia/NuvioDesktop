@@ -35,7 +35,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.build.AppFeaturePolicy
-import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.core.i18n.localizedByteUnit
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.addons.httpRequestRaw
@@ -54,10 +53,7 @@ import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 
-private const val gitHubOwner = "NuvioMedia"
-private const val gitHubRepo = "NuvioMobile"
 private const val gitHubApiBase = "https://api.github.com"
-private const val releaseChannelBranch = "cmp-rewrite"
 
 data class AppUpdate(
     val tag: String,
@@ -75,9 +71,9 @@ data class AppUpdaterUiState(
     val isUpdateAvailable: Boolean = false,
     val isDownloading: Boolean = false,
     val downloadProgress: Float? = null,
-    val downloadedApkPath: String? = null,
+    val downloadedUpdatePath: String? = null,
     val showDialog: Boolean = false,
-    val showUnknownSourcesDialog: Boolean = false,
+    val showInstallPermissionDialog: Boolean = false,
     val errorMessage: String? = null,
 )
 
@@ -149,12 +145,13 @@ private object VersionUtils {
 
 private object AppUpdaterRepository {
     suspend fun getLatestChannelUpdate(): Result<AppUpdate> = runCatching {
+        val source = AppUpdaterPlatform.releaseSource
         val response = httpRequestRaw(
             method = "GET",
-            url = "$gitHubApiBase/repos/$gitHubOwner/$gitHubRepo/releases?per_page=20",
+            url = "$gitHubApiBase/repos/${source.owner}/${source.repo}/releases?per_page=20",
             headers = mapOf(
                 "Accept" to "application/vnd.github+json",
-                "User-Agent" to "NuvioMobile",
+                "User-Agent" to source.userAgent,
             ),
             body = "",
         )
@@ -163,15 +160,29 @@ private object AppUpdaterRepository {
         }
 
         val releases = appUpdaterJson.decodeFromString<List<GitHubReleaseDto>>(response.body)
-        val release = releases.firstOrNull { it.matchesRequestedChannel() && !it.draft && !it.prerelease }
+        val release = releases.firstOrNull { release ->
+            release.matchesRequestedChannel() &&
+                !release.draft &&
+                (source.includePrereleases || !release.prerelease)
+        }
             ?: throw NoChannelReleaseException()
 
         val tag = release.tagName?.takeIf { it.isNotBlank() }
             ?: release.name?.takeIf { it.isNotBlank() }
             ?: error(getString(Res.string.updates_release_missing_title))
 
-        val asset = chooseBestApkAsset(release.assets)
-            ?: error(getString(Res.string.updates_apk_asset_missing))
+        val asset = selectBestUpdateAsset(
+            assets = release.assets.map { asset ->
+                AppUpdateAssetCandidate(
+                    name = asset.name,
+                    downloadUrl = asset.browserDownloadUrl,
+                    size = asset.size,
+                    contentType = asset.contentType,
+                )
+            },
+            selector = AppUpdaterPlatform.assetSelector,
+        )
+            ?: error(getString(Res.string.updates_update_asset_missing))
 
         AppUpdate(
             tag = tag,
@@ -179,13 +190,15 @@ private object AppUpdaterRepository {
             notes = release.body.orEmpty(),
             releaseUrl = release.htmlUrl,
             assetName = asset.name,
-            assetUrl = asset.browserDownloadUrl,
+            assetUrl = asset.downloadUrl,
             assetSizeBytes = asset.size,
         )
     }
 
     private fun GitHubReleaseDto.matchesRequestedChannel(): Boolean {
-        val channel = releaseChannelBranch
+        val channel = AppUpdaterPlatform.releaseSource.channelBranch
+            ?.takeIf { it.isNotBlank() }
+            ?: return true
         if (targetCommitish?.trim()?.equals(channel, ignoreCase = true) == true) {
             return true
         }
@@ -195,28 +208,39 @@ private object AppUpdaterRepository {
             .any { value -> value.contains(channel, ignoreCase = true) }
     }
 
-    private fun chooseBestApkAsset(assets: List<GitHubAssetDto>): GitHubAssetDto? {
-        val apkAssets = assets.filter { asset ->
-            asset.name.endsWith(".apk", ignoreCase = true) ||
-                asset.contentType == "application/vnd.android.package-archive"
-        }
-        if (apkAssets.isEmpty()) return null
-        if (apkAssets.size == 1) return apkAssets.first()
-
-        val supportedAbis = AppUpdaterPlatform.getSupportedAbis()
-        for (abi in supportedAbis) {
-            val candidate = apkAssets.firstOrNull { asset ->
-                asset.name.contains(abi, ignoreCase = true)
-            }
-            if (candidate != null) return candidate
-        }
-
-        return apkAssets.firstOrNull { asset ->
-            val name = asset.name.lowercase()
-            name.contains("universal") || name.contains("all")
-        } ?: apkAssets.first()
-    }
 }
+
+internal data class AppUpdateAssetCandidate(
+    val name: String,
+    val downloadUrl: String,
+    val size: Long? = null,
+    val contentType: String? = null,
+)
+
+internal fun selectBestUpdateAsset(
+    assets: List<AppUpdateAssetCandidate>,
+    selector: AppUpdateAssetSelector,
+): AppUpdateAssetCandidate? {
+    val updateAssets = assets.filter { asset -> asset.matches(selector) }
+    if (updateAssets.isEmpty()) return null
+    if (updateAssets.size == 1) return updateAssets.first()
+
+    for (fragment in selector.preferredNameFragments) {
+        val candidate = updateAssets.firstOrNull { asset ->
+            asset.name.contains(fragment, ignoreCase = true)
+        }
+        if (candidate != null) return candidate
+    }
+
+    return updateAssets.firstOrNull { asset ->
+        val name = asset.name.lowercase()
+        selector.fallbackNameFragments.any { fragment -> name.contains(fragment.lowercase()) }
+    } ?: updateAssets.first()
+}
+
+private fun AppUpdateAssetCandidate.matches(selector: AppUpdateAssetSelector): Boolean =
+    selector.fileExtensions.any { extension -> name.endsWith(extension, ignoreCase = true) } ||
+        selector.contentTypes.any { contentType -> contentType.equals(this.contentType, ignoreCase = true) }
 
 class AppUpdaterController internal constructor(
     private val scope: CoroutineScope,
@@ -249,7 +273,7 @@ class AppUpdaterController internal constructor(
                 state.copy(
                     isChecking = true,
                     errorMessage = null,
-                    showUnknownSourcesDialog = false,
+                    showInstallPermissionDialog = false,
                 )
             }
 
@@ -257,7 +281,7 @@ class AppUpdaterController internal constructor(
             val result = AppUpdaterRepository.getLatestChannelUpdate()
 
             result.onSuccess { update ->
-                val remoteNewer = VersionUtils.isRemoteNewer(update.tag, AppVersionConfig.VERSION_NAME)
+                val remoteNewer = VersionUtils.isRemoteNewer(update.tag, AppUpdaterPlatform.currentVersionName)
                 val ignored = ignoredTag != null && ignoredTag == update.tag
                 val shouldShowDialog = force || (remoteNewer && !ignored)
 
@@ -268,9 +292,9 @@ class AppUpdaterController internal constructor(
                         isUpdateAvailable = remoteNewer,
                         isDownloading = false,
                         downloadProgress = null,
-                        downloadedApkPath = state.downloadedApkPath.takeIf { remoteNewer },
+                        downloadedUpdatePath = state.downloadedUpdatePath.takeIf { remoteNewer },
                         showDialog = shouldShowDialog,
-                        showUnknownSourcesDialog = false,
+                        showInstallPermissionDialog = false,
                         errorMessage = null,
                     )
                 }
@@ -284,11 +308,11 @@ class AppUpdaterController internal constructor(
                         isChecking = false,
                         isDownloading = false,
                         downloadProgress = null,
-                        downloadedApkPath = null,
+                        downloadedUpdatePath = null,
                         update = null,
                         isUpdateAvailable = false,
                         showDialog = force && error !is NoChannelReleaseException,
-                        showUnknownSourcesDialog = false,
+                        showInstallPermissionDialog = false,
                         errorMessage = if (force && error !is NoChannelReleaseException) {
                             error.message ?: getString(Res.string.updates_check_failed)
                         } else {
@@ -297,7 +321,7 @@ class AppUpdaterController internal constructor(
                     )
                 }
 
-                if (showNoUpdateFeedback || error is NoChannelReleaseException) {
+                if (showNoUpdateFeedback) {
                     NuvioToastController.show(error.message ?: getString(Res.string.updates_check_failed))
                 }
             }
@@ -308,7 +332,7 @@ class AppUpdaterController internal constructor(
         _uiState.update { state ->
             state.copy(
                 showDialog = false,
-                showUnknownSourcesDialog = false,
+                showInstallPermissionDialog = false,
                 errorMessage = null,
             )
         }
@@ -332,7 +356,7 @@ class AppUpdaterController internal constructor(
                 )
             }
 
-            AppUpdaterPlatform.downloadApk(
+            AppUpdaterPlatform.downloadUpdateAsset(
                 assetUrl = update.assetUrl,
                 assetName = update.assetName,
             ) { downloadedBytes, totalBytes ->
@@ -347,7 +371,7 @@ class AppUpdaterController internal constructor(
                     state.copy(
                         isDownloading = false,
                         downloadProgress = 1f,
-                        downloadedApkPath = path,
+                        downloadedUpdatePath = path,
                         errorMessage = null,
                     )
                 }
@@ -357,7 +381,7 @@ class AppUpdaterController internal constructor(
                     state.copy(
                         isDownloading = false,
                         downloadProgress = null,
-                        downloadedApkPath = null,
+                        downloadedUpdatePath = null,
                         errorMessage = error.message ?: getString(Res.string.updates_download_failed),
                         showDialog = true,
                     )
@@ -367,14 +391,14 @@ class AppUpdaterController internal constructor(
     }
 
     fun installDownloadedUpdate() {
-        val apkPath = _uiState.value.downloadedApkPath ?: return
-        if (!AppUpdaterPlatform.canRequestPackageInstalls()) {
-            _uiState.update { state -> state.copy(showUnknownSourcesDialog = true, showDialog = true) }
+        val updatePath = _uiState.value.downloadedUpdatePath ?: return
+        if (!AppUpdaterPlatform.canInstallDownloadedUpdate()) {
+            _uiState.update { state -> state.copy(showInstallPermissionDialog = true, showDialog = true) }
             return
         }
 
-        AppUpdaterPlatform.installDownloadedApk(apkPath).onSuccess {
-            _uiState.update { state -> state.copy(showUnknownSourcesDialog = false) }
+        AppUpdaterPlatform.installDownloadedUpdate(updatePath).onSuccess {
+            _uiState.update { state -> state.copy(showInstallPermissionDialog = false) }
         }.onFailure { error ->
             scope.launch {
                 val fallbackMessage = error.message ?: getString(Res.string.updates_install_failed)
@@ -389,10 +413,10 @@ class AppUpdaterController internal constructor(
     }
 
     fun resumeInstallation() {
-        if (AppUpdaterPlatform.canRequestPackageInstalls()) {
+        if (AppUpdaterPlatform.canInstallDownloadedUpdate()) {
             installDownloadedUpdate()
         } else {
-            AppUpdaterPlatform.openUnknownSourcesSettings()
+            AppUpdaterPlatform.openInstallPermissionSettings()
         }
     }
 }
@@ -422,7 +446,7 @@ fun AppUpdaterHost(
     if (!state.showDialog) return
 
     val showPrimaryAction =
-        state.showUnknownSourcesDialog || state.isDownloading || state.downloadedApkPath != null || state.isUpdateAvailable
+        state.showInstallPermissionDialog || state.isDownloading || state.downloadedUpdatePath != null || state.isUpdateAvailable
 
     BasicAlertDialog(
         onDismissRequest = {
@@ -447,7 +471,7 @@ fun AppUpdaterHost(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = when {
-                            state.showUnknownSourcesDialog -> stringResource(Res.string.updates_title_allow_installs)
+                            state.showInstallPermissionDialog -> stringResource(Res.string.updates_title_allow_installs)
                             state.isUpdateAvailable -> state.update?.title ?: stringResource(Res.string.updates_title_available)
                             else -> stringResource(Res.string.updates_title_status)
                         },
@@ -459,7 +483,7 @@ fun AppUpdaterHost(
                     )
                     Text(
                         text = when {
-                            state.showUnknownSourcesDialog -> stringResource(Res.string.updates_message_allow_installs)
+                            state.showInstallPermissionDialog -> stringResource(Res.string.updates_message_allow_installs)
                             state.isDownloading -> stringResource(Res.string.updates_message_downloading)
                             state.isUpdateAvailable -> stringResource(Res.string.updates_message_ready)
                             else -> stringResource(Res.string.updates_message_no_updates)
@@ -567,12 +591,12 @@ fun AppUpdaterHost(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = {
                                 when {
-                                    state.showUnknownSourcesDialog -> controller.resumeInstallation()
-                                    state.downloadedApkPath != null -> controller.installDownloadedUpdate()
+                                    state.showInstallPermissionDialog -> controller.resumeInstallation()
+                                    state.downloadedUpdatePath != null -> controller.installDownloadedUpdate()
                                     else -> controller.downloadUpdate()
                                 }
                             },
-                            enabled = if (state.showUnknownSourcesDialog || state.downloadedApkPath != null) {
+                            enabled = if (state.showInstallPermissionDialog || state.downloadedUpdatePath != null) {
                                 true
                             } else {
                                 !state.isChecking && !state.isDownloading && state.isUpdateAvailable
@@ -580,8 +604,8 @@ fun AppUpdaterHost(
                         ) {
                             Text(
                                 when {
-                                    state.showUnknownSourcesDialog -> stringResource(Res.string.action_continue)
-                                    state.downloadedApkPath != null -> stringResource(Res.string.action_install)
+                                    state.showInstallPermissionDialog -> stringResource(Res.string.action_continue)
+                                    state.downloadedUpdatePath != null -> stringResource(Res.string.action_install)
                                     state.isDownloading -> stringResource(Res.string.updates_message_downloading)
                                     else -> stringResource(Res.string.action_update)
                                 },
@@ -589,7 +613,7 @@ fun AppUpdaterHost(
                         }
                     }
 
-                    if (state.isUpdateAvailable && !state.isDownloading && !state.showUnknownSourcesDialog) {
+                    if (state.isUpdateAvailable && !state.isDownloading && !state.showInstallPermissionDialog) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),

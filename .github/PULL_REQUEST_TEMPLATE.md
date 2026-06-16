@@ -17,6 +17,11 @@
 
 <!-- Why this change is needed. Explain the user-visible bug, regression, maintenance need, docs error, or approved request. -->
 
+## Desktop scope
+
+<!-- This repository branch is for the desktop app. Explain which desktop platform(s) are affected: Windows, macOS, Linux, or desktop shared code. -->
+<!-- If shared/common code changed, explain why it is needed for desktop behavior. -->
+
 ## Issue or approval
 
 <!-- Required. Link the bug issue or approved feature request. For docs/translation/maintenance with no issue, explain why no issue is needed. -->
@@ -37,6 +42,7 @@
 <!-- ALL boxes must be checked or the PR will be closed without review. -->
 - [ ] I have read and understood `CONTRIBUTING.md`.
 - [ ] This PR is small, focused, and limited to one problem.
+- [ ] This PR is scoped to the desktop app, desktop packaging, desktop documentation, or shared code required for desktop behavior.
 - [ ] This PR is not cosmetic-only.
 - [ ] Any UI change fixes a linked glitch/bug and includes visual proof, or this PR has no UI change.
 - [ ] Any behavior change fixes a linked bug/regression or has explicit approval, or this PR has no behavior change.
@@ -52,11 +58,11 @@
 
 ## Testing
 
-<!-- What you tested and how. Include devices/emulators, commands, and manual flows. Do not write only "not tested" unless this is docs/translation-only. -->
+<!-- What you tested and how. Include desktop OS/version, installer/updater checks if relevant, commands, and manual desktop flows. Do not write only "not tested" unless this is docs/translation-only. -->
 
-## Screenshots / Video (UI changes only)
+## Screenshots / Video
 
-<!-- Required for any UI change. Write "Not a UI change" only if no UI changed. -->
+<!-- Required for any desktop UI change. Write "Not a UI change" only if no UI changed. -->
 
 ## Breaking changes
 

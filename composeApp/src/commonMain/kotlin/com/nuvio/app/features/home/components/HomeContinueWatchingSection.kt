@@ -1,9 +1,7 @@
 package com.nuvio.app.features.home.components
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -53,7 +51,6 @@ import com.nuvio.app.core.ui.landscapePosterHeightForWidth
 import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
-import com.nuvio.app.core.ui.secondaryClick
 import com.nuvio.app.features.cloud.CloudLibraryContentType
 import com.nuvio.app.features.cloud.cloudLibraryDisplayArtworkUrl
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
@@ -577,7 +574,6 @@ private fun continueWatchingLandscapeCardMetrics(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ContinueWatchingCard(
     item: ContinueWatchingItem,
@@ -779,7 +775,6 @@ private fun continueWatchingCardBadgeText(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ContinueWatchingWideCard(
     item: ContinueWatchingItem,
@@ -800,12 +795,7 @@ private fun ContinueWatchingWideCard(
                 color = Color.White.copy(alpha = 0.15f),
                 shape = RoundedCornerShape(layout.cardRadius),
             )
-            .combinedClickable(
-                enabled = onClick != null || onLongClick != null,
-                onClick = { onClick?.invoke() },
-                onLongClick = onLongClick,
-            )
-            .secondaryClick(onLongClick),
+            .posterCardClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         val shouldBlurArtwork = blurNextUp && useEpisodeThumbnails && item.isNextUp
         val artworkUrl = item.continueWatchingArtworkUrl(useEpisodeThumbnails)
@@ -907,7 +897,6 @@ private fun ContinueWatchingWideCard(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ContinueWatchingPosterCard(
     item: ContinueWatchingItem,

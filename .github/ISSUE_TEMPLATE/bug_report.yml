@@ -1,5 +1,5 @@
-name: Bug report
-description: Report a reproducible bug (one per issue).
+name: Desktop bug report
+description: Report a reproducible desktop app bug (one per issue).
 title: "[Bug]: short summary here"
 labels:
   - bug
@@ -7,13 +7,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug.
+        Thanks for reporting a desktop bug.
 
         If we can reproduce it, we can usually fix it. Please describe the bug in enough detail that someone else can understand what failed without watching a video or guessing from the title.
         Please replace the default title with a short summary of the actual problem.
 
         Vague reports such as "not working", "broken", or "same issue" may be labeled `needs-info` and closed if the missing details are not added.
-        If the app crashes or force closes, logs are required. Crash reports without logs will be closed.
+        If the desktop app crashes or closes unexpectedly, logs are required. Crash reports without logs will be closed.
 
   - type: markdown
     attributes:
@@ -27,7 +27,7 @@ body:
       options:
         - label: I searched existing issues and this is not a duplicate.
           required: true
-        - label: I can reproduce this on the latest release or latest main build.
+        - label: I can reproduce this on the latest desktop release or latest main build.
           required: false
         - label: This issue is limited to a single bug (not multiple unrelated problems).
           required: true
@@ -37,14 +37,14 @@ body:
   - type: markdown
     attributes:
       value: |
-        ## Version & device
+        ## Version & desktop environment
 
   - type: input
     id: app_version
     attributes:
       label: App version / commit
-      description: Release version (e.g. 1.2.3) or commit hash. If unsure, say where you got the build from.
-      placeholder: "e.g. 1.2.3, or main@abc1234"
+      description: Desktop release version (e.g. 0.1.1-alpha) or commit hash. If unsure, say where you got the build from.
+      placeholder: "e.g. 0.1.1-alpha, or main@abc1234"
     validations:
       required: true
 
@@ -53,8 +53,7 @@ body:
     attributes:
       label: Install method
       options:
-        - GitHub Release / App Store / Play Store
-        - TestFlight
+        - GitHub Release desktop installer/package
         - CI build / Nightly
         - Built from source
         - Other (please describe below)
@@ -66,24 +65,19 @@ body:
     attributes:
       label: Platform
       options:
-        - Android (phone/tablet)
-        - iOS (iPhone)
-        - iOS (iPad)
-        - macOS (desktop)
         - Windows (desktop)
+        - macOS (desktop)
         - Linux (desktop)
-        - Android emulator
-        - iOS simulator
         - Other (please describe below)
     validations:
       required: true
 
   - type: input
-    id: device_model
+    id: desktop_hardware
     attributes:
-      label: Device model
-      description: "Example: iPhone 15 Pro, Pixel 8, MacBook Air M2, etc."
-      placeholder: "e.g. iPhone 15 Pro"
+      label: Desktop hardware
+      description: "Example: Windows laptop model, custom PC CPU/GPU, MacBook Air M2, etc."
+      placeholder: "e.g. Windows 11 laptop with Intel i5 / NVIDIA RTX 3060"
     validations:
       required: true
 
@@ -91,7 +85,7 @@ body:
     id: os_version
     attributes:
       label: OS version
-      placeholder: "e.g. iOS 18.1, Android 14, macOS 15.2"
+      placeholder: "e.g. Windows 11 24H2, macOS 15.2, Ubuntu 24.04"
     validations:
       required: true
 
@@ -112,12 +106,15 @@ body:
         - Watch Progress (resume, watched state, history)
         - Subtitles (download, styling, sync)
         - Audio tracks
-        - Navigation / Gestures
+        - Windowing / Fullscreen
+        - Keyboard / Mouse input
+        - Navigation
         - UI / Layout
         - Settings
         - Sync (Trakt / remote)
         - Downloads / Offline
-        - Platform-specific (iOS only / Android only / Desktop only)
+        - Installer / Updater
+        - Platform-specific (Windows / macOS / Linux)
         - Other
     validations:
       required: true
@@ -128,7 +125,7 @@ body:
       label: Bug description
       description: |
         Explain the problem in detail. Do not only write "not working" or "same issue".
-        Include what screen/flow you were using, what you tapped or tried to do, what changed on screen, and any visible error text.
+        Include what screen/flow you were using, what you clicked or tried to do, what changed on screen, and any visible error text.
       placeholder: |
         I was trying to ...
         The app ...
@@ -145,7 +142,7 @@ body:
       placeholder: |
         1. Open ...
         2. Navigate to ...
-        3. Tap / Click ...
+        3. Click / type ...
         4. Observe ...
     validations:
       required: true
@@ -213,12 +210,10 @@ body:
     attributes:
       label: Logs (required for crash reports)
       description: |
-        Required if the app crashes or force closes. Crash reports without logs will be closed.
+        Required if the desktop app crashes or closes unexpectedly. Crash reports without logs will be closed.
         For other bug reports, logs are optional but still helpful.
 
-        **Android:** `adb logcat -d | tail -n 300`
-        **iOS:** Crash log from Xcode Organizer or Console.app
-        **Desktop:** Terminal/console output from around the time the issue occurred
+        Useful logs include terminal/console output, installer logs, updater logs, or Windows Event Viewer crash details from around the time the issue occurred.
       render: shell
       placeholder: |
         Paste logs here

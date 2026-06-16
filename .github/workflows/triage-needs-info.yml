@@ -171,9 +171,8 @@ jobs:
                     `Closing this crash report because crash reports must include logs.\n\n` +
                     `Please open a new report, or ask us to reopen this one, with a log snippet or stack trace from around the crash.\n\n` +
                     `Useful examples:\n` +
-                    `- Android: \`adb logcat -d | tail -n 300\`\n` +
-                    `- iOS: crash log from Xcode Organizer or Console.app\n` +
-                    `- Desktop: terminal/console output from around the crash`,
+                    `- Windows: Event Viewer crash details or terminal output from around the crash\n` +
+                    `- macOS/Linux: terminal output, crash report, or stack trace from around the crash`,
                 });
               }
               await github.rest.issues.update({
@@ -204,7 +203,7 @@ jobs:
                 `Missing / too vague:\n` +
                 problems.map(p => `- ${p}`).join("\n") +
                 `\n\n` +
-                `Use a specific title, for example: \`[Bug]: Playback freezes when switching audio tracks on iOS\`.\n` +
+                `Use a specific title, for example: \`[Bug]: Fullscreen exits immediately when pressing F11 on Windows\`.\n` +
                 `Reports that only say "not working", "broken", or "same issue" are not enough to debug.\n` +
                 `Logs are optional for most issues, but they help a lot. Crash reports without logs are closed automatically.\n`;
 
