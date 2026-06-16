@@ -28,8 +28,6 @@ jobs:
         include:
           - arch: arm64
             runner: macos-14
-          - arch: x86_64
-            runner: macos-13
 
     steps:
       - uses: actions/checkout@v4
