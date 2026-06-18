@@ -11,6 +11,8 @@ import com.nuvio.app.features.collection.CollectionSource
 import com.nuvio.app.features.collection.TmdbCollectionSourceResolver
 import com.nuvio.app.features.collection.catalogRouteKey
 import com.nuvio.app.features.collection.findCollectionCatalog
+import com.nuvio.app.features.tmdb.TmdbMetadataService
+import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import com.nuvio.app.features.trakt.TraktPublicListSourceResolver
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +40,9 @@ object HomeRepository {
     private var currentDefinitions: List<HomeCatalogDefinition> = emptyList()
     private var cachedSections: Map<String, HomeCatalogSection> = emptyMap()
     private var cachedCollectionHeroItems: List<MetaPreview> = emptyList()
+    private var cachedCatalogHeroLogos: Map<String, String> = emptyMap()
+    private var catalogHeroLogoJob: Job? = null
+    private var catalogHeroLogoRequestKey: String? = null
     private var collectionHeroJob: Job? = null
     private var collectionHeroRequestKey: String? = null
     private var lastPublishedCatalogHeroEmpty: Boolean = true
@@ -166,6 +171,10 @@ object HomeRepository {
         currentDefinitions = emptyList()
         cachedSections = emptyMap()
         cachedCollectionHeroItems = emptyList()
+        cachedCatalogHeroLogos = emptyMap()
+        catalogHeroLogoJob?.cancel()
+        catalogHeroLogoJob = null
+        catalogHeroLogoRequestKey = null
         collectionHeroJob?.cancel()
         collectionHeroJob = null
         collectionHeroRequestKey = null
@@ -211,9 +220,10 @@ object HomeRepository {
         } else {
             emptyList()
         }
+        val resolvedCatalogHeroItems = catalogHeroItems.withCachedCatalogHeroLogos()
         lastPublishedCatalogHeroEmpty = snapshot.heroEnabled && catalogHeroItems.isEmpty()
         val heroItems = if (snapshot.heroEnabled) {
-            catalogHeroItems.ifEmpty { cachedCollectionHeroItems }
+            resolvedCatalogHeroItems.ifEmpty { cachedCollectionHeroItems }
         } else {
             emptyList()
         }
@@ -223,6 +233,12 @@ object HomeRepository {
             heroItems = heroItems,
             sections = sections,
             errorMessage = if (sections.isEmpty()) lastErrorMessage else null,
+        )
+
+        ensureCatalogHeroLogos(
+            items = catalogHeroItems,
+            requestKey = requestKey,
+            heroEnabled = snapshot.heroEnabled,
         )
     }
 
@@ -338,6 +354,67 @@ object HomeRepository {
             .flatMap { collection -> collection.folders }
             .flatMap { folder -> folder.resolvedSources }
             .take(HOME_COLLECTION_HERO_SOURCE_LIMIT)
+
+    private fun List<MetaPreview>.withCachedCatalogHeroLogos(): List<MetaPreview> =
+        map { item ->
+            val logo = cachedCatalogHeroLogos[item.stableKey()]
+                ?.takeIf(String::isNotBlank)
+                ?: return@map item
+            if (item.logo.isNullOrBlank()) item.copy(logo = logo) else item
+        }
+
+    private fun ensureCatalogHeroLogos(
+        items: List<MetaPreview>,
+        requestKey: String?,
+        heroEnabled: Boolean,
+    ) {
+        if (!heroEnabled || items.isEmpty()) return
+        val settings = TmdbSettingsRepository.snapshot()
+        if (!settings.enabled || !settings.hasApiKey || !settings.useArtwork) return
+
+        val candidates = items.filter { item ->
+            item.logo.isNullOrBlank() && cachedCatalogHeroLogos[item.stableKey()].isNullOrBlank()
+        }
+        if (candidates.isEmpty()) return
+
+        val nextRequestKey = buildString {
+            append(requestKey.orEmpty())
+            append("|tmdb-logo:")
+            append(settings.language)
+            append(":")
+            candidates.forEach { item ->
+                append(item.stableKey())
+                append(";")
+            }
+        }
+        if (catalogHeroLogoRequestKey == nextRequestKey) return
+
+        catalogHeroLogoJob?.cancel()
+        catalogHeroLogoRequestKey = nextRequestKey
+        catalogHeroLogoJob = scope.launch {
+            val resolvedLogos = candidates
+                .map { item ->
+                    async {
+                        val enriched = TmdbMetadataService.enrichPreviewLogo(
+                            item = item,
+                            settings = settings,
+                        )
+                        enriched.logo
+                            ?.takeIf(String::isNotBlank)
+                            ?.let { logo -> item.stableKey() to logo }
+                    }
+                }
+                .awaitAll()
+                .filterNotNull()
+
+            if (resolvedLogos.isEmpty()) return@launch
+            cachedCatalogHeroLogos = cachedCatalogHeroLogos + resolvedLogos
+            publishCurrentState(
+                isLoading = _uiState.value.isLoading,
+                requestKey = requestKey,
+            )
+        }
+    }
 
     private suspend fun CollectionSource.resolveCollectionHeroItems(addons: List<ManagedAddon>): List<MetaPreview> {
         val page = when {

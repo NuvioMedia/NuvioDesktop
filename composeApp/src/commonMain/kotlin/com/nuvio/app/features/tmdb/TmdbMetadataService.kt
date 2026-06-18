@@ -28,6 +28,7 @@ object TmdbMetadataService {
     private val json = Json { ignoreUnknownKeys = true }
 
     private val enrichmentCache = mutableMapOf<String, TmdbEnrichment>()
+    private val previewLogoCache = mutableMapOf<String, String?>()
     private val episodeCache = mutableMapOf<String, Map<Pair<Int, Int>, TmdbEpisodeEnrichment>>()
     private val moreLikeThisCache = mutableMapOf<String, List<MetaPreview>>()
     private val collectionCache = mutableMapOf<String, Pair<String?, List<MetaPreview>>>()
@@ -590,6 +591,37 @@ object TmdbMetadataService {
         )
     }
 
+    suspend fun enrichPreviewLogo(
+        item: MetaPreview,
+        settings: TmdbSettings,
+    ): MetaPreview = withContext(Dispatchers.Default) {
+        if (!settings.enabled || !settings.hasApiKey || !settings.useArtwork) return@withContext item
+        if (!item.logo.isNullOrBlank()) return@withContext item
+
+        val tmdbType = normalizeMetaType(item.type)
+        val tmdbId = TmdbService.ensureTmdbId(item.id, tmdbType) ?: return@withContext item
+        val logo = fetchPreviewLogo(
+            tmdbId = tmdbId,
+            mediaType = tmdbType,
+            language = settings.language,
+        )
+
+        applyPreviewLogo(
+            item = item,
+            logo = logo,
+            settings = settings,
+        )
+    }
+
+    internal fun applyPreviewLogo(
+        item: MetaPreview,
+        logo: String?,
+        settings: TmdbSettings,
+    ): MetaPreview {
+        if (!settings.useArtwork || logo.isNullOrBlank() || !item.logo.isNullOrBlank()) return item
+        return item.copy(logo = logo)
+    }
+
     internal fun buildStandaloneMeta(
         type: String,
         id: String,
@@ -746,6 +778,32 @@ object TmdbMetadataService {
         }
 
         return updated
+    }
+
+    private suspend fun fetchPreviewLogo(
+        tmdbId: String,
+        mediaType: String,
+        language: String,
+    ): String? {
+        val normalizedLanguage = normalizeTmdbLanguage(language)
+        val cacheKey = "$tmdbId:$mediaType:$normalizedLanguage:preview-logo"
+        if (previewLogoCache.containsKey(cacheKey)) return previewLogoCache[cacheKey]
+
+        val numericId = tmdbId.toIntOrNull() ?: return null
+        val includeImageLanguage = buildString {
+            append(normalizedLanguage.substringBefore("-"))
+            append(",")
+            append(normalizedLanguage)
+            append(",en,null")
+        }
+
+        val images = fetch<TmdbImagesResponse>(
+            endpoint = "$mediaType/$numericId/images",
+            query = mapOf("include_image_language" to includeImageLanguage),
+        )
+        val logo = buildImageUrl(images?.logos.orEmpty().selectBestLocalizedImagePath(normalizedLanguage), "w500")
+        previewLogoCache[cacheKey] = logo
+        return logo
     }
 
     private suspend fun fetchEnrichment(

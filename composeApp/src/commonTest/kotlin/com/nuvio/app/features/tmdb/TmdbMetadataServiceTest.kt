@@ -4,10 +4,41 @@ import com.nuvio.app.features.details.MetaCompany
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaPerson
 import com.nuvio.app.features.details.MetaVideo
+import com.nuvio.app.features.home.MetaPreview
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class TmdbMetadataServiceTest {
+    @Test
+    fun `applyPreviewLogo fills missing preview logo without replacing existing artwork`() {
+        val missingLogo = MetaPreview(
+            id = "tt1234567",
+            type = "movie",
+            name = "Movie",
+        )
+        val existingLogo = missingLogo.copy(logo = "https://example.com/addon-logo.png")
+
+        val filled = TmdbMetadataService.applyPreviewLogo(
+            item = missingLogo,
+            logo = "https://image.tmdb.org/t/p/w500/logo.png",
+            settings = TmdbSettings(enabled = true, useArtwork = true),
+        )
+        val preserved = TmdbMetadataService.applyPreviewLogo(
+            item = existingLogo,
+            logo = "https://image.tmdb.org/t/p/w500/logo.png",
+            settings = TmdbSettings(enabled = true, useArtwork = true),
+        )
+        val disabled = TmdbMetadataService.applyPreviewLogo(
+            item = missingLogo,
+            logo = "https://image.tmdb.org/t/p/w500/logo.png",
+            settings = TmdbSettings(enabled = true, useArtwork = false),
+        )
+
+        assertEquals("https://image.tmdb.org/t/p/w500/logo.png", filled.logo)
+        assertEquals("https://example.com/addon-logo.png", preserved.logo)
+        assertEquals(null, disabled.logo)
+    }
+
     @Test
     fun `buildStandaloneMeta maps tmdb enrichment without addon meta`() {
         val enrichment = TmdbEnrichment(
