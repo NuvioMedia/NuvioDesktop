@@ -12,6 +12,7 @@ import com.nuvio.app.features.collection.TmdbCollectionSourceResolver
 import com.nuvio.app.features.collection.catalogRouteKey
 import com.nuvio.app.features.collection.findCollectionCatalog
 import com.nuvio.app.features.tmdb.TmdbMetadataService
+import com.nuvio.app.features.tmdb.TmdbSettings
 import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import com.nuvio.app.features.trakt.TraktPublicListSourceResolver
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
@@ -220,7 +221,8 @@ object HomeRepository {
         } else {
             emptyList()
         }
-        val resolvedCatalogHeroItems = catalogHeroItems.withCachedCatalogHeroLogos()
+        val tmdbSettings = TmdbSettingsRepository.snapshot()
+        val resolvedCatalogHeroItems = catalogHeroItems.withCachedCatalogHeroLogos(tmdbSettings)
         lastPublishedCatalogHeroEmpty = snapshot.heroEnabled && catalogHeroItems.isEmpty()
         val heroItems = if (snapshot.heroEnabled) {
             resolvedCatalogHeroItems.ifEmpty { cachedCollectionHeroItems }
@@ -239,6 +241,7 @@ object HomeRepository {
             items = catalogHeroItems,
             requestKey = requestKey,
             heroEnabled = snapshot.heroEnabled,
+            settings = tmdbSettings,
         )
     }
 
@@ -355,25 +358,31 @@ object HomeRepository {
             .flatMap { folder -> folder.resolvedSources }
             .take(HOME_COLLECTION_HERO_SOURCE_LIMIT)
 
-    private fun List<MetaPreview>.withCachedCatalogHeroLogos(): List<MetaPreview> =
-        map { item ->
-            val logo = cachedCatalogHeroLogos[item.stableKey()]
+    private fun List<MetaPreview>.withCachedCatalogHeroLogos(settings: TmdbSettings): List<MetaPreview> {
+        if (!settings.enabled || !settings.hasApiKey || !settings.useArtwork) return this
+        return map { item ->
+            val logo = cachedCatalogHeroLogos[catalogHeroLogoCacheKey(settings, item)]
                 ?.takeIf(String::isNotBlank)
                 ?: return@map item
             if (item.logo.isNullOrBlank()) item.copy(logo = logo) else item
         }
+    }
+
+    private fun catalogHeroLogoCacheKey(settings: TmdbSettings, item: MetaPreview): String =
+        "${settings.language.trim().lowercase()}|${item.stableKey()}"
 
     private fun ensureCatalogHeroLogos(
         items: List<MetaPreview>,
         requestKey: String?,
         heroEnabled: Boolean,
+        settings: TmdbSettings,
     ) {
         if (!heroEnabled || items.isEmpty()) return
-        val settings = TmdbSettingsRepository.snapshot()
         if (!settings.enabled || !settings.hasApiKey || !settings.useArtwork) return
 
         val candidates = items.filter { item ->
-            item.logo.isNullOrBlank() && cachedCatalogHeroLogos[item.stableKey()].isNullOrBlank()
+            item.logo.isNullOrBlank() &&
+                cachedCatalogHeroLogos[catalogHeroLogoCacheKey(settings, item)].isNullOrBlank()
         }
         if (candidates.isEmpty()) return
 
@@ -401,7 +410,7 @@ object HomeRepository {
                         )
                         enriched.logo
                             ?.takeIf(String::isNotBlank)
-                            ?.let { logo -> item.stableKey() to logo }
+                            ?.let { logo -> catalogHeroLogoCacheKey(settings, item) to logo }
                     }
                 }
                 .awaitAll()

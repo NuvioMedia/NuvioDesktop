@@ -16,6 +16,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -29,6 +31,7 @@ object TmdbMetadataService {
 
     private val enrichmentCache = mutableMapOf<String, TmdbEnrichment>()
     private val previewLogoCache = mutableMapOf<String, String?>()
+    private val previewLogoCacheMutex = Mutex()
     private val episodeCache = mutableMapOf<String, Map<Pair<Int, Int>, TmdbEpisodeEnrichment>>()
     private val moreLikeThisCache = mutableMapOf<String, List<MetaPreview>>()
     private val collectionCache = mutableMapOf<String, Pair<String?, List<MetaPreview>>>()
@@ -787,9 +790,20 @@ object TmdbMetadataService {
     ): String? {
         val normalizedLanguage = normalizeTmdbLanguage(language)
         val cacheKey = "$tmdbId:$mediaType:$normalizedLanguage:preview-logo"
-        if (previewLogoCache.containsKey(cacheKey)) return previewLogoCache[cacheKey]
+        var hasCachedLogo = false
+        val cachedLogo = previewLogoCacheMutex.withLock {
+            hasCachedLogo = previewLogoCache.containsKey(cacheKey)
+            previewLogoCache[cacheKey]
+        }
+        if (hasCachedLogo) return cachedLogo
 
-        val numericId = tmdbId.toIntOrNull() ?: return null
+        val numericId = tmdbId.toIntOrNull()
+        if (numericId == null) {
+            previewLogoCacheMutex.withLock {
+                previewLogoCache[cacheKey] = null
+            }
+            return null
+        }
         val includeImageLanguage = buildString {
             append(normalizedLanguage.substringBefore("-"))
             append(",")
@@ -802,7 +816,9 @@ object TmdbMetadataService {
             query = mapOf("include_image_language" to includeImageLanguage),
         )
         val logo = buildImageUrl(images?.logos.orEmpty().selectBestLocalizedImagePath(normalizedLanguage), "w500")
-        previewLogoCache[cacheKey] = logo
+        previewLogoCacheMutex.withLock {
+            previewLogoCache[cacheKey] = logo
+        }
         return logo
     }
 
