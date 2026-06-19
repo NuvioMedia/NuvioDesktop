@@ -51,7 +51,9 @@ jobs:
 
     - name: Create local.properties
       shell: pwsh
-      run: New-Item -Path local.properties -ItemType File -Force
+      run: |
+        New-Item -Path local.properties -ItemType File -Force
+        Add-Content -Path local.properties -Value "INTRODB_API_URL=https://api.introdb.app"
 
     - name: Compute build version
       id: version
