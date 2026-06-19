@@ -24,18 +24,23 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1
 
     - name: Install WebView2 SDK
-      run: nuget install Microsoft.Web.WebView2 -Version 1.0.2592.51 -OutputDirectory ~/.nuget/packages
+      run: nuget install Microsoft.Web.WebView2 -Version 1.0.2592.51 -OutputDirectory "$env:USERPROFILE\.nuget\packages"
+
+    - name: Create local.properties
+      shell: pwsh
+      run: New-Item -Path local.properties -ItemType File -Force
 
     - name: Build Windows Player Bridge
       run: ./gradlew.bat :composeApp:buildWindowsPlayerBridge
 
-    - name: Build Windows Installer (MSI)
-      run: ./gradlew.bat :composeApp:packageReleaseDistributionForCurrentOS
+    - name: Build Windows MSI
+      run: >-
+        ./gradlew.bat
+        :composeApp:packageReleaseMsi
+        --no-configuration-cache
 
-    - name: Upload Windows Artifacts
+    - name: Upload MSI Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: nuvio-windows-build
-        path: |
-          composeApp/build/compose/binaries/main/msi/*.msi
-          composeApp/build/compose/binaries/main/release/msi/*.msi
+        name: nuvio-windows-msi
+        path: composeApp/build/compose/binaries/main-release/msi/*.msi
