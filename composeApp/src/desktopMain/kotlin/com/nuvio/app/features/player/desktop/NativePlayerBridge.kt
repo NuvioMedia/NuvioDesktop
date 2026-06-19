@@ -19,7 +19,9 @@ internal object NativePlayerBridge {
         "msvcp140_codecvt_ids.dll",
         "concrt140.dll",
         "WebView2Loader.dll",
+        "libmpv-2.dll",
     )
+
     private val preloadStarted = AtomicBoolean(false)
 
     init {
