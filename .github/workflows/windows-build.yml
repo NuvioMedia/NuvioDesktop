@@ -53,7 +53,18 @@ jobs:
       shell: pwsh
       run: |
         New-Item -Path local.properties -ItemType File -Force
-        Add-Content -Path local.properties -Value "INTRODB_API_URL=https://api.introdb.app"
+        Add-Content -Path local.properties -Value "INTRODB_API_URL=${{ secrets.INTRODB_API_URL }}"
+        Add-Content -Path local.properties -Value "SUPABASE_URL=${{ secrets.SUPABASE_URL }}"
+        Add-Content -Path local.properties -Value "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}"
+        Add-Content -Path local.properties -Value "IMDB_RATINGS_API_BASE_URL=${{ secrets.IMDB_RATINGS_API_BASE_URL }}"
+        Add-Content -Path local.properties -Value "IMDB_TAPFRAME_API_BASE_URL=${{ secrets.IMDB_TAPFRAME_API_BASE_URL }}"
+        Add-Content -Path local.properties -Value "TRAKT_CLIENT_ID=${{ secrets.TRAKT_CLIENT_ID }}"
+        Add-Content -Path local.properties -Value "TRAKT_CLIENT_SECRET=${{ secrets.TRAKT_CLIENT_SECRET }}"
+        Add-Content -Path local.properties -Value "TRAKT_REDIRECT_URI=${{ secrets.TRAKT_REDIRECT_URI }}"
+        Add-Content -Path local.properties -Value "PREMIUMIZE_CLIENT_ID=${{ secrets.PREMIUMIZE_CLIENT_ID }}"
+        Add-Content -Path local.properties -Value "CONTRIBUTIONS_URL=${{ secrets.CONTRIBUTIONS_URL }}"
+        Add-Content -Path local.properties -Value "DONATIONS_BASE_URL=${{ secrets.DONATIONS_BASE_URL }}"
+        Add-Content -Path local.properties -Value "DONATIONS_DONATE_URL=${{ secrets.DONATIONS_DONATE_URL }}"
 
     - name: Compute build version
       id: version
