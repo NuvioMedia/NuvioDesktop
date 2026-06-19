@@ -128,7 +128,10 @@ private fun CollectionFolderCard(
     }
 
     Column(
-        modifier = modifier.width(cardWidth),
+        modifier = Modifier
+            .posterCardClickable(onClick = onClick, onLongClick = null)
+            .then(modifier)
+            .width(cardWidth),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         val shapeCorner = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
@@ -136,8 +139,7 @@ private fun CollectionFolderCard(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(aspectRatio)
-                .posterCardClickable(onClick = onClick, onLongClick = null),
+                .aspectRatio(aspectRatio),
             shape = shapeCorner,
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface,

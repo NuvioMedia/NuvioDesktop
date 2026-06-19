@@ -397,10 +397,12 @@ enum class AppScreenTab {
     Settings,
 }
 
-private val DesktopSidebarCollapsedWidth = 76.dp
-private val DesktopSidebarExpandedWidth = 184.dp
-private val DesktopSidebarExpandedContentWidth = 144.dp
-private val DesktopSidebarIconSlotSize = 36.dp
+private val DesktopSidebarCollapsedWidth = 84.dp
+private val DesktopSidebarExpandedWidth = 208.dp
+private val DesktopSidebarExpandedContentWidth = 168.dp
+private val DesktopSidebarItemHeight = 58.dp
+private val DesktopSidebarIconSlotSize = 42.dp
+private val DesktopSidebarIconSize = NuvioTokens.Icon.lg
 
 private fun AppScreenTab.toNativeNavigationTab(): NativeNavigationTab = when (this) {
     AppScreenTab.Home -> NativeNavigationTab.Home
@@ -3139,7 +3141,7 @@ private fun DesktopHoverSidebar(
                     .align(Alignment.TopCenter)
                     .padding(top = profileTopPadding)
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .height(DesktopSidebarItemHeight)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -3163,7 +3165,7 @@ private fun DesktopHoverSidebar(
                     onDismissRequest = { profileStackVisible = false },
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .padding(top = profileTopPadding + 58.dp)
+                        .padding(top = profileTopPadding + DesktopSidebarItemHeight + 6.dp)
                         .width(DesktopSidebarExpandedContentWidth),
                 )
             }
@@ -3183,7 +3185,7 @@ private fun DesktopHoverSidebar(
                     Icon(
                         imageVector = Icons.Filled.Home,
                         contentDescription = stringResource(Res.string.compose_nav_home),
-                        modifier = Modifier.size(NuvioTokens.Space.s20),
+                        modifier = Modifier.size(DesktopSidebarIconSize),
                         tint = color,
                     )
                 }
@@ -3196,7 +3198,7 @@ private fun DesktopHoverSidebar(
                     Icon(
                         painter = painterResource(Res.drawable.sidebar_search),
                         contentDescription = stringResource(Res.string.compose_nav_search),
-                        modifier = Modifier.size(NuvioTokens.Space.s20),
+                        modifier = Modifier.size(DesktopSidebarIconSize),
                         tint = color,
                     )
                 }
@@ -3209,7 +3211,7 @@ private fun DesktopHoverSidebar(
                     Icon(
                         painter = painterResource(Res.drawable.sidebar_library),
                         contentDescription = stringResource(Res.string.compose_nav_library),
-                        modifier = Modifier.size(NuvioTokens.Space.s20),
+                        modifier = Modifier.size(DesktopSidebarIconSize),
                         tint = color,
                     )
                 }
@@ -3222,7 +3224,7 @@ private fun DesktopHoverSidebar(
                     Icon(
                         imageVector = Icons.Rounded.Settings,
                         contentDescription = stringResource(Res.string.compose_settings_page_root),
-                        modifier = Modifier.size(NuvioTokens.Space.s20),
+                        modifier = Modifier.size(DesktopSidebarIconSize),
                         tint = color,
                     )
                 }
@@ -3266,7 +3268,7 @@ private fun DesktopSidebarProfileTrigger(
                         profile = profile,
                         avatars = avatars,
                         selected = false,
-                        size = 28,
+                        size = 32,
                     )
                 }
                 if (expanded) {
@@ -3274,7 +3276,7 @@ private fun DesktopSidebarProfileTrigger(
                     Text(
                         text = label,
                         modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = tokens.colors.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -3300,7 +3302,7 @@ private fun DesktopSidebarItem(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(DesktopSidebarItemHeight)
             .padding(horizontal = 10.dp, vertical = 4.dp)
             .clickable(onClick = onClick),
         color = Color.Transparent,
@@ -3336,7 +3338,7 @@ private fun DesktopSidebarItem(
                     Text(
                         text = label,
                         modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = contentColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

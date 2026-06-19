@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
+import com.nuvio.app.isDesktop
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.jetbrains_sans_bold
 import nuvio.composeapp.generated.resources.jetbrains_sans_regular
@@ -185,6 +186,8 @@ private val NuvioRippleConfiguration = RippleConfiguration(
     color = Color.Black,
 )
 
+private const val NuvioDesktopFontScale = 1.08f
+
 @Composable
 fun NuvioTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -200,7 +203,7 @@ fun NuvioTheme(
     CompositionLocalProvider(
         LocalDensity provides Density(
             density = density.density,
-            fontScale = 1f,
+            fontScale = if (isDesktop) NuvioDesktopFontScale else 1f,
         ),
         LocalNuvioThemeTokens provides tokens,
         LocalNuvioTypeScale provides NuvioTypeTokens,
