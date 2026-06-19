@@ -5,6 +5,9 @@ on:
     branches: [ "release" ]
   workflow_dispatch:
 
+permissions:
+  contents: write   # required to create GitHub Releases
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -23,12 +26,38 @@ jobs:
     - name: Set up MSVC (for C++ Bridge)
       uses: ilammy/msvc-dev-cmd@v1
 
+    - name: Cache NuGet packages (WebView2 SDK)
+      uses: actions/cache@v4
+      with:
+        path: ~\.nuget\packages
+        key: nuget-webview2-1.0.2592.51
+        restore-keys: nuget-webview2-
+
     - name: Install WebView2 SDK
       run: nuget install Microsoft.Web.WebView2 -Version 1.0.2592.51 -OutputDirectory "$env:USERPROFILE\.nuget\packages"
+
+    - name: Cache Gradle build outputs
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          composeApp/build/native/windows
+        key: gradle-windows-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+        restore-keys: gradle-windows-
 
     - name: Create local.properties
       shell: pwsh
       run: New-Item -Path local.properties -ItemType File -Force
+
+    - name: Compute build version
+      id: version
+      shell: pwsh
+      run: |
+        $version = "1.0.${{ github.run_number }}"
+        echo "name=$version" >> $env:GITHUB_OUTPUT
+        echo "NUVIO_DESKTOP_VERSION_NAME=$version" >> $env:GITHUB_ENV
+        echo "NUVIO_DESKTOP_VERSION_CODE=${{ github.run_number }}" >> $env:GITHUB_ENV
 
     - name: Build Windows Player Bridge
       run: ./gradlew.bat :composeApp:buildWindowsPlayerBridge
@@ -39,8 +68,11 @@ jobs:
         :composeApp:packageReleaseMsi
         --no-configuration-cache
 
-    - name: Upload MSI Artifact
-      uses: actions/upload-artifact@v4
+    - name: Publish to GitHub Releases
+      uses: softprops/action-gh-release@v2
       with:
-        name: nuvio-windows-msi
-        path: composeApp/build/compose/binaries/main-release/msi/*.msi
+        tag_name: "windows-v${{ steps.version.outputs.name }}"
+        name: "Windows Desktop v${{ steps.version.outputs.name }}"
+        draft: false
+        prerelease: true
+        files: composeApp/build/compose/binaries/main-release/msi/Nuvio-Windows-*.msi
