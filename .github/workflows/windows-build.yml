@@ -26,7 +26,7 @@ jobs:
     - name: Build Windows Player Bridge
       run: ./gradlew.bat :composeApp:buildWindowsPlayerBridge
 
-    - name: Build Windows Installers (MSI & EXE)
+    - name: Build Windows Installer (MSI)
       run: ./gradlew.bat :composeApp:packageReleaseDistributionForCurrentOS
 
     - name: Upload Windows Artifacts
@@ -34,7 +34,5 @@ jobs:
       with:
         name: nuvio-windows-build
         path: |
-          composeApp/build/compose/binaries/main/exe/*.exe
           composeApp/build/compose/binaries/main/msi/*.msi
-          composeApp/build/compose/binaries/main/release/exe/*.exe
           composeApp/build/compose/binaries/main/release/msi/*.msi
