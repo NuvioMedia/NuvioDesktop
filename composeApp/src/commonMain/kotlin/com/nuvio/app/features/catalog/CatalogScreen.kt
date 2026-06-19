@@ -280,6 +280,7 @@ private fun CatalogPosterTile(
     onLongClick: (() -> Unit)? = null,
 ) {
     Column(
+        modifier = Modifier.posterCardClickable(onClick = onClick, onLongClick = onLongClick),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
@@ -287,8 +288,7 @@ private fun CatalogPosterTile(
                 .fillMaxWidth()
                 .aspectRatio(item.posterShape.catalogAspectRatio())
                 .clip(RoundedCornerShape(cornerRadiusDp.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .posterCardClickable(onClick = onClick, onLongClick = onLongClick),
+                .background(MaterialTheme.colorScheme.surface),
         ) {
             if (item.poster != null) {
                 AsyncImage(

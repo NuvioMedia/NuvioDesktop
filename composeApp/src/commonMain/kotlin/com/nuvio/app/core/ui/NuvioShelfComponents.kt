@@ -231,7 +231,10 @@ fun NuvioPosterCard(
     val shouldShowTitleBelow = showTitleBelow && !posterCardStyle.hideLabelsEnabled
 
     Column(
-        modifier = modifier.width(cardWidth),
+        modifier = Modifier
+            .posterCardClickable(onClick = onClick, onLongClick = onLongClick)
+            .then(modifier)
+            .width(cardWidth),
         verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
     ) {
         Box(
@@ -239,8 +242,7 @@ fun NuvioPosterCard(
                 .fillMaxWidth()
                 .aspectRatio(shape.aspectRatio)
                 .clip(cardShape)
-                .background(tokens.colors.surface)
-                .posterCardClickable(onClick = onClick, onLongClick = onLongClick),
+                .background(tokens.colors.surface),
             contentAlignment = Alignment.Center,
         ) {
             if (imageUrl != null) {
@@ -400,7 +402,7 @@ private fun NuvioViewAllPill(
     }
 }
 
-internal const val NuvioDesktopCatalogShelfPosterScale = 1.3f
+internal const val NuvioDesktopCatalogShelfPosterScale = 1.4f
 private const val DesktopPosterHoverScale = 1.045f
 
 internal fun desktopCatalogShelfPosterBaseWidthDp(
@@ -455,11 +457,11 @@ private fun NuvioPosterShape.cardWidth(basePosterWidthDp: Int): Dp =
 @Composable
 internal fun Modifier.desktopPosterHoverScale(
     enabled: Boolean = true,
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ): Modifier {
     if (!enabled || !isDesktop) return this
 
-    val hoverSource = remember { MutableInteractionSource() }
-    val hovered by hoverSource.collectIsHoveredAsState()
+    val hovered by interactionSource.collectIsHoveredAsState()
     val scale by animateFloatAsState(
         targetValue = if (hovered) DesktopPosterHoverScale else 1f,
         animationSpec = spring(
@@ -469,12 +471,22 @@ internal fun Modifier.desktopPosterHoverScale(
         label = "desktop_poster_hover_scale",
     )
 
-    return this.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
-    }
-        .zIndex(if (hovered) 1f else 0f)
-        .hoverable(hoverSource)
+    val isScaling = hovered || scale != 1f
+
+    return this
+        .then(
+            if (isScaling) {
+                Modifier
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .zIndex(1f)
+            } else {
+                Modifier
+            },
+        )
+        .hoverable(interactionSource)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -484,8 +496,11 @@ internal fun Modifier.posterCardClickable(
     onLongClick: (() -> Unit)?,
 ): Modifier =
     if (onClick != null || onLongClick != null) {
-        desktopPosterHoverScale()
+        val interactionSource = remember { MutableInteractionSource() }
+        desktopPosterHoverScale(interactionSource = interactionSource)
             .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = { onClick?.invoke() },
                 onLongClick = onLongClick,
             )

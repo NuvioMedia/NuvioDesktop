@@ -239,7 +239,9 @@ private fun DiscoverPosterTile(
     onLongClick: (() -> Unit)? = null,
 ) {
     Column(
-        modifier = modifier,
+        modifier = Modifier
+            .posterCardClickable(onClick = onClick, onLongClick = onLongClick)
+            .then(modifier),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
@@ -247,8 +249,7 @@ private fun DiscoverPosterTile(
                 .fillMaxWidth()
                 .aspectRatio(item.posterShape.discoverAspectRatio())
                 .clip(RoundedCornerShape(cornerRadiusDp.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .posterCardClickable(onClick = onClick, onLongClick = onLongClick),
+                .background(MaterialTheme.colorScheme.surface),
         ) {
             if (item.poster != null) {
                 AsyncImage(

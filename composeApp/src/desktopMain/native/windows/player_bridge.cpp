@@ -946,7 +946,7 @@ public:
             std::lock_guard<std::mutex> lock(mpvMutex);
             if (!mpv) return;
             double outline = std::max(0.0, std::min(8.0, outlineSize));
-            double size = std::max(24.0, std::min(96.0, fontSize));
+            double size = std::max(18.0, std::min(96.0, fontSize));
             int64_t position = std::max(0, std::min(150, subPos));
             mpvApi().setProperty(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
             mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
@@ -1288,7 +1288,14 @@ private:
             setMpvOptionStringLocked("gpu-api", "d3d11");
             setMpvOptionStringLocked("hwdec", "auto");
             setMpvOptionStringLocked("hwdec-codecs", "all");
-            setMpvOptionStringLocked("vd-lavc-software-fallback", "no");
+            if (decoderPriority == 0) {
+                setMpvOptionStringLocked("vd-lavc-software-fallback", "no");
+            } else if (decoderPriority == 2) {
+                setMpvOptionStringLocked("hwdec", "no");
+                setMpvOptionStringLocked("vd-lavc-software-fallback", "yes");
+            } else {
+                setMpvOptionStringLocked("vd-lavc-software-fallback", "yes");
+            }
             setMpvOptionStringLocked("vd-lavc-threads", "4");
             setMpvOptionStringLocked("target-colorspace-hint", "yes");
             setMpvOptionStringLocked("tone-mapping", "auto");
@@ -1301,12 +1308,6 @@ private:
             setMpvOptionStringLocked("demuxer-seekable-cache", "no");
             setMpvOptionStringLocked("cache-secs", "30");
             setMpvOptionStringLocked("hr-seek", "no");
-
-            if (decoderPriority == 2) {
-                // 2 = Force CPU Decoders
-                setMpvOptionStringLocked("hwdec", "no");
-                setMpvOptionStringLocked("vd-lavc-software-fallback", "yes");
-            }
 
             int64_t wid = (int64_t)(intptr_t)containerHwnd;
             int widResult = api.setOption(mpv, "wid", MPV_FORMAT_INT64, &wid);
