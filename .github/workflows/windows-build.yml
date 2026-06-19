@@ -23,6 +23,9 @@ jobs:
     - name: Set up MSVC (for C++ Bridge)
       uses: ilammy/msvc-dev-cmd@v1
 
+    - name: Install WebView2 SDK
+      run: nuget install Microsoft.Web.WebView2 -Version 1.0.2592.51 -OutputDirectory ~/.nuget/packages
+
     - name: Build Windows Player Bridge
       run: ./gradlew.bat :composeApp:buildWindowsPlayerBridge
 
