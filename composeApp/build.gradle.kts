@@ -982,7 +982,7 @@ compose.desktop {
         )
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Deb)
             packageName = "Nuvio"
             packageVersion = desktopReleasePackageVersion
             vendor = "Nuvio Media"
