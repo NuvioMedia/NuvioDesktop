@@ -76,7 +76,7 @@ jobs:
         echo "NUVIO_DESKTOP_VERSION_CODE=${{ github.run_number }}" >> $env:GITHUB_ENV
 
     - name: Build Windows Player Bridge
-      run: ./gradlew.bat :composeApp:buildWindowsPlayerBridge
+      run: ./gradlew.bat :composeApp:buildWindowsPlayerBridge --no-configuration-cache
 
     - name: Build Windows MSI
       run: >-
