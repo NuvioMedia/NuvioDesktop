@@ -9,22 +9,19 @@ import java.awt.Toolkit
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
 import java.awt.image.BufferedImage
-import javax.swing.Timer
 
 internal class NativePlayerHost : Canvas() {
     var onPeerReady: (() -> Unit)? = null
     var onDisplayableChanged: ((Boolean) -> Unit)? = null
     var onFirstPaint: (() -> Unit)? = null
     var onFirstFullSizePaint: (() -> Unit)? = null
+    var onCursorActivity: (() -> Unit)? = null
     private var firstPaintNotified = false
     private var firstFullSizePaintNotified = false
     private var controlsVisible = true
     private var cursorVisible = true
-    private var cursorHideTimer: Timer? = null
 
     private companion object {
-        const val CursorIdleHideDelayMs = 3_000
-
         val hiddenCursor: Cursor by lazy {
             val image = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
             Toolkit.getDefaultToolkit().createCustomCursor(image, Point(0, 0), "nuvio-hidden-cursor")
@@ -46,25 +43,16 @@ internal class NativePlayerHost : Canvas() {
     }
 
     fun setControlsVisible(visible: Boolean) {
-        if (controlsVisible == visible) return
         controlsVisible = visible
-        cancelCursorHideTimer()
         setCursorVisible(visible)
     }
 
     fun noteCursorActivity() {
-        if (controlsVisible) {
-            cancelCursorHideTimer()
-            setCursorVisible(true)
-            return
-        }
-        setCursorVisible(true)
-        restartCursorHideTimer()
+        onCursorActivity?.invoke()
     }
 
     fun resetCursorVisibility() {
         controlsVisible = true
-        cancelCursorHideTimer()
         setCursorVisible(true)
     }
 
@@ -72,24 +60,6 @@ internal class NativePlayerHost : Canvas() {
         if (cursorVisible == visible) return
         cursorVisible = visible
         cursor = if (visible) Cursor.getDefaultCursor() else hiddenCursor
-    }
-
-    private fun restartCursorHideTimer() {
-        cancelCursorHideTimer()
-        cursorHideTimer = Timer(CursorIdleHideDelayMs) {
-            if (!controlsVisible) {
-                setCursorVisible(false)
-            }
-            cancelCursorHideTimer()
-        }.apply {
-            isRepeats = false
-            start()
-        }
-    }
-
-    private fun cancelCursorHideTimer() {
-        cursorHideTimer?.stop()
-        cursorHideTimer = null
     }
 
     override fun update(graphics: Graphics) {

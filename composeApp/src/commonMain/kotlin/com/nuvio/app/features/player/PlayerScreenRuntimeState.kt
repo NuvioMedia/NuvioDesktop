@@ -83,6 +83,7 @@ internal class PlayerScreenRuntime(
     var resizeModeFitLabel: String = ""
     var resizeModeFillLabel: String = ""
     var resizeModeZoomLabel: String = ""
+    var resizeModeStretchLabel: String = ""
     var downloadedLabel: String = ""
     var airsPrefix: String = ""
     var tbaLabel: String = ""
@@ -122,7 +123,7 @@ internal class PlayerScreenRuntime(
     var activeInitialPositionMs by mutableStateOf(initialPositionMs)
     var activeInitialProgressFraction by mutableStateOf(initialProgressFraction)
     var shouldPlay by mutableStateOf(true)
-    var resizeMode by mutableStateOf(playerSettingsUiState.resizeMode)
+    var resizeMode by mutableStateOf(playerSettingsUiState.resizeMode.supportedOnCurrentPlatform())
     var layoutSize by mutableStateOf(IntSize.Zero)
     var playbackSnapshot by mutableStateOf(PlayerPlaybackSnapshot())
     var playerController by mutableStateOf<PlayerEngineController?>(null)

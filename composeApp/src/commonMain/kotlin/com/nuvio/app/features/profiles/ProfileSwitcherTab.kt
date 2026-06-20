@@ -14,6 +14,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Lock
@@ -47,10 +49,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.ContentScale
@@ -374,33 +384,30 @@ fun SidebarProfileSwitcherStack(
         }
     }
 
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        profiles.forEach { profile ->
-            SidebarProfileSwitcherRow(
-                profile = profile,
-                avatars = avatars,
-                isActive = profile.profileIndex == activeProfile?.profileIndex,
-                onClick = { chooseProfile(profile) },
-            )
-        }
+    Box(modifier = modifier) {
+        if (pinProfile == null) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                profiles.forEach { profile ->
+                    SidebarProfileSwitcherRow(
+                        profile = profile,
+                        avatars = avatars,
+                        isActive = profile.profileIndex == activeProfile?.profileIndex,
+                        onClick = { chooseProfile(profile) },
+                    )
+                }
 
-        if (profiles.size < 4) {
-            SidebarAddProfileRow(
-                onClick = {
-                    onDismissRequest()
-                    onAddProfileRequested()
-                },
-            )
-        }
-
-        AnimatedVisibility(
-            visible = pinProfile != null,
-            enter = expandVertically() + fadeIn(tween(160)),
-            exit = shrinkVertically(tween(120)) + fadeOut(tween(90)),
-        ) {
+                if (profiles.size < 4) {
+                    SidebarAddProfileRow(
+                        onClick = {
+                            onDismissRequest()
+                            onAddProfileRequested()
+                        },
+                    )
+                }
+            }
+        } else {
             pinProfile?.let { profile ->
                 SidebarCompactPinEntry(
                     profileName = profile.name,
@@ -531,24 +538,103 @@ private fun SidebarCompactPinEntry(
     var isVerifying by remember(profileName) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
+    val focusRequester = remember { FocusRequester() }
+
+    fun submitDigit(digit: String) {
+        if (pin.length < 4 && !isVerifying) {
+            error = null
+            pin += digit
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            if (pin.length == 4) {
+                isVerifying = true
+                scope.launch {
+                    val result = verifyPin(pin)
+                    if (result.unlocked) {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onVerified()
+                    } else {
+                        error = if (result.retryAfterSeconds > 0) {
+                            getString(Res.string.pin_locked_try_again, result.retryAfterSeconds)
+                        } else {
+                            getString(Res.string.pin_incorrect)
+                        }
+                        pin = ""
+                    }
+                    isVerifying = false
+                }
+            }
+        }
+    }
+
+    fun deleteDigit() {
+        if (pin.isNotEmpty() && !isVerifying) {
+            pin = pin.dropLast(1)
+            error = null
+        }
+    }
+
+    LaunchedEffect(profileName) {
+        focusRequester.requestFocus()
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(tokens.shapes.compactCard)
-            .background(tokens.colors.surfaceCard.copy(alpha = 0.72f))
-            .padding(8.dp),
+            .focusRequester(focusRequester)
+            .focusable()
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                val digit = event.utf16CodePoint.takeIf { it in '0'.code..'9'.code }?.toChar()?.toString()
+                when {
+                    digit != null -> {
+                        submitDigit(digit)
+                        true
+                    }
+                    event.key == Key.Backspace || event.key == Key.Delete -> {
+                        deleteDigit()
+                        true
+                    }
+                    event.key == Key.Escape -> {
+                        onCancel()
+                        true
+                    }
+                    else -> false
+                }
+            }
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = stringResource(Res.string.pin_enter_for, profileName),
-            style = MaterialTheme.typography.labelSmall,
-            color = tokens.colors.textMuted,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(tokens.shapes.avatar)
+                    .background(tokens.colors.surfaceCard)
+                    .clickable(onClick = onCancel),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = stringResource(Res.string.action_back),
+                    tint = tokens.colors.textPrimary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Text(
+                text = stringResource(Res.string.pin_enter_for, profileName),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelSmall,
+                color = tokens.colors.textMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             repeat(4) { index ->
@@ -586,48 +672,8 @@ private fun SidebarCompactPinEntry(
         Spacer(modifier = Modifier.height(8.dp))
 
         SidebarCompactPinKeypad(
-            onDigit = { digit ->
-                if (pin.length < 4 && !isVerifying) {
-                    error = null
-                    pin += digit
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    if (pin.length == 4) {
-                        isVerifying = true
-                        scope.launch {
-                            val result = verifyPin(pin)
-                            if (result.unlocked) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onVerified()
-                            } else {
-                                error = if (result.retryAfterSeconds > 0) {
-                                    getString(Res.string.pin_locked_try_again, result.retryAfterSeconds)
-                                } else {
-                                    getString(Res.string.pin_incorrect)
-                                }
-                                pin = ""
-                            }
-                            isVerifying = false
-                        }
-                    }
-                }
-            },
-            onBackspace = {
-                if (pin.isNotEmpty() && !isVerifying) {
-                    pin = pin.dropLast(1)
-                    error = null
-                }
-            },
-        )
-
-        Text(
-            text = stringResource(Res.string.pin_cancel),
-            style = MaterialTheme.typography.labelSmall,
-            color = tokens.colors.accent,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .clip(tokens.shapes.compactCard)
-                .clickable(onClick = onCancel)
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+            onDigit = ::submitDigit,
+            onBackspace = ::deleteDigit,
         )
     }
 }

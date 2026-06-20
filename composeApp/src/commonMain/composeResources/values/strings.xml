@@ -365,6 +365,7 @@
     <string name="compose_player_reset_defaults">Reset Defaults</string>
     <string name="compose_player_resize_fill">Fill</string>
     <string name="compose_player_resize_fit">Fit</string>
+    <string name="compose_player_resize_stretch">Stretch</string>
     <string name="compose_player_resize_zoom">Zoom</string>
     <string name="compose_player_seek_back_10">Seek backward 10 seconds</string>
     <string name="compose_player_seek_delta_backward">-%1$ds</string>
@@ -537,6 +538,7 @@
     <string name="settings_appearance_amoled_black">AMOLED Black</string>
     <string name="settings_appearance_amoled_description">Use pure black backgrounds for OLED screens.</string>
     <string name="settings_appearance_app_language">App Language</string>
+    <string name="settings_appearance_app_language_device">Device language</string>
     <string name="settings_appearance_app_language_sheet_title">Choose Language</string>
     <string name="settings_appearance_continue_watching_description">Settings for the Continue Watching section.</string>
     <string name="settings_appearance_desktop_navigation">Desktop Navigation</string>
@@ -869,6 +871,8 @@
     <string name="settings_playback_not_set">Not set</string>
     <string name="settings_playback_option_default">Default (media file)</string>
     <string name="settings_playback_option_device_language">Device language</string>
+    <string name="settings_playback_option_original">Original language</string>
+    <string name="settings_playback_option_original_hint">Requires TMDB enrichment to be enabled</string>
     <string name="settings_playback_option_forced">Forced</string>
     <string name="settings_playback_option_none">None</string>
     <string name="settings_playback_addon_subtitle_startup_all">All subtitles</string>
@@ -1615,8 +1619,13 @@
     <string name="player_ios_preset_custom_label">Custom</string>
     <string name="player_ios_preset_custom_desc">Use your advanced values below.</string>
     <string name="player_ios_hardware_decoder_off">Off</string>
+    <!-- Playback settings Windows NVIDIA RTX Video -->
+    <string name="settings_playback_nvidia_rtx_video_section">NVIDIA RTX Video</string>
+    <string name="settings_playback_nvidia_rtx_super_resolution">RTX Video Super Resolution</string>
+    <string name="settings_playback_nvidia_rtx_super_resolution_desc">Upscale low-resolution video using NVIDIA RTX AI Super Resolution.</string>
     <!-- Playback settings iOS video output -->
     <string name="settings_playback_ios_video_output">iOS video output</string>
+
     <string name="settings_playback_ios_hardware_decoder">Hardware decoder</string>
     <string name="settings_playback_ios_extended_dynamic_range">Extended dynamic range</string>
     <string name="settings_playback_ios_extended_dynamic_range_desc">Default Metal output mode for new playback sessions.</string>
@@ -1878,6 +1887,7 @@
     <string name="cw_airs_date">Airs %1$s</string>
     <string name="cw_airs_today">Airs today</string>
     <string name="cw_airs_tomorrow">Airs tomorrow</string>
+    <string name="cw_airs_in_days_format">Airs in %1$d days</string>
     <plurals name="cw_airs_in_days">
         <item quantity="one">Airs in %1$d day</item>
         <item quantity="other">Airs in %1$d days</item>
@@ -1885,6 +1895,7 @@
     <string name="cw_airs_date_short">%1$s</string>
     <string name="cw_airs_today_short">Today</string>
     <string name="cw_airs_tomorrow_short">Tomorrow</string>
+    <string name="cw_airs_in_days_short_format">In %1$d days</string>
     <plurals name="cw_airs_in_days_short">
         <item quantity="one">In %1$d day</item>
         <item quantity="other">In %1$d days</item>

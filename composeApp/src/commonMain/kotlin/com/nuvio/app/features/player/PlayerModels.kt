@@ -50,6 +50,7 @@ data class PlayerLaunch(
     val torrentTrackers: List<String> = emptyList(),
     val initialPositionMs: Long = 0L,
     val initialProgressFraction: Float? = null,
+    val contentLanguage: String? = null,
 )
 
 object PlayerLaunchStore {
@@ -78,6 +79,7 @@ enum class PlayerResizeMode {
     Fit,
     Fill,
     Zoom,
+    Stretch,
 }
 
 enum class IosVideoOutputPreset(

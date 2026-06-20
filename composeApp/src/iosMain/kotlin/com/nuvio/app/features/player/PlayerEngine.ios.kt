@@ -281,6 +281,7 @@ actual fun PlatformPlayerSurface(
                 PlayerResizeMode.Fit -> 0
                 PlayerResizeMode.Fill -> 1
                 PlayerResizeMode.Zoom -> 2
+                PlayerResizeMode.Stretch -> 0
             }
         )
     }

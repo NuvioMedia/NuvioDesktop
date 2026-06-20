@@ -106,6 +106,7 @@ private fun NativePlayerSurface(
     val latestOnError = rememberUpdatedState(onError)
     val playerSettings by PlayerSettingsRepository.uiState.collectAsState()
     val decoderPriority = playerSettings.decoderPriority
+    val nvidiaRtxSuperResolutionEnabled = playerSettings.nvidiaRtxSuperResolutionEnabled
 
     LaunchedEffect(controller) {
         onControllerReady(controller)
@@ -146,7 +147,7 @@ private fun NativePlayerSurface(
         onDispose { controller.dispose() }
     }
 
-    LaunchedEffect(controller, sourceUrl, playbackHeaders, decoderPriority, hostFirstFullSizePaintComplete.value) {
+    LaunchedEffect(controller, sourceUrl, playbackHeaders, decoderPriority, nvidiaRtxSuperResolutionEnabled, hostFirstFullSizePaintComplete.value) {
         if (!hostFirstFullSizePaintComplete.value) {
             return@LaunchedEffect
         }
@@ -157,6 +158,7 @@ private fun NativePlayerSurface(
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs,
             decoderPriority = decoderPriority,
+            nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
             onError = { message -> latestOnError.value(message) },
         )
     }

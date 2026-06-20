@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -511,33 +512,49 @@ internal fun settingsSearchEntries(
         pageLabel = playbackPage,
         section = playbackPlayer,
         icon = Icons.Rounded.PlayArrow,
-        rows = listOfNotNull(
-            PlaybackSearchRow(
-                "loading-overlay",
-                stringResource(Res.string.settings_playback_show_loading_overlay),
-                stringResource(Res.string.settings_playback_show_loading_overlay_description),
-            ),
-            if (externalPlayerSupported) PlaybackSearchRow(
-                "external-player",
-                stringResource(Res.string.settings_playback_external_player),
-                stringResource(Res.string.settings_playback_external_player_description_android),
-            ) else null,
-            if (externalPlayerSupported && isIos) PlaybackSearchRow(
-                "external-player-app",
-                stringResource(Res.string.settings_playback_external_player_app),
-            ) else null,
-            PlaybackSearchRow(
-                "hold-to-speed",
-                stringResource(Res.string.settings_playback_hold_to_speed),
-                stringResource(Res.string.settings_playback_hold_to_speed_description),
-            ),
-            PlaybackSearchRow(
-                "touch-gestures",
-                stringResource(Res.string.settings_playback_touch_gestures),
-                stringResource(Res.string.settings_playback_touch_gestures_description),
-            ),
-            PlaybackSearchRow("hold-speed", stringResource(Res.string.settings_playback_hold_speed)),
-        ),
+        rows = buildList {
+            add(
+                PlaybackSearchRow(
+                    "loading-overlay",
+                    stringResource(Res.string.settings_playback_show_loading_overlay),
+                    stringResource(Res.string.settings_playback_show_loading_overlay_description),
+                ),
+            )
+            if (externalPlayerSupported) {
+                add(
+                    PlaybackSearchRow(
+                        "external-player",
+                        stringResource(Res.string.settings_playback_external_player),
+                        stringResource(Res.string.settings_playback_external_player_description_android),
+                    ),
+                )
+            }
+            if (externalPlayerSupported && isIos) {
+                add(
+                    PlaybackSearchRow(
+                        "external-player-app",
+                        stringResource(Res.string.settings_playback_external_player_app),
+                    ),
+                )
+            }
+            if (!isDesktop) {
+                add(
+                    PlaybackSearchRow(
+                        "hold-to-speed",
+                        stringResource(Res.string.settings_playback_hold_to_speed),
+                        stringResource(Res.string.settings_playback_hold_to_speed_description),
+                    ),
+                )
+                add(
+                    PlaybackSearchRow(
+                        "touch-gestures",
+                        stringResource(Res.string.settings_playback_touch_gestures),
+                        stringResource(Res.string.settings_playback_touch_gestures_description),
+                    ),
+                )
+                add(PlaybackSearchRow("hold-speed", stringResource(Res.string.settings_playback_hold_speed)))
+            }
+        },
     )
     addPlaybackRows(
         addRow = ::addRow,

@@ -254,6 +254,7 @@ internal fun PlayerScreenRuntime.cycleResizeMode() {
             PlayerResizeMode.Fit -> resizeModeFitLabel
             PlayerResizeMode.Fill -> resizeModeFillLabel
             PlayerResizeMode.Zoom -> resizeModeZoomLabel
+            PlayerResizeMode.Stretch -> resizeModeStretchLabel
         },
     )
     controlsVisible = true

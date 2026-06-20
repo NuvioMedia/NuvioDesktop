@@ -53,10 +53,17 @@ fun main() {
                 applyNativeDesktopWindowChrome(window)
             }
             DisposableEffect(window, windowState) {
-                val unregisterFullscreenToggle = registerDesktopAppFullscreenToggle { targetWindow ->
-                    if (targetWindow != null && targetWindow !== window) return@registerDesktopAppFullscreenToggle
-                    fullscreenController.toggle(window, windowState)
-                }
+                val unregisterFullscreenToggle = registerDesktopAppFullscreenToggle(
+                    handler = { targetWindow ->
+                        if (targetWindow == null || targetWindow === window) {
+                            fullscreenController.toggle(window, windowState)
+                        }
+                    },
+                    isFullscreen = { targetWindow ->
+                        (targetWindow == null || targetWindow === window) &&
+                            fullscreenController.isFullscreen(window, windowState)
+                    },
+                )
                 val uninstallFullscreenShortcuts = installDesktopAppFullscreenShortcuts(window)
                 onDispose {
                     fullscreenController.dispose(window)

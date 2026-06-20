@@ -20,6 +20,8 @@ const toggle = document.getElementById("toggle");
 const toggleIcon = document.getElementById("toggleIcon");
 const toggleLabel = document.getElementById("toggleLabel");
 const lockIcon = document.getElementById("lockIcon");
+const fullscreenButton = document.getElementById("fullscreenButton");
+const fullscreenIcon = document.getElementById("fullscreenIcon");
 const title = document.getElementById("title");
 const episode = document.getElementById("episode");
 const streamTitle = document.getElementById("streamTitle");
@@ -37,6 +39,8 @@ const backButton = document.getElementById("backButton");
 const openingOverlay = document.getElementById("openingOverlay");
 const openingArtwork = document.getElementById("openingArtwork");
 const openingBackButton = document.getElementById("openingBackButton");
+const openingFullscreenButton = document.getElementById("openingFullscreenButton");
+const openingFullscreenIcon = document.getElementById("openingFullscreenIcon");
 const openingLogoSlot = document.getElementById("openingLogoSlot");
 const openingLogoBase = document.getElementById("openingLogoBase");
 const openingLogoFillClip = document.getElementById("openingLogoFillClip");
@@ -144,6 +148,8 @@ const p2pConsentCloseButton = document.getElementById("p2pConsentCloseButton");
 const p2pConsentBody = document.getElementById("p2pConsentBody");
 const p2pConsentCancelButton = document.getElementById("p2pConsentCancelButton");
 const p2pConsentEnableButton = document.getElementById("p2pConsentEnableButton");
+const playerToast = document.getElementById("playerToast");
+const playerToastText = document.getElementById("playerToastText");
 
 let state = {
   title: "",
@@ -157,6 +163,8 @@ let state = {
   pauseOverlayDescription: "",
   resizeModeLabel: "Fit",
   playbackSpeedLabel: "1x",
+  isFullscreen: false,
+  volumeLevel: null,
   subtitlesLabel: "Subs",
   audioLabel: "Audio",
   sourcesLabel: "Sources",
@@ -349,6 +357,11 @@ let hiddenCursorTimer = 0;
 let hiddenCursorTemporarilyVisible = false;
 let cursorActivityLastSentAt = 0;
 let nativeViewportTimer = 0;
+let playerToastTimer = 0;
+let playerToastToken = 0;
+let pendingSettingToastCommand = "";
+let pendingSettingToastToken = 0;
+let pendingVolumeToast = false;
 const prefersReducedMotion = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const modalTransitionMs = prefersReducedMotion ? 1 : 240;
@@ -356,6 +369,7 @@ const chromeAutoHideDelayMs = 3500;
 const chromeActivityThrottleMs = 300;
 const hiddenCursorHideDelayMs = 3000;
 const cursorActivityThrottleMs = 100;
+const playerToastDurationMs = 1400;
 const chromeInteractionSelector = [
   "button",
   "input",
@@ -379,6 +393,90 @@ const send = (type, value = 0) => {
   }
   const webViewBridge = window.chrome && window.chrome.webview;
   if (webViewBridge) webViewBridge.postMessage({ type, value });
+};
+
+const syncFullscreenButtons = () => {
+  const isFullscreen = Boolean(state.isFullscreen);
+  const icon = isFullscreen ? "#icon-fullscreen-exit" : "#icon-fullscreen";
+  const label = isFullscreen ? "Exit fullscreen" : "Enter fullscreen";
+  if (fullscreenIcon) fullscreenIcon.setAttribute("href", icon);
+  if (openingFullscreenIcon) openingFullscreenIcon.setAttribute("href", icon);
+  if (fullscreenButton) fullscreenButton.setAttribute("aria-label", label);
+  if (openingFullscreenButton) openingFullscreenButton.setAttribute("aria-label", label);
+};
+
+const togglePlayerFullscreen = () => {
+  send("toggleFullscreen", 0);
+};
+
+const hidePlayerToast = token => {
+  if (!playerToast || (token != null && token !== playerToastToken)) return;
+  playerToast.classList.remove("visible");
+  playerToast.setAttribute("aria-hidden", "true");
+};
+
+const showPlayerToast = (message, { durationMs = playerToastDurationMs } = {}) => {
+  const cleanMessage = String(message || "").trim();
+  if (!playerToast || !playerToastText || !cleanMessage) return;
+  window.clearTimeout(playerToastTimer);
+  playerToastToken += 1;
+  const token = playerToastToken;
+  playerToastText.textContent = cleanMessage;
+  playerToast.setAttribute("aria-hidden", "false");
+  playerToast.classList.add("visible");
+  playerToastTimer = window.setTimeout(() => hidePlayerToast(token), durationMs);
+};
+
+const settingToastLabel = command => {
+  if (command === "resize") return state.resizeModeLabel || "Fit";
+  if (command === "speed") return state.playbackSpeedLabel || "1x";
+  return "";
+};
+
+const volumeToastLabel = (fallbackDelta = 0) => {
+  const volumeLevel = state.volumeLevel;
+  if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
+    return `Volume ${Math.round(Math.max(0, Math.min(1, volumeLevel)) * 100)}%`;
+  }
+  return fallbackDelta < 0 ? "Volume down" : "Volume up";
+};
+
+const nextVolumeToastLabel = delta => {
+  const volumeLevel = state.volumeLevel;
+  if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
+    const nextLevel = Math.max(0, Math.min(1, volumeLevel + (delta * 0.05)));
+    return `Volume ${Math.round(nextLevel * 100)}%`;
+  }
+  return volumeToastLabel(delta);
+};
+
+const seekToastLabel = command => {
+  if (command === "seekBack" || command === "keyboardSeekBack") return "-10s";
+  if (command === "seekForward" || command === "keyboardSeekForward") return "+10s";
+  return "";
+};
+
+const showCommandToast = command => {
+  queueSettingToast(command);
+  const seekLabel = seekToastLabel(command);
+  if (seekLabel) {
+    showPlayerToast(seekLabel);
+  }
+};
+
+const queueSettingToast = command => {
+  if (command !== "resize" && command !== "speed") return;
+  pendingSettingToastCommand = command;
+  pendingSettingToastToken += 1;
+  const token = pendingSettingToastToken;
+  window.setTimeout(() => {
+    if (pendingSettingToastCommand !== command || pendingSettingToastToken !== token) return;
+    showPlayerToast(settingToastLabel(command));
+  }, 900);
+  window.setTimeout(() => {
+    if (pendingSettingToastCommand !== command || pendingSettingToastToken !== token) return;
+    pendingSettingToastCommand = "";
+  }, 2500);
 };
 
 const animationDelay = ms => new Promise(resolve => {
@@ -1469,6 +1567,7 @@ const renderOpeningOverlay = suppress => {
   openingOverlay.classList.toggle("has-progress", hasProgress);
   openingOverlay.setAttribute("aria-hidden", showOpening ? "false" : "true");
   openingBackButton.setAttribute("aria-label", state.closeLabel || "Close player");
+  syncFullscreenButtons();
 
   openingLogoSlot.hidden = !logoUrl;
   openingLogoFillClip.style.width = `${(progress || 0) * 100}%`;
@@ -1768,6 +1867,7 @@ const renderChrome = () => {
   }
   lockButton.setAttribute("aria-label", state.isLocked ? state.unlockLabel : state.lockLabel);
   lockIcon.setAttribute("href", state.isLocked ? "#icon-lock-open" : "#icon-lock");
+  syncFullscreenButtons();
   backButton.setAttribute("aria-label", state.closeLabel || "Close player");
   submitIntroButton.setAttribute("aria-label", state.submitIntroLabel || "Submit Intro");
   videoSettingsButton.setAttribute("aria-label", state.videoSettingsLabel || "Video settings");
@@ -1903,6 +2003,8 @@ const keepChromeVisibleFromKeyboard = () => {
 };
 
 const sendKeyboardVolume = delta => {
+  pendingVolumeToast = true;
+  showPlayerToast(nextVolumeToastLabel(delta));
   send(delta < 0 ? "keyboardVolumeDown" : "keyboardVolumeUp", 0);
 };
 
@@ -2105,6 +2207,11 @@ document.querySelectorAll("[data-command]").forEach(button => {
       openPlayerModal("submitIntro");
       return;
     }
+    if (command === "toggleFullscreen") {
+      togglePlayerFullscreen();
+      return;
+    }
+    showCommandToast(command);
     send(command, 0);
   });
 });
@@ -2377,6 +2484,9 @@ window.playerUpdate = update => {
 
 window.playerControls = nextState => {
   const previousCloseToken = Number(state.closeModalsToken) || 0;
+  const previousResizeLabel = state.resizeModeLabel || "";
+  const previousSpeedLabel = state.playbackSpeedLabel || "";
+  const previousVolumeLevel = typeof state.volumeLevel === "number" ? state.volumeLevel : NaN;
   state = { ...state, ...nextState };
   hasReceivedPlayerControls = true;
   const closeToken = Number(state.closeModalsToken) || 0;
@@ -2389,6 +2499,22 @@ window.playerControls = nextState => {
     closePlayerModal();
   }
   render();
+  if (pendingSettingToastCommand === "resize" && (state.resizeModeLabel || "") !== previousResizeLabel) {
+    pendingSettingToastCommand = "";
+    showPlayerToast(settingToastLabel("resize"));
+  } else if (pendingSettingToastCommand === "speed" && (state.playbackSpeedLabel || "") !== previousSpeedLabel) {
+    pendingSettingToastCommand = "";
+    showPlayerToast(settingToastLabel("speed"));
+  }
+  const nextVolumeLevel = typeof state.volumeLevel === "number" ? state.volumeLevel : NaN;
+  if (
+    pendingVolumeToast &&
+    Number.isFinite(nextVolumeLevel) &&
+    (!Number.isFinite(previousVolumeLevel) || Math.abs(nextVolumeLevel - previousVolumeLevel) > 0.001)
+  ) {
+    pendingVolumeToast = false;
+    showPlayerToast(volumeToastLabel());
+  }
 };
 
 root.addEventListener("click", event => {
@@ -2405,7 +2531,7 @@ root.addEventListener("dblclick", event => {
   if (event.target.closest("button,input")) return;
   event.preventDefault();
   window.clearTimeout(tapTimer);
-  send("toggleFullscreen", 0);
+  togglePlayerFullscreen();
 });
 
 document.addEventListener("keydown", event => {
@@ -2430,7 +2556,7 @@ document.addEventListener("keydown", event => {
   if (event.code === "F11" || isMacFullscreenShortcut) {
     event.preventDefault();
     focusShortcutRoot();
-    send("toggleFullscreen", 0);
+    togglePlayerFullscreen();
     return;
   }
   if (activeModal || isTextEntryTarget(event.target)) {
@@ -2446,6 +2572,7 @@ document.addEventListener("keydown", event => {
   event.preventDefault();
   focusShortcutRoot();
   noteChromeActivity();
+  showCommandToast(command);
   send(command, 0);
 });
 

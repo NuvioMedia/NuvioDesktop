@@ -79,7 +79,9 @@ import com.nuvio.app.features.plugins.PluginsUiState
 import com.nuvio.app.features.plugins.PluginRepository
 import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamAutoPlaySource
+import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
+import com.nuvio.app.isWindows
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.StringResource
@@ -360,32 +362,34 @@ private fun PlaybackSettingsSection(
                         )
                     }
                 }
-                SettingsGroupDivider(isTablet = isTablet)
-                SettingsSwitchRow(
-                    title = stringResource(Res.string.settings_playback_touch_gestures),
-                    description = stringResource(Res.string.settings_playback_touch_gestures_description),
-                    checked = touchGesturesEnabled,
-                    enabled = !autoPlayPlayerSettings.externalPlayerEnabled,
-                    isTablet = isTablet,
-                    onCheckedChange = PlayerSettingsRepository::setTouchGesturesEnabled,
-                )
-                SettingsGroupDivider(isTablet = isTablet)
-                SettingsSwitchRow(
-                    title = stringResource(Res.string.settings_playback_hold_to_speed),
-                    description = stringResource(Res.string.settings_playback_hold_to_speed_description),
-                    checked = holdToSpeedEnabled,
-                    enabled = !autoPlayPlayerSettings.externalPlayerEnabled,
-                    isTablet = isTablet,
-                    onCheckedChange = PlayerSettingsRepository::setHoldToSpeedEnabled,
-                )
-                if (holdToSpeedEnabled && !autoPlayPlayerSettings.externalPlayerEnabled) {
+                if (!isDesktop) {
                     SettingsGroupDivider(isTablet = isTablet)
-                    SettingsNavigationRow(
-                        title = stringResource(Res.string.settings_playback_hold_speed),
-                        description = formatPlaybackSpeedLabel(holdToSpeedValue),
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_touch_gestures),
+                        description = stringResource(Res.string.settings_playback_touch_gestures_description),
+                        checked = touchGesturesEnabled,
+                        enabled = !autoPlayPlayerSettings.externalPlayerEnabled,
                         isTablet = isTablet,
-                        onClick = { showHoldToSpeedValueDialog = true },
+                        onCheckedChange = PlayerSettingsRepository::setTouchGesturesEnabled,
                     )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_hold_to_speed),
+                        description = stringResource(Res.string.settings_playback_hold_to_speed_description),
+                        checked = holdToSpeedEnabled,
+                        enabled = !autoPlayPlayerSettings.externalPlayerEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setHoldToSpeedEnabled,
+                    )
+                    if (holdToSpeedEnabled && !autoPlayPlayerSettings.externalPlayerEnabled) {
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsNavigationRow(
+                            title = stringResource(Res.string.settings_playback_hold_speed),
+                            description = formatPlaybackSpeedLabel(holdToSpeedValue),
+                            isTablet = isTablet,
+                            onClick = { showHoldToSpeedValueDialog = true },
+                        )
+                    }
                 }
             }
         }
@@ -411,6 +415,7 @@ private fun PlaybackSettingsSection(
                     description = when (preferredAudioLanguage) {
                         AudioLanguageOption.DEFAULT -> stringResource(Res.string.settings_playback_option_default)
                         AudioLanguageOption.DEVICE -> stringResource(Res.string.settings_playback_option_device_language)
+                        AudioLanguageOption.ORIGINAL -> stringResource(Res.string.settings_playback_option_original)
                         else -> languageLabelForCode(preferredAudioLanguage)
                     },
                     enabled = audioLanguageEnabled,
@@ -802,6 +807,23 @@ private fun PlaybackSettingsSection(
             }
         }
 
+        if (isWindows) {
+            SettingsSection(
+                title = stringResource(Res.string.settings_playback_nvidia_rtx_video_section),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_nvidia_rtx_super_resolution),
+                        description = stringResource(Res.string.settings_playback_nvidia_rtx_super_resolution_desc),
+                        checked = autoPlayPlayerSettings.nvidiaRtxSuperResolutionEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setNvidiaRtxSuperResolutionEnabled,
+                    )
+                }
+            }
+        }
+
         if (isIos) {
             SettingsSection(
                 title = stringResource(Res.string.settings_playback_ios_audio_output_section),
@@ -1097,11 +1119,13 @@ private fun PlaybackSettingsSection(
     }
 
     if (showPreferredAudioDialog) {
+        val originalHint = stringResource(Res.string.settings_playback_option_original_hint)
         LanguageSelectionDialog(
             title = stringResource(Res.string.settings_playback_preferred_audio_language),
             options = listOf(
                 LanguageSelectionOption(AudioLanguageOption.DEFAULT, stringResource(Res.string.settings_playback_option_default)),
                 LanguageSelectionOption(AudioLanguageOption.DEVICE, stringResource(Res.string.settings_playback_option_device_language)),
+                LanguageSelectionOption(AudioLanguageOption.ORIGINAL, stringResource(Res.string.settings_playback_option_original), description = originalHint),
             ) + AvailableLanguageOptions.map { option ->
                 LanguageSelectionOption(option.code, stringResource(option.labelRes))
             },
@@ -1115,10 +1139,12 @@ private fun PlaybackSettingsSection(
     }
 
     if (showSecondaryAudioDialog) {
+        val originalHint = stringResource(Res.string.settings_playback_option_original_hint)
         LanguageSelectionDialog(
             title = stringResource(Res.string.settings_playback_secondary_audio_language),
             options = listOf(
                 LanguageSelectionOption(null, stringResource(Res.string.settings_playback_option_none)),
+                LanguageSelectionOption(AudioLanguageOption.ORIGINAL, stringResource(Res.string.settings_playback_option_original), description = originalHint),
             ) + AvailableLanguageOptions.map { option ->
                 LanguageSelectionOption(option.code, stringResource(option.labelRes))
             },
@@ -1448,6 +1474,7 @@ private fun formatReuseCacheDuration(hours: Int): String = when {
 private data class LanguageSelectionOption(
     val value: String?,
     val label: String,
+    val description: String? = null,
 )
 
 @Composable
@@ -1727,12 +1754,20 @@ private fun LanguageSelectionDialog(
                                     .padding(horizontal = 14.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(
-                                    text = option.label,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f),
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = option.label,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    if (!option.description.isNullOrBlank()) {
+                                        Text(
+                                            text = option.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
                                 Box(
                                     modifier = Modifier.size(24.dp),
                                     contentAlignment = Alignment.Center,

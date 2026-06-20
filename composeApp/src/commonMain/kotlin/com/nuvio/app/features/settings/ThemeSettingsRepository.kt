@@ -20,7 +20,7 @@ object ThemeSettingsRepository {
     private val _desktopNavigationLayout = MutableStateFlow(DesktopNavigationLayout.Default)
     val desktopNavigationLayout: StateFlow<DesktopNavigationLayout> = _desktopNavigationLayout.asStateFlow()
 
-    private val _selectedAppLanguage = MutableStateFlow(AppLanguage.ENGLISH)
+    private val _selectedAppLanguage = MutableStateFlow(AppLanguage.DEVICE)
     val selectedAppLanguage: StateFlow<AppLanguage> = _selectedAppLanguage.asStateFlow()
 
     private var hasLoaded = false
@@ -42,7 +42,7 @@ object ThemeSettingsRepository {
         _desktopNavigationLayout.value = DesktopNavigationLayout.Default
         NativeTabBridge.publishAccentColor(AppTheme.WHITE.nativeTabAccentHex())
         NativeTabBridge.publishLiquidGlassEnabled(false)
-        _selectedAppLanguage.value = AppLanguage.ENGLISH
+        _selectedAppLanguage.value = AppLanguage.DEVICE
     }
 
     private fun loadFromDisk() {

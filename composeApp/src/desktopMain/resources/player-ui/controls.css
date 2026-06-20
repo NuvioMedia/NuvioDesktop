@@ -228,6 +228,57 @@ button:disabled {
   pointer-events: none;
 }
 
+.player-toast {
+  position: absolute;
+  top: calc(20px + env(safe-area-inset-top));
+  left: 50%;
+  z-index: 42;
+  min-width: 108px;
+  max-width: min(240px, calc(100% - 40px));
+  min-height: 41px;
+  padding: 11px 16px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 18px;
+  background: rgba(22, 22, 24, .88);
+  color: #fff;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .36);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: translate3d(-50%, -12px, 0) scale(.98);
+  pointer-events: none;
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+  transition:
+    opacity 260ms var(--ease-out),
+    transform 280ms var(--ease-out);
+  will-change: opacity, transform;
+}
+
+.player-toast-text {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-toast.visible {
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0) scale(1);
+}
+
+.player.opening-active .player-toast,
+.player.error-active .player-toast {
+  opacity: 0;
+  pointer-events: none;
+}
+
 [hidden] {
   display: none !important;
 }
@@ -699,6 +750,7 @@ button:disabled {
 }
 
 .header-button,
+.opening-button,
 .side-control,
 .play-control,
 .skip-prompt,
@@ -1047,31 +1099,37 @@ button:disabled {
   pointer-events: auto;
 }
 
-.opening-back {
+.opening-actions {
   position: absolute;
-  top: calc(20px + env(safe-area-inset-top));
-  right: calc(var(--hp) + 20px);
+  top: calc(var(--slider-bottom) + env(safe-area-inset-top));
+  right: var(--hp);
   z-index: 3;
-  width: 44px;
-  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.opening-button {
+  width: var(--header-button);
+  height: var(--header-button);
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: rgba(0, 0, 0, .3);
+  background: rgba(0, 0, 0, .35);
 }
 
-.opening-back:hover {
-  background: rgba(255, 255, 255, .14);
+.opening-button:hover {
+  background: var(--theme-selected-surface);
 }
 
-.opening-back:active,
-.opening-back.is-pressed {
+.opening-button:active,
+.opening-button.is-pressed {
   transform: scale(.94);
 }
 
-.opening-back svg {
-  width: 24px;
-  height: 24px;
+.opening-button svg {
+  width: var(--header-icon);
+  height: var(--header-icon);
 }
 
 .opening-artwork {
@@ -2210,12 +2268,14 @@ button.action:focus-visible {
   .opening-artwork,
   .opening-logo,
   .pause-logo,
+  .player-toast,
   .next-episode-thumb img,
   .episode-thumb img,
   .image-loading::before,
   .modal-layer,
   .track-panel,
   .header-button,
+  .opening-button,
   .side-control,
   .play-control,
   .locked-button,

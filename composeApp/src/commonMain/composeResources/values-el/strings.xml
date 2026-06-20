@@ -1043,6 +1043,7 @@
     <string name="cw_airs_date">Πρεμιέρα %1$s</string>
     <string name="cw_airs_today">Πρεμιέρα σήμερα</string>
     <string name="cw_airs_tomorrow">Πρεμιέρα αύριο</string>
+    <string name="cw_airs_in_days_format">Πρεμιέρα σε %1$d ημέρες</string>
     <plurals name="cw_airs_in_days">
         <item quantity="one">Πρεμιέρα σε %1$d ημέρα</item>
         <item quantity="other">Πρεμιέρα σε %1$d ημέρες</item>
@@ -1050,6 +1051,7 @@
     <string name="cw_airs_date_short">%1$s</string>
     <string name="cw_airs_today_short">Σήμερα</string>
     <string name="cw_airs_tomorrow_short">Αύριο</string>
+    <string name="cw_airs_in_days_short_format">Σε %1$d ημέρες</string>
     <plurals name="cw_airs_in_days_short">
         <item quantity="one">Σε %1$d ημέρα</item>
         <item quantity="other">Σε %1$d ημέρες</item>

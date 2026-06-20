@@ -38,7 +38,20 @@
       <path d="M5 21V4.6c0-.38.21-.72.55-.89 2.15-1.08 4.18.32 6.12.32 1.58 0 3.1-.72 5.26-.72.55 0 1 .45 1 1v9.72c0 .41-.25.78-.63.93-2.03.8-3.79.1-5.46.1-1.94 0-3.55 1.13-5.84.38V21H5Z"/>
     </symbol>
     <symbol id="icon-close" viewBox="0 0 24 24">
-      <path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.41L10.59 13.41 4.29 19.7 2.88 18.29 9.17 12 2.88 5.71 4.29 4.3l6.3 6.29 6.3-6.29 1.41 1.41Z"/>
+      <path d="M6 6L18 18" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>
+      <path d="M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-fullscreen" viewBox="0 0 24 24">
+      <path d="M8 2H4C2.89543 2 2 2.89543 2 4V8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M22 8L22 4C22 2.89543 21.1046 2 20 2H16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M16 22L20 22C21.1046 22 22 21.1046 22 20L22 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M8 22L4 22C2.89543 22 2 21.1046 2 20V16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-fullscreen-exit" viewBox="0 0 385.331 385.331">
+      <path d="M264.943 156.665h108.273c6.833 0 11.934-5.39 11.934-12.211 0-6.833-5.101-11.85-11.934-11.838h-96.242V36.181c0-6.833-5.197-12.03-12.03-12.03s-12.03 5.197-12.03 12.03v108.273c0 .036.012.06.012.084 0 .036-.012.06-.012.096-.001 6.713 5.316 12.043 12.029 12.031z"/>
+      <path d="M120.291 24.247c-6.821 0-11.838 5.113-11.838 11.934v96.242H12.03c-6.833 0-12.03 5.197-12.03 12.03 0 6.833 5.197 12.03 12.03 12.03h108.273c.036 0 .06-.012.084-.012.036 0 .06.012.096.012 6.713 0 12.03-5.317 12.03-12.03V36.181c.001-6.821-5.389-11.922-12.222-11.934z"/>
+      <path d="M120.387 228.666H12.115C5.282 228.678.181 234.056.181 240.889s5.101 11.85 11.934 11.838h96.242v96.423c0 6.833 5.197 12.03 12.03 12.03s12.03-5.197 12.03-12.03V240.877c0-.036-.012-.06-.012-.084 0-.036.012-.06.012-.096.001-6.714-5.317-12.031-12.03-12.031z"/>
+      <path d="M373.3 228.666H265.028c-.036 0-.06.012-.084.012-.036 0-.06-.012-.096-.012-6.713 0-12.03 5.317-12.03 12.03v108.273c0 6.833 5.39 11.922 12.223 11.934 6.821.012 11.838-5.101 11.838-11.922v-96.242H373.3c6.833 0 12.03-5.197 12.03-12.03s-5.196-12.031-12.03-12.043z"/>
     </symbol>
     <symbol id="icon-aspect" viewBox="0 0 24 24">
       <path d="M19 3c1.6 0 2.9 1.25 2.99 2.82L22 6v12c0 1.6-1.25 2.9-2.82 2.99L19 21H5c-1.6 0-2.9-1.25-2.99-2.82L2 18V6c0-1.6 1.25-2.9 2.82-2.99L5 3h14Zm0 2H5c-.51 0-.94.39-.99.88L4 6v12c0 .51.39.94.88.99L5 19h14c.51 0 .94-.39.99-.88L20 18V6c0-.51-.39-.94-.88-.99L19 5Zm-2 7c.51 0 .94.39.99.88L18 13v3c0 .51-.39.94-.88.99L17 17h-3a1 1 0 0 1-.12-1.99L14 15h2v-2c0-.55.45-1 1-1ZM10 7a1 1 0 0 1 .12 1.99L10 9H8v2a1 1 0 0 1-1.99.12L6 11V8c0-.51.39-.94.88-.99L7 7h3Z"/>
@@ -74,9 +87,14 @@
     <section class="opening-overlay" id="openingOverlay" aria-label="Opening player" aria-hidden="true">
       <img class="opening-artwork" id="openingArtwork" alt="">
       <div class="opening-scrim"></div>
-      <button class="opening-back" id="openingBackButton" data-command="back" aria-label="Close player">
-        <svg><use href="#icon-close"></use></svg>
-      </button>
+      <nav class="opening-actions" aria-label="Player actions">
+        <button class="opening-button" id="openingFullscreenButton" data-command="toggleFullscreen" aria-label="Enter fullscreen">
+          <svg><use id="openingFullscreenIcon" href="#icon-fullscreen"></use></svg>
+        </button>
+        <button class="opening-button" id="openingBackButton" data-command="back" aria-label="Close player">
+          <svg><use href="#icon-close"></use></svg>
+        </button>
+      </nav>
       <div class="opening-content">
         <div class="opening-logo-slot" id="openingLogoSlot" hidden>
           <img class="opening-logo opening-logo-base" id="openingLogoBase" alt="">
@@ -100,6 +118,7 @@
           <button class="header-button" id="submitIntroButton" data-command="submitIntro" aria-label="Submit intro"><svg><use href="#icon-flag"></use></svg></button>
           <button class="header-button" id="lockButton" data-command="lock" aria-label="Lock controls"><svg><use id="lockIcon" href="#icon-lock"></use></svg></button>
           <button class="header-button" id="videoSettingsButton" data-command="videoSettings" aria-label="Video settings"><svg><use href="#icon-build"></use></svg></button>
+          <button class="header-button" id="fullscreenButton" data-command="toggleFullscreen" aria-label="Enter fullscreen"><svg><use id="fullscreenIcon" href="#icon-fullscreen"></use></svg></button>
           <button class="header-button" id="backButton" data-command="back" aria-label="Close player"><svg><use href="#icon-close"></use></svg></button>
         </nav>
       </header>
@@ -193,6 +212,9 @@
           <button class="locked-button" data-command="lock" aria-label="Unlock player controls"><svg><use href="#icon-lock"></use></svg></button>
           <div class="locked-label" id="lockedLabel">Tap to unlock</div>
         </div>
+      </section>
+      <section class="player-toast" id="playerToast" aria-live="polite" aria-atomic="true" aria-hidden="true">
+        <span class="player-toast-text" id="playerToastText"></span>
       </section>
       <section class="modal-layer" id="audioModal" aria-label="Audio tracks" hidden>
         <div class="track-panel">

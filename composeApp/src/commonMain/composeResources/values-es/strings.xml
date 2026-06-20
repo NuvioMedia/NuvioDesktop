@@ -1161,6 +1161,7 @@
     <string name="cw_airs_date">Se transmite %1$s</string>
     <string name="cw_airs_today">Se transmite hoy</string>
     <string name="cw_airs_tomorrow">Se transmite mañana</string>
+    <string name="cw_airs_in_days_format">Se transmite dentro de %1$d días</string>
     <plurals name="cw_airs_in_days">
         <item quantity="one">Se transmite dentro de %1$d día</item>
         <item quantity="many">Se transmite dentro de %1$d días</item>
@@ -1169,6 +1170,7 @@
     <string name="cw_airs_date_short">%1$s</string>
     <string name="cw_airs_today_short">Hoy</string>
     <string name="cw_airs_tomorrow_short">Mañana</string>
+    <string name="cw_airs_in_days_short_format">En %1$d días</string>
     <plurals name="cw_airs_in_days_short">
         <item quantity="one">En %1$d día</item>
         <item quantity="many">En %1$d días</item>

@@ -677,6 +677,7 @@ public:
         const std::string &controlsUrl,
         JavaVM *vm,
         int decoderPriority,
+        bool nvidiaRtxSuperResolutionEnabled,
         jobject sink,
         jmethodID method
     ) {
@@ -692,8 +693,8 @@ public:
         auto initState = std::make_shared<InitializationState>();
         auto self = shared_from_this();
         uiThread = std::thread(
-            [self, sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, initState]() {
-                self->runNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, initState);
+            [self, sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState]() {
+                self->runNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState);
             }
         );
 
@@ -829,14 +830,32 @@ public:
         mpvApi().setProperty(mpv, "volume", MPV_FORMAT_DOUBLE, &next);
     }
 
+    void setVolume(double level) {
+        std::lock_guard<std::mutex> lock(mpvMutex);
+        if (!mpv) return;
+        double next = std::max(0.0, std::min(100.0, level * 100.0));
+        mpvApi().setProperty(mpv, "volume", MPV_FORMAT_DOUBLE, &next);
+    }
+
+    double volume() {
+        return std::max(0.0, std::min(100.0, doubleProperty("volume", 100.0))) / 100.0;
+    }
+
     void setResizeMode(int mode) {
         switch (mode) {
             case 1:
             case 2:
+                setStringProperty("keepaspect", "yes");
                 setStringProperty("panscan", "1.0");
                 setStringProperty("video-unscaled", "no");
                 break;
+            case 3:
+                setStringProperty("keepaspect", "no");
+                setStringProperty("panscan", "0.0");
+                setStringProperty("video-unscaled", "no");
+                break;
             default:
+                setStringProperty("keepaspect", "yes");
                 setStringProperty("panscan", "0.0");
                 setStringProperty("video-unscaled", "no");
                 break;
@@ -997,11 +1016,12 @@ private:
         long long initialPositionMs,
         std::string controlsUrl,
         int decoderPriority,
+        bool nvidiaRtxSuperResolutionEnabled,
         std::shared_ptr<InitializationState> initState
     ) {
         std::string failure;
         try {
-            initializeOnNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority);
+            initializeOnNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled);
         } catch (const std::exception &error) {
             failure = error.what();
             cleanupUiResources();
@@ -1031,7 +1051,8 @@ private:
         bool playWhenReady,
         long long initialPositionMs,
         const std::string &controlsUrl,
-        int decoderPriority
+        int decoderPriority,
+        bool nvidiaRtxSuperResolutionEnabled
     ) {
         registerWindowClasses();
         uiThreadId = GetCurrentThreadId();
@@ -1063,6 +1084,7 @@ private:
         GetClientRect(hostHwnd, &bounds);
         LONG width = std::max<LONG>(1, bounds.right - bounds.left);
         LONG height = std::max<LONG>(1, bounds.bottom - bounds.top);
+
         containerHwnd = CreateWindowExW(
             0,
             kContainerWindowClass,
@@ -1082,7 +1104,7 @@ private:
         }
 
         startWebView(controlsUrl);
-        startMpv(sourceUrl, headerLines, playWhenReady, initialPositionMs, decoderPriority);
+        startMpv(sourceUrl, headerLines, playWhenReady, initialPositionMs, decoderPriority, nvidiaRtxSuperResolutionEnabled);
         layoutNativeSubviews();
         if (!SetTimer(messageHwnd, NUVIO_TIMER_ID, 500, nullptr)) {
             throw std::runtime_error("Unable to start native player timer.");
@@ -1268,7 +1290,8 @@ private:
         const std::vector<std::string> &headerLines,
         bool playWhenReady,
         long long initialPositionMs,
-        int decoderPriority
+        int decoderPriority,
+        bool nvidiaRtxSuperResolutionEnabled
     ) {
         MpvApi &api = mpvApi();
         {
@@ -1286,8 +1309,18 @@ private:
             setMpvOptionStringLocked("keep-open", "yes");
             setMpvOptionStringLocked("vo", "gpu-next");
             setMpvOptionStringLocked("gpu-api", "d3d11");
-            setMpvOptionStringLocked("hwdec", "auto");
+            if (nvidiaRtxSuperResolutionEnabled) {
+                setMpvOptionStringLocked("hwdec", "d3d11va");
+                setMpvOptionStringLocked("d3d11-adapter", "NVIDIA");
+            } else {
+                setMpvOptionStringLocked("hwdec", "auto");
+            }
             setMpvOptionStringLocked("hwdec-codecs", "all");
+
+            if (nvidiaRtxSuperResolutionEnabled) {
+                setMpvOptionStringLocked("vf", "d3d11vpp=scale=2:scaling-mode=nvidia");
+            }
+            setMpvOptionStringLocked("target-colorspace-hint", "yes");
             if (decoderPriority == 0) {
                 setMpvOptionStringLocked("vd-lavc-software-fallback", "no");
             } else if (decoderPriority == 2) {
@@ -1297,16 +1330,15 @@ private:
                 setMpvOptionStringLocked("vd-lavc-software-fallback", "yes");
             }
             setMpvOptionStringLocked("vd-lavc-threads", "4");
-            setMpvOptionStringLocked("target-colorspace-hint", "yes");
             setMpvOptionStringLocked("tone-mapping", "auto");
             setMpvOptionStringLocked("dither-depth", "auto");
             setMpvOptionStringLocked("deband", "yes");
             setMpvOptionStringLocked("scale", "spline36");
             setMpvOptionStringLocked("cscale", "spline36");
-            setMpvOptionStringLocked("demuxer-max-bytes", "64MiB");
-            setMpvOptionStringLocked("demuxer-max-back-bytes", "16MiB");
-            setMpvOptionStringLocked("demuxer-seekable-cache", "no");
-            setMpvOptionStringLocked("cache-secs", "30");
+            setMpvOptionStringLocked("demuxer-max-bytes", "512MiB");
+            setMpvOptionStringLocked("demuxer-max-back-bytes", "256MiB");
+            setMpvOptionStringLocked("demuxer-seekable-cache", "yes");
+            setMpvOptionStringLocked("cache-secs", "120");
             setMpvOptionStringLocked("hr-seek", "no");
 
             int64_t wid = (int64_t)(intptr_t)containerHwnd;
@@ -1868,6 +1900,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jlong initialPositionMs,
     jstring controlsPageUrl,
     jint decoderPriority,
+    jboolean nvidiaRtxSuperResolutionEnabled,
     jobject eventSink
 ) {
     HWND hostHwnd = (HWND)(intptr_t)hostViewPtr;
@@ -1902,6 +1935,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
             controlsPageUrlText,
             javaVm,
             decoderPriority,
+            nvidiaRtxSuperResolutionEnabled == JNI_TRUE,
             eventSinkRef,
             eventMethod
         );
@@ -1973,6 +2007,12 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_adjustVolume(JNIEn
     if (player) player->adjustVolume(delta);
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setVolume(JNIEnv *, jobject, jlong handle, jfloat level) {
+    auto player = playerFromHandle(handle);
+    if (player) player->setVolume(level);
+}
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_durationMs(JNIEnv *, jobject, jlong handle) {
     auto player = playerFromHandle(handle);
@@ -2013,6 +2053,12 @@ extern "C" JNIEXPORT jfloat JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_speed(JNIEnv *, jobject, jlong handle) {
     auto player = playerFromHandle(handle);
     return player ? (jfloat)player->speed() : 1.0f;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_volume(JNIEnv *, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    return player ? (jfloat)player->volume() : 1.0f;
 }
 
 extern "C" JNIEXPORT void JNICALL

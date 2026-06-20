@@ -633,6 +633,12 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
 
 private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: Double): Boolean {
     when (type) {
+        "cursorActivity" -> {
+            if (!playerControlsLocked) {
+                controlsVisible = true
+                controlsActivityTick += 1
+            }
+        }
         "hideChrome" -> {
             controlsVisible = false
         }

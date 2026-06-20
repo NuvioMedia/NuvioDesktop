@@ -1357,6 +1357,7 @@
     <string name="cw_airs_date">Sendes %1$s</string>
     <string name="cw_airs_today">Sendes i dag</string>
     <string name="cw_airs_tomorrow">Sendes i morgen</string>
+    <string name="cw_airs_in_days_format">Sendes om %1$d dager</string>
     <plurals name="cw_airs_in_days">
         <item quantity="one">Sendes om %d dag</item>
         <item quantity="other">Sendes om %d dager</item>
@@ -1364,6 +1365,7 @@
     <string name="cw_airs_date_short">%1$s</string>
     <string name="cw_airs_today_short">I dag</string>
     <string name="cw_airs_tomorrow_short">I morgen</string>
+    <string name="cw_airs_in_days_short_format">Om %1$d dager</string>
     <plurals name="cw_airs_in_days_short">
         <item quantity="one">Om %d dag</item>
         <item quantity="other">Om %d dager</item>

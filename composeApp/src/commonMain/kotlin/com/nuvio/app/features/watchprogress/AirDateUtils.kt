@@ -6,7 +6,6 @@ import com.nuvio.app.features.watching.domain.daysUntilExplicitRelease
 import com.nuvio.app.features.watching.domain.isoCalendarDateOrNull
 import com.nuvio.app.features.trakt.parseTraktIsoDateTimeToEpochMs
 import nuvio.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -40,8 +39,8 @@ fun computeAirDateBadgeText(
             else stringResource(Res.string.cw_airs_tomorrow)
         }
         daysUntil in 2..7 -> {
-            if (compact) pluralStringResource(Res.plurals.cw_airs_in_days_short, daysUntil, daysUntil)
-            else pluralStringResource(Res.plurals.cw_airs_in_days, daysUntil, daysUntil)
+            if (compact) stringResource(Res.string.cw_airs_in_days_short_format, daysUntil)
+            else stringResource(Res.string.cw_airs_in_days_format, daysUntil)
         }
         else -> {
             val formattedDate = formatReleaseDateWithoutYear(releasedIso)

@@ -11,12 +11,18 @@ import javax.swing.SwingUtilities
 
 private object DesktopAppFullscreen {
     private var toggleHandler: ((Window?) -> Unit)? = null
+    private var fullscreenStateProvider: ((Window?) -> Boolean)? = null
 
-    fun setToggleHandler(handler: ((Window?) -> Unit)?): () -> Unit {
+    fun setToggleHandler(
+        handler: ((Window?) -> Unit)?,
+        isFullscreen: (Window?) -> Boolean,
+    ): () -> Unit {
         toggleHandler = handler
+        fullscreenStateProvider = isFullscreen
         return {
             if (toggleHandler === handler) {
                 toggleHandler = null
+                fullscreenStateProvider = null
             }
         }
     }
@@ -29,14 +35,23 @@ private object DesktopAppFullscreen {
             SwingUtilities.invokeLater { handler(window) }
         }
     }
+
+    fun isFullscreen(window: Window? = null): Boolean =
+        fullscreenStateProvider?.invoke(window) == true
 }
 
-internal fun registerDesktopAppFullscreenToggle(handler: (Window?) -> Unit): () -> Unit =
-    DesktopAppFullscreen.setToggleHandler(handler)
+internal fun registerDesktopAppFullscreenToggle(
+    handler: (Window?) -> Unit,
+    isFullscreen: (Window?) -> Boolean,
+): () -> Unit =
+    DesktopAppFullscreen.setToggleHandler(handler, isFullscreen)
 
 internal fun toggleDesktopAppFullscreen(window: Window? = null) {
     DesktopAppFullscreen.toggle(window)
 }
+
+internal fun isDesktopAppFullscreen(window: Window? = null): Boolean =
+    DesktopAppFullscreen.isFullscreen(window)
 
 internal class DesktopAppFullscreenController {
     private var restoreWindowPlacement = WindowPlacement.Floating
@@ -53,6 +68,13 @@ internal class DesktopAppFullscreenController {
     fun dispose(window: Window) {
         exitWindowsFullscreen(window)
     }
+
+    fun isFullscreen(window: Window, windowState: WindowState): Boolean =
+        if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+            windowsFullscreenState?.window === window
+        } else {
+            windowState.placement == WindowPlacement.Fullscreen
+        }
 
     private fun toggleComposeFullscreen(windowState: WindowState) {
         if (windowState.placement == WindowPlacement.Fullscreen) {

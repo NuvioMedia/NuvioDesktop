@@ -38,7 +38,7 @@ internal class NativePlayerController(
     private var handle: Long = 0L
     private var pendingSource: PendingSource? = null
     private var controlsState = PlayerControlsState()
-    private var lastSentControlsStructureKey: PlayerControlsState? = null
+    private var lastSentControlsStructureKey: NativeControlsStructureKey? = null
     private var onAction: (PlayerControlsAction) -> Boolean = { false }
     private var onEvent: (String, Double) -> Boolean = { _, _ -> false }
     private var onScrubChange: (Long) -> Boolean = { false }
@@ -55,6 +55,7 @@ internal class NativePlayerController(
         playWhenReady: Boolean,
         initialPositionMs: Long,
         decoderPriority: Int,
+        nvidiaRtxSuperResolutionEnabled: Boolean,
         onError: (String?) -> Unit,
     ) {
         val pending = PendingSource(
@@ -63,6 +64,7 @@ internal class NativePlayerController(
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs.coerceAtLeast(0L),
             decoderPriority = decoderPriority,
+            nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
             onError = onError,
         )
         pendingSource = pending
@@ -97,6 +99,7 @@ internal class NativePlayerController(
                     initialPositionMs = pending.initialPositionMs,
                     controlsPageUrl = NativePlayerBridge.controlsPageUrl,
                     decoderPriority = pending.decoderPriority,
+                    nvidiaRtxSuperResolutionEnabled = pending.nvidiaRtxSuperResolutionEnabled,
                     eventSink = eventSink,
                 )
                 if (handle == 0L) error("Native player did not return a handle.")
@@ -117,17 +120,24 @@ internal class NativePlayerController(
         this.onEvent = onEvent
         this.onScrubChange = onScrubChange
         this.onScrubFinished = onScrubFinished
+        host.onCursorActivity = {
+            this.onEvent("cursorActivity", 0.0)
+        }
     }
 
     fun updateControls(state: PlayerControlsState) {
         controlsState = state
         host.setControlsVisible(state.controlsVisible)
         val currentHandle = handle
-        val structureKey = state.nativeControlsStructureKey()
+        val isFullscreen = isDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
+        val structureKey = NativeControlsStructureKey(
+            state = state.nativeControlsStructureKey(),
+            isFullscreen = isFullscreen,
+        )
         val current = currentHandle.takeIf { it != 0L } ?: return
         if (structureKey == lastSentControlsStructureKey) return
         lastSentControlsStructureKey = structureKey
-        NativePlayerBridge.updateControls(current, state.toControlsJson())
+        NativePlayerBridge.updateControls(current, state.toControlsJson(isFullscreen))
     }
 
     fun setResizeMode(mode: PlayerResizeMode) {
@@ -138,6 +148,7 @@ internal class NativePlayerController(
                     PlayerResizeMode.Fit -> 0
                     PlayerResizeMode.Fill -> 1
                     PlayerResizeMode.Zoom -> 2
+                    PlayerResizeMode.Stretch -> 3
                 },
             )
         }
@@ -157,7 +168,11 @@ internal class NativePlayerController(
                     seekTo(value.toLong())
                 }
             }
-            "toggleFullscreen" -> toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
+            "toggleFullscreen" -> {
+                toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
+                lastSentControlsStructureKey = null
+                updateControls(controlsState)
+            }
             else -> {
                 val eventHandled = onEvent(type, value)
                 if (eventHandled) return
@@ -205,7 +220,11 @@ internal class NativePlayerController(
     private fun adjustFallbackVolume(delta: Float) {
         val current = handle
         if (current != 0L) {
-            NativePlayerBridge.adjustVolume(current, delta)
+            val currentLevel = controlsState.volumeLevel ?: NativePlayerBridge.volume(current).coerceIn(0f, 1f)
+            val nextLevel = (currentLevel + (delta / 100f)).coerceIn(0f, 1f)
+            NativePlayerBridge.setVolume(current, nextLevel)
+            controlsState = controlsState.copy(volumeLevel = nextLevel)
+            updateControls(controlsState)
         }
     }
 
@@ -281,6 +300,7 @@ internal class NativePlayerController(
             playWhenReady = pending.playWhenReady,
             initialPositionMs = pending.initialPositionMs,
             decoderPriority = pending.decoderPriority,
+            nvidiaRtxSuperResolutionEnabled = pending.nvidiaRtxSuperResolutionEnabled,
             onError = pending.onError,
         )
     }
@@ -436,6 +456,7 @@ private data class PendingSource(
     val playWhenReady: Boolean,
     val initialPositionMs: Long,
     val decoderPriority: Int,
+    val nvidiaRtxSuperResolutionEnabled: Boolean,
     val onError: (String?) -> Unit,
 )
 
@@ -483,7 +504,12 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
         else -> null
     }
 
-private fun PlayerControlsState.toControlsJson(): String =
+private data class NativeControlsStructureKey(
+    val state: PlayerControlsState,
+    val isFullscreen: Boolean,
+)
+
+private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
     buildString {
         append('{')
         appendJsonField("title", title)
@@ -507,6 +533,10 @@ private fun PlayerControlsState.toControlsJson(): String =
         appendJsonField("resizeModeLabel", resizeModeLabel)
         append(',')
         appendJsonField("playbackSpeedLabel", playbackSpeedLabel)
+        append(',')
+        appendJsonField("isFullscreen", isFullscreen)
+        append(',')
+        appendJsonField("volumeLevel", volumeLevel)
         append(',')
         appendJsonField("subtitlesLabel", subtitlesLabel)
         append(',')

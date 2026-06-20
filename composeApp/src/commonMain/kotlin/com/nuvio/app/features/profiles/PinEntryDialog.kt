@@ -11,6 +11,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,8 +42,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -66,10 +75,74 @@ fun PinEntryDialog(
     var isVerifying by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
+    val focusRequester = remember { FocusRequester() }
+
+    fun submitDigit(digit: String) {
+        if (pin.length < 4 && !isVerifying) {
+            error = null
+            pin += digit
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            if (pin.length == 4) {
+                isVerifying = true
+                scope.launch {
+                    val result = onVerify(pin)
+                    if (result.unlocked) {
+                        onVerified?.invoke(pin)
+                    } else {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        error = result.message ?: if (result.retryAfterSeconds > 0) {
+                            getString(
+                                Res.string.pin_locked_try_again,
+                                result.retryAfterSeconds,
+                            )
+                        } else {
+                            getString(Res.string.pin_incorrect)
+                        }
+                        pin = ""
+                    }
+                    isVerifying = false
+                }
+            }
+        }
+    }
+
+    fun deleteDigit() {
+        if (pin.isNotEmpty() && !isVerifying) {
+            pin = pin.dropLast(1)
+            error = null
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
     BasicAlertDialog(onDismissRequest = onDismiss) {
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .focusable()
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    val digit = event.utf16CodePoint.takeIf { it in '0'.code..'9'.code }?.toChar()?.toString()
+                    when {
+                        digit != null -> {
+                            submitDigit(digit)
+                            true
+                        }
+                        event.key == Key.Backspace || event.key == Key.Delete -> {
+                            deleteDigit()
+                            true
+                        }
+                        event.key == Key.Escape -> {
+                            onDismiss()
+                            true
+                        }
+                        else -> false
+                    }
+                },
             color = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(24.dp),
         ) {
@@ -117,41 +190,8 @@ fun PinEntryDialog(
                 Spacer(modifier = Modifier.height(28.dp))
 
                 PinKeypad(
-                    onDigit = { digit ->
-                        if (pin.length < 4 && !isVerifying) {
-                            error = null
-                            pin += digit
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            if (pin.length == 4) {
-                                isVerifying = true
-                                scope.launch {
-                                    val result = onVerify(pin)
-                                    if (result.unlocked) {
-                                        onVerified?.invoke(pin)
-                                    } else {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        error = result.message ?: if (result.retryAfterSeconds > 0) {
-                                            getString(
-                                                Res.string.pin_locked_try_again,
-                                                result.retryAfterSeconds,
-                                            )
-                                        } else {
-                                            getString(Res.string.pin_incorrect)
-                                        }
-                                        pin = ""
-                                    }
-                                    isVerifying = false
-                                }
-                            }
-                        }
-                    },
-                    onBackspace = {
-                        if (pin.isNotEmpty() && !isVerifying) {
-                            pin = pin.dropLast(1)
-                            error = null
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        }
-                    },
+                    onDigit = ::submitDigit,
+                    onBackspace = ::deleteDigit,
                 )
 
                 if (onForgotPin != null) {

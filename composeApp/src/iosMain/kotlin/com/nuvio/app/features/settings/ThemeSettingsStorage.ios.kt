@@ -84,6 +84,11 @@ actual object ThemeSettingsStorage {
     }
 
     actual fun applySelectedAppLanguage(languageCode: String) {
+        if (languageCode.equals("device", ignoreCase = true)) {
+            NSUserDefaults.standardUserDefaults.removeObjectForKey("AppleLanguages")
+            NSUserDefaults.standardUserDefaults.synchronize()
+            return
+        }
         val normalizedCode = languageCode
             .trim()
             .takeIf { it.isNotBlank() }
@@ -111,6 +116,6 @@ actual object ThemeSettingsStorage {
         payload.decodeSyncBoolean(amoledEnabledKey)?.let(::saveAmoledEnabled)
         payload.decodeSyncBoolean(liquidGlassNativeTabBarEnabledKey)?.let(::saveLiquidGlassNativeTabBarEnabled)
         payload.decodeSyncString(desktopNavigationLayoutKey)?.let(::saveDesktopNavigationLayout)
-        applySelectedAppLanguage(loadSelectedAppLanguage() ?: AppLanguage.ENGLISH.code)
+        applySelectedAppLanguage(loadSelectedAppLanguage() ?: AppLanguage.DEVICE.code)
     }
 }
