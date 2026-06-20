@@ -23,11 +23,24 @@ jobs:
       with:
         ref: ${{ github.event.inputs.build_branch || github.ref }}
 
+    - name: Get MPVKit Submodule Hash
+      id: mpvkit-hash
+      run: |
+        echo "sha=$(git rev-parse :MPVKit)" >> $GITHUB_OUTPUT
+
     - name: Checkout MPVKit Submodule
       run: |
         git submodule update --init MPVKit
 
+    - name: Cache MPVKit macOS Runtime
+      id: cache-mpvkit
+      uses: actions/cache@v4
+      with:
+        path: MPVKit/dist
+        key: mpvkit-macos-${{ steps.mpvkit-hash.outputs.sha }}
+
     - name: Build MPVKit macOS Runtime
+      if: steps.cache-mpvkit.outputs.cache-hit != 'true'
       run: |
         cd MPVKit
         make build platform=macos
