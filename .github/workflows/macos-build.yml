@@ -1,0 +1,88 @@
+name: Build macOS Desktop
+
+on:
+  # push:
+  #   branches: [ "release" ]
+  workflow_dispatch:
+    inputs:
+      build_branch:
+        description: 'Branch to build'
+        required: true
+        default: 'release'
+
+permissions:
+  contents: write   # required to create GitHub Releases
+
+jobs:
+  build-macos:
+    runs-on: macos-15
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.build_branch || github.ref }}
+        lfs: true
+        submodules: recursive
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Cache Gradle build outputs
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          composeApp/build/native/macos
+        key: gradle-macos-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+        restore-keys: gradle-macos-
+
+    - name: Create local.properties
+      shell: bash
+      run: |
+        cat <<EOF > local.properties
+        INTRODB_API_URL=${{ secrets.INTRODB_API_URL }}
+        SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+        IMDB_RATINGS_API_BASE_URL=${{ secrets.IMDB_RATINGS_API_BASE_URL }}
+        IMDB_TAPFRAME_API_BASE_URL=${{ secrets.IMDB_TAPFRAME_API_BASE_URL }}
+        TRAKT_CLIENT_ID=${{ secrets.TRAKT_CLIENT_ID }}
+        TRAKT_CLIENT_SECRET=${{ secrets.TRAKT_CLIENT_SECRET }}
+        TRAKT_REDIRECT_URI=${{ secrets.TRAKT_REDIRECT_URI }}
+        PREMIUMIZE_CLIENT_ID=${{ secrets.PREMIUMIZE_CLIENT_ID }}
+        CONTRIBUTIONS_URL=${{ secrets.CONTRIBUTIONS_URL }}
+        DONATIONS_BASE_URL=${{ secrets.DONATIONS_BASE_URL }}
+        DONATIONS_DONATE_URL=${{ secrets.DONATIONS_DONATE_URL }}
+        EOF
+
+    - name: Compute build version
+      id: version
+      shell: bash
+      run: |
+        version="1.0.${{ github.run_number }}"
+        echo "name=$version" >> $GITHUB_OUTPUT
+        echo "NUVIO_DESKTOP_VERSION_NAME=$version" >> $GITHUB_ENV
+        echo "NUVIO_DESKTOP_VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
+
+    - name: Build macOS Player Bridge
+      run: ./gradlew :composeApp:buildMacosPlayerBridge --no-configuration-cache
+
+    - name: Build macOS DMG
+      run: >-
+        ./gradlew
+        :composeApp:packageReleaseDmg
+        --no-configuration-cache
+
+    - name: Publish to GitHub Releases
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: "macos-v${{ steps.version.outputs.name }}"
+        name: "macOS Desktop v${{ steps.version.outputs.name }}"
+        draft: false
+        prerelease: true
+        files: composeApp/build/compose/binaries/main-release/dmg/Nuvio-*.dmg
