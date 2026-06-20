@@ -1,8 +1,8 @@
 name: Build macOS Desktop
 
 on:
-  push:
-    branches: [ "release" ]
+  # push:
+  #   branches: [ "release" ]
   workflow_dispatch:
     inputs:
       build_branch:
