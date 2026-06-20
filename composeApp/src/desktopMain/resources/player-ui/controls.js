@@ -33,9 +33,23 @@ const audioLabel = document.getElementById("audioLabel");
 const sourcesLabel = document.getElementById("sourcesLabel");
 const episodesLabel = document.getElementById("episodesLabel");
 const submitIntroButton = document.getElementById("submitIntroButton");
+const infoButton = document.getElementById("infoButton");
 const lockButton = document.getElementById("lockButton");
 const videoSettingsButton = document.getElementById("videoSettingsButton");
 const backButton = document.getElementById("backButton");
+const streamInfoPanel = document.getElementById("streamInfoPanel");
+const siHdr = document.getElementById("siHdr");
+const siQualityRow = document.getElementById("siQualityRow");
+const siQuality = document.getElementById("siQuality");
+const siDvRow = document.getElementById("siDvRow");
+const siDv = document.getElementById("siDv");
+const siVideo = document.getElementById("siVideo");
+const siVideoDec = document.getElementById("siVideoDec");
+const siHwDecRow = document.getElementById("siHwDecRow");
+const siHwDec = document.getElementById("siHwDec");
+const siAudio = document.getElementById("siAudio");
+const siAudioDec = document.getElementById("siAudioDec");
+const siBitrate = document.getElementById("siBitrate");
 const openingOverlay = document.getElementById("openingOverlay");
 const openingArtwork = document.getElementById("openingArtwork");
 const openingBackButton = document.getElementById("openingBackButton");
@@ -314,6 +328,7 @@ let state = {
 };
 let isScrubbing = false;
 let scrubPositionMs = 0;
+let streamInfoVisible = false;
 let tapTimer = 0;
 let activeModal = "";
 let pressedButton = null;
@@ -1871,6 +1886,96 @@ const renderChrome = () => {
   backButton.setAttribute("aria-label", state.closeLabel || "Close player");
   submitIntroButton.setAttribute("aria-label", state.submitIntroLabel || "Submit Intro");
   videoSettingsButton.setAttribute("aria-label", state.videoSettingsLabel || "Video settings");
+
+  // Update stream info panel content
+  if (siHdr) {
+    let info = {};
+    if (state.mediaInfo) {
+      try { info = typeof state.mediaInfo === "string" ? JSON.parse(state.mediaInfo) : state.mediaInfo; } catch (e) {}
+    }
+
+    const fmt = String(info.hdrFormat || "").trim();
+    let hdrLabel = "SDR (Standard)";
+    let hdrClass = "";
+    if (fmt === "dolby_vision") { hdrLabel = "Dolby Vision"; hdrClass = "hdr-dv"; }
+    else if (fmt === "hdr") { hdrLabel = "HDR10"; hdrClass = "hdr-hdr"; }
+    siHdr.textContent = hdrLabel;
+    siHdr.className = "stream-info-value" + (hdrClass ? " " + hdrClass : "");
+    
+    if (siQualityRow && siQuality) {
+        const titleStr = (state.streamTitle || "").toLowerCase();
+        const fileStr = (info.filename || "").toLowerCase();
+        const combined = titleStr + " " + fileStr;
+        let quality = "";
+        
+        if (combined.includes("remux")) quality = "Remux (Lossless)";
+        else if (combined.includes("bluray") || combined.includes("blu-ray") || combined.includes("bdrip") || combined.includes("brrip")) quality = "Blu-ray";
+        else if (combined.includes("web-dl") || combined.includes("webdl")) quality = "WEB-DL";
+        else if (combined.includes("webrip") || combined.includes("web-rip")) quality = "WEBRip";
+        else if (combined.includes("hdtv")) quality = "HDTV";
+        else if (combined.includes("dvdrip") || combined.includes("dvd")) quality = "DVD";
+        
+        if (quality) {
+            siQuality.textContent = quality;
+            siQualityRow.hidden = false;
+        } else {
+            siQualityRow.hidden = true;
+        }
+    }
+    
+    if (siDvRow && siDv) {
+        const dvLower = (info.dvProfile || "").toLowerCase();
+        if (info.dvProfile && dvLower !== "none" && dvLower !== "unknown" && dvLower !== "0" && dvLower !== "false") {
+            siDv.textContent = info.dvProfile;
+            siDvRow.hidden = false;
+        } else {
+            siDvRow.hidden = true;
+        }
+    }
+    
+    if (siVideo) {
+        let vFormat = (info.videoCodec || "Unknown").toUpperCase();
+        if (info.codecProfile) vFormat += " (" + info.codecProfile + ")";
+        if (info.videoWidth && info.videoHeight) {
+            vFormat += " " + info.videoWidth + "x" + info.videoHeight;
+        }
+        siVideo.textContent = vFormat;
+    }
+    
+    if (siVideoDec) siVideoDec.textContent = info.videoDecoder || "Unknown";
+    
+    if (siHwDecRow && siHwDec) {
+        if (info.hwdecCurrent && info.hwdecCurrent !== "no") {
+            siHwDec.textContent = info.hwdecCurrent;
+            siHwDecRow.hidden = false;
+        } else {
+            siHwDecRow.hidden = true;
+        }
+    }
+    
+    if (siAudio) {
+        let aFormat = (info.audioCodec || "Unknown").toUpperCase();
+        if (info.audioChannels) aFormat += " " + info.audioChannels + "ch";
+        if (info.audioSampleRate) aFormat += " " + Math.round(parseInt(info.audioSampleRate)/1000) + "kHz";
+        siAudio.textContent = aFormat;
+    }
+    
+    if (siAudioDec) siAudioDec.textContent = info.audioDecoder || "Unknown";
+    
+    if (siBitrate) {
+        let bitrates = [];
+        if (info.videoBitrateKbps > 0) bitrates.push(info.videoBitrateKbps + " kbps (V)");
+        if (info.audioBitrateKbps > 0) bitrates.push(info.audioBitrateKbps + " kbps (A)");
+        siBitrate.textContent = bitrates.join(" / ") || "Unknown";
+    }
+  }
+  
+  if (!state.controlsVisible) {
+      streamInfoVisible = false;
+      if (infoButton) infoButton.classList.remove("active-info");
+  }
+  if (streamInfoPanel) streamInfoPanel.hidden = !streamInfoVisible;
+
   seek.disabled = Boolean(state.isLocked);
   setProgress(positionMs, durationMs);
   if (showError) {
@@ -2580,3 +2685,12 @@ setProgress(0, 0);
 focusShortcutRoot();
 render();
 send("controlsReady", 0);
+
+if (infoButton) {
+  infoButton.addEventListener("click", event => {
+    event.stopPropagation();
+    streamInfoVisible = !streamInfoVisible;
+    if (streamInfoPanel) streamInfoPanel.hidden = !streamInfoVisible;
+    infoButton.classList.toggle("active-info", streamInfoVisible);
+  });
+}

@@ -250,6 +250,7 @@ internal class NativePlayerController(
         return runCatching {
             val isLoading = NativePlayerBridge.isLoading(current)
             val isEnded = NativePlayerBridge.isEnded(current)
+            val mediaInfoJson = NativePlayerBridge.mediaInfoJson(current)
             PlayerPlaybackSnapshot(
                 isLoading = isLoading,
                 isPlaying = !NativePlayerBridge.isPaused(current) && !isLoading && !isEnded,
@@ -258,6 +259,7 @@ internal class NativePlayerController(
                 positionMs = NativePlayerBridge.positionMs(current),
                 bufferedPositionMs = NativePlayerBridge.bufferedPositionMs(current),
                 playbackSpeed = NativePlayerBridge.speed(current),
+                mediaInfoJson = mediaInfoJson,
             )
         }.getOrDefault(PlayerPlaybackSnapshot(isLoading = true))
     }
@@ -687,6 +689,9 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("themeBufferingTrackColor", themeBufferingTrackColor)
         append(',')
         appendJsonField("themeControlForegroundColor", themeControlForegroundColor)
+        append(',')
+        append("\"mediaInfo\":")
+        append(mediaInfoJson.takeIf { it.isNotBlank() } ?: "{}")
         append(',')
         appendJsonField("isPlaying", isPlaying)
         append(',')

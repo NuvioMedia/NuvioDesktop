@@ -137,6 +137,7 @@ data class PlayerControlsState(
     val themeBufferingColor: String = "#ffffff",
     val themeBufferingTrackColor: String = "rgba(255, 255, 255, .28)",
     val themeControlForegroundColor: String = "#ffffff",
+    val mediaInfoJson: String = "{}",
     val isPlaying: Boolean = false,
     val isLoading: Boolean = false,
     val isLocked: Boolean = false,
