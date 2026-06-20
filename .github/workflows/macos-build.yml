@@ -16,6 +16,9 @@ permissions:
 jobs:
   build-macos:
     runs-on: macos-15
+    strategy:
+      matrix:
+        architecture: [x64, aarch64]
 
     steps:
     - name: Checkout repository
@@ -37,7 +40,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: MPVKit/dist
-        key: mpvkit-macos-${{ steps.mpvkit-hash.outputs.sha }}
+        key: mpvkit-macos-${{ matrix.architecture }}-${{ steps.mpvkit-hash.outputs.sha }}
 
     - name: Build MPVKit macOS Runtime
       if: steps.cache-mpvkit.outputs.cache-hit != 'true'
@@ -50,6 +53,7 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+        architecture: ${{ matrix.architecture }}
         cache: gradle
 
     - name: Cache Gradle build outputs
@@ -59,8 +63,9 @@ jobs:
           ~/.gradle/caches
           ~/.gradle/wrapper
           composeApp/build/native/macos
-        key: gradle-macos-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
-        restore-keys: gradle-macos-
+        key: gradle-macos-${{ matrix.architecture }}-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          gradle-macos-${{ matrix.architecture }}-
 
     - name: Create local.properties
       shell: bash
