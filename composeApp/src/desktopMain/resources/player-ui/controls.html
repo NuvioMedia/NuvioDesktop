@@ -34,6 +34,9 @@
     <symbol id="icon-build" viewBox="0 0 24 24">
       <path d="M22 19.59 12.41 10 14 8.41l1.17 1.17 2.83-2.83-1.17-1.17L19.66 2.75A6 6 0 0 0 12.2 10.2L2.3 20.1a1 1 0 0 0 0 1.41l.19.19a1 1 0 0 0 1.41 0l9.9-9.9A6 6 0 0 0 21.25 4.34l-2.83 2.83 1.17 1.17-2.83 2.83L15.59 10 14 11.59 20.41 18 22 19.59Z"/>
     </symbol>
+    <symbol id="icon-info" viewBox="0 0 24 24">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm1 15h-2v-6h2v6Zm0-8h-2V7h2v2Z"/>
+    </symbol>
     <symbol id="icon-flag" viewBox="0 0 24 24">
       <path d="M5 21V4.6c0-.38.21-.72.55-.89 2.15-1.08 4.18.32 6.12.32 1.58 0 3.1-.72 5.26-.72.55 0 1 .45 1 1v9.72c0 .41-.25.78-.63.93-2.03.8-3.79.1-5.46.1-1.94 0-3.55 1.13-5.84.38V21H5Z"/>
     </symbol>
@@ -115,6 +118,7 @@
     <div class="content">
       <header class="header">
         <nav class="header-actions" aria-label="Player actions">
+          <button class="header-button" id="infoButton" aria-label="Stream info"><svg><use href="#icon-info"></use></svg></button>
           <button class="header-button" id="submitIntroButton" data-command="submitIntro" aria-label="Submit intro"><svg><use href="#icon-flag"></use></svg></button>
           <button class="header-button" id="lockButton" data-command="lock" aria-label="Lock controls"><svg><use id="lockIcon" href="#icon-lock"></use></svg></button>
           <button class="header-button" id="videoSettingsButton" data-command="videoSettings" aria-label="Video settings"><svg><use href="#icon-build"></use></svg></button>
@@ -122,6 +126,19 @@
           <button class="header-button" id="backButton" data-command="back" aria-label="Close player"><svg><use href="#icon-close"></use></svg></button>
         </nav>
       </header>
+
+      <div class="stream-info-panel" id="streamInfoPanel" hidden>
+        <div class="stream-info-title">Stream Info</div>
+        <div class="stream-info-row"><span class="stream-info-label">HDR Format</span><span class="stream-info-value" id="siHdr">SDR</span></div>
+        <div class="stream-info-row" id="siQualityRow" hidden><span class="stream-info-label">Quality</span><span class="stream-info-value" id="siQuality"></span></div>
+        <div class="stream-info-row" id="siDvRow" hidden><span class="stream-info-label">DV Profile</span><span class="stream-info-value" id="siDv"></span></div>
+        <div class="stream-info-row"><span class="stream-info-label">Video</span><span class="stream-info-value" id="siVideo"></span></div>
+        <div class="stream-info-row"><span class="stream-info-label">Video Decoder</span><span class="stream-info-value" id="siVideoDec"></span></div>
+        <div class="stream-info-row" id="siHwDecRow" hidden><span class="stream-info-label">HW Decoder</span><span class="stream-info-value" id="siHwDec"></span></div>
+        <div class="stream-info-row"><span class="stream-info-label">Audio</span><span class="stream-info-value" id="siAudio"></span></div>
+        <div class="stream-info-row"><span class="stream-info-label">Audio Decoder</span><span class="stream-info-value" id="siAudioDec"></span></div>
+        <div class="stream-info-row"><span class="stream-info-label">Bitrate</span><span class="stream-info-value" id="siBitrate"></span></div>
+      </div>
 
       <section class="parental-guide" id="parentalGuide" aria-label="Parental guide" aria-hidden="true">
         <div class="parental-guide-line" id="parentalGuideLine"></div>
