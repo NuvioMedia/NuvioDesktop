@@ -4,6 +4,11 @@ on:
   push:
     branches: [ "release" ]
   workflow_dispatch:
+    inputs:
+      build_branch:
+        description: 'Branch to build'
+        required: true
+        default: 'release'
 
 permissions:
   contents: write   # required to create GitHub Releases
@@ -16,6 +21,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
+        ref: ${{ github.event.inputs.build_branch || github.ref }}
         lfs: true
 
 
