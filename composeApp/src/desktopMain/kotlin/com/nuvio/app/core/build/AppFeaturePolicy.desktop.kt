@@ -2,7 +2,7 @@ package com.nuvio.app.core.build
 
 actual object AppFeaturePolicy {
     actual val pluginsEnabled: Boolean = true
-    actual val downloadsEnabled: Boolean = false
+    actual val downloadsEnabled: Boolean = true
     actual val notificationsEnabled: Boolean = false
     actual val p2pEnabled: Boolean = false
     actual val externalPlayerSupported: Boolean = false

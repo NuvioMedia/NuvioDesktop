@@ -81,9 +81,17 @@ internal class NativePlayerController(
             disposePlayerHandle()
             runCatching {
                 val hostViewPtr = AwtNativeViewResolver.resolveNativeViewPointer(host)
+                val resolvedSource = if (pending.sourceUrl.startsWith("file:", ignoreCase = true)) {
+                    runCatching { java.io.File(java.net.URI(pending.sourceUrl)).absolutePath }.getOrElse {
+                        val stripped = pending.sourceUrl.replaceFirst(Regex("^file:/{1,3}", RegexOption.IGNORE_CASE), "")
+                        runCatching { java.net.URLDecoder.decode(stripped, "UTF-8") }.getOrDefault(stripped)
+                    }
+                } else {
+                    pending.sourceUrl
+                }
                 handle = NativePlayerBridge.create(
                     hostViewPtr = hostViewPtr,
-                    sourceUrl = pending.sourceUrl,
+                    sourceUrl = resolvedSource,
                     headerLines = pending.headerLines.toTypedArray(),
                     playWhenReady = pending.playWhenReady,
                     initialPositionMs = pending.initialPositionMs,
