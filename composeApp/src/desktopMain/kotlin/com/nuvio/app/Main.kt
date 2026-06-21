@@ -1,22 +1,16 @@
 package com.nuvio.app
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.input.pointer.PointerButton
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.dp
-import com.nuvio.app.core.ui.DesktopBackHandlers
 import com.nuvio.app.features.player.PlatformPlayerSurface
 import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
@@ -30,7 +24,6 @@ private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
 private const val NuvioDesktopIconPath = "icons/nuvio-app-icon.png"
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 
-@OptIn(ExperimentalComposeUiApi::class)
 fun main() {
     configureDesktopChrome()
     preloadNativePlayerBridgeAsync()
@@ -80,24 +73,7 @@ fun main() {
             }
 
             if (smokePlayerUrl == null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    if (event.type == PointerEventType.Press &&
-                                        event.button == PointerButton.Back
-                                    ) {
-                                        DesktopBackHandlers.handleBack()
-                                    }
-                                }
-                            }
-                        },
-                ) {
-                    App()
-                }
+                App()
             } else {
                 PlatformPlayerSurface(
                     sourceUrl = smokePlayerUrl,
