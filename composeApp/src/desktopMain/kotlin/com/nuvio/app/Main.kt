@@ -14,16 +14,14 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.DesktopBackHandlers
 import com.nuvio.app.features.player.PlatformPlayerSurface
 import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
-import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
 import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcuts
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
 import com.nuvio.app.features.player.desktop.registerDesktopAppFullscreenToggle
-import java.awt.AWTEvent
 import java.awt.Color as AwtColor
-import java.awt.Toolkit
-import java.awt.event.AWTEventListener
+import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.util.Locale
 import javax.swing.JComponent
 
 private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
@@ -79,23 +77,18 @@ fun main() {
             }
 
             DisposableEffect(window) {
-                val backButton = when (DesktopHostOs.current) {
-                    DesktopHostOs.LINUX -> 8
-                    else -> 4
-                }
-                val mouseBackListener = AWTEventListener { event ->
-                    if (event is MouseEvent &&
-                        event.id == MouseEvent.MOUSE_PRESSED &&
-                        event.button == backButton
-                    ) {
-                        DesktopBackHandlers.handleBack()
+                val osName = System.getProperty("os.name").orEmpty().lowercase(Locale.ROOT)
+                val backButton = if (osName.contains("linux")) 8 else 4
+                val mouseBackListener = object : MouseAdapter() {
+                    override fun mousePressed(e: MouseEvent) {
+                        if (e.button == backButton) {
+                            DesktopBackHandlers.handleBack()
+                        }
                     }
                 }
-                Toolkit.getDefaultToolkit()
-                    .addAWTEventListener(mouseBackListener, AWTEvent.MOUSE_EVENT_MASK)
+                window.contentPane.addMouseListener(mouseBackListener)
                 onDispose {
-                    Toolkit.getDefaultToolkit()
-                        .removeAWTEventListener(mouseBackListener)
+                    window.contentPane.removeMouseListener(mouseBackListener)
                 }
             }
 
