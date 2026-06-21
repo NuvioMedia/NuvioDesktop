@@ -1123,7 +1123,7 @@ compose.desktop {
         )
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.AppImage)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.AppImage)
             packageName = "Nuvio"
             packageVersion = desktopReleasePackageVersion
             vendor = "Nuvio Media"
@@ -1268,6 +1268,35 @@ val buildAppImage = tasks.register<Exec>("buildAppImage") {
         appImageOutput.get().asFile.absolutePath,
     )
     environment("ARCH", "x86_64")
+}
+
+val patchLinuxRpmDependencies = tasks.register("patchLinuxRpmDependencies") {
+    notCompatibleWithConfigurationCache("Patches RPM spec to add runtime dependencies.")
+    enabled = isLinuxHost
+    dependsOn("packageReleaseRpm")
+    doLast {
+        val rpmDir = layout.buildDirectory.dir("compose/binaries/main-release/rpm").get().asFile
+        val rpmFiles = rpmDir.listFiles { f -> f.extension == "rpm" }.orEmpty()
+        if (rpmFiles.isEmpty()) {
+            logger.warn("No .rpm files found in ${rpmDir.absolutePath}")
+            return@doLast
+        }
+        for (rpm in rpmFiles) {
+            val workDir = File(rpmDir, "rpm-patch-${rpm.nameWithoutExtension}")
+            val scriptFile = rootProject.file("scripts/patch-rpm-deps.sh")
+
+            val pb = ProcessBuilder("bash", scriptFile.absolutePath, rpm.absolutePath, workDir.absolutePath)
+            pb.redirectErrorStream(true)
+            val proc = pb.start()
+            val output = proc.inputStream.bufferedReader().readText()
+            val exitCode = proc.waitFor()
+            if (exitCode != 0) {
+                logger.error("RPM patching failed (exit $exitCode): $output")
+            } else {
+                logger.lifecycle("Patched RPM dependencies: ${rpm.name}")
+            }
+        }
+    }
 }
 
 fun renameMacosDmgOutput(release: Boolean) {
