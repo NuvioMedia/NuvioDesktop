@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.DesktopBackHandlers
 import com.nuvio.app.features.player.PlatformPlayerSurface
 import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
+import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
 import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcuts
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
@@ -78,10 +79,14 @@ fun main() {
             }
 
             DisposableEffect(window) {
+                val backButton = when (DesktopHostOs.current) {
+                    DesktopHostOs.LINUX -> 8
+                    else -> 4
+                }
                 val mouseBackListener = AWTEventListener { event ->
                     if (event is MouseEvent &&
                         event.id == MouseEvent.MOUSE_PRESSED &&
-                        event.button == 4
+                        event.button == backButton
                     ) {
                         DesktopBackHandlers.handleBack()
                     }
