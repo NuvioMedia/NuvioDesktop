@@ -11,13 +11,18 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.DesktopBackHandlers
 import com.nuvio.app.features.player.PlatformPlayerSurface
 import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
 import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcuts
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
 import com.nuvio.app.features.player.desktop.registerDesktopAppFullscreenToggle
+import java.awt.AWTEvent
 import java.awt.Color as AwtColor
+import java.awt.Toolkit
+import java.awt.event.AWTEventListener
+import java.awt.event.MouseEvent
 import javax.swing.JComponent
 
 private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
@@ -69,6 +74,23 @@ fun main() {
                     fullscreenController.dispose(window)
                     uninstallFullscreenShortcuts()
                     unregisterFullscreenToggle()
+                }
+            }
+
+            DisposableEffect(window) {
+                val mouseBackListener = AWTEventListener { event ->
+                    if (event is MouseEvent &&
+                        event.id == MouseEvent.MOUSE_PRESSED &&
+                        event.button == 4
+                    ) {
+                        DesktopBackHandlers.handleBack()
+                    }
+                }
+                Toolkit.getDefaultToolkit()
+                    .addAWTEventListener(mouseBackListener, AWTEvent.MOUSE_EVENT_MASK)
+                onDispose {
+                    Toolkit.getDefaultToolkit()
+                        .removeAWTEventListener(mouseBackListener)
                 }
             }
 
