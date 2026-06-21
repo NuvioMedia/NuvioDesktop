@@ -52,6 +52,7 @@ import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.PlatformBackHandler
+import com.nuvio.app.core.ui.PlatformForwardHandler
 import com.nuvio.app.core.ui.isLiquidGlassNativeTabBarSupported
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
@@ -213,22 +214,56 @@ fun SettingsScreen(
         }
 
         var currentPage by rememberSaveable { mutableStateOf(SettingsPage.Root.name) }
+        var backPages by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+        var forwardPages by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
         val scrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val page = remember(currentPage) { SettingsPage.valueOf(currentPage) }
         val previousPage = page.previousPage()
 
+        fun navigateToSettingsPage(targetPage: SettingsPage, recordHistory: Boolean = true) {
+            if (!targetPage.isEnabledByFeaturePolicy() || targetPage.name == currentPage) return
+            if (recordHistory) {
+                backPages = (backPages + currentPage).takeLast(50)
+                forwardPages = emptyList()
+            }
+            currentPage = targetPage.name
+        }
+
+        fun navigateSettingsBack() {
+            val historyPageName = backPages.lastOrNull()
+            if (historyPageName != null) {
+                backPages = backPages.dropLast(1)
+                forwardPages = (forwardPages + currentPage).takeLast(50)
+                currentPage = historyPageName
+                return
+            }
+
+            previousPage?.let { parentPage ->
+                forwardPages = (forwardPages + currentPage).takeLast(50)
+                currentPage = parentPage.name
+            }
+        }
+
+        fun navigateSettingsForward() {
+            val forwardPageName = forwardPages.lastOrNull() ?: return
+            forwardPages = forwardPages.dropLast(1)
+            backPages = (backPages + currentPage).takeLast(50)
+            currentPage = forwardPageName
+        }
+
         LaunchedEffect(page) {
             if (!page.isEnabledByFeaturePolicy()) {
-                currentPage = SettingsPage.Root.name
+                backPages = emptyList()
+                forwardPages = emptyList()
+                navigateToSettingsPage(SettingsPage.Root, recordHistory = false)
             }
         }
 
         LaunchedEffect(rootActionRequests, rootActionsEnabled, page) {
             rootActionRequests.collect {
                 if (!rootActionsEnabled) return@collect
-                val pageToOpen = page.previousPage()
-                if (pageToOpen != null) {
-                    currentPage = pageToOpen.name
+                if (backPages.isNotEmpty() || previousPage != null) {
+                    navigateSettingsBack()
                 } else {
                     scrollToTopRequests.tryEmit(Unit)
                 }
@@ -241,21 +276,26 @@ fun SettingsScreen(
                 ?: return@LaunchedEffect
             if (!rootActionsEnabled) return@LaunchedEffect
             if (targetPage.isEnabledByFeaturePolicy()) {
-                currentPage = targetPage.name
+                navigateToSettingsPage(targetPage)
             }
             onRequestedPageConsumed()
         }
 
         PlatformBackHandler(
-            enabled = rootActionsEnabled && previousPage != null,
-            onBack = { previousPage?.let { currentPage = it.name } },
+            enabled = rootActionsEnabled && (backPages.isNotEmpty() || previousPage != null),
+            onBack = ::navigateSettingsBack,
+        )
+
+        PlatformForwardHandler(
+            enabled = rootActionsEnabled && forwardPages.isNotEmpty(),
+            onForward = ::navigateSettingsForward,
         )
 
         if (maxWidth >= 768.dp) {
             TabletSettingsScreen(
                 page = page,
                 scrollToTopRequests = scrollToTopRequests,
-                onPageChange = { currentPage = it.name },
+                onPageChange = ::navigateToSettingsPage,
                 showLoadingOverlay = playerSettingsUiState.showLoadingOverlay,
                 holdToSpeedEnabled = playerSettingsUiState.holdToSpeedEnabled,
                 holdToSpeedValue = playerSettingsUiState.holdToSpeedValue,
@@ -306,7 +346,7 @@ fun SettingsScreen(
             MobileSettingsScreen(
                 page = page,
                 scrollToTopRequests = scrollToTopRequests,
-                onPageChange = { currentPage = it.name },
+                onPageChange = ::navigateToSettingsPage,
                 showLoadingOverlay = playerSettingsUiState.showLoadingOverlay,
                 holdToSpeedEnabled = playerSettingsUiState.holdToSpeedEnabled,
                 holdToSpeedValue = playerSettingsUiState.holdToSpeedValue,

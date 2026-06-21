@@ -60,6 +60,7 @@ namespace {
 HMODULE gModule = nullptr;
 constexpr UINT WM_NUVIO_TASK = WM_APP + 0x4E50;
 constexpr UINT_PTR NUVIO_TIMER_ID = 0x4E50;
+constexpr UINT_PTR NUVIO_SEEK_DRAG_TIMER_ID = 0x4E51;
 const wchar_t *kMessageWindowClass = L"NuvioPlayerBridgeMessageWindow";
 const wchar_t *kContainerWindowClass = L"NuvioPlayerBridgeContainerWindow";
 constexpr DWORD kDwmwaUseImmersiveDarkMode = 20;
@@ -67,6 +68,11 @@ constexpr DWORD kDwmwaUseImmersiveDarkModeLegacy = 19;
 constexpr DWORD kDwmwaBorderColor = 34;
 constexpr DWORD kDwmwaCaptionColor = 35;
 constexpr DWORD kDwmwaTextColor = 36;
+constexpr double kVolumeDragStepPx = 28.0;
+constexpr double kVolumePercentPerStep = 5.0;
+constexpr double kSeekDragStartThresholdPx = 12.0;
+constexpr double kSeekDragMaxStepMs = 30000.0;
+constexpr UINT kSeekDragTickMs = 120;
 
 struct BorderlessFullscreenState {
     LONG_PTR style = 0;
@@ -153,6 +159,14 @@ COLORREF rgbIntToColorRef(jint rgb) {
     BYTE green = (BYTE)((rgb >> 8) & 0xFF);
     BYTE blue = (BYTE)(rgb & 0xFF);
     return RGB(red, green, blue);
+}
+
+int mouseYFromLParam(LPARAM lParam) {
+    return (int)(short)HIWORD(lParam);
+}
+
+int mouseXFromLParam(LPARAM lParam) {
+    return (int)(short)LOWORD(lParam);
 }
 
 void setDwmWindowAttribute(HWND hwnd, DWORD attribute, const void *value, DWORD valueSize) {
@@ -841,6 +855,128 @@ public:
         return std::max(0.0, std::min(100.0, doubleProperty("volume", 100.0))) / 100.0;
     }
 
+    void beginMiddleButtonVolumeDrag(int y) {
+        volumeDragActive = true;
+        volumeDragLastY = y;
+        volumeDragAccumulator = 0.0;
+        if (containerHwnd && IsWindow(containerHwnd)) {
+            SetCapture(containerHwnd);
+        }
+        sendPlayerEvent("cursorActivity", 0.0);
+        sendPlayerEvent("keepChromeVisible", 0.0);
+    }
+
+    bool updateMiddleButtonVolumeDrag(int y) {
+        if (!volumeDragActive) return false;
+        const double deltaY = static_cast<double>(volumeDragLastY - y);
+        volumeDragLastY = y;
+        if (std::abs(deltaY) < 0.5) return true;
+
+        volumeDragAccumulator += deltaY;
+        const int steps = static_cast<int>(volumeDragAccumulator / kVolumeDragStepPx);
+        if (steps != 0) {
+            const int clampedSteps = std::max(-4, std::min(4, steps));
+            volumeDragAccumulator -= static_cast<double>(clampedSteps) * kVolumeDragStepPx;
+            sendPlayerEvent("volumeDelta", static_cast<double>(clampedSteps) * kVolumePercentPerStep);
+        }
+        sendPlayerEvent("cursorActivity", 0.0);
+        sendPlayerEvent("keepChromeVisible", 0.0);
+        return true;
+    }
+
+    bool endMiddleButtonVolumeDrag() {
+        if (!volumeDragActive) return false;
+        volumeDragActive = false;
+        volumeDragAccumulator = 0.0;
+        if (containerHwnd && GetCapture() == containerHwnd) {
+            ReleaseCapture();
+        }
+        return true;
+    }
+
+    void cancelMiddleButtonVolumeDrag() {
+        volumeDragActive = false;
+        volumeDragAccumulator = 0.0;
+    }
+
+    void beginLeftButtonSeekDrag(int x, int y) {
+        seekDragActive = true;
+        seekDragStarted = false;
+        seekDragStartX = x;
+        seekDragStartY = y;
+        seekDragCurrentX = x;
+        sendPlayerEvent("cursorActivity", 0.0);
+    }
+
+    bool updateLeftButtonSeekDrag(int x, int y) {
+        if (!seekDragActive) return false;
+        const double totalX = static_cast<double>(x - seekDragStartX);
+        const double totalY = static_cast<double>(y - seekDragStartY);
+        seekDragCurrentX = x;
+        if (!seekDragStarted) {
+            const bool horizontalEnough = std::abs(totalX) >= kSeekDragStartThresholdPx;
+            const bool horizontalIntent = std::abs(totalX) >= std::abs(totalY) * 1.1;
+            if (!horizontalEnough || !horizontalIntent) return false;
+            seekDragStarted = true;
+            if (containerHwnd && IsWindow(containerHwnd)) {
+                SetCapture(containerHwnd);
+                SetTimer(containerHwnd, NUVIO_SEEK_DRAG_TIMER_ID, kSeekDragTickMs, nullptr);
+            }
+            tickLeftButtonSeekDrag();
+        }
+        sendPlayerEvent("cursorActivity", 0.0);
+        sendPlayerEvent("keepChromeVisible", 0.0);
+        return true;
+    }
+
+    void tickLeftButtonSeekDrag() {
+        if (!seekDragStarted) return;
+        const double deltaMs = seekDragDeltaForDistance(static_cast<double>(seekDragCurrentX - seekDragStartX));
+        if (std::abs(deltaMs) >= 1.0) {
+            sendPlayerEvent("dragSeekBy", deltaMs);
+        }
+        sendPlayerEvent("cursorActivity", 0.0);
+        sendPlayerEvent("keepChromeVisible", 0.0);
+    }
+
+    bool endLeftButtonSeekDrag() {
+        if (!seekDragActive) return false;
+        const bool wasStarted = seekDragStarted;
+        seekDragActive = false;
+        seekDragStarted = false;
+        if (containerHwnd) {
+            KillTimer(containerHwnd, NUVIO_SEEK_DRAG_TIMER_ID);
+        }
+        if (containerHwnd && GetCapture() == containerHwnd) {
+            ReleaseCapture();
+        }
+        return wasStarted;
+    }
+
+    void cancelLeftButtonSeekDrag() {
+        seekDragActive = false;
+        seekDragStarted = false;
+        if (containerHwnd) {
+            KillTimer(containerHwnd, NUVIO_SEEK_DRAG_TIMER_ID);
+        }
+    }
+
+    double seekDragDeltaForDistance(double totalX) {
+        const double distancePastThreshold = std::max(0.0, std::abs(totalX) - kSeekDragStartThresholdPx);
+        if (distancePastThreshold < 1.0) return 0.0;
+        const double speedMsPerSecond = std::clamp(
+            std::pow(distancePastThreshold / 80.0, 1.25) * 12000.0,
+            1500.0,
+            60000.0
+        );
+        const double deltaMs = std::clamp(
+            speedMsPerSecond * static_cast<double>(kSeekDragTickMs) / 1000.0,
+            0.0,
+            kSeekDragMaxStepMs
+        );
+        return totalX < 0.0 ? -deltaMs : deltaMs;
+    }
+
     void setResizeMode(int mode) {
         switch (mode) {
             case 1:
@@ -1005,6 +1141,14 @@ private:
     std::mutex controlsMutex;
     std::string pendingControlsJson;
     double initialStartSeconds = 0.0;
+    bool volumeDragActive = false;
+    int volumeDragLastY = 0;
+    double volumeDragAccumulator = 0.0;
+    bool seekDragActive = false;
+    bool seekDragStarted = false;
+    int seekDragStartX = 0;
+    int seekDragStartY = 0;
+    int seekDragCurrentX = 0;
 
     friend LRESULT CALLBACK messageWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
     friend LRESULT CALLBACK containerWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -1854,8 +1998,70 @@ LRESULT CALLBACK containerWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPA
                 return 0;
             }
             return DefWindowProcW(hwnd, message, wParam, lParam);
+        case WM_TIMER:
+            if (player && wParam == NUVIO_SEEK_DRAG_TIMER_ID) {
+                player->tickLeftButtonSeekDrag();
+                return 0;
+            }
+            return DefWindowProcW(hwnd, message, wParam, lParam);
         case WM_LBUTTONDBLCLK:
             if (player) player->sendPlayerEvent("toggleFullscreen", 0.0);
+            return 0;
+        case WM_LBUTTONDOWN:
+            if (player) {
+                player->beginLeftButtonSeekDrag(mouseXFromLParam(lParam), mouseYFromLParam(lParam));
+            }
+            return DefWindowProcW(hwnd, message, wParam, lParam);
+        case WM_MBUTTONDOWN:
+            if (player) {
+                player->beginMiddleButtonVolumeDrag(mouseYFromLParam(lParam));
+            }
+            return 0;
+        case WM_MOUSEMOVE:
+            if (player && player->updateMiddleButtonVolumeDrag(mouseYFromLParam(lParam))) {
+                return 0;
+            }
+            if (player) {
+                if ((wParam & MK_LBUTTON) != 0) {
+                    if (player->updateLeftButtonSeekDrag(mouseXFromLParam(lParam), mouseYFromLParam(lParam))) {
+                        return 0;
+                    }
+                } else {
+                    player->cancelLeftButtonSeekDrag();
+                }
+            }
+            return DefWindowProcW(hwnd, message, wParam, lParam);
+        case WM_LBUTTONUP:
+            if (player && player->endLeftButtonSeekDrag()) {
+                return 0;
+            }
+            return DefWindowProcW(hwnd, message, wParam, lParam);
+        case WM_MBUTTONUP:
+            if (player && player->endMiddleButtonVolumeDrag()) {
+                return 0;
+            }
+            return DefWindowProcW(hwnd, message, wParam, lParam);
+        case WM_CAPTURECHANGED:
+            if (player) {
+                player->cancelMiddleButtonVolumeDrag();
+                player->cancelLeftButtonSeekDrag();
+            }
+            return DefWindowProcW(hwnd, message, wParam, lParam);
+        case WM_XBUTTONDOWN: {
+            if (player) {
+                const WORD button = GET_XBUTTON_WPARAM(wParam);
+                player->sendPlayerEvent(button == XBUTTON2 ? "forward" : "back", 0.0);
+            }
+            return TRUE;
+        }
+        case WM_MOUSEWHEEL:
+            if (player) {
+                const int wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+                if (wheelDelta != 0) {
+                    const double steps = std::clamp(static_cast<double>(wheelDelta) / WHEEL_DELTA, -4.0, 4.0);
+                    player->sendPlayerEvent("volumeDelta", steps * kVolumePercentPerStep);
+                }
+            }
             return 0;
         case WM_SIZE:
             return 0;

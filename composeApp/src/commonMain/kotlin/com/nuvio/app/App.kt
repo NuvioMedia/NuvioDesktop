@@ -104,6 +104,7 @@ import com.nuvio.app.core.ui.NuvioContinueWatchingActionSheet
 import com.nuvio.app.core.ui.NuvioPosterActionSheet
 import com.nuvio.app.core.ui.NuvioStatusModal
 import com.nuvio.app.core.ui.PlatformBackHandler
+import com.nuvio.app.core.ui.PlatformForwardHandler
 import com.nuvio.app.core.ui.platformExitApp
 import com.nuvio.app.core.ui.configurePlatformImageLoader
 import com.nuvio.app.core.ui.NuvioToastHost
@@ -361,6 +362,28 @@ enum class AppScreenTab {
     Search,
     Library,
     Settings,
+}
+
+private sealed interface AppNavigationHistoryEntry {
+    data class Tab(val tab: AppScreenTab) : AppNavigationHistoryEntry
+    data class Detail(val route: DetailRoute) : AppNavigationHistoryEntry
+    data class PersonDetail(val route: PersonDetailRoute) : AppNavigationHistoryEntry
+    data class EntityBrowse(val route: EntityBrowseRoute) : AppNavigationHistoryEntry
+    data class Stream(val launch: StreamLaunch) : AppNavigationHistoryEntry
+    data class Player(val launch: PlayerLaunch) : AppNavigationHistoryEntry
+    data class Catalog(val launch: CatalogLaunch) : AppNavigationHistoryEntry
+    data object HomescreenSettings : AppNavigationHistoryEntry
+    data object MetaScreenSettings : AppNavigationHistoryEntry
+    data object ContinueWatchingSettings : AppNavigationHistoryEntry
+    data object DownloadsSettings : AppNavigationHistoryEntry
+    data object AddonsSettings : AppNavigationHistoryEntry
+    data object PluginsSettings : AppNavigationHistoryEntry
+    data object AccountSettings : AppNavigationHistoryEntry
+    data object SupportersContributorsSettings : AppNavigationHistoryEntry
+    data object LicensesAttributionsSettings : AppNavigationHistoryEntry
+    data object Collections : AppNavigationHistoryEntry
+    data class CollectionEditor(val route: CollectionEditorRoute) : AppNavigationHistoryEntry
+    data class FolderDetail(val route: FolderDetailRoute) : AppNavigationHistoryEntry
 }
 
 private val DesktopSidebarCollapsedWidth = 84.dp
@@ -754,6 +777,8 @@ private fun MainAppContent(
         val focusManager = LocalFocusManager.current
         val coroutineScope = rememberCoroutineScope()
         var selectedTab by rememberSaveable { mutableStateOf(AppScreenTab.Home) }
+        var forwardHistory by remember { mutableStateOf<List<AppNavigationHistoryEntry>>(emptyList()) }
+        var suppressForwardHistoryClearForRouteChange by remember { mutableStateOf(false) }
         var searchFocusRequestCount by remember { mutableStateOf(0) }
         val homeScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val searchScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
@@ -815,8 +840,94 @@ private fun MainAppContent(
     var networkToastBaselineReady by rememberSaveable { mutableStateOf(false) }
     var lastNetworkToastCondition by rememberSaveable { mutableStateOf(NetworkCondition.Unknown.name) }
 
+    fun clearForwardHistory() {
+        if (forwardHistory.isNotEmpty()) {
+            forwardHistory = emptyList()
+        }
+    }
+
+    fun pushForwardHistory(entry: AppNavigationHistoryEntry) {
+        forwardHistory = (forwardHistory + entry).takeLast(50)
+    }
+
+    fun PlayerLaunch.withLatestResumePosition(): PlayerLaunch {
+        val progress = videoId
+            ?.let(WatchProgressRepository::progressForVideo)
+            ?.takeIf { it.isResumable }
+        return if (progress == null) {
+            this
+        } else {
+            copy(
+                initialPositionMs = progress.lastPositionMs,
+                initialProgressFraction = progress.progressFraction,
+            )
+        }
+    }
+
+    fun restoreHistoryEntry(entry: AppNavigationHistoryEntry) {
+        when (entry) {
+            is AppNavigationHistoryEntry.Tab -> {
+                selectedTab = entry.tab
+            }
+            is AppNavigationHistoryEntry.Detail -> {
+                navController.navigate(entry.route)
+            }
+            is AppNavigationHistoryEntry.PersonDetail -> {
+                navController.navigate(entry.route)
+            }
+            is AppNavigationHistoryEntry.EntityBrowse -> {
+                navController.navigate(entry.route)
+            }
+            is AppNavigationHistoryEntry.Stream -> {
+                val launchId = StreamLaunchStore.put(entry.launch)
+                navController.navigate(StreamRoute(launchId = launchId))
+            }
+            is AppNavigationHistoryEntry.Player -> {
+                val launchId = PlayerLaunchStore.put(entry.launch.withLatestResumePosition())
+                navController.navigate(PlayerRoute(launchId = launchId))
+            }
+            is AppNavigationHistoryEntry.Catalog -> {
+                val launchId = CatalogLaunchStore.put(entry.launch)
+                navController.navigate(CatalogRoute(launchId = launchId))
+            }
+            AppNavigationHistoryEntry.HomescreenSettings -> navController.navigate(HomescreenSettingsRoute)
+            AppNavigationHistoryEntry.MetaScreenSettings -> navController.navigate(MetaScreenSettingsRoute)
+            AppNavigationHistoryEntry.ContinueWatchingSettings -> navController.navigate(ContinueWatchingSettingsRoute)
+            AppNavigationHistoryEntry.DownloadsSettings -> navController.navigate(DownloadsSettingsRoute)
+            AppNavigationHistoryEntry.AddonsSettings -> navController.navigate(AddonsSettingsRoute)
+            AppNavigationHistoryEntry.PluginsSettings -> navController.navigate(PluginsSettingsRoute)
+            AppNavigationHistoryEntry.AccountSettings -> navController.navigate(AccountSettingsRoute)
+            AppNavigationHistoryEntry.SupportersContributorsSettings -> navController.navigate(SupportersContributorsSettingsRoute)
+            AppNavigationHistoryEntry.LicensesAttributionsSettings -> navController.navigate(LicensesAttributionsSettingsRoute)
+            AppNavigationHistoryEntry.Collections -> navController.navigate(CollectionsRoute)
+            is AppNavigationHistoryEntry.CollectionEditor -> navController.navigate(entry.route)
+            is AppNavigationHistoryEntry.FolderDetail -> navController.navigate(entry.route)
+        }
+    }
+
+    fun restoreForwardHistory() {
+        val entry = forwardHistory.lastOrNull() ?: return
+        forwardHistory = forwardHistory.dropLast(1)
+        suppressForwardHistoryClearForRouteChange = entry !is AppNavigationHistoryEntry.Tab
+        restoreHistoryEntry(entry)
+    }
+
+    fun navigateBackWithHistory(
+        entry: AppNavigationHistoryEntry,
+        beforePop: () -> Unit = {},
+    ) {
+        pushForwardHistory(entry)
+        beforePop()
+        suppressForwardHistoryClearForRouteChange = true
+        if (!navController.popBackStack()) {
+            forwardHistory = forwardHistory.dropLast(1)
+            suppressForwardHistoryClearForRouteChange = false
+        }
+    }
+
     fun handleRootTabClick(tab: AppScreenTab) {
         if (selectedTab != tab) {
+            clearForwardHistory()
             selectedTab = tab
             return
         }
@@ -863,6 +974,11 @@ private fun MainAppContent(
 
         val destinationChangedListener = NavController.OnDestinationChangedListener { _, _, _ ->
             publishNativeTabVisibilityForCurrentRoute()
+            if (suppressForwardHistoryClearForRouteChange) {
+                suppressForwardHistoryClearForRouteChange = false
+            } else {
+                clearForwardHistory()
+            }
         }
 
         publishNativeTabVisibilityForCurrentRoute()
@@ -949,6 +1065,7 @@ private fun MainAppContent(
                     DownloadsRepository.playableLocalFileUri(it) != null
                 }
                 if (hasPlayableDownload) {
+                    clearForwardHistory()
                     selectedTab = AppScreenTab.Settings
                     navController.navigate(DownloadsSettingsRoute) {
                         launchSingleTop = true
@@ -1063,6 +1180,7 @@ private fun MainAppContent(
             AppDeepLinkRepository.pendingDeepLink.collectLatest { deepLink ->
                 when (deepLink) {
                     is AppDeepLink.Meta -> {
+                        clearForwardHistory()
                         selectedTab = AppScreenTab.Home
                         navController.navigate(DetailRoute(type = deepLink.type, id = deepLink.id)) {
                             launchSingleTop = true
@@ -1072,6 +1190,7 @@ private fun MainAppContent(
 
                     AppDeepLink.Downloads -> {
                         if (AppFeaturePolicy.downloadsEnabled) {
+                            clearForwardHistory()
                             selectedTab = AppScreenTab.Settings
                             navController.navigate(DownloadsSettingsRoute) {
                                 launchSingleTop = true
@@ -1443,6 +1562,17 @@ private fun MainAppContent(
             selectedContinueWatchingForActions = item
         }
 
+        val transientOverlayVisible = showLibraryListPicker ||
+            selectedPosterActionTarget != null ||
+            selectedContinueWatchingForActions != null ||
+            resumePromptItem != null ||
+            showExitConfirmation
+
+        PlatformForwardHandler(
+            enabled = forwardHistory.isNotEmpty() && !transientOverlayVisible,
+            onForward = { restoreForwardHistory() },
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1459,6 +1589,7 @@ private fun MainAppContent(
                         enabled = true,
                         onBack = {
                             if (selectedTab != AppScreenTab.Home) {
+                                pushForwardHistory(AppNavigationHistoryEntry.Tab(selectedTab))
                                 selectedTab = AppScreenTab.Home
                             } else {
                                 showExitConfirmation = !showExitConfirmation
@@ -1484,6 +1615,7 @@ private fun MainAppContent(
                         val tabsRouteActive = currentBackStackEntry?.destination?.hasRoute<TabsRoute>() == true
                         val onProfileSelected: (NuvioProfile) -> Unit = { profile ->
                             profileSwitchLoading = true
+                            clearForwardHistory()
                             selectedTab = AppScreenTab.Home
                             coroutineScope.launch {
                                 try {
@@ -1596,6 +1728,7 @@ private fun MainAppContent(
                                             }
                                         },
                                         onConnectCloudClick = {
+                                            clearForwardHistory()
                                             requestedSettingsPageName = "Debrid"
                                             selectedTab = AppScreenTab.Settings
                                         },
@@ -1669,12 +1802,14 @@ private fun MainAppContent(
                     val directorRole = stringResource(Res.string.person_role_director)
                     val writerRole = stringResource(Res.string.person_role_writer)
                     val creatorRole = stringResource(Res.string.person_role_creator)
+                    val onBack: () -> Unit = {
+                        navigateBackWithHistory(AppNavigationHistoryEntry.Detail(route))
+                    }
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     MetaDetailsScreen(
                         type = route.type,
                         id = route.id,
-                        onBack = {
-                            navController.popBackStack()
-                        },
+                        onBack = onBack,
                         onPlay = onPlay,
                         onPlayManually = onPlayManually,
                         onOpenMeta = { preview ->
@@ -1739,13 +1874,17 @@ private fun MainAppContent(
                 }
                 composable<PersonDetailRoute> { backStackEntry ->
                     val route = backStackEntry.toRoute<PersonDetailRoute>()
+                    val onBack: () -> Unit = {
+                        navigateBackWithHistory(AppNavigationHistoryEntry.PersonDetail(route))
+                    }
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     PersonDetailScreen(
                         personId = route.personId,
                         personName = route.personName,
                         initialProfilePhoto = route.personPhoto,
                         avatarTransitionKey = route.castAvatarTransitionKey,
                         preferCrew = route.preferCrew,
-                        onBack = { navController.popBackStack() },
+                        onBack = onBack,
                         onOpenMeta = { preview ->
                             coroutineScope.launch {
                                 val resolvedId = if (preview.id.startsWith("tmdb:")) {
@@ -1774,12 +1913,16 @@ private fun MainAppContent(
                 }
                 composable<EntityBrowseRoute> { backStackEntry ->
                     val route = backStackEntry.toRoute<EntityBrowseRoute>()
+                    val onBack: () -> Unit = {
+                        navigateBackWithHistory(AppNavigationHistoryEntry.EntityBrowse(route))
+                    }
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     TmdbEntityBrowseScreen(
                         entityKind = TmdbEntityKind.fromRouteValue(route.entityKind),
                         entityId = route.entityId,
                         entityName = route.entityName,
                         sourceType = route.sourceType,
-                        onBack = { navController.popBackStack() },
+                        onBack = onBack,
                         onOpenMeta = { preview ->
                             coroutineScope.launch {
                                 val resolvedId = if (preview.id.startsWith("tmdb:")) {
@@ -2354,6 +2497,17 @@ private fun MainAppContent(
                         }
                     }
 
+                    val onBack: () -> Unit = {
+                        if (pendingP2pStreamOpen != null) {
+                            pendingP2pStreamOpen = null
+                        } else {
+                            navigateBackWithHistory(AppNavigationHistoryEntry.Stream(launch)) {
+                                StreamsRepository.clear()
+                            }
+                        }
+                    }
+                    PlatformBackHandler(enabled = true, onBack = onBack)
+
                     Box(modifier = Modifier.fillMaxSize()) {
                         StreamsScreen(
                             type = launch.type,
@@ -2390,10 +2544,7 @@ private fun MainAppContent(
                                     forceInternal = !openExternally,
                                 )
                             },
-                            onBack = {
-                                StreamsRepository.clear()
-                                navController.popBackStack()
-                            },
+                            onBack = onBack,
                             modifier = Modifier.fillMaxSize(),
                         )
                         pendingP2pStreamOpen?.let { pending ->
@@ -2465,6 +2616,12 @@ private fun MainAppContent(
                     LaunchedEffect(launch.videoId) {
                         launch.videoId?.let { ResumePromptRepository.markPlayerEntered(it) }
                     }
+                    val onBack: () -> Unit = {
+                        navigateBackWithHistory(AppNavigationHistoryEntry.Player(launch)) {
+                            ResumePromptRepository.markPlayerExitedNormally()
+                            PlayerLaunchStore.remove(route.launchId)
+                        }
+                    }
                     PlayerScreen(
                         profileId = launch.profileId,
                         title = launch.title,
@@ -2497,11 +2654,7 @@ private fun MainAppContent(
                         initialPositionMs = launch.initialPositionMs,
                         initialProgressFraction = launch.initialProgressFraction,
                         contentLanguage = launch.contentLanguage,
-                        onBack = {
-                            ResumePromptRepository.markPlayerExitedNormally()
-                            PlayerLaunchStore.remove(route.launchId)
-                            navController.popBackStack()
-                        },
+                        onBack = onBack,
                         onOpenInExternalPlayer = if (externalPlayerSupported) { { request ->
                             val playerLaunch = PlayerLaunch(
                                 profileId = launch.profileId,
@@ -2560,15 +2713,18 @@ private fun MainAppContent(
                         return@composable
                     }
                     val target = launch.target
+                    val onBack: () -> Unit = {
+                        navigateBackWithHistory(AppNavigationHistoryEntry.Catalog(launch)) {
+                            CatalogRepository.clear()
+                            CatalogLaunchStore.remove(route.launchId)
+                        }
+                    }
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     CatalogScreen(
                         title = launch.title,
                         subtitle = launch.subtitle,
                         target = target,
-                        onBack = {
-                            CatalogRepository.clear()
-                            CatalogLaunchStore.remove(route.launchId)
-                            navController.popBackStack()
-                        },
+                        onBack = onBack,
                         onPosterClick = { meta ->
                             navController.navigate(DetailRoute(type = meta.type, id = meta.id))
                         },
@@ -2592,7 +2748,9 @@ private fun MainAppContent(
                     val onBack = rememberGuardedPopBackStack(
                         navController = navController,
                         backStackEntry = it,
+                        onPop = { navigateBackWithHistory(AppNavigationHistoryEntry.HomescreenSettings) },
                     )
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     HomescreenSettingsScreen(
                         onBack = onBack,
                     )
@@ -2601,7 +2759,9 @@ private fun MainAppContent(
                     val onBack = rememberGuardedPopBackStack(
                         navController = navController,
                         backStackEntry = backStackEntry,
+                        onPop = { navigateBackWithHistory(AppNavigationHistoryEntry.MetaScreenSettings) },
                     )
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     MetaScreenSettingsScreen(
                         onBack = onBack,
                     )
@@ -2610,7 +2770,9 @@ private fun MainAppContent(
                     val onBack = rememberGuardedPopBackStack(
                         navController = navController,
                         backStackEntry = backStackEntry,
+                        onPop = { navigateBackWithHistory(AppNavigationHistoryEntry.ContinueWatchingSettings) },
                     )
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     ContinueWatchingSettingsScreen(
                         onBack = onBack,
                     )
@@ -2620,7 +2782,9 @@ private fun MainAppContent(
                         val onBack = rememberGuardedPopBackStack(
                             navController = navController,
                             backStackEntry = backStackEntry,
+                            onPop = { navigateBackWithHistory(AppNavigationHistoryEntry.DownloadsSettings) },
                         )
+                        PlatformBackHandler(enabled = true, onBack = onBack)
                         DownloadsScreen(
                             onBack = onBack,
                             onOpenDownload = { item ->
@@ -2668,7 +2832,9 @@ private fun MainAppContent(
                     val onBack = rememberGuardedPopBackStack(
                         navController = navController,
                         backStackEntry = backStackEntry,
+                        onPop = { navigateBackWithHistory(AppNavigationHistoryEntry.AddonsSettings) },
                     )
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     AddonsSettingsScreen(
                         onBack = onBack,
                     )
@@ -2678,7 +2844,9 @@ private fun MainAppContent(
                         val onBack = rememberGuardedPopBackStack(
                             navController = navController,
                             backStackEntry = backStackEntry,
+                            onPop = { navigateBackWithHistory(AppNavigationHistoryEntry.PluginsSettings) },
                         )
+                        PlatformBackHandler(enabled = true, onBack = onBack)
                         PluginsSettingsScreen(
                             onBack = onBack,
                         )
@@ -2688,7 +2856,9 @@ private fun MainAppContent(
                     val onBack = rememberGuardedPopBackStack(
                         navController = navController,
                         backStackEntry = backStackEntry,
+                        onPop = { navigateBackWithHistory(AppNavigationHistoryEntry.AccountSettings) },
                     )
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     AccountSettingsScreen(
                         onBack = onBack,
                     )
@@ -2697,7 +2867,9 @@ private fun MainAppContent(
                     val onBack = rememberGuardedPopBackStack(
                         navController = navController,
                         backStackEntry = backStackEntry,
+                        onPop = { navigateBackWithHistory(AppNavigationHistoryEntry.SupportersContributorsSettings) },
                     )
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     SupportersContributorsSettingsScreen(
                         onBack = onBack,
                     )
@@ -2706,7 +2878,9 @@ private fun MainAppContent(
                     val onBack = rememberGuardedPopBackStack(
                         navController = navController,
                         backStackEntry = backStackEntry,
+                        onPop = { navigateBackWithHistory(AppNavigationHistoryEntry.LicensesAttributionsSettings) },
                     )
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     LicensesAttributionsSettingsScreen(
                         onBack = onBack,
                     )
@@ -2715,7 +2889,9 @@ private fun MainAppContent(
                     val onBack = rememberGuardedPopBackStack(
                         navController = navController,
                         backStackEntry = backStackEntry,
+                        onPop = { navigateBackWithHistory(AppNavigationHistoryEntry.Collections) },
                     )
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     CollectionManagementScreen(
                         onBack = onBack,
                         onNavigateToEditor = { collectionId ->
@@ -2725,12 +2901,15 @@ private fun MainAppContent(
                 }
                 composable<CollectionEditorRoute> { backStackEntry ->
                     val route = backStackEntry.toRoute<CollectionEditorRoute>()
+                    val onBack: () -> Unit = {
+                        navigateBackWithHistory(AppNavigationHistoryEntry.CollectionEditor(route)) {
+                            CollectionEditorRepository.clear()
+                        }
+                    }
+                    PlatformBackHandler(enabled = true, onBack = onBack)
                     CollectionEditorScreen(
                         collectionId = route.collectionId,
-                        onBack = {
-                            CollectionEditorRepository.clear()
-                            navController.popBackStack()
-                        },
+                        onBack = onBack,
                     )
                 }
                 composable<FolderDetailRoute> { backStackEntry ->
@@ -2738,11 +2917,14 @@ private fun MainAppContent(
                     LaunchedEffect(route.collectionId, route.folderId) {
                         FolderDetailRepository.initialize(route.collectionId, route.folderId)
                     }
-                    FolderDetailScreen(
-                        onBack = {
+                    val onBack: () -> Unit = {
+                        navigateBackWithHistory(AppNavigationHistoryEntry.FolderDetail(route)) {
                             FolderDetailRepository.clear()
-                            navController.popBackStack()
-                        },
+                        }
+                    }
+                    PlatformBackHandler(enabled = true, onBack = onBack)
+                    FolderDetailScreen(
+                        onBack = onBack,
                         onCatalogClick = onCatalogClick,
                         onPosterClick = { meta ->
                             navController.navigate(DetailRoute(type = meta.type, id = meta.id))
@@ -2751,6 +2933,23 @@ private fun MainAppContent(
                 }
                 }
             }
+
+            PlatformBackHandler(
+                enabled = transientOverlayVisible,
+                onBack = {
+                    when {
+                        showLibraryListPicker -> {
+                            showLibraryListPicker = false
+                            pickerError = null
+                            pickerPending = false
+                        }
+                        selectedPosterActionTarget != null -> selectedPosterActionTarget = null
+                        selectedContinueWatchingForActions != null -> selectedContinueWatchingForActions = null
+                        resumePromptItem != null -> resumePromptItem = null
+                        showExitConfirmation -> showExitConfirmation = false
+                    }
+                },
+            )
 
             NuvioPosterActionSheet(
                 item = selectedPosterActionTarget?.preview,
@@ -2967,16 +3166,21 @@ private fun rememberGuardedPopBackStack(
     navController: NavHostController,
     backStackEntry: NavBackStackEntry,
     beforePop: () -> Unit = {},
+    onPop: (() -> Unit)? = null,
 ): () -> Unit {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     var popHandled by remember(backStackEntry) { mutableStateOf(false) }
 
-    return remember(navController, backStackEntry, currentBackStackEntry, popHandled, beforePop) {
+    return remember(navController, backStackEntry, currentBackStackEntry, popHandled, beforePop, onPop) {
         {
             if (!popHandled && currentBackStackEntry == backStackEntry) {
                 popHandled = true
                 beforePop()
-                navController.popBackStack()
+                if (onPop == null) {
+                    navController.popBackStack()
+                } else {
+                    onPop()
+                }
             }
         }
     }

@@ -7,3 +7,9 @@ expect fun PlatformBackHandler(
     enabled: Boolean,
     onBack: () -> Unit,
 )
+
+@Composable
+expect fun PlatformForwardHandler(
+    enabled: Boolean,
+    onForward: () -> Unit,
+)

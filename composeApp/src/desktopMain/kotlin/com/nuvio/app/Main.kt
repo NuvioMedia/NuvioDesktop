@@ -11,6 +11,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.installDesktopMiddleMouseDragScroll
 import com.nuvio.app.features.player.PlatformPlayerSurface
 import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
@@ -65,7 +66,13 @@ fun main() {
                     },
                 )
                 val uninstallFullscreenShortcuts = installDesktopAppFullscreenShortcuts(window)
+                val uninstallMiddleMouseDragScroll = if (smokePlayerUrl == null) {
+                    installDesktopMiddleMouseDragScroll(window)
+                } else {
+                    {}
+                }
                 onDispose {
+                    uninstallMiddleMouseDragScroll()
                     fullscreenController.dispose(window)
                     uninstallFullscreenShortcuts()
                     unregisterFullscreenToggle()

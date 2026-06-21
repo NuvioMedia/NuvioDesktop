@@ -26,6 +26,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import javax.swing.SwingUtilities
 import kotlin.concurrent.Volatile
+import kotlin.math.roundToLong
 
 internal class NativePlayerController(
     private val host: NativePlayerHost,
@@ -47,6 +48,13 @@ internal class NativePlayerController(
         SwingUtilities.invokeLater {
             handlePlayerEvent(type, value)
         }
+    }
+
+    init {
+        host.onSurfacePointerActivity = { handleSurfacePointerActivity() }
+        host.onSurfacePrimaryClick = { handleSurfacePrimaryClick() }
+        host.onSurfaceDoubleClick = { handlePlayerEvent("toggleFullscreen", 0.0) }
+        host.onSurfaceHorizontalDragSeek = { handleSurfaceHorizontalDragSeek(it) }
     }
 
     fun attach(
@@ -173,6 +181,8 @@ internal class NativePlayerController(
                 lastSentControlsStructureKey = null
                 updateControls(controlsState)
             }
+            "volumeDelta" -> handleVolumeDelta(value)
+            "dragSeekBy" -> handleDragSeekBy(value)
             else -> {
                 val eventHandled = onEvent(type, value)
                 if (eventHandled) return
@@ -183,6 +193,53 @@ internal class NativePlayerController(
                     handleFallbackAction(action)
                 }
             }
+        }
+    }
+
+    private fun handleVolumeDelta(deltaPercent: Double) {
+        if (!deltaPercent.isFinite() || deltaPercent == 0.0) return
+        if (controlsState.playbackErrorMessage.isNotBlank()) return
+        if (controlsState.isLocked) {
+            onAction(PlayerControlsAction.RevealLockedOverlay)
+            return
+        }
+        adjustFallbackVolume(deltaPercent.coerceIn(-20.0, 20.0).toFloat())
+    }
+
+    private fun handleDragSeekBy(offsetMs: Double) {
+        if (!offsetMs.isFinite() || offsetMs == 0.0) return
+        if (controlsState.playbackErrorMessage.isNotBlank()) return
+        if (controlsState.isLocked) {
+            onAction(PlayerControlsAction.RevealLockedOverlay)
+            return
+        }
+        val cleanOffset = offsetMs.roundToLong().coerceIn(-30_000L, 30_000L)
+        if (cleanOffset == 0L) return
+        fallbackSeekBy(cleanOffset)
+        val durationMs = controlsState.durationMs
+        if (durationMs > 0L) {
+            updateLocalProgress((controlsState.positionMs + cleanOffset).coerceIn(0L, durationMs))
+        }
+    }
+
+    private fun handleSurfacePointerActivity() {
+        if (controlsState.playbackErrorMessage.isNotBlank()) return
+        onEvent("keepChromeVisible", 0.0)
+    }
+
+    private fun handleSurfaceHorizontalDragSeek(offsetMs: Long) {
+        handleDragSeekBy(offsetMs.toDouble())
+    }
+
+    private fun handleSurfacePrimaryClick() {
+        if (controlsState.playbackErrorMessage.isNotBlank()) return
+        if (controlsState.isLocked) {
+            onAction(PlayerControlsAction.RevealLockedOverlay)
+            return
+        }
+        val actionHandled = onAction(PlayerControlsAction.TogglePlayback)
+        if (!actionHandled) {
+            handleFallbackAction(PlayerControlsAction.TogglePlayback)
         }
     }
 
@@ -263,6 +320,11 @@ internal class NativePlayerController(
     }
 
     fun dispose() {
+        host.onCursorActivity = null
+        host.onSurfacePointerActivity = null
+        host.onSurfacePrimaryClick = null
+        host.onSurfaceDoubleClick = null
+        host.onSurfaceHorizontalDragSeek = null
         host.resetCursorVisibility()
         disposePlayerHandle()
     }

@@ -10,3 +10,9 @@ actual fun PlatformBackHandler(
 ) {
     BackHandler(enabled = enabled, onBack = onBack)
 }
+
+@Composable
+actual fun PlatformForwardHandler(
+    enabled: Boolean,
+    onForward: () -> Unit,
+) = Unit

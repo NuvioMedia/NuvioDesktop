@@ -362,6 +362,23 @@ let playerToastToken = 0;
 let pendingSettingToastCommand = "";
 let pendingSettingToastToken = 0;
 let pendingVolumeToast = false;
+let volumeWheelAccumulator = 0;
+let volumeWheelDirection = 0;
+let volumeWheelResetTimer = 0;
+let volumeDragPointerId = null;
+let volumeDragLastY = 0;
+let volumeDragAccumulator = 0;
+let seekPointerId = null;
+let surfaceDragSeekPointerId = null;
+let surfaceDragSeekTarget = null;
+let surfaceDragSeekStartX = 0;
+let surfaceDragSeekStartY = 0;
+let surfaceDragSeekCurrentX = 0;
+let surfaceDragSeekActive = false;
+let surfaceDragSeekTotalMs = 0;
+let surfaceDragSeekTickTimer = 0;
+let suppressNextRootClick = false;
+let suppressNextRootClickTimer = 0;
 const prefersReducedMotion = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const modalTransitionMs = prefersReducedMotion ? 1 : 240;
@@ -370,6 +387,13 @@ const chromeActivityThrottleMs = 300;
 const hiddenCursorHideDelayMs = 3000;
 const cursorActivityThrottleMs = 100;
 const playerToastDurationMs = 1400;
+const volumeWheelStepPx = 80;
+const volumeWheelResetDelayMs = 300;
+const volumeDragStepPx = 28;
+const surfaceDragSeekStartThresholdPx = 12;
+const surfaceDragSeekMaxStepMs = 30000;
+const surfaceDragSeekToastDurationMs = 650;
+const surfaceDragSeekTickMs = 120;
 const chromeInteractionSelector = [
   "button",
   "input",
@@ -448,6 +472,285 @@ const nextVolumeToastLabel = delta => {
     return `Volume ${Math.round(nextLevel * 100)}%`;
   }
   return volumeToastLabel(delta);
+};
+
+const sendVolumeSteps = steps => {
+  const cleanSteps = Math.trunc(Number(steps));
+  if (!Number.isFinite(cleanSteps) || cleanSteps === 0) return;
+  pendingVolumeToast = true;
+  showPlayerToast(nextVolumeToastLabel(cleanSteps));
+  send("volumeDelta", cleanSteps * 5);
+};
+
+const normalizedWheelDeltaY = event => {
+  const delta = Number(event.deltaY);
+  if (!Number.isFinite(delta) || delta === 0) return 0;
+  switch (event.deltaMode) {
+    case WheelEvent.DOM_DELTA_LINE:
+      return delta * 40;
+    case WheelEvent.DOM_DELTA_PAGE:
+      return delta * window.innerHeight;
+    default:
+      return delta;
+  }
+};
+
+const isScrollableWheelTarget = target => {
+  let element = target instanceof Element ? target : null;
+  while (element && element !== root && element !== document.body) {
+    const style = window.getComputedStyle(element);
+    const canScrollY = /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+    const canScrollX = /(auto|scroll)/.test(style.overflowX) && element.scrollWidth > element.clientWidth + 1;
+    if (canScrollY || canScrollX) return true;
+    element = element.parentElement;
+  }
+  return false;
+};
+
+const resetVolumeWheelAccumulatorSoon = () => {
+  window.clearTimeout(volumeWheelResetTimer);
+  volumeWheelResetTimer = window.setTimeout(() => {
+    volumeWheelAccumulator = 0;
+    volumeWheelDirection = 0;
+  }, volumeWheelResetDelayMs);
+};
+
+const handleVolumeWheel = event => {
+  if (playbackErrorText()) return false;
+  if (activeModal) return false;
+  if (isTextEntryTarget(event.target) || isScrollableWheelTarget(event.target)) return false;
+  if (state.isLocked) {
+    event.preventDefault();
+    event.stopPropagation();
+    send("revealLockedOverlay", 0);
+    return true;
+  }
+
+  const deltaY = normalizedWheelDeltaY(event);
+  if (!Number.isFinite(deltaY) || Math.abs(deltaY) < 1) return false;
+  const direction = deltaY < 0 ? 1 : -1;
+  if (direction !== volumeWheelDirection) {
+    volumeWheelAccumulator = 0;
+    volumeWheelDirection = direction;
+  }
+  volumeWheelAccumulator += Math.abs(deltaY);
+  resetVolumeWheelAccumulatorSoon();
+
+  const steps = Math.min(4, Math.floor(volumeWheelAccumulator / volumeWheelStepPx));
+  if (steps <= 0) return false;
+  volumeWheelAccumulator -= steps * volumeWheelStepPx;
+
+  event.preventDefault();
+  event.stopPropagation();
+  noteCursorActivity();
+  revealChromeFromPointerActivity();
+  sendVolumeSteps(direction * steps);
+  return true;
+};
+
+const startVolumeDrag = event => {
+  if (event.button !== 1) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  if (playbackErrorText()) return true;
+  if (activeModal || isTextEntryTarget(event.target)) return true;
+  if (state.isLocked) {
+    send("revealLockedOverlay", 0);
+    return true;
+  }
+  volumeDragPointerId = event.pointerId;
+  volumeDragLastY = Number(event.clientY) || 0;
+  volumeDragAccumulator = 0;
+  noteCursorActivity();
+  revealChromeFromPointerActivity(true);
+  if (event.target && typeof event.target.setPointerCapture === "function") {
+    try {
+      event.target.setPointerCapture(event.pointerId);
+    } catch (_) {
+      // Some WebView builds can reject capture for synthetic pointer IDs.
+    }
+  }
+  return true;
+};
+
+const handleVolumeDragMove = event => {
+  if (volumeDragPointerId === null || event.pointerId !== volumeDragPointerId) return false;
+  event.preventDefault();
+  event.stopPropagation();
+
+  const nextY = Number(event.clientY);
+  if (!Number.isFinite(nextY)) return true;
+  const deltaY = volumeDragLastY - nextY;
+  volumeDragLastY = nextY;
+  if (!Number.isFinite(deltaY) || Math.abs(deltaY) < 0.5) return true;
+
+  volumeDragAccumulator += deltaY;
+  const steps = Math.trunc(volumeDragAccumulator / volumeDragStepPx);
+  if (steps !== 0) {
+    const clampedSteps = Math.max(-4, Math.min(4, steps));
+    volumeDragAccumulator -= clampedSteps * volumeDragStepPx;
+    sendVolumeSteps(clampedSteps);
+  }
+  noteCursorActivity();
+  revealChromeFromPointerActivity();
+  return true;
+};
+
+const finishVolumeDrag = event => {
+  if (volumeDragPointerId === null || (event && event.pointerId !== volumeDragPointerId)) return false;
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.target && typeof event.target.releasePointerCapture === "function") {
+      try {
+        event.target.releasePointerCapture(volumeDragPointerId);
+      } catch (_) {
+        // Capture may already have been released by WebView.
+      }
+    }
+  }
+  volumeDragPointerId = null;
+  volumeDragAccumulator = 0;
+  return true;
+};
+
+const canStartSurfaceDragSeek = event => {
+  if (event.button !== 0 || surfaceDragSeekPointerId !== null) return false;
+  if (playbackErrorText() || activeModal) return false;
+  if (isTextEntryTarget(event.target) || isChromeInteractionTarget(event.target)) return false;
+  return Math.max(0, Number(state.durationMs) || 0) > 0;
+};
+
+const signedDurationLabel = milliseconds => {
+  const clean = Math.trunc(Number(milliseconds));
+  if (!Number.isFinite(clean) || clean === 0) return "";
+  return `${clean < 0 ? "-" : "+"}${formatTime(Math.abs(clean))}`;
+};
+
+const suppressNextRootClickBriefly = () => {
+  suppressNextRootClick = true;
+  window.clearTimeout(suppressNextRootClickTimer);
+  suppressNextRootClickTimer = window.setTimeout(() => {
+    suppressNextRootClick = false;
+    suppressNextRootClickTimer = 0;
+  }, 350);
+};
+
+const surfaceDragSeekDeltaForDistance = totalDeltaX => {
+  const cleanDeltaX = Number(totalDeltaX) || 0;
+  const distance = Math.abs(cleanDeltaX);
+  const distancePastThreshold = Math.max(0, distance - surfaceDragSeekStartThresholdPx);
+  if (distancePastThreshold < 1) return 0;
+  const speedMsPerSecond = Math.min(
+    60000,
+    Math.max(1500, Math.pow(distancePastThreshold / 80, 1.25) * 12000),
+  );
+  const deltaMs = Math.trunc(speedMsPerSecond * surfaceDragSeekTickMs / 1000);
+  return (cleanDeltaX < 0 ? -1 : 1) * Math.min(surfaceDragSeekMaxStepMs, deltaMs);
+};
+
+const tickSurfaceDragSeek = () => {
+  if (!surfaceDragSeekActive) return;
+  const deltaMs = surfaceDragSeekDeltaForDistance(surfaceDragSeekCurrentX - surfaceDragSeekStartX);
+  if (deltaMs === 0) return;
+  surfaceDragSeekTotalMs += deltaMs;
+  send("dragSeekBy", deltaMs);
+  const label = signedDurationLabel(surfaceDragSeekTotalMs);
+  if (label) showPlayerToast(label, { durationMs: surfaceDragSeekToastDurationMs });
+  noteCursorActivity();
+  revealChromeFromPointerActivity();
+};
+
+const startSurfaceDragSeekTimer = () => {
+  if (surfaceDragSeekTickTimer) return;
+  tickSurfaceDragSeek();
+  surfaceDragSeekTickTimer = window.setInterval(tickSurfaceDragSeek, surfaceDragSeekTickMs);
+};
+
+const stopSurfaceDragSeekTimer = () => {
+  window.clearInterval(surfaceDragSeekTickTimer);
+  surfaceDragSeekTickTimer = 0;
+};
+
+const beginSurfaceDragSeek = event => {
+  if (event.button !== 0 || isChromeInteractionTarget(event.target) || isTextEntryTarget(event.target)) return false;
+  if (playbackErrorText() || activeModal) return false;
+  if (state.isLocked) {
+    event.preventDefault();
+    event.stopPropagation();
+    suppressNextRootClickBriefly();
+    send("revealLockedOverlay", 0);
+    return true;
+  }
+  if (!canStartSurfaceDragSeek(event)) return false;
+
+  surfaceDragSeekPointerId = event.pointerId;
+  surfaceDragSeekTarget = event.target;
+  surfaceDragSeekStartX = Number(event.clientX) || 0;
+  surfaceDragSeekStartY = Number(event.clientY) || 0;
+  surfaceDragSeekCurrentX = surfaceDragSeekStartX;
+  surfaceDragSeekActive = false;
+  surfaceDragSeekTotalMs = 0;
+  noteCursorActivity();
+  revealChromeFromPointerActivity(true);
+  if (event.target && typeof event.target.setPointerCapture === "function") {
+    try {
+      event.target.setPointerCapture(event.pointerId);
+    } catch (_) {
+      // Some WebView builds can reject capture for synthetic pointer IDs.
+    }
+  }
+  return false;
+};
+
+const handleSurfaceDragSeekMove = event => {
+  if (surfaceDragSeekPointerId === null || event.pointerId !== surfaceDragSeekPointerId) return false;
+  const nextX = Number(event.clientX);
+  const nextY = Number(event.clientY);
+  if (!Number.isFinite(nextX) || !Number.isFinite(nextY)) return false;
+
+  const totalX = nextX - surfaceDragSeekStartX;
+  const totalY = nextY - surfaceDragSeekStartY;
+  surfaceDragSeekCurrentX = nextX;
+  if (!surfaceDragSeekActive) {
+    const horizontalEnough = Math.abs(totalX) >= surfaceDragSeekStartThresholdPx;
+    const horizontalIntent = Math.abs(totalX) >= Math.abs(totalY) * 1.1;
+    if (!horizontalEnough || !horizontalIntent) return false;
+    surfaceDragSeekActive = true;
+    suppressNextRootClickBriefly();
+    window.clearTimeout(tapTimer);
+    startSurfaceDragSeekTimer();
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  noteCursorActivity();
+  revealChromeFromPointerActivity();
+  return true;
+};
+
+const finishSurfaceDragSeek = event => {
+  if (surfaceDragSeekPointerId === null || (event && event.pointerId !== surfaceDragSeekPointerId)) return false;
+  const wasActive = surfaceDragSeekActive;
+  if (event && wasActive) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const captureTarget = surfaceDragSeekTarget;
+  if (event && captureTarget && typeof captureTarget.releasePointerCapture === "function") {
+    try {
+      captureTarget.releasePointerCapture(surfaceDragSeekPointerId);
+    } catch (_) {
+      // Capture may already have been released by WebView.
+    }
+  }
+  surfaceDragSeekPointerId = null;
+  surfaceDragSeekTarget = null;
+  surfaceDragSeekActive = false;
+  surfaceDragSeekTotalMs = 0;
+  stopSurfaceDragSeekTimer();
+  if (wasActive) suppressNextRootClickBriefly();
+  return wasActive;
 };
 
 const seekToastLabel = command => {
@@ -776,6 +1079,73 @@ const playbackErrorText = () => String(state.playbackErrorMessage || "").trim();
 const rangePositionMs = () => {
   const durationMs = Math.max(0, Number(state.durationMs) || 0);
   return durationMs > 0 ? Math.round(durationMs * Number(seek.value) / 1000) : 0;
+};
+
+const seekPositionForPointer = event => {
+  const durationMs = Math.max(0, Number(state.durationMs) || 0);
+  if (durationMs <= 0) return 0;
+  const rect = seek.getBoundingClientRect();
+  if (!rect || rect.width <= 0) return rangePositionMs();
+  const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  return Math.round(durationMs * fraction);
+};
+
+const setSeekPositionFromPointer = event => {
+  scrubPositionMs = seekPositionForPointer(event);
+  const durationMs = Math.max(0, Number(state.durationMs) || 0);
+  const rangeMax = Math.max(1, Number(seek.max) || 1000);
+  seek.value = durationMs > 0 ? Math.round((scrubPositionMs / durationMs) * rangeMax) : 0;
+  setProgress(scrubPositionMs, state.durationMs);
+};
+
+const beginSeekPointerScrub = event => {
+  if (event.button !== 0 || seek.disabled || playbackErrorText()) return;
+  event.preventDefault();
+  event.stopPropagation();
+  seekPointerId = event.pointerId;
+  isScrubbing = true;
+  noteChromeActivity(true);
+  setSeekPositionFromPointer(event);
+  send("scrubChange", scrubPositionMs);
+  if (typeof seek.setPointerCapture === "function") {
+    try {
+      seek.setPointerCapture(event.pointerId);
+    } catch (_) {
+      // WebView can reject capture if the pointer has already been retargeted.
+    }
+  }
+};
+
+const updateSeekPointerScrub = event => {
+  if (seekPointerId === null || event.pointerId !== seekPointerId) return;
+  event.preventDefault();
+  event.stopPropagation();
+  noteChromeActivity();
+  setSeekPositionFromPointer(event);
+  send("scrubChange", scrubPositionMs);
+};
+
+const finishSeekPointerScrub = (event, commit) => {
+  if (seekPointerId === null || (event && event.pointerId !== seekPointerId)) return;
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof seek.releasePointerCapture === "function") {
+      try {
+        seek.releasePointerCapture(seekPointerId);
+      } catch (_) {
+        // Capture may already have been released.
+      }
+    }
+  }
+  if (commit && event) {
+    setSeekPositionFromPointer(event);
+    send("scrubFinish", scrubPositionMs);
+    state.positionMs = scrubPositionMs;
+  }
+  seekPointerId = null;
+  isScrubbing = false;
+  render();
 };
 
 const modalByName = {
@@ -1692,6 +2062,7 @@ const canAutoHideChrome = showOpening => Boolean(
   !state.isLocked &&
   !activeModal &&
   !isScrubbing &&
+  surfaceDragSeekPointerId === null &&
   !isInteractingWithChrome() &&
   !playbackErrorText() &&
   !showOpening,
@@ -1797,6 +2168,20 @@ const noteChromeActivity = (force = false) => {
   chromeAutoHideActivity += 1;
   syncChromeAutoHideTimer(isOpeningOverlayActive());
   send("keepChromeVisible", 0);
+};
+
+const revealChromeFromPointerActivity = (force = false) => {
+  if (playbackErrorText() || state.isLocked || activeModal) return;
+  if (!state.controlsVisible) {
+    state = { ...state, controlsVisible: true };
+    chromeInteractionLastNotedAt = window.performance ? window.performance.now() : Date.now();
+    chromeAutoHideActivity += 1;
+    renderChrome();
+    syncChromeAutoHideTimer(isOpeningOverlayActive());
+    send("keepChromeVisible", 0);
+    return;
+  }
+  noteChromeActivity(force);
 };
 
 const updateChromePointerInside = inside => {
@@ -2112,6 +2497,12 @@ const toggleChrome = () => {
   send("toggleChrome", 0);
 };
 
+const mouseNavigationCommandForEvent = event => {
+  const button = Number(event.button);
+  if (!Number.isFinite(button) || button < 3 || button > 8) return "";
+  return button === 4 ? "forward" : "back";
+};
+
 const clearPressedButton = () => {
   if (!pressedButton) return;
   pressedButton.classList.remove("is-pressed");
@@ -2119,6 +2510,19 @@ const clearPressedButton = () => {
 };
 
 document.addEventListener("pointerdown", event => {
+  const mouseNavigationCommand = mouseNavigationCommandForEvent(event);
+  if (mouseNavigationCommand) {
+    event.preventDefault();
+    event.stopPropagation();
+    send(mouseNavigationCommand, 0);
+    return;
+  }
+  if (startVolumeDrag(event)) {
+    return;
+  }
+  if (beginSurfaceDragSeek(event)) {
+    return;
+  }
   const interactingWithChrome = isChromeInteractionTarget(event.target);
   if (interactingWithChrome) {
     isChromePointerDown = true;
@@ -2128,7 +2532,7 @@ document.addEventListener("pointerdown", event => {
   if (!isTextEntryTarget(event.target)) {
     focusShortcutRoot();
     if (!interactingWithChrome) {
-      noteChromeActivity(true);
+      revealChromeFromPointerActivity(true);
     }
   }
   const button = event.target.closest("button");
@@ -2138,17 +2542,39 @@ document.addEventListener("pointerdown", event => {
   button.classList.add("is-pressed");
 }, true);
 
+document.addEventListener("auxclick", event => {
+  if (event.button !== 1 && !mouseNavigationCommandForEvent(event)) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+
+document.addEventListener("wheel", event => {
+  handleVolumeWheel(event);
+}, { capture: true, passive: false });
+
 document.addEventListener("pointermove", event => {
+  if (handleVolumeDragMove(event)) return;
+  if (handleSurfaceDragSeekMove(event)) return;
   noteCursorActivity();
   const inside = isChromeInteractionTarget(event.target);
   updateChromePointerInside(inside);
   if (inside) {
     noteChromeActivity();
+  } else {
+    revealChromeFromPointerActivity();
   }
 }, true);
 
-document.addEventListener("pointerup", finishChromePointerInteraction, true);
-document.addEventListener("pointercancel", finishChromePointerInteraction, true);
+document.addEventListener("pointerup", event => {
+  finishVolumeDrag(event);
+  finishSurfaceDragSeek(event);
+  finishChromePointerInteraction(event);
+}, true);
+document.addEventListener("pointercancel", event => {
+  finishVolumeDrag(event);
+  finishSurfaceDragSeek(event);
+  finishChromePointerInteraction(event);
+}, true);
 document.addEventListener("dragend", clearPressedButton, true);
 document.addEventListener("pointerleave", () => {
   updateChromePointerInside(false);
@@ -2173,6 +2599,7 @@ window.addEventListener("blur", () => {
   isChromePointerInside = false;
   isChromePointerDown = false;
   isChromeFocusInside = false;
+  finishSurfaceDragSeek(null);
   clearPressedButton();
   syncChromeAutoHideTimer(isOpeningOverlayActive());
 });
@@ -2445,6 +2872,7 @@ nextEpisodeCard.addEventListener("click", event => {
 });
 
 seek.addEventListener("input", () => {
+  if (seekPointerId !== null) return;
   noteChromeActivity();
   isScrubbing = true;
   scrubPositionMs = rangePositionMs();
@@ -2453,6 +2881,7 @@ seek.addEventListener("input", () => {
 });
 
 seek.addEventListener("change", () => {
+  if (seekPointerId !== null) return;
   noteChromeActivity();
   scrubPositionMs = rangePositionMs();
   isScrubbing = false;
@@ -2460,6 +2889,12 @@ seek.addEventListener("change", () => {
   state.positionMs = scrubPositionMs;
   render();
 });
+
+seek.addEventListener("pointerdown", beginSeekPointerScrub);
+seek.addEventListener("pointermove", updateSeekPointerScrub);
+seek.addEventListener("pointerup", event => finishSeekPointerScrub(event, true));
+seek.addEventListener("pointercancel", event => finishSeekPointerScrub(event, false));
+seek.addEventListener("lostpointercapture", event => finishSeekPointerScrub(event, false));
 
 window.playerUpdate = update => {
   const durationMs = Math.round((Number(update.duration) || 0) * 1000);
@@ -2520,15 +2955,36 @@ window.playerControls = nextState => {
 };
 
 root.addEventListener("click", event => {
+  if (suppressNextRootClick) {
+    suppressNextRootClick = false;
+    window.clearTimeout(suppressNextRootClickTimer);
+    suppressNextRootClickTimer = 0;
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   if (playbackErrorText()) return;
   if (event.target.closest("button,input")) return;
   window.clearTimeout(tapTimer);
   tapTimer = window.setTimeout(() => {
-    toggleChrome();
+    if (state.isLocked) {
+      send("revealLockedOverlay", 0);
+      return;
+    }
+    revealChromeFromPointerActivity(true);
+    send("toggle", 0);
   }, 220);
 });
 
 root.addEventListener("dblclick", event => {
+  if (suppressNextRootClick) {
+    suppressNextRootClick = false;
+    window.clearTimeout(suppressNextRootClickTimer);
+    suppressNextRootClickTimer = 0;
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   if (playbackErrorText()) return;
   if (event.target.closest("button,input")) return;
   event.preventDefault();
