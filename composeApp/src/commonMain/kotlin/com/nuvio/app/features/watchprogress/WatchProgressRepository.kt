@@ -37,8 +37,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
-import kotlinx.atomicfu.locks.SynchronizedObject
-import kotlinx.atomicfu.locks.synchronized
+import kotlin.synchronized
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeoutOrNull
@@ -86,7 +85,7 @@ object WatchProgressRepository {
     private var hasLoaded = false
     private var currentProfileId: Int = 1
     private var profileGeneration: Long = 0L
-    private val entriesLock = SynchronizedObject()
+    private val entriesLock = Any()
     private var entriesByVideoId: MutableMap<String, WatchProgressEntry> = mutableMapOf()
     private var metadataResolutionJob: Job? = null
     private var isPullingNuvioSyncFromServer = false
