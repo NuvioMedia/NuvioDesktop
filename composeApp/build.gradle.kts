@@ -1091,6 +1091,7 @@ kotlin {
             implementation(libs.supabase.auth)
             implementation(libs.supabase.functions)
             implementation(libs.reorderable)
+            implementation(libs.kotlinx.atomicfu)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
