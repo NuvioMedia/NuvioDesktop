@@ -219,6 +219,7 @@ private fun LinuxComposeSurface(
         val listener = AWTEventListener { awtEvent ->
             when (awtEvent.id) {
                 MouseEvent.MOUSE_MOVED, MouseEvent.MOUSE_DRAGGED -> {
+                    host.noteCursorActivity()
                     latestOnPlayerControlsEvent.value("keepChromeVisible", 0.0)
                 }
                 MouseEvent.MOUSE_PRESSED -> {

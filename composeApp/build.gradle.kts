@@ -939,6 +939,7 @@ val desktopNativePlayerTasks = setOf(
 )
 val linuxNativePlayerTasks = desktopNativePlayerTasks + setOf(
     "packageDeb", "packageReleaseDeb",
+    "packageRpm", "packageReleaseRpm",
     "packageAppImage", "packageReleaseAppImage",
     "buildAppImage",
     "patchLinuxDebDependencies",
@@ -1164,6 +1165,7 @@ compose.desktop {
             }
             linux {
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio_256.png"))
+                rpmLicenseType = "Proprietary"
             }
         }
 
