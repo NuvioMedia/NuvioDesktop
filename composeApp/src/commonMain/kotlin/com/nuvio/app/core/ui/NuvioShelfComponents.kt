@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextAlign
@@ -76,6 +77,7 @@ fun <T> NuvioShelfSection(
     title: String,
     entries: List<T>,
     modifier: Modifier = Modifier,
+    rowModifier: Modifier = Modifier,
     headerHorizontalPadding: Dp = 0.dp,
     rowContentPadding: PaddingValues = PaddingValues(0.dp),
     itemSpacing: Dp = 10.dp,
@@ -102,7 +104,7 @@ fun <T> NuvioShelfSection(
         }
         LazyRow(
             state = rowState,
-            modifier = Modifier.nuvioDesktopDragScroll(rowState),
+            modifier = rowModifier.nuvioDesktopDragScroll(rowState),
             contentPadding = rowContentPadding,
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {
@@ -413,6 +415,48 @@ internal fun desktopCatalogShelfPosterBaseWidthDp(
     } else {
         basePosterWidthDp
     }
+
+internal fun Modifier.nuvioShelfHoverOverdraw(inset: Dp): Modifier {
+    if (inset == 0.dp) return this
+
+    // Expand the measured viewport, then place it negatively so edge items keep
+    // their visual alignment while desktop hover scale can draw into the gutter.
+    return layout { measurable, constraints ->
+        val insetPx = inset.roundToPx()
+        val horizontalInset = insetPx * 2
+        val verticalInset = insetPx * 2
+        val expandedMaxWidth = if (constraints.hasBoundedWidth) {
+            constraints.maxWidth + horizontalInset
+        } else {
+            constraints.maxWidth
+        }
+        val expandedMinWidth = if (constraints.hasBoundedWidth) {
+            (constraints.minWidth + horizontalInset).coerceAtMost(expandedMaxWidth)
+        } else {
+            constraints.minWidth
+        }
+        val expandedMaxHeight = if (constraints.hasBoundedHeight) {
+            constraints.maxHeight + verticalInset
+        } else {
+            constraints.maxHeight
+        }
+        val expandedConstraints = constraints.copy(
+            minWidth = expandedMinWidth,
+            maxWidth = expandedMaxWidth,
+            minHeight = 0,
+            maxHeight = expandedMaxHeight,
+        )
+        val placeable = measurable.measure(expandedConstraints)
+        val width = (placeable.width - horizontalInset)
+            .coerceIn(constraints.minWidth, constraints.maxWidth)
+        val height = (placeable.height - verticalInset)
+            .coerceIn(constraints.minHeight, constraints.maxHeight)
+
+        layout(width, height) {
+            placeable.placeRelative(-insetPx, -insetPx)
+        }
+    }
+}
 
 private val NuvioPosterShape.aspectRatio: Float
     get() = when (this) {
