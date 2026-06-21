@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.IntSize
 import com.nuvio.app.features.player.desktop.AwtNativePlayerHost
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopPlayerLaunchShield
-import com.nuvio.app.features.player.desktop.DesktopAppNavigation
 import com.nuvio.app.features.player.desktop.NativePlayerController
 import com.nuvio.app.features.player.desktop.NativePlayerHost
 import com.nuvio.app.features.player.desktop.toggleDesktopAppFullscreen
@@ -222,12 +221,6 @@ private fun LinuxComposeSurface(
                 MouseEvent.MOUSE_MOVED, MouseEvent.MOUSE_DRAGGED -> {
                     host.noteCursorActivity()
                     latestOnPlayerControlsEvent.value("keepChromeVisible", 0.0)
-                }
-                MouseEvent.MOUSE_PRESSED -> {
-                    val me = awtEvent as? MouseEvent ?: return@AWTEventListener
-                    if (me.button in 4..9) {
-                        DesktopAppNavigation.currentBackHandler?.invoke()
-                    }
                 }
             }
         }
