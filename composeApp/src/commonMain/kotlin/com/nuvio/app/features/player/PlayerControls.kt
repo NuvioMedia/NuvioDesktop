@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
@@ -25,6 +26,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Forward10
@@ -85,6 +88,7 @@ internal fun PlayerControlsShell(
     onSpeedClick: () -> Unit,
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
+    onVolumeClick: () -> Unit,
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
@@ -96,6 +100,10 @@ internal fun PlayerControlsShell(
     onScrubChange: (Long) -> Unit,
     onScrubFinished: (Long) -> Unit,
     horizontalSafePadding: androidx.compose.ui.unit.Dp,
+    currentVolume: Float = 50f,
+    isVolumeMuted: Boolean = false,
+    onVolumeSliderChange: (Float) -> Unit = {},
+    onClickVolumeIcon: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -181,12 +189,17 @@ internal fun PlayerControlsShell(
                     displayedPositionMs = displayedPositionMs,
                     metrics = metrics,
                     resizeMode = resizeMode,
+                    currentVolume = currentVolume,
+                    isVolumeMuted = isVolumeMuted,
+                    onVolumeSliderChange = onVolumeSliderChange,
+                    onClickVolumeIcon = onClickVolumeIcon,
                     onScrubChange = onScrubChange,
                     onScrubFinished = onScrubFinished,
                     onResizeModeClick = onResizeModeClick,
                     onSpeedClick = onSpeedClick,
                     onSubtitleClick = onSubtitleClick,
                     onAudioClick = onAudioClick,
+                    onVolumeClick = onVolumeClick,
                     onSourcesClick = onSourcesClick,
                     onEpisodesClick = onEpisodesClick,
                     onOpenInExternalPlayer = onOpenInExternalPlayer,
@@ -479,12 +492,17 @@ private fun ProgressControls(
     displayedPositionMs: Long,
     metrics: PlayerLayoutMetrics,
     resizeMode: PlayerResizeMode,
+    currentVolume: Float = 50f,
+    isVolumeMuted: Boolean = false,
+    onVolumeSliderChange: (Float) -> Unit = {},
+    onClickVolumeIcon: () -> Unit = {},
     onScrubChange: (Long) -> Unit,
     onScrubFinished: (Long) -> Unit,
     onResizeModeClick: () -> Unit,
     onSpeedClick: () -> Unit,
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
+    onVolumeClick: () -> Unit,
     onSourcesClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     onOpenInExternalPlayer: (() -> Unit)? = null,
@@ -576,6 +594,12 @@ private fun ProgressControls(
                             onClick = onOpenInExternalPlayer,
                         )
                     }
+                    InlineVolumeControl(
+                        volume = currentVolume,
+                        isMuted = isVolumeMuted,
+                        onVolumeChange = onVolumeSliderChange,
+                        onClickIcon = onClickVolumeIcon,
+                    )
                 }
             }
         }
@@ -742,6 +766,41 @@ private fun PlayerActionPillButton(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             softWrap = false,
+        )
+    }
+}
+
+@Composable
+private fun InlineVolumeControl(
+    volume: Float,
+    isMuted: Boolean,
+    onVolumeChange: (Float) -> Unit,
+    onClickIcon: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(22.dp))
+            .clickable(onClick = onClickIcon)
+            .padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = if (isMuted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
+            contentDescription = stringResource(Res.string.compose_player_volume),
+            tint = Color.White,
+            modifier = Modifier.size(18.dp),
+        )
+        Slider(
+            value = volume,
+            onValueChange = onVolumeChange,
+            valueRange = 0f..100f,
+            modifier = Modifier.width(80.dp).height(24.dp),
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = Color(0xFF1A73E8),
+                inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+            ),
         )
     }
 }
