@@ -6,6 +6,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.IntSize
 import com.nuvio.app.features.player.desktop.DesktopHostOs
+import com.nuvio.app.features.player.desktop.DesktopAppNavigation
 
 @Composable
 actual fun LockPlayerToLandscape() = Unit
@@ -33,6 +34,10 @@ actual fun ManagePlayerPictureInPicture(
 
 @Composable
 actual fun rememberPlayerGestureController(): PlayerGestureController? = null
+
+actual fun setDesktopBackHandler(handler: (() -> Unit)?) {
+    DesktopAppNavigation.currentBackHandler = handler
+}
 
 private class DesktopKeepAwakeController : AutoCloseable {
     private var caffeinateProcess: Process? = null

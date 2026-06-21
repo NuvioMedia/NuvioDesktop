@@ -87,7 +87,6 @@
                    playWhenReady:(BOOL)playWhenReady
                 initialPositionMs:(long long)initialPositionMs
                       controlsUrl:(NSString *)controlsUrl
-                   decoderPriority:(int)decoderPriority
                            javaVm:(JavaVM *)javaVm
                         eventSink:(jobject)eventSink
                       eventMethod:(jmethodID)eventMethod;
@@ -1059,7 +1058,6 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                    playWhenReady:(BOOL)playWhenReady
                 initialPositionMs:(long long)initialPositionMs
                       controlsUrl:(NSString *)controlsUrl
-                   decoderPriority:(int)decoderPriority
                            javaVm:(JavaVM *)javaVm
                         eventSink:(jobject)eventSink
                       eventMethod:(jmethodID)eventMethod {
@@ -1153,8 +1151,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     [self startMpvWithSource:sourceUrl
                  headerLines:headerLines
                 playWhenReady:playWhenReady
-             initialPositionMs:initialPositionMs
-              decoderPriority:decoderPriority];
+             initialPositionMs:initialPositionMs];
     _timer = [NSTimer scheduledTimerWithTimeInterval:0.5
                                              target:self
                                            selector:@selector(syncControls)
@@ -1392,8 +1389,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 - (void)startMpvWithSource:(NSString *)sourceUrl
                headerLines:(NSArray<NSString *> *)headerLines
               playWhenReady:(BOOL)playWhenReady
-           initialPositionMs:(long long)initialPositionMs
-            decoderPriority:(int)decoderPriority {
+           initialPositionMs:(long long)initialPositionMs {
     _mpv = mpv_create();
     if (!_mpv) {
         @throw [NSException exceptionWithName:@"PlayerBridgeError"
@@ -1402,7 +1398,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     }
     _initialStartSeconds = initialPositionMs > 0 ? (double)initialPositionMs / 1000.0 : 0.0;
 
-    setMpvOptionString(_mpv, "config", "no");
+    setMpvOptionString(_mpv, "config", "yes");
     setMpvOptionString(_mpv, "osc", "no");
     setMpvOptionString(_mpv, "input-default-bindings", "yes");
     setMpvOptionString(_mpv, "input-vo-keyboard", "no");
@@ -1411,14 +1407,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     setMpvOptionString(_mpv, "hwdec", "auto");
     setMpvOptionString(_mpv, "gpu-hwdec-interop", "auto");
     setMpvOptionString(_mpv, "hwdec-codecs", "all");
-    if (decoderPriority == 0) {
-        setMpvOptionString(_mpv, "vd-lavc-software-fallback", "no");
-    } else if (decoderPriority == 2) {
-        setMpvOptionString(_mpv, "hwdec", "no");
-        setMpvOptionString(_mpv, "vd-lavc-software-fallback", "yes");
-    } else {
-        setMpvOptionString(_mpv, "vd-lavc-software-fallback", "yes");
-    }
+    setMpvOptionString(_mpv, "vd-lavc-software-fallback", "yes");
     setMpvOptionString(_mpv, "vd-lavc-threads", "4");
     setMpvOptionString(_mpv, "target-colorspace-hint", "yes");
     setMpvOptionString(_mpv, "target-colorspace-hint-mode", "source");
@@ -1444,6 +1433,16 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     if (initResult < 0) {
         NSString *reason = [NSString stringWithFormat:@"mpv_initialize failed: %s", mpv_error_string(initResult)];
         @throw [NSException exceptionWithName:@"PlayerBridgeError" reason:reason userInfo:nil];
+    }
+
+    /* Force critical options after mpv.conf (user config must not break rendering) */
+    {
+        NSString *userVo = [self stringProperty:"vo" fallback:@""];
+        if (![userVo isEqualToString:@"libmpv"]) {
+            NSLog(@"[NuvioPlayer] Warning: mpv.conf set vo=%@, overriding to vo=libmpv "
+                  @"(required for embedded playback)", userVo);
+        }
+        [self setStringProperty:"vo" value:@"libmpv"];
     }
 
     NSString *renderError = nil;
@@ -2030,7 +2029,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     double outline = MAX(0.0, MIN(8.0, outlineSize));
     mpv_set_property(_mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
 
-    double size = MAX(18.0, MIN(96.0, fontSize));
+    double size = MAX(24.0, MIN(96.0, fontSize));
     mpv_set_property(_mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
 
     int64_t position = MAX(0, MIN(150, subPos));
@@ -2423,15 +2422,17 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     JNIEnv *env,
     jobject /* bridge */,
     jlong hostViewPtr,
+    jint hostWidth, jint hostHeight,
     jstring sourceUrl,
     jobjectArray headerLines,
     jboolean playWhenReady,
     jlong initialPositionMs,
     jstring controlsPageUrl,
-    jint decoderPriority,
-    jboolean nvidiaRtxSuperResolutionEnabled,
+    jint decoderPriority, jboolean nvidiaRtxSuperResolutionEnabled,
     jobject eventSink
 ) {
+    (void)hostWidth; (void)hostHeight;
+    (void)decoderPriority; (void)nvidiaRtxSuperResolutionEnabled;
     NSView *hostView = (__bridge NSView *)(void *)(intptr_t)hostViewPtr;
     if (!hostView) {
         throwJavaError(env, @"Unable to resolve the AWT host NSView for native playback.");
@@ -2470,7 +2471,6 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
                    playWhenReady:playWhenReady == JNI_TRUE
                 initialPositionMs:initialPositionMs
                      controlsUrl:[NSString stringWithUTF8String:controls.c_str()]
-                 decoderPriority:decoderPriority
                           javaVm:javaVm
                        eventSink:eventSinkRef
                      eventMethod:eventMethod];

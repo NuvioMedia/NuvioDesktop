@@ -136,6 +136,10 @@ internal expect object PlayerSettingsStorage {
     fun saveIosSaturation(value: Int)
     fun loadIosGamma(): Int?
     fun saveIosGamma(value: Int)
+    fun loadDesktopHwdecMode(): String?
+    fun saveDesktopHwdecMode(mode: String)
+    fun loadCustomMpvProperties(): String?
+    fun saveCustomMpvProperties(props: String)
     fun loadNvidiaRtxSuperResolutionEnabled(): Boolean?
     fun saveNvidiaRtxSuperResolutionEnabled(enabled: Boolean)
     fun exportToSyncPayload(): JsonObject

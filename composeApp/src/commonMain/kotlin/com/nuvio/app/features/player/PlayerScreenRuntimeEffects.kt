@@ -287,7 +287,7 @@ private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
         ) {
             return@LaunchedEffect
         }
-        delay(3500)
+        delay(5000)
         controlsVisible = false
     }
 

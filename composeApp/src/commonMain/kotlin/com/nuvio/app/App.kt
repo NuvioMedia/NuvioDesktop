@@ -86,6 +86,7 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.CachePolicy
 import coil3.request.crossfade
 import coil3.svg.SvgDecoder
+import coil3.memory.MemoryCache
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
@@ -468,6 +469,11 @@ fun App() {
             .crossfade(true)
             .diskCachePolicy(CachePolicy.ENABLED)
             .memoryCachePolicy(CachePolicy.ENABLED)
+            .memoryCache {
+                MemoryCache.Builder()
+                    .maxSizeBytes(128 * 1024 * 1024)
+                    .build()
+            }
             .components {
                 add(SvgDecoder.Factory())
             }

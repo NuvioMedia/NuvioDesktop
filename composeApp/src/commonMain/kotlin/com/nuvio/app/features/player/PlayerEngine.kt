@@ -21,6 +21,12 @@ interface PlayerEngineController {
     fun applySubtitleStyle(style: SubtitleStyleState) {}
     fun setSubtitleDelayMs(delayMs: Int) {}
     fun configureIosVideoOutput(settings: PlayerSettingsUiState) {}
+
+    /** Set volume in 0..100 range. Default no-op for platforms without volume API. */
+    fun setVolume(volume: Float) {}
+
+    /** Return current volume in 0..100 range, or -1f if unknown/unavailable. */
+    fun getVolume(): Float = -1f
 }
 
 enum class PlayerControlsAction {
@@ -39,6 +45,7 @@ enum class PlayerControlsAction {
     Speed,
     Subtitles,
     Audio,
+    Volume,
     Sources,
     Episodes,
     OpenExternalPlayer,

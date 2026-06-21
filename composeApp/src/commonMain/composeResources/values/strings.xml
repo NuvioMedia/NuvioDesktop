@@ -383,6 +383,7 @@
     <string name="compose_player_subtitles">Subtitles</string>
     <string name="compose_player_text_opacity">Text Opacity</string>
     <string name="compose_player_brightness_level">Brightness %1$s</string>
+    <string name="compose_player_volume">Volume</string>
     <string name="compose_player_volume_level">Volume %1$s</string>
     <string name="compose_player_muted">Muted</string>
     <string name="compose_player_downloaded">Downloaded</string>
@@ -1621,6 +1622,10 @@
     <string name="player_video_settings_contrast">Contrast</string>
     <string name="player_video_settings_saturation">Saturation</string>
     <string name="player_video_settings_gamma">Gamma</string>
+    <string name="player_video_settings_hwdec">GPU Decoder</string>
+    <!-- Desktop mpv.conf editor -->
+    <string name="player_mpv_conf_title">mpv.conf</string>
+    <string name="player_mpv_conf_description">One key=value per line. Lines starting with # are ignored.</string>
     <!-- iOS video output presets -->
     <string name="player_ios_preset_native_edr_label">Native EDR</string>
     <string name="player_ios_preset_native_edr_desc">Best for HDR-capable iPhones and iPads.</string>
