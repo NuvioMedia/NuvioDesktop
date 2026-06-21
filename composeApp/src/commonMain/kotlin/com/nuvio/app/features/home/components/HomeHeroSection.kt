@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.isDesktop
 import com.nuvio.app.core.ui.NuvioDesktopImageScaling
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.features.home.MetaPreview
 import kotlinx.coroutines.CoroutineScope
@@ -65,6 +67,7 @@ private const val HERO_BACKGROUND_PARALLAX = 0.055f
 private const val HERO_BACKGROUND_SCALE = 1.14f
 private const val HERO_CONTENT_PARALLAX = 0.18f
 private const val HERO_SCROLL_PARALLAX = 0.3f
+private const val DESKTOP_HERO_SCROLL_PARALLAX = 0.38f
 private const val HERO_SCROLL_DOWN_SCALE_MULTIPLIER = 0.0001f
 private const val HERO_SCROLL_UP_SCALE_MULTIPLIER = 0.002f
 private const val HERO_SCROLL_MAX_SCALE = 1.3f
@@ -108,7 +111,13 @@ fun HomeHeroSection(
                 itemCount = items.size,
                 coroutineScope = coroutineScope,
             )
-            .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)),
+            .then(
+                if (isDesktop) {
+                    Modifier.graphicsLayer { clip = true }
+                } else {
+                    Modifier.clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
+                },
+            ),
     ) {
         val layout = homeHeroLayout(
             maxWidthDp = maxWidth.value,
@@ -128,7 +137,11 @@ fun HomeHeroSection(
             }
         }
         val heroScrollScale = heroBackgroundScrollScale(scrollOffsetPx)
-        val heroScrollTranslationY = heroBackgroundScrollTranslationY(scrollOffsetPx)
+        val heroScrollTranslationY = if (isDesktop) {
+            scrollOffsetPx * DESKTOP_HERO_SCROLL_PARALLAX
+        } else {
+            heroBackgroundScrollTranslationY(scrollOffsetPx)
+        }
         val currentPage = pagerState.currentPage.coerceIn(items.indices)
         val visiblePages = listOf(
             currentPage,
@@ -347,7 +360,10 @@ private fun DesktopHomeHeroFrame(
     coroutineScope: CoroutineScope,
     onItemClick: ((MetaPreview) -> Unit)?,
 ) {
-    val backgroundColor = MaterialTheme.colorScheme.background
+    val colorScheme = MaterialTheme.colorScheme
+    val opacity = NuvioTokens.Opacity
+    val space = NuvioTokens.Space
+    val backgroundColor = colorScheme.background
 
     Box(
         modifier = Modifier
@@ -355,29 +371,39 @@ private fun DesktopHomeHeroFrame(
             .background(backgroundColor),
     ) {
         visiblePages.forEach { layer ->
-            Box(
+            AsyncImage(
+                model = items[layer.page].banner ?: items[layer.page].poster,
+                contentDescription = items[layer.page].name,
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .fillMaxWidth(0.64f)
+                    .fillMaxSize()
                     .graphicsLayer {
                         alpha = layer.visibility
                         translationX = -layer.offset * heroWidthPx * HERO_BACKGROUND_PARALLAX
                         translationY = heroScrollTranslationY
-                        scaleX = 1.02f * heroScrollScale
-                        scaleY = 1.02f * heroScrollScale
+                        scaleX = 1.04f * heroScrollScale
+                        scaleY = 1.04f * heroScrollScale
                     },
-            ) {
-                AsyncImage(
-                    model = items[layer.page].banner ?: items[layer.page].poster,
-                    contentDescription = items[layer.page].name,
-                    modifier = Modifier.fillMaxSize(),
-                    alignment = Alignment.Center,
-                    contentScale = ContentScale.Crop,
-                    desktopImageScaling = NuvioDesktopImageScaling.Disabled,
-                )
-            }
+                alignment = Alignment.Center,
+                contentScale = ContentScale.Crop,
+                desktopImageScaling = NuvioDesktopImageScaling.Disabled,
+            )
         }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to Color.Transparent,
+                            0.18f to backgroundColor.copy(alpha = opacity.subtle),
+                            0.46f to backgroundColor.copy(alpha = opacity.overlayLight),
+                            0.78f to backgroundColor.copy(alpha = opacity.overlayHeavy),
+                            1.00f to backgroundColor,
+                        ),
+                    ),
+                ),
+        )
 
         Box(
             modifier = Modifier
@@ -386,10 +412,17 @@ private fun DesktopHomeHeroFrame(
                     Brush.horizontalGradient(
                         colorStops = arrayOf(
                             0f to backgroundColor,
-                            0.34f to backgroundColor,
-                            0.58f to backgroundColor.copy(alpha = 0.78f),
-                            0.78f to backgroundColor.copy(alpha = 0.18f),
-                            1f to backgroundColor.copy(alpha = 0f),
+                            0.06f to backgroundColor,
+                            0.10f to backgroundColor.copy(alpha = 0.96f),
+                            0.14f to backgroundColor.copy(alpha = 0.90f),
+                            0.18f to backgroundColor.copy(alpha = 0.82f),
+                            0.22f to backgroundColor.copy(alpha = 0.72f),
+                            0.27f to backgroundColor.copy(alpha = 0.58f),
+                            0.32f to backgroundColor.copy(alpha = 0.44f),
+                            0.38f to backgroundColor.copy(alpha = 0.30f),
+                            0.44f to backgroundColor.copy(alpha = 0.18f),
+                            0.50f to backgroundColor.copy(alpha = 0.08f),
+                            0.58f to Color.Transparent,
                         ),
                     ),
                 ),
@@ -412,8 +445,12 @@ private fun DesktopHomeHeroFrame(
 
         Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = contentHorizontalPadding, end = contentHorizontalPadding)
+                .align(Alignment.BottomStart)
+                .padding(
+                    start = contentHorizontalPadding,
+                    end = space.s32,
+                    bottom = space.s40,
+                )
                 .fillMaxWidth(layout.contentWidthFraction)
                 .widthIn(max = layout.contentMaxWidth),
             contentAlignment = Alignment.CenterStart,
@@ -441,10 +478,10 @@ private fun DesktopHomeHeroFrame(
             pagerState = pagerState,
             coroutineScope = coroutineScope,
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.BottomEnd)
                 .padding(
-                    start = contentHorizontalPadding,
-                    bottom = layout.contentVerticalPadding,
+                    end = contentHorizontalPadding,
+                    bottom = space.s40,
                 ),
         )
     }
@@ -602,6 +639,12 @@ private fun DesktopHeroContentBlock(
     layout: HomeHeroLayout,
     onItemClick: ((MetaPreview) -> Unit)?,
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+    var logoLoadError by remember(item.type, item.id, item.logo) {
+        mutableStateOf(false)
+    }
+    val logoUrl = item.logo?.takeIf { it.isNotBlank() }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -610,7 +653,7 @@ private fun DesktopHeroContentBlock(
             },
         horizontalAlignment = Alignment.Start,
     ) {
-        if (item.logo != null) {
+        if (logoUrl != null && !logoLoadError) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -618,7 +661,7 @@ private fun DesktopHeroContentBlock(
                 contentAlignment = Alignment.CenterStart,
             ) {
                 AsyncImage(
-                    model = item.logo,
+                    model = logoUrl,
                     contentDescription = item.name,
                     modifier = Modifier
                         .fillMaxWidth(desktopHeroLogoWidthFraction(layout))
@@ -626,40 +669,52 @@ private fun DesktopHeroContentBlock(
                     alignment = Alignment.CenterStart,
                     contentScale = ContentScale.Fit,
                     clipToBounds = false,
+                    onError = { logoLoadError = true },
                 )
             }
         } else {
             Text(
                 text = item.name,
                 modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                fontWeight = FontWeight.Black,
+                style = MaterialTheme.typography.displayLarge.copy(
+                    fontSize = NuvioTokens.Type.displayMd,
+                    lineHeight = NuvioTokens.LineHeight.displayMd,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = NuvioTokens.LetterSpacing.none,
+                ),
+                color = colorScheme.onBackground,
                 textAlign = TextAlign.Start,
-                maxLines = 2,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
         }
 
         val genreText = desktopHeroGenreText(item)
         if (genreText.isNotBlank()) {
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(NuvioTokens.Space.s12))
             Text(
                 text = genreText,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.76f),
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = NuvioTokens.Type.bodyMd,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = NuvioTokens.LetterSpacing.none,
+                ),
+                color = colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
 
         item.description?.takeIf { it.isNotBlank() }?.let { description ->
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(NuvioTokens.Space.s16))
             Text(
                 text = description,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.82f),
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = NuvioTokens.Type.bodyLg,
+                    lineHeight = NuvioTokens.LineHeight.bodyLg,
+                    letterSpacing = NuvioTokens.LetterSpacing.none,
+                ),
+                color = colorScheme.onSurface,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -676,8 +731,8 @@ private fun desktopHeroLogoWidthFraction(layout: HomeHeroLayout): Float =
 
 private fun desktopHeroLogoSlotHeight(layout: HomeHeroLayout): Dp =
     when {
-        layout.contentMaxWidth >= 640.dp -> 156.dp
-        layout.contentMaxWidth >= 520.dp -> 136.dp
+        layout.contentMaxWidth >= 640.dp -> 120.dp
+        layout.contentMaxWidth >= 520.dp -> 112.dp
         else -> 104.dp
     }
 
@@ -706,6 +761,16 @@ internal fun homeHeroLayout(
     preferDesktopLayout: Boolean = false,
 ): HomeHeroLayout =
     when {
+        preferDesktopLayout -> HomeHeroLayout(
+            isTablet = true,
+            heroHeight = (maxWidthDp * 0.56f).dp.coerceIn(460.dp, 660.dp),
+            contentMaxWidth = 760.dp,
+            contentWidthFraction = 0.58f,
+            contentHorizontalPadding = if (maxWidthDp >= 840f) 56.dp else 32.dp,
+            contentVerticalPadding = 40.dp,
+            bottomFadeHeight = 260.dp,
+            logoWidthFraction = 0.74f,
+        )
         maxWidthDp >= 1200f -> HomeHeroLayout(
             isTablet = true,
             heroHeight = (maxWidthDp * 0.42f).dp.coerceIn(360.dp, 440.dp),
@@ -735,16 +800,6 @@ internal fun homeHeroLayout(
             contentVerticalPadding = 18.dp,
             bottomFadeHeight = 170.dp,
             logoWidthFraction = 0.54f,
-        )
-        preferDesktopLayout -> HomeHeroLayout(
-            isTablet = true,
-            heroHeight = (maxWidthDp * 0.68f).dp.coerceIn(300.dp, 360.dp),
-            contentMaxWidth = 360.dp,
-            contentWidthFraction = 0.56f,
-            contentHorizontalPadding = 16.dp,
-            contentVerticalPadding = 18.dp,
-            bottomFadeHeight = 150.dp,
-            logoWidthFraction = 0.64f,
         )
         else -> HomeHeroLayout(
             isTablet = false,
