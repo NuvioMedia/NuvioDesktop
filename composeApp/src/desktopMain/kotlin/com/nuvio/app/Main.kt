@@ -1,11 +1,16 @@
 package com.nuvio.app
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -19,15 +24,13 @@ import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcut
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
 import com.nuvio.app.features.player.desktop.registerDesktopAppFullscreenToggle
 import java.awt.Color as AwtColor
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import java.util.Locale
 import javax.swing.JComponent
 
 private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
 private const val NuvioDesktopIconPath = "icons/nuvio-app-icon.png"
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 
+@OptIn(ExperimentalComposeUiApi::class)
 fun main() {
     configureDesktopChrome()
     preloadNativePlayerBridgeAsync()
@@ -76,24 +79,25 @@ fun main() {
                 }
             }
 
-            DisposableEffect(window) {
-                val osName = System.getProperty("os.name").orEmpty().lowercase(Locale.ROOT)
-                val backButton = if (osName.contains("linux")) 8 else 4
-                val mouseBackListener = object : MouseAdapter() {
-                    override fun mousePressed(e: MouseEvent) {
-                        if (e.button == backButton) {
-                            DesktopBackHandlers.handleBack()
-                        }
-                    }
-                }
-                window.contentPane.addMouseListener(mouseBackListener)
-                onDispose {
-                    window.contentPane.removeMouseListener(mouseBackListener)
-                }
-            }
-
             if (smokePlayerUrl == null) {
-                App()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    if (event.type == PointerEventType.Press &&
+                                        event.button == PointerButton.Back
+                                    ) {
+                                        DesktopBackHandlers.handleBack()
+                                    }
+                                }
+                            }
+                        },
+                ) {
+                    App()
+                }
             } else {
                 PlatformPlayerSurface(
                     sourceUrl = smokePlayerUrl,
