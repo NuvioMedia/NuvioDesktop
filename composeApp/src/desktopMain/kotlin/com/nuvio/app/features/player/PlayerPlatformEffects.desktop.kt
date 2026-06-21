@@ -5,8 +5,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.IntSize
-import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopAppNavigation
+import com.nuvio.app.features.player.desktop.DesktopHostOs
 
 @Composable
 actual fun LockPlayerToLandscape() = Unit
@@ -40,23 +40,29 @@ actual fun setDesktopBackHandler(handler: (() -> Unit)?) {
 }
 
 private class DesktopKeepAwakeController : AutoCloseable {
-    private var caffeinateProcess: Process? = null
+    private var inhibitProcess: Process? = null
 
     fun setEnabled(enabled: Boolean) {
-        if (DesktopHostOs.current != DesktopHostOs.MACOS) return
-
         if (enabled) {
-            startCaffeinate()
+            startInhibit()
         } else {
-            stopCaffeinate()
+            stopInhibit()
         }
     }
 
-    private fun startCaffeinate() {
-        if (caffeinateProcess?.isAlive == true) return
+    private fun startInhibit() {
+        if (inhibitProcess?.isAlive == true) return
 
+        inhibitProcess = when (DesktopHostOs.current) {
+            DesktopHostOs.MACOS -> startMacOsInhibit()
+            DesktopHostOs.LINUX -> startLinuxInhibit()
+            else -> null
+        }
+    }
+
+    private fun startMacOsInhibit(): Process? {
         val currentPid = ProcessHandle.current().pid().toString()
-        caffeinateProcess = runCatching {
+        return runCatching {
             ProcessBuilder(
                 "/usr/bin/caffeinate",
                 "-d",
@@ -67,14 +73,27 @@ private class DesktopKeepAwakeController : AutoCloseable {
         }.getOrNull()
     }
 
-    private fun stopCaffeinate() {
-        caffeinateProcess
+    private fun startLinuxInhibit(): Process? {
+        return runCatching {
+            ProcessBuilder(
+                "systemd-inhibit",
+                "--what=handle-lid-switch:sleep:idle",
+                "--who=Nuvio",
+                "--why=Playing video",
+                "sleep",
+                "infinity",
+            ).start()
+        }.getOrNull()
+    }
+
+    private fun stopInhibit() {
+        inhibitProcess
             ?.takeIf(Process::isAlive)
             ?.destroy()
-        caffeinateProcess = null
+        inhibitProcess = null
     }
 
     override fun close() {
-        stopCaffeinate()
+        stopInhibit()
     }
 }
