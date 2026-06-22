@@ -833,15 +833,16 @@ val prepareWindowsPlayerRuntime = tasks.register<Sync>("prepareWindowsPlayerRunt
     windowsCppRuntimeDlls.forEach { dllFile ->
         from(dllFile)
     }
-    when {
-        windowsLibmpvRuntimeDir?.exists() == true -> {
-            from(windowsLibmpvRuntimeDir) {
-                include("*.dll")
-            }
+    // Bundle libmpv-2.dll from the bundled runtime directory or from overrides
+    val libmpvSource = windowsLibmpvDll
+        ?: windowsLibmpvRuntimeDir?.let { dir ->
+            val dll = dir.resolve("libmpv-2.dll")
+            dll.takeIf(File::exists)
         }
-        windowsLibmpvDll?.exists() == true -> {
-            from(windowsLibmpvDll)
-        }
+    if (libmpvSource?.exists() == true) {
+        from(libmpvSource)
+    } else {
+        logger.warn("libmpv-2.dll not found. Pass -Pnuvio.windows.libmpv.runtimeDir=C:/path/to/mpv-dlls or bundle it under src/desktopMain/native/windows/runtime/")
     }
 }
 

@@ -1,1 +1,3 @@
-package com.nuvio.app.features.player  internal expect fun pickExternalPlayerExecutable(): String?
+﻿package com.nuvio.app.features.player
+
+internal expect fun pickExternalPlayerExecutable(): String?

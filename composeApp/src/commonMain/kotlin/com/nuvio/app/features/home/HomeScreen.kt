@@ -450,6 +450,19 @@ fun HomeScreen(
         HomeRepository.refresh(enabledAddons)
     }
 
+    // Desktop fallback: collect addon state directly in a coroutine
+    // since collectAsStateWithLifecycle (above) may not update on Desktop,
+    // which keeps catalogRefreshKey empty and prevents HomeRepository.refresh().
+    LaunchedEffect(Unit) {
+        AddonRepository.uiState.collect { state ->
+            val activeAddons = state.addons.enabledAddons()
+            if (activeAddons.any { it.manifest != null }) {
+                HomeCatalogSettingsRepository.syncCatalogs(activeAddons)
+                HomeRepository.refresh(activeAddons, force = true)
+            }
+        }
+    }
+
     LaunchedEffect(collections) {
         HomeCatalogSettingsRepository.syncCollections(collections)
     }

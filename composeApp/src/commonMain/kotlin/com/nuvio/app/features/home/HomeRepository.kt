@@ -1,5 +1,6 @@
 package com.nuvio.app.features.home
 
+import co.touchlab.kermit.Logger
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.enabledAddons
@@ -28,6 +29,7 @@ import kotlin.math.absoluteValue
 import kotlin.random.Random
 
 object HomeRepository {
+    private val log = Logger.withTag("HomeRepo")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -45,7 +47,9 @@ object HomeRepository {
 
     fun refresh(addons: List<ManagedAddon>, force: Boolean = false) {
         val activeAddons = addons.enabledAddons()
+        log.d { "refresh(force=$force) called with ${activeAddons.size} addons" }
         val requests = buildHomeCatalogDefinitions(activeAddons)
+        log.d { "refresh() — buildHomeCatalogDefinitions returned ${requests.size} definitions" }
         currentDefinitions = requests
         val requestKeys = requests.mapTo(mutableSetOf(), HomeCatalogDefinition::key)
         cachedSections = cachedSections.filterKeys(requestKeys::contains)

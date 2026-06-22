@@ -1,1 +1,11 @@
-package com.nuvio.app.features.player  enum class DesktopHwdecMode(     val mpvValue: String,     val label: String, ) {     Auto("auto-copy", "Auto (VAAPI/NVDEC)"),     Vaapi("vaapi-copy", "VAAPI (Intel/AMD)"),     Nvdec("nvdec-copy", "NVDEC (NVIDIA)"),     Software("no", "Software Only"), }
+﻿package com.nuvio.app.features.player
+
+enum class DesktopHwdecMode(
+    val mpvValue: String,
+    val label: String,
+) {
+    Auto("auto-copy", "Auto (VAAPI/NVDEC)"),
+    Vaapi("vaapi-copy", "VAAPI (Intel/AMD)"),
+    Nvdec("nvdec-copy", "NVDEC (NVIDIA)"),
+    Software("no", "Software Only"),
+}
