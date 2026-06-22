@@ -6,6 +6,7 @@ import com.nuvio.app.features.addons.encodeUnsafeHttpUrlCharacters
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.tmdb.TmdbService
+import com.nuvio.app.features.plugins.runtime.PluginRuntime
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
@@ -338,7 +339,6 @@ actual object PluginRepository {
                 season = season,
                 episode = episode,
                 scraperId = scraper.id,
-                scraperSettings = emptyMap(),
             )
         }
     }
@@ -392,6 +392,7 @@ actual object PluginRepository {
                         supportedTypes = info.supportedTypes,
                         enabled = enabled,
                         manifestEnabled = info.enabled,
+                        hasSettings = info.hasSettings,
                         logo = info.logo,
                         contentLanguage = info.contentLanguage ?: emptyList(),
                         formats = info.formats ?: info.supportedFormats,
@@ -485,12 +486,12 @@ actual object PluginRepository {
                     supportedTypes = scraper.supportedTypes,
                     enabled = scraper.enabled,
                     manifestEnabled = scraper.manifestEnabled,
+                    hasSettings = scraper.hasSettings,
                     logo = scraper.logo,
                     contentLanguage = scraper.contentLanguage,
                     formats = scraper.formats,
                     code = scraper.code,
-                )
-            },
+                )            },
         )
         PluginStorage.saveState(currentProfileId, json.encodeToString(payload))
     }
@@ -552,6 +553,7 @@ actual object PluginRepository {
                         supportedTypes = it.supportedTypes,
                         enabled = it.enabled,
                         manifestEnabled = it.manifestEnabled,
+                        hasSettings = it.hasSettings,
                         logo = it.logo,
                         contentLanguage = it.contentLanguage,
                         formats = it.formats,
