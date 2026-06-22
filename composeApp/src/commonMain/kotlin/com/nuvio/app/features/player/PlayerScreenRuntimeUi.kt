@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.debrid.DebridSettingsRepository
@@ -260,7 +262,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             playerSettingsUiState.introSubmitEnabled &&
             playerSettingsUiState.introDbApiKey.isNotBlank() &&
             !activeSubmitIntroImdbId().isNullOrBlank(),
-        showVideoSettings = isIos,
+        showVideoSettings = isIos || isDesktop,
         showSources = activeVideoId != null,
         showEpisodes = isSeries,
         showExternalPlayer = args.onOpenInExternalPlayer != null,
@@ -327,10 +329,24 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     )
     val gestureCallbacks = rememberSurfaceGestureCallbacks()
 
+    if (isDesktop) {
+        DisposableEffect(Unit) {
+            setDesktopBackHandler {
+                flushWatchProgress()
+                args.onBack()
+            }
+            onDispose { setDesktopBackHandler(null) }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .onSizeChanged { layoutSize = it }
+            .onSizeChanged {
+                layoutSize = it
+                controlsVisible = true
+                controlsActivityTick += 1
+            }
             .playerSurfaceTapGestures(
                 layoutSize = layoutSize,
                 playerControlsLockedState = gestureCallbacks.playerControlsLocked,
@@ -356,7 +372,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 clearLiveGestureFeedbackState = gestureCallbacks.clearLiveGestureFeedback,
                 revealLockedOverlayState = gestureCallbacks.revealLockedOverlay,
                 commitHorizontalSeekState = gestureCallbacks.commitHorizontalSeek,
-            ),
+            )
     ) {
         if (playerSurfaceSourceUrl != null) {
             PlatformPlayerSurface(
@@ -482,7 +498,8 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 refreshTracks()
                 showAudioModal = true
             },
-            onVideoSettingsClick = if (isIos) {
+            onVolumeClick = { showVolumeModal = true },
+            onVideoSettingsClick = if (isIos || isDesktop) {
                 {
                     showVideoSettingsModal = true
                     controlsVisible = true
@@ -544,6 +561,23 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 scheduleProgressSyncAfterSeek()
             },
             horizontalSafePadding = horizontalSafePadding,
+            currentVolume = currentVolume,
+            isVolumeMuted = isVolumeMuted,
+            onVolumeSliderChange = { volume ->
+                currentVolume = volume
+                playerController?.setVolume(volume)
+            },
+            onClickVolumeIcon = {
+                if (isVolumeMuted) {
+                    currentVolume = previousVolume
+                    playerController?.setVolume(previousVolume)
+                    isVolumeMuted = false
+                } else {
+                    previousVolume = currentVolume
+                    playerController?.setVolume(0f)
+                    isVolumeMuted = true
+                }
+            },
             modifier = Modifier.fillMaxSize(),
         )
     }
@@ -591,6 +625,7 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
         PlayerControlsAction.KeyboardVolumeUp -> {
             return false
         }
+        PlayerControlsAction.Volume -> showVolumeModal = true
         PlayerControlsAction.ResizeMode -> cycleResizeMode()
         PlayerControlsAction.Speed -> cyclePlaybackSpeed()
         PlayerControlsAction.Subtitles -> {
@@ -760,7 +795,7 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         }
         "subtitleFontSizeDelta" -> {
             PlayerSettingsRepository.setSubtitleStyle(
-                subtitleStyle.copy(fontSizeSp = (subtitleStyle.fontSizeSp + value.toInt()).coerceIn(subtitleFontSizeRangeSp)),
+                subtitleStyle.copy(fontSizeSp = (subtitleStyle.fontSizeSp + value.toInt()).coerceIn(12, 40)),
             )
         }
         "subtitleOutlineToggle" -> {
@@ -1305,6 +1340,13 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
         onAutoSyncCueSelected = { cue -> applySubtitleAutoSyncCue(cue) },
         onAutoSyncReload = { loadSubtitleAutoSyncCues(force = true) },
         onSubtitleModalDismissed = { showSubtitleModal = false },
+        showVolumeModal = showVolumeModal,
+        currentVolume = currentVolume,
+        onVolumeChanged = { volume ->
+            currentVolume = volume
+            playerController?.setVolume(volume)
+        },
+        onVolumeModalDismissed = { showVolumeModal = false },
         showVideoSettingsModal = showVideoSettingsModal,
         playerSettings = playerSettingsUiState,
         onVideoSettingsChanged = {

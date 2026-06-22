@@ -1,0 +1,44 @@
+﻿package com.nuvio.app.features.player
+
+import java.io.File
+import javax.swing.JFileChooser
+import javax.swing.SwingUtilities
+import javax.swing.filechooser.FileFilter
+
+internal actual fun pickExternalPlayerExecutable(): String? {
+    return try {
+        var result: String? = null
+        if (SwingUtilities.isEventDispatchThread()) {
+            result = showFileChooser()
+        } else {
+            SwingUtilities.invokeAndWait { result = showFileChooser() }
+        }
+        result
+    } catch (e: Exception) {
+        null
+    }
+}
+
+private fun showFileChooser(): String? {
+    val isWindows = System.getProperty("os.name")?.lowercase()?.contains("windows") == true
+    val chooser = JFileChooser()
+    chooser.dialogTitle = "Select External Player Executable"
+    if (isWindows) {
+        chooser.fileFilter = object : FileFilter() {
+            override fun accept(f: File) = f.isDirectory || f.name.lowercase().endsWith(".exe")
+            override fun getDescription() = "Executables (*.exe)"
+        }
+    } else {
+        chooser.fileFilter = object : FileFilter() {
+            override fun accept(f: File) = f.isDirectory || f.canExecute()
+            override fun getDescription() = "Executables"
+        }
+    }
+    chooser.isAcceptAllFileFilterUsed = true
+    val result = chooser.showOpenDialog(null)
+    return if (result == JFileChooser.APPROVE_OPTION) {
+        chooser.selectedFile.absolutePath
+    } else {
+        null
+    }
+}

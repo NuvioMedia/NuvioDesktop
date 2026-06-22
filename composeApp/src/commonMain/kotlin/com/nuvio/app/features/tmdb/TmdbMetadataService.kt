@@ -27,15 +27,21 @@ object TmdbMetadataService {
     private val log = Logger.withTag("TmdbMetadata")
     private val json = Json { ignoreUnknownKeys = true }
 
-    private val enrichmentCache = mutableMapOf<String, TmdbEnrichment>()
-    private val episodeCache = mutableMapOf<String, Map<Pair<Int, Int>, TmdbEpisodeEnrichment>>()
-    private val moreLikeThisCache = mutableMapOf<String, List<MetaPreview>>()
-    private val collectionCache = mutableMapOf<String, Pair<String?, List<MetaPreview>>>()
-    private val trailerCache = mutableMapOf<String, List<MetaTrailer>>()
-    private val personCache = mutableMapOf<String, PersonDetail>()
-    private val entityBrowseCache = mutableMapOf<String, TmdbEntityBrowseData>()
-    private val entityHeaderCache = mutableMapOf<String, TmdbEntityHeader>()
-    private val entityRailCache = mutableMapOf<String, List<MetaPreview>>()
+    private fun <K, V> lruCache(maxSize: Int): MutableMap<K, V> =
+        object : LinkedHashMap<K, V>(maxSize, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>) =
+                size > maxSize
+        }
+
+    private val enrichmentCache   = lruCache<String, TmdbEnrichment>(50)
+    private val episodeCache      = lruCache<String, Map<Pair<Int, Int>, TmdbEpisodeEnrichment>>(30)
+    private val moreLikeThisCache = lruCache<String, List<MetaPreview>>(30)
+    private val collectionCache   = lruCache<String, Pair<String?, List<MetaPreview>>>(20)
+    private val trailerCache      = lruCache<String, List<MetaTrailer>>(30)
+    private val personCache       = lruCache<String, PersonDetail>(50)
+    private val entityBrowseCache = lruCache<String, TmdbEntityBrowseData>(10)
+    private val entityHeaderCache = lruCache<String, TmdbEntityHeader>(20)
+    private val entityRailCache   = lruCache<String, List<MetaPreview>>(40)
 
     suspend fun fetchPersonDetail(
         personId: Int,

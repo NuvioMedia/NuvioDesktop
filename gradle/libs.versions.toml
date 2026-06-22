@@ -19,8 +19,8 @@ kermit = "2.0.5"
 junit = "4.13.2"
 kotlin = "2.3.0"
 kotlinx-serialization = "1.8.1"
-kotlinx-coroutines = "1.10.2"
 kotlinx-atomicfu = "0.30.0"
+kotlinx-coroutines = "1.10.2"
 ktor = "3.4.1"
 material3 = "1.12.0-alpha02"
 androidx-media3 = "1.8.0"
@@ -56,9 +56,9 @@ coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" 
 coil-gif = { module = "io.coil-kt.coil3:coil-gif", version.ref = "coil" }
 coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 coil-svg = { module = "io.coil-kt.coil3:coil-svg", version.ref = "coil" }
+kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "kotlinx-atomicfu" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
-kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "kotlinx-atomicfu" }
 ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "ktor" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }

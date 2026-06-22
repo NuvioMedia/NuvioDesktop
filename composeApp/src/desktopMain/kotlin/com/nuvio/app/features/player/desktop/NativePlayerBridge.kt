@@ -28,6 +28,8 @@ internal object NativePlayerBridge {
 
     external fun create(
         hostViewPtr: Long,
+        hostWidth: Int,
+        hostHeight: Int,
         sourceUrl: String,
         headerLines: Array<String>,
         playWhenReady: Boolean,
@@ -69,14 +71,6 @@ internal object NativePlayerBridge {
         borderColorRgb: Int,
         textColorRgb: Int,
     )
-    external fun setWindowBorderlessFullscreen(
-        windowHwnd: Long,
-        fullscreen: Boolean,
-        x: Int,
-        y: Int,
-        width: Int,
-        height: Int,
-    )
 
     external fun setSubtitleDelayMs(handle: Long, delayMs: Int)
     external fun applySubtitleStyle(
@@ -89,8 +83,11 @@ internal object NativePlayerBridge {
         fontSize: Float,
         subPos: Int,
     )
+    external fun setProperty(handle: Long, name: String, value: String)
     external fun warmupWebView2(controlsPageUrl: String): Boolean
     external fun shutdownWebView2Warmup()
+    external fun renderFrame(handle: Long, dstPixels: IntArray, dstW: Int, dstH: Int): Boolean
+    external fun resizeNativeView(handle: Long, width: Int, height: Int)
 
     val controlsPageUrl: String by lazy { controlsPageAssets.url }
     private val controlsPageAssets: ControlsPageAssets by lazy { exportControlsPageAssets() }
@@ -122,7 +119,7 @@ internal object NativePlayerBridge {
 
     private fun loadNativeLibrary() {
         val platform = DesktopHostOs.current
-        require(platform == DesktopHostOs.MACOS || platform == DesktopHostOs.WINDOWS) {
+        require(platform == DesktopHostOs.MACOS || platform == DesktopHostOs.WINDOWS || platform == DesktopHostOs.LINUX) {
             "Native desktop playback is not implemented for $platform yet."
         }
 
@@ -188,6 +185,7 @@ internal object NativePlayerBridge {
 
         return when (platformDir) {
             "windows" -> listOf("libmpv-2.dll")
+            "linux" -> listOf("libmpv.so.2")
             else -> emptyList()
         }
     }
@@ -317,7 +315,7 @@ internal object NativePlayerBridge {
 }
 
 internal fun preloadNativePlayerBridgeAsync() {
-    if (DesktopHostOs.current == DesktopHostOs.MACOS || DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+    if (DesktopHostOs.current == DesktopHostOs.MACOS || DesktopHostOs.current == DesktopHostOs.WINDOWS || DesktopHostOs.current == DesktopHostOs.LINUX) {
         runCatching {
             NativePlayerBridge.preloadAsync()
         }

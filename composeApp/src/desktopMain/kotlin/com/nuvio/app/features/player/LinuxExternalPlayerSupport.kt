@@ -1,0 +1,284 @@
+﻿package com.nuvio.app.features.player
+
+import java.io.File
+import kotlin.math.roundToLong
+
+internal data class LinuxExternalPlayerInstall(
+    val id: String,
+    val name: String,
+    val executablePath: String,
+    val extraArgs: List<String> = emptyList(),
+)
+
+internal data class LinuxExternalPlayerCommandResult(
+    val command: List<String>?,
+    val failureReason: String? = null,
+)
+
+internal fun detectLinuxExternalPlayers(
+    getenv: (String) -> String? = System::getenv,
+    fileExists: (String) -> Boolean = { File(it).isFile },
+    canExecute: (String) -> Boolean = { File(it).canExecute() },
+): List<LinuxExternalPlayerInstall> {
+    val pathEntries = getenv("PATH")
+        ?.split(File.pathSeparator)
+        ?.filter { it.isNotBlank() }
+        .orEmpty()
+
+    val searchDirs = pathEntries + listOf(
+        "/snap/bin",
+        "/var/lib/flatpak/exports/bin",
+        "/app/bin",
+    )
+
+    val binaryPlayers = listOf(
+        "vlc" to "VLC",
+        "mpv" to "mpv",
+        "kodi" to "Kodi",
+        "kodi-standalone" to "Kodi (standalone)",
+        "kodi-x11" to "Kodi (X11)",
+        "kodi-wayland" to "Kodi (Wayland)",
+        "kodi-gbm" to "Kodi (GBM)",
+    )
+
+    val foundBinaries = binaryPlayers.mapNotNull { (exec, name) ->
+        searchDirs.firstNotNullOfOrNull { dir ->
+            val file = File(dir, exec)
+            if (fileExists(file.absolutePath) && canExecute(file.absolutePath)) file.absolutePath else null
+        }?.let { LinuxExternalPlayerInstall(id = exec, name = name, executablePath = it) }
+    }
+
+    val foundFlatpaks = detectFlatpakMediaPlayers(fileExists, canExecute)
+    val foundSnaps = detectSnapMediaPlayers()
+    val foundAppImages = detectAppImageMediaPlayers(fileExists, canExecute)
+
+    return foundBinaries + foundFlatpaks + foundSnaps + foundAppImages
+}
+
+private fun detectFlatpakMediaPlayers(
+    fileExists: (String) -> Boolean,
+    canExecute: (String) -> Boolean,
+): List<LinuxExternalPlayerInstall> {
+    val flatpakBinary = "/usr/bin/flatpak"
+    if (!fileExists(flatpakBinary) || !canExecute(flatpakBinary)) return emptyList()
+
+    return try {
+        val process = ProcessBuilder(flatpakBinary, "list", "--app", "--columns=application")
+            .redirectOutput(ProcessBuilder.Redirect.PIPE)
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .start()
+        val output = process.inputStream.bufferedReader().readText()
+        process.waitFor()
+
+        val installedApps = output.lines().map { it.trim() }.filter { it.isNotBlank() }
+
+        val flatpakPlayers = mapOf(
+            "org.videolan.VLC" to "VLC (Flatpak)",
+            "io.mpv.Mpv" to "mpv (Flatpak)",
+            "tv.kodi.Kodi" to "Kodi (Flatpak)",
+        )
+
+        installedApps.mapNotNull { appId ->
+            flatpakPlayers[appId]?.let { name ->
+                LinuxExternalPlayerInstall(
+                    id = "${appId.substringAfterLast('.')}-flatpak",
+                    name = name,
+                    executablePath = flatpakBinary,
+                    extraArgs = listOf("run", appId),
+                )
+            }
+        }
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+internal fun buildLinuxExternalPlayerCommand(
+    install: LinuxExternalPlayerInstall,
+    request: ExternalPlayerPlaybackRequest,
+): LinuxExternalPlayerCommandResult {
+    val sourceUrl = request.sourceUrl.trim()
+    if (sourceUrl.isBlank()) {
+        return LinuxExternalPlayerCommandResult(null, "blank source URL")
+    }
+    return when {
+        install.id.contains("kodi", ignoreCase = true) ->
+            buildLinuxKodiCommand(install, request.copy(sourceUrl = sourceUrl))
+        install.id.contains("vlc", ignoreCase = true) ->
+            buildLinuxVlcCommand(install, request.copy(sourceUrl = sourceUrl))
+        install.id.contains("mpv", ignoreCase = true) ->
+            buildLinuxMpvCommand(install, request.copy(sourceUrl = sourceUrl))
+        else -> LinuxExternalPlayerCommandResult(null, "unknown player id: ${install.id}")
+    }
+}
+
+private fun buildLinuxVlcCommand(
+    install: LinuxExternalPlayerInstall,
+    request: ExternalPlayerPlaybackRequest,
+): LinuxExternalPlayerCommandResult {
+    if (request.sourceHeaders.isNotEmpty()) {
+        return LinuxExternalPlayerCommandResult(null, "VLC does not support per-stream HTTP headers")
+    }
+    val command = mutableListOf<String>().apply {
+        add(install.executablePath)
+        addAll(install.extraArgs)
+        add("--network-caching=5000")
+        add("--file-caching=2000")
+        add("--live-caching=5000")
+        add("--no-video-title")
+        request.resumePositionMs.takeIf { it > 0L }?.let { ms ->
+            add("--start-time=${(ms / 1000.0).roundToLong()}")
+        }
+        add(request.sourceUrl)
+    }
+    return LinuxExternalPlayerCommandResult(command)
+}
+
+private fun buildLinuxMpvCommand(
+    install: LinuxExternalPlayerInstall,
+    request: ExternalPlayerPlaybackRequest,
+): LinuxExternalPlayerCommandResult {
+    val command = mutableListOf<String>().apply {
+        add(install.executablePath)
+        addAll(install.extraArgs)
+        add("--force-window=yes")
+        add("--keep-open=yes")
+        add("--no-terminal")
+        add("--cache=yes")
+        add("--cache-secs=60")
+        add("--demuxer-max-bytes=256MiB")
+        add("--demuxer-max-back-bytes=128MiB")
+        add("--demuxer-readahead-secs=60")
+        request.resumePositionMs.takeIf { it > 0L }?.let { ms ->
+            add("--start=${(ms / 1000.0).roundToLong()}")
+        }
+        if (request.sourceHeaders.isNotEmpty()) {
+            val headerList = request.sourceHeaders.toLinuxMpvHeaderFields()
+                ?: return LinuxExternalPlayerCommandResult(null, "selected stream has invalid HTTP headers")
+            add("--http-header-fields=$headerList")
+        }
+        val subtitleUrl = request.subtitles?.firstOrNull()?.url?.takeIf { it.isNotBlank() }
+        if (subtitleUrl != null) {
+            add("--sub-file=$subtitleUrl")
+        }
+        add(request.sourceUrl)
+    }
+    return LinuxExternalPlayerCommandResult(command)
+}
+
+private fun buildLinuxKodiCommand(
+    install: LinuxExternalPlayerInstall,
+    request: ExternalPlayerPlaybackRequest,
+): LinuxExternalPlayerCommandResult {
+    if (request.sourceHeaders.isNotEmpty()) {
+        return LinuxExternalPlayerCommandResult(null, "Kodi does not support per-stream HTTP headers")
+    }
+    if (request.resumePositionMs > 0L) {
+        return LinuxExternalPlayerCommandResult(null, "Kodi does not support seek to position from command line")
+    }
+    val command = mutableListOf<String>().apply {
+        add(install.executablePath)
+        addAll(install.extraArgs)
+        add("--nosplash")
+        add(request.sourceUrl)
+    }
+    return LinuxExternalPlayerCommandResult(command)
+}
+
+private fun detectSnapMediaPlayers(): List<LinuxExternalPlayerInstall> {
+    return try {
+        val process = ProcessBuilder("/usr/bin/snap", "list")
+            .redirectOutput(ProcessBuilder.Redirect.PIPE)
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .start()
+        val output = process.inputStream.bufferedReader().readText()
+        process.waitFor()
+
+        val installedSnaps = output.lines()
+            .drop(1)
+            .mapNotNull { line -> line.trim().split("\\s+".toRegex()).firstOrNull() }
+            .filter { it.isNotBlank() }
+            .toSet()
+
+        val snapPlayers = mapOf(
+            "vlc" to LinuxExternalPlayerInstall(id = "vlc-snap", name = "VLC (Snap)", executablePath = "/snap/bin/vlc"),
+            "mpv" to LinuxExternalPlayerInstall(id = "mpv-snap", name = "mpv (Snap)", executablePath = "/snap/bin/mpv"),
+            "kodi" to LinuxExternalPlayerInstall(id = "kodi-snap", name = "Kodi (Snap)", executablePath = "/snap/bin/kodi"),
+        )
+
+        installedSnaps.mapNotNull { snap -> snapPlayers[snap] }
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+private fun detectAppImageMediaPlayers(
+    fileExists: (String) -> Boolean,
+    canExecute: (String) -> Boolean,
+): List<LinuxExternalPlayerInstall> {
+    val searchDirs = listOf(
+        System.getProperty("user.home") + "/Applications",
+        System.getProperty("user.home") + "/Applications/AppImages",
+        System.getProperty("user.home") + "/.local/bin",
+        "/opt",
+    )
+
+    val appImagePatterns = mapOf(
+        "vlc" to "VLC",
+        "mpv" to "mpv",
+        "kodi" to "Kodi",
+    )
+
+    return searchDirs.flatMap { dir ->
+        val dirFile = java.io.File(dir)
+        if (!dirFile.isDirectory) return@flatMap emptyList()
+
+        dirFile.listFiles().orEmpty().filter { file ->
+            file.name.lowercase().endsWith(".appimage") && fileExists(file.absolutePath) && canExecute(file.absolutePath)
+        }.mapNotNull { file ->
+            val name = file.name.lowercase()
+            appImagePatterns.entries.firstOrNull { (key, _) -> name.contains(key) }?.let { (_, displayName) ->
+                LinuxExternalPlayerInstall(
+                    id = "${file.nameWithoutExtension.lowercase().replace(' ', '-')}-appimage",
+                    name = "$displayName (AppImage)",
+                    executablePath = file.absolutePath,
+                )
+            }
+        }
+    }
+}
+
+internal val linuxDesktopPlayerDefinitions: List<DesktopPlayerDefinition> = listOf(
+    DesktopPlayerDefinition(id = "vlc", name = "VLC", kind = DesktopPlayerKind.Vlc),
+    DesktopPlayerDefinition(id = "mpv", name = "mpv", kind = DesktopPlayerKind.Mpv),
+    DesktopPlayerDefinition(id = "kodi", name = "Kodi", kind = DesktopPlayerKind.Kodi),
+    DesktopPlayerDefinition(id = "kodi-standalone", name = "Kodi (standalone)", kind = DesktopPlayerKind.Kodi),
+)
+
+internal fun LinuxExternalPlayerInstall.toDesktopPlayerInstall(): DesktopPlayerInstall {
+    val kind = when {
+        id.contains("vlc", ignoreCase = true) -> DesktopPlayerKind.Vlc
+        id.contains("mpv", ignoreCase = true) || id.contains("mpv", ignoreCase = true) -> DesktopPlayerKind.Mpv
+        id.contains("kodi", ignoreCase = true) -> DesktopPlayerKind.Kodi
+        executablePath.contains("vlc", ignoreCase = true) -> DesktopPlayerKind.Vlc
+        executablePath.contains("mpv", ignoreCase = true) -> DesktopPlayerKind.Mpv
+        executablePath.contains("kodi", ignoreCase = true) -> DesktopPlayerKind.Kodi
+        else -> DesktopPlayerKind.Mpv
+    }
+    return DesktopPlayerInstall(
+        definition = DesktopPlayerDefinition(id = id, name = name, kind = kind),
+        executablePath = executablePath,
+    )
+}
+
+private fun Map<String, String>.toLinuxMpvHeaderFields(): String? {
+    val headers = mapNotNull { (rawName, rawValue) ->
+        val name = rawName.trim()
+        val value = rawValue.trim()
+        if (name.isBlank() || value.isBlank()) return@mapNotNull null
+        if (name.any { it == ':' || it == '\r' || it == '\n' }) return null
+        if (value.any { it == '\r' || it == '\n' }) return null
+        "$name: $value"
+    }
+    return headers.takeIf { it.isNotEmpty() }?.joinToString(",")
+}
