@@ -13,6 +13,13 @@ internal object PluginStorage {
     fun saveState(profileId: Int, payload: String) {
         store.putString("${pluginsStateKey}_$profileId", payload)
     }
+
+    fun loadScraperSettings(scraperId: String): String? =
+        store.getString("settings_${scraperId}")
+
+    fun saveScraperSettings(scraperId: String, payload: String) {
+        store.putString("settings_${scraperId}", payload)
+    }
 }
 
 internal fun currentPluginPlatform(): String = "desktop"
