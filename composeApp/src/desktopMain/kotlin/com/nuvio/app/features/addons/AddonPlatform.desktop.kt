@@ -35,9 +35,20 @@ internal actual object AddonStorage {
 }
 
 private val desktopHttpClient: HttpClient = HttpClient.newBuilder()
+    .version(HttpClient.Version.HTTP_1_1)
     .connectTimeout(Duration.ofSeconds(30))
     .followRedirects(HttpClient.Redirect.NORMAL)
     .build()
+
+private val desktopNoRedirectHttpClient: HttpClient = HttpClient.newBuilder()
+    .version(HttpClient.Version.HTTP_1_1)
+    .connectTimeout(Duration.ofSeconds(30))
+    .followRedirects(HttpClient.Redirect.NEVER)
+    .build()
+
+private val desktopHttpTransport = DesktopAddonHttpTransport(
+    send = ::sendDesktopHttpRequest,
+)
 
 actual suspend fun httpGetText(url: String): String =
     httpGetTextWithHeaders(url, emptyMap())
@@ -70,35 +81,40 @@ actual suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean,
 ): RawHttpResponse = withContext(Dispatchers.IO) {
-    val client = if (followRedirects) {
-        desktopHttpClient
-    } else {
-        HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
-            .followRedirects(HttpClient.Redirect.NEVER)
-            .build()
-    }
-    val normalizedMethod = method.trim().uppercase().ifBlank { "GET" }
+    desktopHttpTransport.execute(
+        DesktopAddonHttpRequest(
+            method = method,
+            url = url,
+            headers = headers,
+            body = body,
+            followRedirects = followRedirects,
+        ),
+    )
+}
+
+private fun sendDesktopHttpRequest(request: DesktopAddonHttpRequest): RawHttpResponse {
+    val client = if (request.followRedirects) desktopHttpClient else desktopNoRedirectHttpClient
+    val normalizedMethod = request.method.trim().uppercase().ifBlank { "GET" }
     val requestBuilder = HttpRequest.newBuilder()
-        .uri(URI(url.encodeUnsafeHttpUrlCharacters()))
+        .uri(URI(request.url.encodeUnsafeHttpUrlCharacters()))
         .timeout(Duration.ofSeconds(60))
         .method(
             normalizedMethod,
             if (normalizedMethod == "GET" || normalizedMethod == "HEAD") {
                 HttpRequest.BodyPublishers.noBody()
             } else {
-                HttpRequest.BodyPublishers.ofString(body)
+                HttpRequest.BodyPublishers.ofString(request.body)
             },
         )
 
-    headers.forEach { (key, value) ->
+    request.headers.forEach { (key, value) ->
         if (key.isNotBlank() && value.isNotBlank()) {
             requestBuilder.header(key, value)
         }
     }
 
     val response = client.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString())
-    RawHttpResponse(
+    return RawHttpResponse(
         status = response.statusCode(),
         statusText = "HTTP ${response.statusCode()}",
         url = response.uri().toString(),
