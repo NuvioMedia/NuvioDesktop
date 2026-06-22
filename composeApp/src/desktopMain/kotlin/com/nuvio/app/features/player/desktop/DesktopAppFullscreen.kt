@@ -8,10 +8,15 @@ import java.awt.KeyboardFocusManager
 import java.awt.Window
 import java.awt.event.KeyEvent
 import javax.swing.SwingUtilities
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 private object DesktopAppFullscreen {
     private var toggleHandler: ((Window?) -> Unit)? = null
     private var fullscreenStateProvider: ((Window?) -> Boolean)? = null
+    private val _changes = MutableStateFlow(0)
+    val changes: StateFlow<Int> = _changes.asStateFlow()
 
     fun setToggleHandler(
         handler: ((Window?) -> Unit)?,
@@ -19,10 +24,12 @@ private object DesktopAppFullscreen {
     ): () -> Unit {
         toggleHandler = handler
         fullscreenStateProvider = isFullscreen
+        notifyChanged()
         return {
             if (toggleHandler === handler) {
                 toggleHandler = null
                 fullscreenStateProvider = null
+                notifyChanged()
             }
         }
     }
@@ -31,13 +38,21 @@ private object DesktopAppFullscreen {
         val handler = toggleHandler ?: return
         if (SwingUtilities.isEventDispatchThread()) {
             handler(window)
+            notifyChanged()
         } else {
-            SwingUtilities.invokeLater { handler(window) }
+            SwingUtilities.invokeLater {
+                handler(window)
+                notifyChanged()
+            }
         }
     }
 
     fun isFullscreen(window: Window? = null): Boolean =
         fullscreenStateProvider?.invoke(window) == true
+
+    private fun notifyChanged() {
+        _changes.value += 1
+    }
 }
 
 internal fun registerDesktopAppFullscreenToggle(
@@ -52,6 +67,9 @@ internal fun toggleDesktopAppFullscreen(window: Window? = null) {
 
 internal fun isDesktopAppFullscreen(window: Window? = null): Boolean =
     DesktopAppFullscreen.isFullscreen(window)
+
+internal val desktopFullscreenChanges: StateFlow<Int>
+    get() = DesktopAppFullscreen.changes
 
 internal class DesktopAppFullscreenController {
     private var restoreWindowPlacement = WindowPlacement.Floating

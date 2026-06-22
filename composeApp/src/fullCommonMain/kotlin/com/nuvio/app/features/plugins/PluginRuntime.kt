@@ -35,6 +35,7 @@ private const val FETCH_TRUNCATION_SUFFIX = "\n...[truncated]"
 
 internal object PluginRuntime {
     private val log = Logger.withTag("PluginRuntime")
+    private val pluginDispatcher = Dispatchers.Default
     private val json = Json {
         ignoreUnknownKeys = true
     }
@@ -49,7 +50,7 @@ internal object PluginRuntime {
         episode: Int?,
         scraperId: String,
         scraperSettings: Map<String, Any> = emptyMap(),
-    ): List<PluginRuntimeResult> = withContext(Dispatchers.IO) {
+    ): List<PluginRuntimeResult> = withContext(pluginDispatcher) {
         withTimeout(PLUGIN_TIMEOUT_MS) {
             executePluginInternal(
                 code = code,
@@ -78,7 +79,7 @@ internal object PluginRuntime {
         var resultJson = "[]"
 
         try {
-            quickJs(Dispatchers.IO) {
+            quickJs(pluginDispatcher) {
                 define("console") {
                     function("log") { args ->
                         log.d { "Plugin:$scraperId ${args.joinToString(" ") { it?.toString() ?: "null" }}" }
@@ -329,7 +330,7 @@ internal object PluginRuntime {
             }
 
             val startedAt = kotlin.time.TimeSource.Monotonic.markNow()
-            val response = runBlocking(Dispatchers.IO) {
+            val response = runBlocking(pluginDispatcher) {
                 httpRequestRaw(
                     method = method,
                     url = url,

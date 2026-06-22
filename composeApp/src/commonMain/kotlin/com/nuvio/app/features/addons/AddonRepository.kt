@@ -493,7 +493,8 @@ private fun ensureManifestSuffix(url: String): String {
     val path = url.substringBefore("?").trimEnd('/')
     val query = url.substringAfter("?", "")
     val withSuffix = if (path.endsWith("/manifest.json")) path else "$path/manifest.json"
-    return if (query.isEmpty()) withSuffix else "$withSuffix?$query"
+    val manifestUrl = if (query.isEmpty()) withSuffix else "$withSuffix?$query"
+    return manifestUrl.encodeUnsafeHttpUrlCharacters()
 }
 
 private fun normalizeManifestUrl(rawUrl: String): String {
@@ -515,5 +516,6 @@ private fun normalizeManifestUrl(rawUrl: String): String {
         "$path/manifest.json"
     }
 
-    return if (query.isEmpty()) manifestPath else "$manifestPath?$query"
+    val manifestUrl = if (query.isEmpty()) manifestPath else "$manifestPath?$query"
+    return manifestUrl.encodeUnsafeHttpUrlCharacters()
 }
