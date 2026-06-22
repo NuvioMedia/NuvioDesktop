@@ -815,6 +815,12 @@ public:
         mpvApi().setProperty(mpv, "speed", MPV_FORMAT_DOUBLE, &clamped);
     }
 
+    void setMpvProperty(const char *name, const char *value) {
+        std::lock_guard<std::mutex> lock(mpvMutex);
+        if (!mpv) return;
+        mpvApi().setPropertyString(mpv, name, value);
+    }
+
     double speed() {
         return doubleProperty("speed", 1.0);
     }
@@ -2153,4 +2159,39 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
         fontSize,
         subPos
     );
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setProperty(
+    JNIEnv *env,
+    jobject,
+    jlong handle,
+    jstring name,
+    jstring value
+) {
+    auto player = playerFromHandle(handle);
+    if (!player) return;
+    player->setMpvProperty(jstringToUtf8(env, name).c_str(), jstringToUtf8(env, value).c_str());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_renderFrame(
+    JNIEnv *,
+    jobject,
+    jlong,
+    jintArray,
+    jint,
+    jint
+) {
+    return JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_resizeNativeView(
+    JNIEnv *,
+    jobject,
+    jlong,
+    jint,
+    jint
+) {
 }

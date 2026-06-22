@@ -1,1 +1,13 @@
-package com.nuvio.app.features.player.desktop  internal interface PlayerHost {     var nativeHandle: Long      var onMouseClick: (() -> Unit)?     var onCursorActivity: (() -> Unit)?      fun setControlsVisible(visible: Boolean)     fun noteCursorActivity()     fun resetCursorVisibility()     fun dispose() {} }
+﻿package com.nuvio.app.features.player.desktop
+
+internal interface PlayerHost {
+    var nativeHandle: Long
+
+    var onMouseClick: (() -> Unit)?
+    var onCursorActivity: (() -> Unit)?
+
+    fun setControlsVisible(visible: Boolean)
+    fun noteCursorActivity()
+    fun resetCursorVisibility()
+    fun dispose() {}
+}

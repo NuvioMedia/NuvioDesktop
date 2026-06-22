@@ -20,7 +20,8 @@ object StreamParser {
         addonId: String,
         addonLogo: String? = null,
     ): List<StreamItem> {
-        val root = json.parseToJsonElement(payload).jsonObject
+        val element = runCatching { json.parseToJsonElement(payload) }.getOrNull() ?: return emptyList()
+        val root = element as? JsonObject ?: return emptyList()
         val streamsArray = root["streams"] as? JsonArray ?: return emptyList()
         return streamsArray.mapNotNull { element ->
             val obj = element as? JsonObject ?: return@mapNotNull null
