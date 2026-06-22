@@ -2,7 +2,6 @@ package com.nuvio.app.features.plugins
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
-import com.nuvio.app.features.addons.encodeUnsafeHttpUrlCharacters
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.tmdb.TmdbService
@@ -569,8 +568,7 @@ actual object PluginRepository {
         val path = url.substringBefore("?").trimEnd('/')
         val query = url.substringAfter("?", "")
         val withSuffix = if (path.endsWith("/manifest.json")) path else "$path/manifest.json"
-        val manifestUrl = if (query.isEmpty()) withSuffix else "$withSuffix?$query"
-        return manifestUrl.encodeUnsafeHttpUrlCharacters()
+        return if (query.isEmpty()) withSuffix else "$withSuffix?$query"
     }
 
     private fun normalizeManifestUrl(rawUrl: String): String {
@@ -586,8 +584,7 @@ actual object PluginRepository {
         val query = withoutFragment.substringAfter("?", "")
         val path = withoutFragment.substringBefore("?").trimEnd('/')
         val manifestPath = if (path.endsWith("/manifest.json")) path else "$path/manifest.json"
-        val manifestUrl = if (query.isEmpty()) manifestPath else "$manifestPath?$query"
-        return manifestUrl.encodeUnsafeHttpUrlCharacters()
+        return if (query.isEmpty()) manifestPath else "$manifestPath?$query"
     }
 
     private fun resolveEffectiveProfileId(profileId: Int): Int {
