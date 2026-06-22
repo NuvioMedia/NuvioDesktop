@@ -33,6 +33,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.io.File
 import java.net.URLEncoder
+import java.net.URL
+import java.net.HttpURLConnection
 
 private val TAG = "P2pStreamingEngine"
 private val VIDEO_EXTENSIONS = setOf("mkv", "mp4", "avi", "webm", "ts", "m4v", "mov", "wmv", "flv")
@@ -380,22 +382,76 @@ actual object P2pStreamingEngine {
 
             val resourcePath = "/native/torrserver/$name"
             val input = P2pStreamingEngine::class.java.getResourceAsStream(resourcePath)
-                ?: throw P2pStreamingException(
-                    "TorrServer binary not found. Expected at $resourcePath or one of: ${candidates.joinToString { it.path }}"
-                )
 
-            input.use { source ->
-                extracted.outputStream().use { target ->
-                    source.copyTo(target)
+            if (input != null) {
+                input.use { source ->
+                    extracted.outputStream().use { target ->
+                        source.copyTo(target)
+                    }
                 }
+                if (System.getProperty("os.name").lowercase().contains("win").not()) {
+                    extracted.setExecutable(true)
+                }
+                println("$TAG: Extracted TorrServer binary to ${extracted.absolutePath}")
+                return extracted
+            }
+
+            println("$TAG: TorrServer binary not found locally, downloading from GitHub releases...")
+            return downloadBinary(tempDir, name)
+        }
+
+        private fun downloadBinary(tempDir: File, binaryName: String): File {
+            val os = System.getProperty("os.name").lowercase()
+            val arch = System.getProperty("os.arch").lowercase()
+
+            val osPart = when {
+                os.contains("linux") -> "linux"
+                os.contains("mac") || os.contains("darwin") -> "darwin"
+                os.contains("win") -> "windows"
+                else -> throw P2pStreamingException("Unsupported OS: $os")
+            }
+
+            val archPart = when {
+                arch.contains("aarch64") || arch.contains("arm64") -> "arm64"
+                arch.contains("amd64") || arch.contains("x86_64") -> "amd64"
+                arch.contains("x86") || arch.contains("386") -> "386"
+                else -> throw P2pStreamingException("Unsupported architecture: $arch")
+            }
+
+            val tagName = "MatriX.141.5"
+            val assetName = if (osPart == "windows") "TorrServer-$osPart-$archPart.exe" else "TorrServer-$osPart-$archPart"
+            val downloadUrl = "https://github.com/YouROK/TorrServer/releases/download/$tagName/$assetName"
+
+            println("$TAG: Downloading TorrServer from $downloadUrl")
+
+            val downloaded = File(tempDir, binaryName)
+            val connection = URL(downloadUrl).openConnection() as HttpURLConnection
+            try {
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 60_000
+                connection.readTimeout = 120_000
+                connection.instanceFollowRedirects = true
+
+                val responseCode = connection.responseCode
+                if (responseCode != 200) {
+                    throw P2pStreamingException("Failed to download TorrServer: HTTP $responseCode")
+                }
+
+                connection.inputStream.use { input ->
+                    downloaded.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            } finally {
+                connection.disconnect()
             }
 
             if (System.getProperty("os.name").lowercase().contains("win").not()) {
-                extracted.setExecutable(true)
+                downloaded.setExecutable(true)
             }
 
-            println("$TAG: Extracted TorrServer binary to ${extracted.absolutePath}")
-            return extracted
+            println("$TAG: Downloaded TorrServer binary to ${downloaded.absolutePath}")
+            return downloaded
         }
 
         suspend fun isRunning(): Boolean {
