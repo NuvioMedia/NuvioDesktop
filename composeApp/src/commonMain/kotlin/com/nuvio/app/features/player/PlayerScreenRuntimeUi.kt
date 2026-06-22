@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -401,6 +402,27 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                         controlsVisible = !playerControlsLocked
                         removeFailedStreamFromCache()
                     }
+                },
+            )
+        }
+
+        if (showExternalPlayerPicker && isDesktop) {
+            val openExternal = args.onOpenInExternalPlayer
+            val request = pendingExternalPlayerRequest
+            PlayerExternalPlayerPickerDialog(
+                players = com.nuvio.app.features.player.ExternalPlayerPlatform.availablePlayers(),
+                selectedPlayerId = null,
+                onPlayerSelected = { playerId ->
+                    showExternalPlayerPicker = false
+                    pendingExternalPlayerRequest = null
+                    if (request != null && openExternal != null) {
+                        openExternal(request.copy(preferredPlayerId = playerId))
+                    }
+                },
+                onDismiss = {
+                    showExternalPlayerPicker = false
+                    pendingExternalPlayerRequest = null
+                    shouldPlay = true
                 },
             )
         }
@@ -949,6 +971,8 @@ private fun PlayerScreenRuntime.handlePlayerControlsScrubFinished(positionMs: Lo
 }
 
 private fun PlayerScreenRuntime.openInExternalPlayer() {
+    shouldPlay = false
+    playerController?.pause()
     val openExternal = args.onOpenInExternalPlayer ?: return
     val loadedSubtitles = addonSubtitles
         .takeIf { it.isNotEmpty() }
@@ -962,16 +986,20 @@ private fun PlayerScreenRuntime.openInExternalPlayer() {
                 lang = sub.language,
             )
         }
-    openExternal(
-        ExternalPlayerPlaybackRequest(
-            sourceUrl = activeSourceUrl,
-            title = title,
-            streamTitle = activeStreamTitle,
-            sourceHeaders = activeSourceHeaders,
-            resumePositionMs = playbackSnapshot.positionMs,
-            subtitles = loadedSubtitles,
-        ),
+    val request = ExternalPlayerPlaybackRequest(
+        sourceUrl = activeSourceUrl,
+        title = title,
+        streamTitle = activeStreamTitle,
+        sourceHeaders = activeSourceHeaders,
+        resumePositionMs = playbackSnapshot.positionMs,
+        subtitles = loadedSubtitles,
     )
+    if (isDesktop) {
+        pendingExternalPlayerRequest = request
+        showExternalPlayerPicker = true
+    } else {
+        openExternal(request)
+    }
 }
 
 private fun PlayerScreenRuntime.buildPlayerControlFilters(

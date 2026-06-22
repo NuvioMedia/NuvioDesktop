@@ -185,6 +185,9 @@ internal class PlayerScreenRuntime(
     var credentialRefreshJob by mutableStateOf<Job?>(null)
     var credentialRefreshAttemptedSourceUrl by mutableStateOf<String?>(null)
 
+    var showExternalPlayerPicker by mutableStateOf(false)
+    var pendingExternalPlayerRequest by mutableStateOf<ExternalPlayerPlaybackRequest?>(null)
+
     var showAudioModal by mutableStateOf(false)
     var showSubtitleModal by mutableStateOf(false)
     var showVideoSettingsModal by mutableStateOf(false)
