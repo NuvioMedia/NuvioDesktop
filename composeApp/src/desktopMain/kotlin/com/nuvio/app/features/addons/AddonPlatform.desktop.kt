@@ -40,10 +40,10 @@ private val desktopHttpClient: HttpClient = HttpClient.newBuilder()
     .build()
 
 actual suspend fun httpGetText(url: String): String =
-    httpGetTextWithHeaders(url, emptyMap())
+    httpGetTextWithHeaders(url, mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"))
 
 actual suspend fun httpPostJson(url: String, body: String): String =
-    httpPostJsonWithHeaders(url, body, emptyMap())
+    httpPostJsonWithHeaders(url, body, mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"))
 
 actual suspend fun httpGetTextWithHeaders(
     url: String,
@@ -80,7 +80,7 @@ actual suspend fun httpRequestRaw(
     }
     val normalizedMethod = method.trim().uppercase().ifBlank { "GET" }
     val requestBuilder = HttpRequest.newBuilder()
-        .uri(URI(url.encodeUnsafeHttpUrlCharacters()))
+        .uri(URI(url))
         .timeout(Duration.ofSeconds(60))
         .method(
             normalizedMethod,
@@ -91,8 +91,9 @@ actual suspend fun httpRequestRaw(
             },
         )
 
+    val restrictedHeaders = setOf("connection", "content-length", "expect", "host", "upgrade")
     headers.forEach { (key, value) ->
-        if (key.isNotBlank() && value.isNotBlank()) {
+        if (key.isNotBlank() && value.isNotBlank() && key.lowercase() !in restrictedHeaders) {
             requestBuilder.header(key, value)
         }
     }

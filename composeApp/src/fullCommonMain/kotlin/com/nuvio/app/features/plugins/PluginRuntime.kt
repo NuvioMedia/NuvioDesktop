@@ -28,14 +28,12 @@ import org.jetbrains.compose.resources.getString
 import kotlin.random.Random
 
 private const val PLUGIN_TIMEOUT_MS = 60_000L
-private const val SLOW_PLUGIN_FETCH_MS = 2_000L
 private const val MAX_FETCH_BODY_CHARS = 256 * 1024
 private const val MAX_FETCH_HEADER_VALUE_CHARS = 8 * 1024
 private const val FETCH_TRUNCATION_SUFFIX = "\n...[truncated]"
 
 internal object PluginRuntime {
     private val log = Logger.withTag("PluginRuntime")
-    private val pluginDispatcher = Dispatchers.Default
     private val json = Json {
         ignoreUnknownKeys = true
     }
@@ -50,7 +48,7 @@ internal object PluginRuntime {
         episode: Int?,
         scraperId: String,
         scraperSettings: Map<String, Any> = emptyMap(),
-    ): List<PluginRuntimeResult> = withContext(pluginDispatcher) {
+    ): List<PluginRuntimeResult> = withContext(Dispatchers.Default) {
         withTimeout(PLUGIN_TIMEOUT_MS) {
             executePluginInternal(
                 code = code,
@@ -79,7 +77,7 @@ internal object PluginRuntime {
         var resultJson = "[]"
 
         try {
-            quickJs(pluginDispatcher) {
+            quickJs(Dispatchers.Default) {
                 define("console") {
                     function("log") { args ->
                         log.d { "Plugin:$scraperId ${args.joinToString(" ") { it?.toString() ?: "null" }}" }
@@ -329,8 +327,7 @@ internal object PluginRuntime {
                 headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             }
 
-            val startedAt = kotlin.time.TimeSource.Monotonic.markNow()
-            val response = runBlocking(pluginDispatcher) {
+            val response = runBlocking {
                 httpRequestRaw(
                     method = method,
                     url = url,
@@ -338,10 +335,6 @@ internal object PluginRuntime {
                     body = body,
                     followRedirects = followRedirects,
                 )
-            }
-            val elapsed = startedAt.elapsedNow()
-            if (elapsed.inWholeMilliseconds >= SLOW_PLUGIN_FETCH_MS) {
-                log.w { "Slow plugin fetch $method $url status=${response.status} elapsed=$elapsed" }
             }
 
             val responseHeaders = response.headers.mapValues { (_, value) ->
