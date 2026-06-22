@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +41,9 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioDesktopImageScaling
 import com.nuvio.app.core.ui.NuvioTokens
+import com.nuvio.app.core.ui.FullscreenActionButton
+import com.nuvio.app.core.ui.fullscreenActionHorizontalInsetForWidth
+import com.nuvio.app.core.ui.isFullscreenActionSupported
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.formatRuntimeForDisplay
 import nuvio.composeapp.generated.resources.Res
@@ -85,13 +89,14 @@ fun DesktopDetailHero(
     }
     val logoUrl = meta.logo?.takeIf { it.isNotBlank() }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .height(660.dp)
             .graphicsLayer { clip = true }
             .onSizeChanged { onHeightChanged(it.height) },
     ) {
+        val actionHorizontalInset = fullscreenActionHorizontalInsetForWidth(maxWidth.value)
         val imageUrl = meta.background ?: meta.poster
         if (imageUrl != null) {
             AsyncImage(
@@ -268,6 +273,18 @@ fun DesktopDetailHero(
                 isTablet = true,
                 onPlayClick = onPlayClick,
                 onPlayLongClick = onPlayLongClick,
+            )
+        }
+
+        if (isFullscreenActionSupported) {
+            FullscreenActionButton(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = space.s32, end = actionHorizontalInset),
+                buttonSize = 48.dp,
+                iconSize = 24.dp,
+                containerColor = colorScheme.surfaceVariant.copy(alpha = 0.82f),
+                contentColor = colorScheme.onSurface,
             )
         }
     }

@@ -72,6 +72,7 @@ import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.TraktListPickerDialog
+import com.nuvio.app.core.ui.fullscreenActionHorizontalInsetForWidth
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.features.details.components.DetailActionButtons
@@ -763,11 +764,12 @@ fun MetaDetailsScreen(
                 )
 
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                    val isTablet = maxWidth >= 720.dp
-                    val useDesktopDetailLayout = isDesktop && maxWidth >= 1000.dp
+                    val screenMaxWidth = maxWidth
+                    val isTablet = screenMaxWidth >= 720.dp
+                    val useDesktopDetailLayout = isDesktop && screenMaxWidth >= 1000.dp
                     val viewportHeight = maxHeight
                     val contentHorizontalPadding = if (isTablet) 32.dp else 18.dp
-                    val contentMaxWidth = detailTabletContentMaxWidth(maxWidth, isTablet)
+                    val contentMaxWidth = detailTabletContentMaxWidth(screenMaxWidth, isTablet)
                     val cinematicEnabled = metaScreenSettingsUiState.cinematicBackground && deferredMetaWorkAllowed
 
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -1059,14 +1061,15 @@ fun MetaDetailsScreen(
                         }
 
                         if (useDesktopDetailLayout && headerProgress <= 0.05f) {
+                            val actionHorizontalInset = fullscreenActionHorizontalInsetForWidth(screenMaxWidth.value)
                             NuvioBackButton(
                                 onClick = onBackFromDetails,
                                 modifier = Modifier
-                                    .padding(start = 28.dp, top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 22.dp)
+                                    .padding(start = actionHorizontalInset, top = 32.dp)
                                     .zIndex(2f),
                                 containerColor = Color.Black.copy(alpha = 0.34f),
                                 contentColor = MaterialTheme.colorScheme.onBackground,
-                                buttonSize = 42.dp,
+                                buttonSize = 48.dp,
                                 iconSize = 24.dp,
                             )
                         }

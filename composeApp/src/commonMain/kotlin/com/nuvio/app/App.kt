@@ -54,12 +54,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,7 +123,6 @@ import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.catalog.CatalogRepository
 import com.nuvio.app.features.catalog.CatalogScreen
 import com.nuvio.app.features.catalog.CatalogTarget
-import com.nuvio.app.features.catalog.CatalogTargetKind
 import com.nuvio.app.features.cloud.CloudLibraryContentType
 import com.nuvio.app.features.cloud.CloudLibraryFile
 import com.nuvio.app.features.cloud.CloudLibraryItem
@@ -323,65 +324,30 @@ data class StreamRoute(
 
 @Serializable
 data class CatalogRoute(
+    val launchId: Long,
+)
+
+private data class CatalogLaunch(
     val title: String,
     val subtitle: String,
-    val targetKind: String,
-    val contentType: String,
-    val supportsPagination: Boolean = false,
-    val manifestUrl: String? = null,
-    val addonCatalogId: String? = null,
-    val genre: String? = null,
-    val librarySectionType: String? = null,
-    val collectionId: String? = null,
-    val folderId: String? = null,
-    val sourceKey: String? = null,
-) {
-    constructor(
-        title: String,
-        subtitle: String,
-        target: CatalogTarget,
-    ) : this(
-        title = title,
-        subtitle = subtitle,
-        targetKind = when (target) {
-            is CatalogTarget.Addon -> CatalogTargetKind.ADDON
-            is CatalogTarget.Library -> CatalogTargetKind.LIBRARY
-            is CatalogTarget.CollectionSource -> CatalogTargetKind.COLLECTION_SOURCE
-        }.name,
-        contentType = target.contentType,
-        supportsPagination = target.supportsPagination,
-        manifestUrl = (target as? CatalogTarget.Addon)?.manifestUrl,
-        addonCatalogId = (target as? CatalogTarget.Addon)?.catalogId,
-        genre = (target as? CatalogTarget.Addon)?.genre,
-        librarySectionType = (target as? CatalogTarget.Library)?.sectionType,
-        collectionId = (target as? CatalogTarget.CollectionSource)?.collectionId,
-        folderId = (target as? CatalogTarget.CollectionSource)?.folderId,
-        sourceKey = (target as? CatalogTarget.CollectionSource)?.sourceKey,
-    )
+    val target: CatalogTarget,
+)
 
-    fun toCatalogTarget(): CatalogTarget =
-        when (CatalogTargetKind.valueOf(targetKind)) {
-            CatalogTargetKind.ADDON -> CatalogTarget.Addon(
-                manifestUrl = requireNotNull(manifestUrl),
-                contentType = contentType,
-                catalogId = requireNotNull(addonCatalogId),
-                genre = genre,
-                supportsPagination = supportsPagination,
-            )
+private object CatalogLaunchStore {
+    private var nextLaunchId = 1L
+    private val launches = mutableMapOf<Long, CatalogLaunch>()
 
-            CatalogTargetKind.LIBRARY -> CatalogTarget.Library(
-                contentType = contentType,
-                sectionType = requireNotNull(librarySectionType),
-            )
+    fun put(launch: CatalogLaunch): Long {
+        val launchId = nextLaunchId++
+        launches[launchId] = launch
+        return launchId
+    }
 
-            CatalogTargetKind.COLLECTION_SOURCE -> CatalogTarget.CollectionSource(
-                collectionId = requireNotNull(collectionId),
-                folderId = requireNotNull(folderId),
-                sourceKey = requireNotNull(sourceKey),
-                contentType = contentType,
-                supportsPagination = supportsPagination,
-            )
-        }
+    fun get(launchId: Long): CatalogLaunch? = launches[launchId]
+
+    fun remove(launchId: Long) {
+        launches.remove(launchId)
+    }
 }
 
 private data class PosterActionTarget(
@@ -785,6 +751,7 @@ private fun MainAppContent(
         val navController = rememberNavController()
         val appUpdaterController = rememberAppUpdaterController()
         val hapticFeedback = LocalHapticFeedback.current
+        val focusManager = LocalFocusManager.current
         val coroutineScope = rememberCoroutineScope()
         var selectedTab by rememberSaveable { mutableStateOf(AppScreenTab.Home) }
         var searchFocusRequestCount by remember { mutableStateOf(0) }
@@ -818,6 +785,14 @@ private fun MainAppContent(
         val addonsUiState by AddonRepository.uiState.collectAsStateWithLifecycle()
         val libraryUiState by LibraryRepository.uiState.collectAsStateWithLifecycle()
         val authState by AuthRepository.state.collectAsStateWithLifecycle()
+        val openPosterActions: (PosterActionTarget) -> Unit = { target ->
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+            focusManager.clearFocus(force = true)
+            coroutineScope.launch {
+                withFrameNanos { }
+                selectedPosterActionTarget = target
+            }
+        }
         val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
     val playerSettingsUiState by PlayerSettingsRepository.uiState.collectAsStateWithLifecycle()
     val externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported
@@ -1348,11 +1323,16 @@ private fun MainAppContent(
             }
 
         val onCatalogClick: (HomeCatalogSection) -> Unit = { section ->
-            navController.navigate(
-                CatalogRoute(
+            val launchId = CatalogLaunchStore.put(
+                CatalogLaunch(
                     title = section.title,
                     subtitle = section.subtitle,
                     target = section.target,
+                ),
+            )
+            navController.navigate(
+                CatalogRoute(
+                    launchId = launchId,
                 ),
             )
         }
@@ -1364,14 +1344,19 @@ private fun MainAppContent(
         }
 
         val onLibrarySectionViewAllClick: (LibrarySection) -> Unit = { section ->
-            navController.navigate(
-                CatalogRoute(
+            val launchId = CatalogLaunchStore.put(
+                CatalogLaunch(
                     title = section.displayTitle,
                     subtitle = librarySectionSubtitle,
                     target = CatalogTarget.Library(
                         contentType = section.items.firstOrNull()?.type ?: "movie",
                         sectionType = section.type,
                     ),
+                ),
+            )
+            navController.navigate(
+                CatalogRoute(
+                    launchId = launchId,
                 ),
             )
         }
@@ -1577,18 +1562,18 @@ private fun MainAppContent(
                                             navController.navigate(DetailRoute(type = meta.type, id = meta.id))
                                         },
                                         onPosterLongClick = { meta ->
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            selectedPosterActionTarget = PosterActionTarget(preview = meta)
+                                            openPosterActions(PosterActionTarget(preview = meta))
                                         },
                                         onLibraryPosterClick = { item ->
                                             navController.navigate(DetailRoute(type = item.type, id = item.id))
                                         },
                                         onLibraryPosterLongClick = { item, section ->
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            selectedPosterActionTarget = PosterActionTarget(
-                                                preview = item.toMetaPreview(),
-                                                libraryItem = item,
-                                                libraryListKey = section.type,
+                                            openPosterActions(
+                                                PosterActionTarget(
+                                                    preview = item.toMetaPreview(),
+                                                    libraryItem = item,
+                                                    libraryListKey = section.type,
+                                                ),
                                             )
                                         },
                                         onLibrarySectionViewAllClick = onLibrarySectionViewAllClick,
@@ -2567,29 +2552,38 @@ private fun MainAppContent(
                 }
                 composable<CatalogRoute> { backStackEntry ->
                     val route = backStackEntry.toRoute<CatalogRoute>()
-                    val target = route.toCatalogTarget()
+                    val launch = remember(route.launchId) { CatalogLaunchStore.get(route.launchId) }
+                    if (launch == null) {
+                        LaunchedEffect(route.launchId) {
+                            navController.popBackStack()
+                        }
+                        return@composable
+                    }
+                    val target = launch.target
                     CatalogScreen(
-                        title = route.title,
-                        subtitle = route.subtitle,
+                        title = launch.title,
+                        subtitle = launch.subtitle,
                         target = target,
                         onBack = {
                             CatalogRepository.clear()
+                            CatalogLaunchStore.remove(route.launchId)
                             navController.popBackStack()
                         },
                         onPosterClick = { meta ->
                             navController.navigate(DetailRoute(type = meta.type, id = meta.id))
                         },
                         onPosterLongClick = { meta ->
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                            selectedPosterActionTarget = if (target is CatalogTarget.Library) {
-                                PosterActionTarget(
-                                    preview = meta,
-                                    libraryItem = meta.toLibraryItem(savedAtEpochMs = 0L),
-                                    libraryListKey = target.sectionType,
-                                )
-                            } else {
-                                PosterActionTarget(preview = meta)
-                            }
+                            openPosterActions(
+                                if (target is CatalogTarget.Library) {
+                                    PosterActionTarget(
+                                        preview = meta,
+                                        libraryItem = meta.toLibraryItem(savedAtEpochMs = 0L),
+                                        libraryListKey = target.sectionType,
+                                    )
+                                } else {
+                                    PosterActionTarget(preview = meta)
+                                },
+                            )
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
