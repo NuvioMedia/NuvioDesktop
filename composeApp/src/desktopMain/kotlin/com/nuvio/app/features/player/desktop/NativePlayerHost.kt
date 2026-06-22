@@ -53,7 +53,7 @@ internal class NativePlayerHost : PlayerHost {
         latestImage = Image.makeRaster(imageInfo, bytes, width * 4)
         previousImage?.close()
 
-        if (++gcCounter % 60 == 0) System.gc()
+        gcCounter++
         return true
     }
 
