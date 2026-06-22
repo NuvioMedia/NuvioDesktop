@@ -16,6 +16,7 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 import java.io.File
+import java.net.URL
 import java.util.Properties
 import javax.inject.Inject
 
@@ -480,6 +481,7 @@ val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generat
 
 val isMacHost = System.getProperty("os.name").contains("mac", ignoreCase = true)
 val isWindowsHost = System.getProperty("os.name").contains("win", ignoreCase = true)
+val isLinuxHost = System.getProperty("os.name").contains("linux", ignoreCase = true)
 val mpvKitDir = providers.gradleProperty("nuvio.mpvkit.dir")
     .orElse(rootProject.layout.projectDirectory.dir("MPVKit").asFile.absolutePath)
 val macosPlayerBridgeSource = layout.projectDirectory.file("src/desktopMain/native/macos/player_bridge.mm")
@@ -804,6 +806,26 @@ val generateWindowsPlayerRuntimeIndex = tasks.register<GenerateNativeRuntimeInde
     indexFile.set(windowsPlayerRuntimeOutput.map { it.file("runtime-files.txt") })
 }
 
+val torrserverOutputDir = layout.buildDirectory.dir("native/torrserver")
+
+val downloadTorrserver = tasks.register("downloadTorrserver") {
+    enabled = isLinuxHost
+    val outputFile = torrserverOutputDir.get().file("torrserver").asFile
+    outputs.file(outputFile)
+    doLast {
+        outputFile.parentFile.mkdirs()
+        val url = URL("https://github.com/YouROK/TorrServer/releases/latest/download/TorrServer-linux-amd64")
+        logger.lifecycle("Downloading TorrServer for Linux from $url")
+        url.openStream().use { input ->
+            outputFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        outputFile.setExecutable(true)
+        logger.lifecycle("TorrServer downloaded to ${outputFile.absolutePath}")
+    }
+}
+
 abstract class GenerateNativeRuntimeIndexTask : DefaultTask() {
     @get:InputDirectory
     abstract val runtimeDir: DirectoryProperty
@@ -839,6 +861,12 @@ tasks.withType<Jar>().configureEach {
             into("native/windows")
         }
     }
+    if (isLinuxHost && name == "desktopJar") {
+        dependsOn(downloadTorrserver)
+        from(torrserverOutputDir) {
+            into("native/torrserver")
+        }
+    }
 }
 
 if (isWindowsHost) {
@@ -866,6 +894,31 @@ if (isWindowsHost) {
     )
     tasks.matching { it.name in desktopNativePlayerTasks }.configureEach {
         dependsOn(buildWindowsPlayerBridge, prepareWindowsPlayerRuntime, generateWindowsPlayerRuntimeIndex)
+    }
+}
+
+if (isLinuxHost) {
+    val desktopP2pTasks = setOf(
+        "run",
+        "runRelease",
+        "desktopRun",
+        "runDistributable",
+        "runReleaseDistributable",
+        "desktopRunHot",
+        "hotRunDesktop",
+        "hotRunDesktopAsync",
+        "hotDevDesktop",
+        "hotDevDesktopAsync",
+        "createDistributable",
+        "createReleaseDistributable",
+        "createRuntimeImage",
+        "package",
+        "packageDistributionForCurrentOS",
+        "packageUberJarForCurrentOS",
+        "packageReleaseDistributionForCurrentOS",
+    )
+    tasks.matching { it.name in desktopP2pTasks }.configureEach {
+        dependsOn(downloadTorrserver)
     }
 }
 
