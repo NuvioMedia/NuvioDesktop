@@ -1002,6 +1002,8 @@ private fun MainAppContent(
     }
     var resumePromptItem by remember { mutableStateOf<ContinueWatchingItem?>(null) }
     var lastExternalPlayerLaunch by remember { mutableStateOf<PlayerLaunch?>(null) }
+    var externalPlayerPromptRequest by remember { mutableStateOf<ExternalPlayerPlaybackRequest?>(null) }
+    var externalPlayerPromptLaunch by remember { mutableStateOf<PlayerLaunch?>(null) }
     val activePlaybackProfileId = profileState.activeProfile?.profileIndex ?: ProfileRepository.activeProfileId
     val launchExternalPlayer = rememberExternalPlayerLauncher { result ->
         if (result != null && result.positionMs > 0L) {
@@ -1117,7 +1119,7 @@ private fun MainAppContent(
             }
         }
 
-        suspend fun openExternalPlayback(launch: PlayerLaunch): Boolean {
+        suspend fun openExternalPlayback(launch: PlayerLaunch, forcePrompt: Boolean = false): Boolean {
             if (!externalPlayerSupported) return false
 
             lastExternalPlayerLaunch = launch
@@ -1144,6 +1146,13 @@ private fun MainAppContent(
                 onOverlayMessage = { _ -> },
             )
             StreamsRepository.setOverlayVisible(false)
+
+            if (forcePrompt) {
+                externalPlayerPromptRequest = enrichedRequest
+                externalPlayerPromptLaunch = launch
+                return true
+            }
+
             return when (
                 val intentResult = ExternalPlayerPlatform.buildIntent(
                     request = enrichedRequest,
@@ -2397,7 +2406,7 @@ private fun MainAppContent(
                         )
 
                         if (!forceInternal && externalPlayerSupported && (forceExternal || playerSettings.externalPlayerEnabled)) {
-                            coroutineScope.launch { openExternalPlayback(playerLaunch) }
+                            coroutineScope.launch { openExternalPlayback(playerLaunch, forcePrompt = forceExternal) }
                             StreamsRepository.cancelLoading()
                             return
                         }
@@ -2566,49 +2575,8 @@ private fun MainAppContent(
                             navController.popBackStack()
                         },
                         onOpenInExternalPlayer = if (externalPlayerSupported) { { request ->
-                            val playerLaunch = PlayerLaunch(
-                                profileId = launch.profileId,
-                                title = launch.title,
-                                sourceUrl = request.sourceUrl,
-                                sourceHeaders = request.sourceHeaders,
-                                logo = launch.logo,
-                                poster = launch.poster,
-                                background = launch.background,
-                                seasonNumber = launch.seasonNumber,
-                                episodeNumber = launch.episodeNumber,
-                                episodeTitle = launch.episodeTitle,
-                                episodeThumbnail = launch.episodeThumbnail,
-                                streamTitle = request.streamTitle ?: launch.streamTitle,
-                                streamSubtitle = launch.streamSubtitle,
-                                bingeGroup = launch.bingeGroup,
-                                pauseDescription = launch.pauseDescription,
-                                providerName = launch.providerName,
-                                providerAddonId = launch.providerAddonId,
-                                contentType = launch.contentType,
-                                videoId = launch.videoId,
-                                parentMetaId = launch.parentMetaId,
-                                parentMetaType = launch.parentMetaType,
-                                initialPositionMs = request.resumePositionMs,
-                            )
-                            lastExternalPlayerLaunch = playerLaunch
-                            val intentResult = ExternalPlayerPlatform.buildIntent(
-                                request = request,
-                                playerId = playerSettingsUiState.externalPlayerId,
-                            )
-                            when (intentResult) {
-                                is ExternalPlayerIntentResult.Success -> {
-                                    val launched = launchExternalPlayer(intentResult)
-                                    if (!launched) {
-                                        NuvioToastController.show(externalPlayerFailedText)
-                                    }
-                                }
-                                ExternalPlayerIntentResult.NotConfigured -> {
-                                    NuvioToastController.show(externalPlayerNotConfiguredText)
-                                }
-                                ExternalPlayerIntentResult.Failed -> {
-                                    NuvioToastController.show(externalPlayerFailedText)
-                                }
-                            }
+                            externalPlayerPromptRequest = request
+                            externalPlayerPromptLaunch = launch
                         } } else null,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -3024,6 +2992,89 @@ private fun MainAppContent(
                     .align(Alignment.Center)
                     .zIndex(25f),
             )
+
+            externalPlayerPromptRequest?.let { request ->
+                if (request.preferredPlayerId != null) {
+                    // Desktop inline picker already chose the player — launch directly
+                    LaunchedEffect(request) {
+                        val intentResult = ExternalPlayerPlatform.buildIntent(
+                            request = request,
+                            playerId = request.preferredPlayerId,
+                        )
+                        when (intentResult) {
+                            is ExternalPlayerIntentResult.Success -> {
+                                val launched = launchExternalPlayer(intentResult)
+                                if (!launched) NuvioToastController.show(externalPlayerFailedText)
+                            }
+                            ExternalPlayerIntentResult.NotConfigured ->
+                                NuvioToastController.show(externalPlayerNotConfiguredText)
+                            ExternalPlayerIntentResult.Failed ->
+                                NuvioToastController.show(externalPlayerFailedText)
+                        }
+                        externalPlayerPromptRequest = null
+                        externalPlayerPromptLaunch = null
+                    }
+                } else {
+                    com.nuvio.app.features.settings.ExternalPlayerSelectionDialog(
+                        players = ExternalPlayerPlatform.availablePlayers(),
+                        selectedPlayerId = playerSettingsUiState.externalPlayerId,
+                        onPlayerSelected = { playerId ->
+                            externalPlayerPromptRequest = null
+                            val launch = externalPlayerPromptLaunch
+                            if (launch != null) {
+                                val playerLaunch = PlayerLaunch(
+                                    profileId = launch.profileId,
+                                    title = launch.title,
+                                    sourceUrl = request.sourceUrl,
+                                    sourceHeaders = request.sourceHeaders,
+                                    logo = launch.logo,
+                                    poster = launch.poster,
+                                    background = launch.background,
+                                    seasonNumber = launch.seasonNumber,
+                                    episodeNumber = launch.episodeNumber,
+                                    episodeTitle = launch.episodeTitle,
+                                    episodeThumbnail = launch.episodeThumbnail,
+                                    streamTitle = request.streamTitle ?: launch.streamTitle,
+                                    streamSubtitle = launch.streamSubtitle,
+                                    bingeGroup = launch.bingeGroup,
+                                    pauseDescription = launch.pauseDescription,
+                                    providerName = launch.providerName,
+                                    providerAddonId = launch.providerAddonId,
+                                    contentType = launch.contentType,
+                                    videoId = launch.videoId,
+                                    parentMetaId = launch.parentMetaId,
+                                    parentMetaType = launch.parentMetaType,
+                                    initialPositionMs = request.resumePositionMs,
+                                )
+                                lastExternalPlayerLaunch = playerLaunch
+                            }
+                            val intentResult = ExternalPlayerPlatform.buildIntent(
+                                request = request,
+                                playerId = playerId,
+                            )
+                            when (intentResult) {
+                                is ExternalPlayerIntentResult.Success -> {
+                                    val launched = launchExternalPlayer(intentResult)
+                                    if (!launched) {
+                                        NuvioToastController.show(externalPlayerFailedText)
+                                    }
+                                }
+                                ExternalPlayerIntentResult.NotConfigured -> {
+                                    NuvioToastController.show(externalPlayerNotConfiguredText)
+                                }
+                                ExternalPlayerIntentResult.Failed -> {
+                                    NuvioToastController.show(externalPlayerFailedText)
+                                }
+                            }
+                            externalPlayerPromptLaunch = null
+                        },
+                        onDismiss = {
+                            externalPlayerPromptRequest = null
+                            externalPlayerPromptLaunch = null
+                        }
+                    )
+                }
+            }
         }
 }
 
