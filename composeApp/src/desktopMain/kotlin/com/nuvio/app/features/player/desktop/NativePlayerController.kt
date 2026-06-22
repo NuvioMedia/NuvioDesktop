@@ -715,6 +715,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonField("controlsVisible", controlsVisible)
         append(',')
+        appendJsonField("hasNextEpisode", hasNextEpisode)
+        append(',')
         appendJsonArrayField("parentalWarnings", parentalWarnings) { appendParentalWarningJson(it) }
         append(',')
         appendJsonField("showParentalGuide", showParentalGuide)

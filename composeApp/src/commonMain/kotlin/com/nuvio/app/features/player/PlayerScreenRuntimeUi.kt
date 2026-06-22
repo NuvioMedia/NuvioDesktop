@@ -163,6 +163,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         episodeText = episodeText,
         streamTitle = activeStreamTitle,
         providerName = activeProviderName,
+        hasNextEpisode = isEpisode && nextEpisodeInfo != null && nextEpisodeInfo?.hasAired == true,
         pauseOverlayWatchingLabel = stringResource(Res.string.compose_player_youre_watching),
         pauseOverlayLogo = logo,
         pauseOverlayEpisodeInfo = if (seasonNumber != null && episodeNumber != null) {
@@ -472,6 +473,8 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             onTogglePlayback = { togglePlayback() },
             onSeekBack = { seekBy(-10_000L) },
             onSeekForward = { seekBy(10_000L) },
+            hasNextEpisode = isEpisode && nextEpisodeInfo != null && nextEpisodeInfo?.hasAired == true,
+            onNextEpisodeClick = { playNextEpisode() },
             onResizeModeClick = { cycleResizeMode() },
             onSpeedClick = { cyclePlaybackSpeed() },
             onSubtitleClick = {
@@ -713,6 +716,7 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         }
         "playNextEpisode" -> {
             if (nextEpisodeInfo?.hasAired == true) {
+                showNextEpisodeCard = true
                 nextEpisodeAutoPlayJob?.cancel()
                 playNextEpisode()
             }

@@ -22,6 +22,7 @@ const pauseDescription = document.getElementById("pauseDescription");
 const toggle = document.getElementById("toggle");
 const toggleIcon = document.getElementById("toggleIcon");
 const toggleLabel = document.getElementById("toggleLabel");
+const nextEpisodeButton = document.getElementById("nextEpisodeButton");
 const lockIcon = document.getElementById("lockIcon");
 const fullscreenButton = document.getElementById("fullscreenButton");
 const fullscreenIcon = document.getElementById("fullscreenIcon");
@@ -1873,6 +1874,7 @@ const renderChrome = () => {
   setVisible(videoSettingsButton, Boolean(state.showVideoSettings));
   setVisible(sourcesButton, Boolean(state.showSources));
   setVisible(episodesButton, Boolean(state.showEpisodes));
+  setVisible(nextEpisodeButton, Boolean(state.hasNextEpisode));
   syncActionFocusState();
 
   const playPauseLabel = isPlaying ? state.pauseLabel : state.playLabel;
@@ -2571,4 +2573,10 @@ document.addEventListener("keydown", event => {
 setProgress(0, 0);
 focusShortcutRoot();
 render();
+
+nextEpisodeButton.addEventListener("click", event => {
+  event.stopPropagation();
+  send("playNextEpisode", 0);
+});
+
 send("controlsReady", 0);

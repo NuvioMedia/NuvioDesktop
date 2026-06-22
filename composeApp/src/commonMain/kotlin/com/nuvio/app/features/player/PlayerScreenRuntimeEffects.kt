@@ -460,7 +460,7 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
             if (playerSettingsUiState.streamAutoPlayNextEpisodeEnabled && nextEpisodeInfo?.hasAired == true) {
                 playNextEpisode()
             }
-        } else if (!shouldShow) {
+        } else if (!shouldShow && !nextEpisodeAutoPlaySearching && nextEpisodeAutoPlayCountdown == null) {
             showNextEpisodeCard = false
         }
     }

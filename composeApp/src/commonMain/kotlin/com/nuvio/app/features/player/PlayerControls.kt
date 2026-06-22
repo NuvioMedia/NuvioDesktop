@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Replay10
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.VideoLibrary
@@ -90,6 +91,8 @@ internal fun PlayerControlsShell(
     onEpisodesClick: (() -> Unit)? = null,
     onOpenInExternalPlayer: (() -> Unit)? = null,
     onSubmitIntroClick: (() -> Unit)? = null,
+    hasNextEpisode: Boolean = false,
+    onNextEpisodeClick: (() -> Unit)? = null,
     parentalWarnings: List<ParentalWarning> = emptyList(),
     showParentalGuide: Boolean = false,
     onParentalGuideAnimationComplete: () -> Unit = {},
@@ -169,6 +172,8 @@ internal fun PlayerControlsShell(
                     onSeekBack = onSeekBack,
                     onSeekForward = onSeekForward,
                     onTogglePlayback = onTogglePlayback,
+                    hasNextEpisode = hasNextEpisode,
+                    onNextEpisodeClick = onNextEpisodeClick,
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(bottom = metrics.centerLift),
@@ -383,6 +388,8 @@ private fun CenterControls(
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
     onTogglePlayback: () -> Unit,
+    hasNextEpisode: Boolean = false,
+    onNextEpisodeClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -408,6 +415,14 @@ private fun CenterControls(
             metrics = metrics,
             onClick = onSeekForward,
         )
+        if (hasNextEpisode && onNextEpisodeClick != null) {
+            SideControlButton(
+                icon = Icons.Rounded.SkipNext,
+                contentDescription = stringResource(Res.string.player_next_episode),
+                metrics = metrics,
+                onClick = onNextEpisodeClick,
+            )
+        }
     }
 }
 
