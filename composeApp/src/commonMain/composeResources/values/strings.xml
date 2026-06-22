@@ -7,6 +7,8 @@
     <string name="action_delete">Delete</string>
     <string name="action_done">Done</string>
     <string name="action_edit">Edit</string>
+    <string name="action_fullscreen">Fullscreen</string>
+    <string name="action_exit_fullscreen">Exit fullscreen</string>
     <string name="action_import">Import</string>
     <string name="action_next">Next</string>
     <string name="action_ok">OK</string>

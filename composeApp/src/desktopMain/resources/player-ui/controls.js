@@ -1477,10 +1477,12 @@ const renderEpisodeStreams = () => {
     );
     return;
   }
-  items.forEach(item => appendSourceRow(episodeStreamList, item, selected => {
-    send("selectEpisodeStream", Number(selected.index) || 0);
-    window.setTimeout(closePlayerModal, 120);
-  }));
+  items.forEach(item => {
+    episodeStreamList.appendChild(buildSourceRow(item, selected => {
+      send("selectEpisodeStream", Number(selected.index) || 0);
+      window.setTimeout(closePlayerModal, 120);
+    }));
+  });
 };
 
 const renderEpisodesModal = () => {

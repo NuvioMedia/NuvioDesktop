@@ -198,8 +198,9 @@ fun DetailMetaInfo(
 }
 
 @Composable
-private fun DetailRatingsRow(
+internal fun DetailRatingsRow(
     ratings: List<MetaExternalRating>,
+    modifier: Modifier = Modifier,
 ) {
     val orderedRatings = remember(ratings) {
         val bySource = ratings.associateBy { it.source }
@@ -212,7 +213,7 @@ private fun DetailRatingsRow(
     val scrollState = rememberScrollState()
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .nuvioDesktopDragScroll(scrollState)
             .horizontalScroll(scrollState),

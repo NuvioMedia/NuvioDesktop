@@ -80,7 +80,7 @@ actual suspend fun httpRequestRaw(
     }
     val normalizedMethod = method.trim().uppercase().ifBlank { "GET" }
     val requestBuilder = HttpRequest.newBuilder()
-        .uri(URI(url))
+        .uri(URI(url.encodeUnsafeHttpUrlCharacters()))
         .timeout(Duration.ofSeconds(60))
         .method(
             normalizedMethod,

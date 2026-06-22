@@ -188,8 +188,14 @@ fun NuvioScreenHeader(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s2),
                 verticalAlignment = Alignment.CenterVertically,
-                content = actions,
-            )
+            ) {
+                FullscreenActionButton(
+                    buttonSize = 48.dp,
+                    iconSize = 24.dp,
+                    contentColor = tokens.colors.textPrimary,
+                )
+                actions()
+            }
         }
     }
 }
