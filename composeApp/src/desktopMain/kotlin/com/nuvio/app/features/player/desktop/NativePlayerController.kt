@@ -126,18 +126,26 @@ internal class NativePlayerController(
     }
 
     fun updateControls(state: PlayerControlsState) {
-        controlsState = state
         host.setControlsVisible(state.controlsVisible)
         val currentHandle = handle
+        val current = currentHandle.takeIf { it != 0L } ?: run {
+            controlsState = state
+            return
+        }
+        val stateWithVolume = if (state.volumeLevel == null) {
+            state.copy(volumeLevel = NativePlayerBridge.volume(current).coerceIn(0f, 1f))
+        } else {
+            state
+        }
+        controlsState = stateWithVolume
         val isFullscreen = isDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
         val structureKey = NativeControlsStructureKey(
-            state = state.nativeControlsStructureKey(),
+            state = stateWithVolume.nativeControlsStructureKey(),
             isFullscreen = isFullscreen,
         )
-        val current = currentHandle.takeIf { it != 0L } ?: return
         if (structureKey == lastSentControlsStructureKey) return
         lastSentControlsStructureKey = structureKey
-        NativePlayerBridge.updateControls(current, state.toControlsJson(isFullscreen))
+        NativePlayerBridge.updateControls(current, stateWithVolume.toControlsJson(isFullscreen))
     }
 
     fun setResizeMode(mode: PlayerResizeMode) {
@@ -173,6 +181,7 @@ internal class NativePlayerController(
                 lastSentControlsStructureKey = null
                 updateControls(controlsState)
             }
+            "volumeChange" -> setFallbackVolume(value.toFloat())
             else -> {
                 val eventHandled = onEvent(type, value)
                 if (eventHandled) return
@@ -222,6 +231,14 @@ internal class NativePlayerController(
         if (current != 0L) {
             val currentLevel = controlsState.volumeLevel ?: NativePlayerBridge.volume(current).coerceIn(0f, 1f)
             val nextLevel = (currentLevel + (delta / 100f)).coerceIn(0f, 1f)
+            setFallbackVolume(nextLevel)
+        }
+    }
+
+    private fun setFallbackVolume(level: Float) {
+        val current = handle
+        if (current != 0L) {
+            val nextLevel = level.coerceIn(0f, 1f)
             NativePlayerBridge.setVolume(current, nextLevel)
             controlsState = controlsState.copy(volumeLevel = nextLevel)
             updateControls(controlsState)

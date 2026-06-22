@@ -3,6 +3,9 @@ const seek = document.getElementById("seek");
 const positionLabel = document.getElementById("position");
 const durationLabel = document.getElementById("duration");
 const timeLabel = document.getElementById("timeLabel");
+const volumeControl = document.getElementById("volumeControl");
+const volumeIcon = document.getElementById("volumeIcon");
+const volumeSlider = document.getElementById("volumeSlider");
 const bufferingStatus = document.getElementById("bufferingStatus");
 const playbackError = document.getElementById("playbackError");
 const playbackErrorTitle = document.getElementById("playbackErrorTitle");
@@ -443,6 +446,20 @@ const volumeToastLabel = (fallbackDelta = 0) => {
   return fallbackDelta < 0 ? "Volume down" : "Volume up";
 };
 
+const syncVolumeControl = () => {
+  if (!volumeControl || !volumeSlider || !volumeIcon) return;
+  const volumeLevel = state.volumeLevel;
+  const hasLevel = typeof volumeLevel === "number" && Number.isFinite(volumeLevel);
+  const clampedLevel = hasLevel ? Math.max(0, Math.min(1, volumeLevel)) : 1;
+  const percent = Math.round(clampedLevel * 100);
+  const label = `Volume ${percent}%`;
+  volumeControl.style.setProperty("--volume", `${percent}%`);
+  volumeSlider.value = String(percent);
+  volumeSlider.setAttribute("aria-label", label);
+  volumeSlider.setAttribute("title", label);
+  volumeIcon.setAttribute("href", percent === 0 ? "#icon-volume-muted" : "#icon-volume");
+};
+
 const nextVolumeToastLabel = delta => {
   const volumeLevel = state.volumeLevel;
   if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
@@ -651,6 +668,7 @@ const setProgress = (positionMs, durationMs) => {
   if (timeLabel) {
     timeLabel.textContent = `${formatTime(positionMs)} / ${formatTime(durationMs)}`;
   }
+  syncVolumeControl();
 };
 
 const setText = (element, text) => {
@@ -1907,7 +1925,7 @@ const focusShortcutRoot = () => {
 
 const isTextEntryTarget = target => {
   const element = target && target.closest && target.closest("input, textarea, select, [contenteditable='true']");
-  return Boolean(element);
+  return Boolean(element && element.type !== "range");
 };
 
 const shortcutCommandForEvent = event => {
@@ -1922,6 +1940,10 @@ const shortcutCommandForEvent = event => {
     case "ArrowRight":
     case "KeyL":
       return "keyboardSeekForward";
+    case "ArrowUp":
+      return "keyboardVolumeUp";
+    case "ArrowDown":
+      return "keyboardVolumeDown";
     default:
       return "";
   }
@@ -2050,56 +2072,7 @@ const handleTvStyleControlKey = event => {
     send("revealLockedOverlay", 0);
     return true;
   }
-
-  if (event.code === "ArrowUp") {
-    event.preventDefault();
-    sendKeyboardVolume(1);
-    return true;
-  }
-
-  if (event.code === "ArrowDown") {
-    event.preventDefault();
-    sendKeyboardVolume(-1);
-    return true;
-  }
-
-  if (state.controlsVisible && event.code === "ArrowLeft") {
-    event.preventDefault();
-    keepChromeVisibleFromKeyboard();
-    moveActionFocus(-1);
-    return true;
-  }
-
-  if (state.controlsVisible && event.code === "ArrowRight") {
-    event.preventDefault();
-    keepChromeVisibleFromKeyboard();
-    moveActionFocus(1);
-    return true;
-  }
-
-  if (event.code === "Enter" || event.code === "NumpadEnter") {
-    event.preventDefault();
-    if (!state.controlsVisible) {
-      setChromeVisibleFromKeyboard(true, { focusAction: true });
-      send("keyboardToggle", 0);
-      return true;
-    }
-    keepChromeVisibleFromKeyboard();
-    ensureActionFocus({ focus: true });
-    document.querySelector(".action-pill .action.focused")?.click();
-    return true;
-  }
-
-  const actionCommand = actionShortcutCommandForEvent(event);
-  if (!actionCommand) return false;
-  event.preventDefault();
-  focusShortcutRoot();
-  keepChromeVisibleFromKeyboard();
-  if (actionCommand === "keyboardToggle") {
-    send("keyboardToggle", 0);
-    return true;
-  }
-  return performActionCommand(actionCommand);
+  return false;
 };
 
 const toggleChrome = () => {
@@ -2468,6 +2441,15 @@ seek.addEventListener("change", () => {
   render();
 });
 
+volumeSlider.addEventListener("input", () => {
+  noteChromeActivity();
+  const percent = Math.max(0, Math.min(100, Number(volumeSlider.value) || 0));
+  const nextLevel = percent / 100;
+  state.volumeLevel = nextLevel;
+  syncVolumeControl();
+  send("volumeChange", nextLevel);
+});
+
 window.playerUpdate = update => {
   const durationMs = Math.round((Number(update.duration) || 0) * 1000);
   const positionMs = Math.round((Number(update.position) || 0) * 1000);
@@ -2581,6 +2563,14 @@ document.addEventListener("keydown", event => {
   event.preventDefault();
   focusShortcutRoot();
   noteChromeActivity();
+  if (command === "keyboardVolumeUp") {
+    sendKeyboardVolume(1);
+    return;
+  }
+  if (command === "keyboardVolumeDown") {
+    sendKeyboardVolume(-1);
+    return;
+  }
   showCommandToast(command);
   send(command, 0);
 });
