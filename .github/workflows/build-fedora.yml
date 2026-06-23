@@ -47,6 +47,11 @@ jobs:
           echo "JDK_21_HOME=/usr/lib/jvm/jdk-21" >> "$GITHUB_ENV"
           echo "/usr/lib/jvm/jdk-21/bin" >> "$GITHUB_PATH"
 
+      - name: Install appimagetool
+        run: |
+          curl -sL "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -o /usr/local/bin/appimagetool
+          chmod +x /usr/local/bin/appimagetool
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -72,6 +77,7 @@ jobs:
         env:
           JAVA_HOME: /usr/lib/jvm/jdk-21
         run: |
+          touch local.properties
           if [[ "${{ inputs.rpm_only }}" == "true" ]]; then
             ./scripts/build-linux-fedora-release.sh --rpm-only --skip-mpv
           else
