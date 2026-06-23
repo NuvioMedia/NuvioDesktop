@@ -47,6 +47,11 @@ jobs:
           echo "JDK_21_HOME=/usr/lib/jvm/jdk-21" >> "$GITHUB_ENV"
           echo "/usr/lib/jvm/jdk-21/bin" >> "$GITHUB_PATH"
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Setup Gradle with JDK 21
         uses: gradle/actions/setup-gradle@v4
         with:
