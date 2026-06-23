@@ -35,18 +35,23 @@ jobs:
             rpm-build \
             rpmrebuild \
             git \
-            which
+            which \
+            curl
           echo "JAVA_HOME=/usr/lib/jvm/java-25-openjdk" >> "$GITHUB_ENV"
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Install JDK 21 for build compatibility
+        run: |
+          curl -sL "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse" -o /tmp/jdk21.tar.gz
+          mkdir -p /usr/lib/jvm/jdk-21
+          tar xzf /tmp/jdk21.tar.gz -C /usr/lib/jvm/jdk-21 --strip-components=1
+          echo "JDK_21_HOME=/usr/lib/jvm/jdk-21" >> "$GITHUB_ENV"
+          echo "/usr/lib/jvm/jdk-21/bin" >> "$GITHUB_PATH"
 
-      - name: Setup Gradle
+      - name: Setup Gradle with JDK 21
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          gradle-home-cache-cleanup: true
 
       - name: Make scripts executable
         run: chmod +x ./gradlew ./scripts/*.sh
@@ -59,6 +64,8 @@ jobs:
           echo "Building version: $version"
 
       - name: Build RPM
+        env:
+          JAVA_HOME: /usr/lib/jvm/jdk-21
         run: |
           if [[ "${{ inputs.rpm_only }}" == "true" ]]; then
             ./scripts/build-linux-fedora-release.sh --rpm-only --skip-mpv
