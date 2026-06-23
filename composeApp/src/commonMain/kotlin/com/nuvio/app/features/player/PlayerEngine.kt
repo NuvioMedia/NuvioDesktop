@@ -117,6 +117,8 @@ data class PlayerControlsState(
     val loadingSubtitleLinesLabel: String = "Loading subtitle lines...",
     val fontSizeLabel: String = "Font Size",
     val outlineLabel: String = "Outline",
+    val shadowLabel: String = "Shadow",
+    val shadowDensityLabel: String = "Shadow Density",
     val boldLabel: String = "Bold",
     val bottomOffsetLabel: String = "Bottom Offset",
     val colorLabel: String = "Color",

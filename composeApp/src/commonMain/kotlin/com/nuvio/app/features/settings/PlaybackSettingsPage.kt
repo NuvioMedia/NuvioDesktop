@@ -244,6 +244,58 @@ private fun SettingsSliderRow(
 }
 
 @Composable
+private fun SettingsFloatSliderRow(
+    title: String,
+    value: Float,
+    valueText: String,
+    valueRange: ClosedFloatingPointRange<Float>,
+    step: Float,
+    isTablet: Boolean,
+    enabled: Boolean = true,
+    onValueChange: (Float) -> Unit,
+) {
+    val horizontalPadding = if (isTablet) 20.dp else 16.dp
+    var sliderValue by remember(value) { mutableFloatStateOf(value) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = horizontalPadding, vertical = 10.dp)
+            .alpha(if (enabled) 1f else 0.55f),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            ValueBox(text = valueText, modifier = Modifier.wrapContentWidth())
+        }
+        Slider(
+            value = sliderValue.coerceIn(valueRange.start, valueRange.endInclusive),
+            onValueChange = { if (enabled) sliderValue = snapToStep(it, step) },
+            onValueChangeFinished = {
+                if (enabled) onValueChange(sliderValue.coerceIn(valueRange.start, valueRange.endInclusive))
+            },
+            enabled = enabled,
+            valueRange = valueRange.start..valueRange.endInclusive,
+            steps = calculateSteps(valueRange.start, valueRange.endInclusive, step),
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
 private fun subtitleColorLabel(color: Color): String {
     return if (color.alpha == 0f) {
         stringResource(Res.string.settings_playback_subtitle_color_transparent)
@@ -582,6 +634,32 @@ private fun PlaybackSettingsSection(
                         enabled = subtitleRenderingEnabled,
                         isTablet = isTablet,
                         onClick = { showSubtitleOutlineColorDialog = true },
+                    )
+                }
+                SettingsGroupDivider(isTablet = isTablet)
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_playback_subtitle_shadow),
+                    description = stringResource(Res.string.settings_playback_subtitle_shadow_description),
+                    checked = subtitleStyle.shadowEnabled,
+                    enabled = subtitleRenderingEnabled,
+                    isTablet = isTablet,
+                    onCheckedChange = { enabled ->
+                        PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(shadowEnabled = enabled))
+                    },
+                )
+                if (subtitleStyle.shadowEnabled) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsFloatSliderRow(
+                        title = stringResource(Res.string.settings_playback_subtitle_shadow_density),
+                        value = subtitleStyle.shadowDensity,
+                        valueText = ((subtitleStyle.shadowDensity * 10f).roundToInt() / 10f).toString(),
+                        valueRange = 0.2f..5.0f,
+                        step = 0.2f,
+                        isTablet = isTablet,
+                        enabled = subtitleRenderingEnabled,
+                        onValueChange = { value ->
+                            PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(shadowDensity = value))
+                        },
                     )
                 }
                 val showLibassSettings = !isIos && androidPlaybackEngine != AndroidPlaybackEngine.Libmpv

@@ -121,7 +121,9 @@
                              outlineSize:(double)outlineSize
                                     bold:(BOOL)bold
                                 fontSize:(double)fontSize
-                                  subPos:(int)subPos;
+                                  subPos:(int)subPos
+                           shadowEnabled:(BOOL)shadowEnabled
+                           shadowDensity:(double)shadowDensity;
 - (void)handleScriptMessage:(NSDictionary *)message;
 - (void)focusControlsWebViewIfNeeded;
 - (void)layoutNativeSubviews;
@@ -2121,7 +2123,9 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                              outlineSize:(double)outlineSize
                                     bold:(BOOL)bold
                                 fontSize:(double)fontSize
-                                  subPos:(int)subPos {
+                                  subPos:(int)subPos
+                           shadowEnabled:(BOOL)shadowEnabled
+                           shadowDensity:(double)shadowDensity {
     if (!_mpv) return;
     [self setStringProperty:"sub-ass-override" value:@"force"];
     [self setStringProperty:"sub-color" value:textColor ?: @"#FFFFFFFF"];
@@ -2131,6 +2135,13 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                       value:[(backgroundColor ?: @"") hasPrefix:@"#00"] ? @"outline-and-shadow" : @"opaque-box"];
     [self setStringProperty:"sub-bold" value:bold ? @"yes" : @"no"];
 
+    // Shadow support
+    if (shadowEnabled) {
+        [self setStringProperty:"sub-shadow-color" value:@"#FF000000"];
+    } else {
+        [self setStringProperty:"sub-shadow-color" value:@"#00000000"];
+    }
+
     double outline = MAX(0.0, MIN(8.0, outlineSize));
     mpv_set_property(_mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
 
@@ -2139,6 +2150,9 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
     int64_t position = MAX(0, MIN(150, subPos));
     mpv_set_property(_mpv, "sub-pos", MPV_FORMAT_INT64, &position);
+
+    double shadowOffset = shadowEnabled ? shadowDensity : 0.0;
+    mpv_set_property(_mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadowOffset);
 }
 
 - (double)doubleProperty:(const char *)name fallback:(double)fallback {
@@ -2939,7 +2953,9 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
     jfloat outlineSize,
     jboolean bold,
     jfloat fontSize,
-    jint subPos
+    jint subPos,
+    jboolean shadowEnabled,
+    jfloat shadowDensity
 ) {
     if (handle == 0) return;
     std::string text = jstringToString(env, textColor);
@@ -2953,6 +2969,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
                                      outlineSize:(double)outlineSize
                                             bold:bold == JNI_TRUE
                                         fontSize:(double)fontSize
-                                          subPos:(int)subPos];
+                                          subPos:(int)subPos
+                                   shadowEnabled:shadowEnabled == JNI_TRUE
+                                   shadowDensity:(double)shadowDensity];
     });
 }

@@ -230,6 +230,8 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         loadingSubtitleLinesLabel = stringResource(Res.string.compose_player_loading_lines),
         fontSizeLabel = stringResource(Res.string.compose_player_font_size),
         outlineLabel = stringResource(Res.string.compose_player_outline),
+        shadowLabel = stringResource(Res.string.compose_player_shadow),
+        shadowDensityLabel = stringResource(Res.string.compose_player_shadow_density),
         boldLabel = stringResource(Res.string.compose_player_bold),
         bottomOffsetLabel = stringResource(Res.string.compose_player_bottom_offset),
         colorLabel = stringResource(Res.string.compose_player_color),
@@ -766,6 +768,14 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         }
         "subtitleOutlineToggle" -> {
             PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(outlineEnabled = !subtitleStyle.outlineEnabled))
+        }
+        "subtitleShadowToggle" -> {
+            PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(shadowEnabled = !subtitleStyle.shadowEnabled))
+        }
+        "subtitleShadowDensityDelta" -> {
+            PlayerSettingsRepository.setSubtitleStyle(
+                subtitleStyle.copy(shadowDensity = (subtitleStyle.shadowDensity + value.toFloat()).coerceIn(0.2f, 5.0f))
+            )
         }
         "subtitleBoldToggle" -> {
             PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(bold = !subtitleStyle.bold))

@@ -1056,7 +1056,9 @@ public:
         double outlineSize,
         bool bold,
         double fontSize,
-        int subPos
+        int subPos,
+        bool shadowEnabled,
+        double shadowDensity
     ) {
         setStringProperty("sub-ass-override", "force");
         setStringProperty("sub-color", textColor.empty() ? "#FFFFFFFF" : textColor);
@@ -1068,15 +1070,24 @@ public:
         );
         setStringProperty("sub-bold", bold ? "yes" : "no");
 
+        // Shadow support
+        if (shadowEnabled) {
+            setStringProperty("sub-shadow-color", "#FF000000");
+        } else {
+            setStringProperty("sub-shadow-color", "#00000000");
+        }
+
         {
             std::lock_guard<std::mutex> lock(mpvMutex);
             if (!mpv) return;
             double outline = std::max(0.0, std::min(8.0, outlineSize));
             double size = std::max(18.0, std::min(96.0, fontSize));
             int64_t position = std::max(0, std::min(150, subPos));
+            double shadowOffset = shadowEnabled ? shadowDensity : 0.0;
             mpvApi().setProperty(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
             mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
             mpvApi().setProperty(mpv, "sub-pos", MPV_FORMAT_INT64, &position);
+            mpvApi().setProperty(mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadowOffset);
         }
     }
 
@@ -2279,7 +2290,9 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
     jfloat outlineSize,
     jboolean bold,
     jfloat fontSize,
-    jint subPos
+    jint subPos,
+    jboolean shadowEnabled,
+    jfloat shadowDensity
 ) {
     auto player = playerFromHandle(handle);
     if (!player) return;
@@ -2290,6 +2303,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
         outlineSize,
         bold == JNI_TRUE,
         fontSize,
-        subPos
+        subPos,
+        shadowEnabled == JNI_TRUE,
+        (double)shadowDensity
     );
 }
