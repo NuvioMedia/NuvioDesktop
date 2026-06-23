@@ -7,7 +7,7 @@ on:
         description: "Build only RPM (skip AppImage)"
         required: false
         type: boolean
-        default: false
+        default: true
   push:
     tags:
       - "v*"
