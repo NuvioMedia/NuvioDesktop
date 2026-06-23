@@ -39,6 +39,8 @@ internal class NativePlayerController(
     private var pendingSource: PendingSource? = null
     private var controlsState = PlayerControlsState()
     private var lastSentControlsStructureKey: NativeControlsStructureKey? = null
+    private var pendingSubtitleStyle: SubtitleStyleState? = null
+    private var pendingSubtitleDelayMs: Int? = null
     private var onAction: (PlayerControlsAction) -> Boolean = { false }
     private var onEvent: (String, Double) -> Boolean = { _, _ -> false }
     private var onScrubChange: (Long) -> Boolean = { false }
@@ -104,6 +106,8 @@ internal class NativePlayerController(
                 )
                 if (handle == 0L) error("Native player did not return a handle.")
                 updateControls(controlsState)
+                pendingSubtitleStyle?.let { applySubtitleStyle(it) }
+                pendingSubtitleDelayMs?.let { setSubtitleDelayMs(it) }
             }.onFailure { error ->
                 pending.onError(error.message)
             }
@@ -388,29 +392,37 @@ internal class NativePlayerController(
     }
 
     override fun setSubtitleDelayMs(delayMs: Int) {
-        handle.takeIf { it != 0L }?.let { current ->
-            NativePlayerBridge.setSubtitleDelayMs(
-                current,
-                delayMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS),
-            )
+        val current = handle
+        if (current == 0L) {
+            pendingSubtitleDelayMs = delayMs
+            return
         }
+        pendingSubtitleDelayMs = null
+        NativePlayerBridge.setSubtitleDelayMs(
+            current,
+            delayMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS),
+        )
     }
 
     override fun applySubtitleStyle(style: SubtitleStyleState) {
-        handle.takeIf { it != 0L }?.let { current ->
-            NativePlayerBridge.applySubtitleStyle(
-                handle = current,
-                textColor = style.textColor.toMpvColorString(),
-                backgroundColor = style.backgroundColor.toMpvColorString(),
-                outlineColor = style.outlineColor.toMpvColorString(),
-                outlineSize = if (style.outlineEnabled) style.outlineWidth.toFloat() else 0f,
-                bold = style.bold,
-                fontSize = style.toMpvSubtitleFontSize(),
-                subPos = style.toMpvSubtitlePosition(),
-                shadowEnabled = style.shadowEnabled,
-                shadowDensity = style.shadowDensity,
-            )
+        val current = handle
+        if (current == 0L) {
+            pendingSubtitleStyle = style
+            return
         }
+        pendingSubtitleStyle = null
+        NativePlayerBridge.applySubtitleStyle(
+            handle = current,
+            textColor = style.textColor.toMpvColorString(),
+            backgroundColor = style.backgroundColor.toMpvColorString(),
+            outlineColor = style.outlineColor.toMpvColorString(),
+            outlineSize = if (style.outlineEnabled) style.outlineWidth.toFloat() else 0f,
+            bold = style.bold,
+            fontSize = style.toMpvSubtitleFontSize(),
+            subPos = style.toMpvSubtitlePosition(),
+            shadowEnabled = style.shadowEnabled,
+            shadowDensity = style.shadowDensity,
+        )
     }
 
     private fun decodeTracks(readJson: (Long) -> String): List<NativeMpvTrack> {
