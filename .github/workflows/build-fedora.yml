@@ -27,7 +27,7 @@ jobs:
       - name: Install system dependencies
         run: |
           dnf install -y \
-            java-17-openjdk-devel \
+            java-25-openjdk-devel \
             gcc \
             make \
             pkgconf \
@@ -36,7 +36,7 @@ jobs:
             rpmrebuild \
             git \
             which
-          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk" >> "$GITHUB_ENV"
+          echo "JAVA_HOME=/usr/lib/jvm/java-25-openjdk" >> "$GITHUB_ENV"
 
       - name: Checkout repository
         uses: actions/checkout@v4
