@@ -43,6 +43,17 @@ internal fun PlayerScreenRuntime.showGestureMessage(message: String) {
     showGestureFeedback(GestureFeedbackState(message = message))
 }
 
+internal fun PlayerScreenRuntime.showToast(message: String) {
+    toastJob?.cancel()
+    toastMessage = message
+    toastVisible = true
+    toastJob = scope.launch {
+        delay(1800)
+        toastVisible = false
+        toastMessage = null
+    }
+}
+
 internal fun PlayerScreenRuntime.clearLiveGestureFeedback() {
     liveGestureFeedback = null
 }
@@ -249,14 +260,14 @@ internal fun PlayerScreenRuntime.cycleResizeMode() {
     resizeMode = nextMode
     lastSyncedSettingsResizeMode = nextMode
     PlayerSettingsRepository.setResizeMode(nextMode)
-    showGestureMessage(
-        when (nextMode) {
-            PlayerResizeMode.Fit -> resizeModeFitLabel
-            PlayerResizeMode.Fill -> resizeModeFillLabel
-            PlayerResizeMode.Zoom -> resizeModeZoomLabel
-            PlayerResizeMode.Stretch -> resizeModeStretchLabel
-        },
-    )
+    val label = when (nextMode) {
+        PlayerResizeMode.Fit -> resizeModeFitLabel
+        PlayerResizeMode.Fill -> resizeModeFillLabel
+        PlayerResizeMode.Zoom -> resizeModeZoomLabel
+        PlayerResizeMode.Stretch -> resizeModeStretchLabel
+    }
+    showGestureMessage(label)
+    showToast(label)
     controlsVisible = true
 }
 
@@ -265,7 +276,9 @@ internal fun PlayerScreenRuntime.cyclePlaybackSpeed() {
     val current = playbackSnapshot.playbackSpeed
     val next = speeds.firstOrNull { it > current + 0.01f } ?: speeds.first()
     playerController?.setPlaybackSpeed(next)
-    showGestureMessage(formatPlaybackSpeedLabel(next))
+    val label = formatPlaybackSpeedLabel(next)
+    showGestureMessage(label)
+    showToast(label)
     controlsVisible = true
 }
 
