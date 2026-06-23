@@ -109,6 +109,7 @@ actual fun PlatformPlayerSurface(
 /**
  * Linux path: renders video frames in a Compose [Canvas] so controls overlay correctly
  * without the heavyweight AWT X11 child window problem.
+ * On Wayland, uses optimized SW rendering with gpu-context=wayland for better performance.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -134,7 +135,6 @@ private fun LinuxComposeSurface(
     var frameTick by remember { mutableIntStateOf(0) }
 
     val playbackHeaders = remember(sourceHeaders) { sanitizePlaybackHeaders(sourceHeaders) }
-    val latestOnPlayerControlsAction = rememberUpdatedState(onPlayerControlsAction)
     val latestOnPlayerControlsEvent = rememberUpdatedState(onPlayerControlsEvent)
     val latestOnPlayerControlsScrubChange = rememberUpdatedState(onPlayerControlsScrubChange)
     val latestOnPlayerControlsScrubFinished = rememberUpdatedState(onPlayerControlsScrubFinished)
@@ -241,18 +241,10 @@ private fun LinuxComposeSurface(
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent()
-                        when (event.type) {
-                            PointerEventType.Press -> {
-                                if (event.button == PointerButton.Primary) {
-                                    toggleDesktopAppFullscreen()
-                                }
+                        if (event.type == PointerEventType.Scroll) {
+                            event.changes.firstOrNull()?.scrollDelta?.y?.let { delta ->
+                                controller.seekBy(if (delta < 0f) 10000L else -10000L)
                             }
-                            PointerEventType.Scroll -> {
-                                event.changes.firstOrNull()?.scrollDelta?.y?.let { delta ->
-                                    controller.seekBy(if (delta < 0f) 10000L else -10000L)
-                                }
-                            }
-                            else -> {}
                         }
                     }
                 }

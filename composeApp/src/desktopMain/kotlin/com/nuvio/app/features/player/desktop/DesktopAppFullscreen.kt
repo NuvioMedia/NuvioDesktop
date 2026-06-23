@@ -18,10 +18,10 @@ import javax.swing.SwingUtilities
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.nuvio.app.core.ui.DesktopBackHandlers
+import com.nuvio.app.features.player.desktop.DesktopHostOs
 
-internal object DesktopAppNavigation {
-    var currentBackHandler: (() -> Unit)? = null
-}
+internal object DesktopAppNavigation
 
 private object DesktopAppFullscreen {
     private var toggleHandler: ((Window?) -> Unit)? = null
@@ -173,6 +173,14 @@ internal class DesktopAppFullscreenController {
 
 internal fun installDesktopAppFullscreenShortcuts(window: Window): () -> Unit {
     val dispatcher = KeyEventDispatcher { event ->
+        if (event.id == KeyEvent.KEY_PRESSED && event.keyCode == KeyEvent.VK_ESCAPE) {
+            if (isDesktopAppFullscreen(window)) {
+                toggleDesktopAppFullscreen(window)
+            } else {
+                DesktopBackHandlers.handleBack()
+            }
+            return@KeyEventDispatcher true
+        }
         if (!event.isDesktopAppFullscreenShortcut()) return@KeyEventDispatcher false
         toggleDesktopAppFullscreen(window)
         true
@@ -199,36 +207,14 @@ internal fun installDesktopMouseButtonShortcuts(window: Window): () -> Unit {
     val listener = AWTEventListener { awtEvent ->
         if (awtEvent.id != MouseEvent.MOUSE_PRESSED) return@AWTEventListener
         val mouseEvent = awtEvent as? MouseEvent ?: return@AWTEventListener
-        if (mouseEvent.button !in 4..5) return@AWTEventListener
+        val isSideButton = if (DesktopHostOs.current == DesktopHostOs.LINUX) {
+            mouseEvent.button in 6..9
+        } else {
+            mouseEvent.button in 4..5
+        }
+        if (!isSideButton) return@AWTEventListener
         if (!window.isFocused) return@AWTEventListener
-        val backHandler = DesktopAppNavigation.currentBackHandler
-        if (backHandler != null) {
-            backHandler()
-            return@AWTEventListener
-        }
-        val now = System.currentTimeMillis()
-        val pressed = KeyEvent(
-            window,
-            KeyEvent.KEY_PRESSED,
-            now,
-            0,
-            KeyEvent.VK_ESCAPE,
-            KeyEvent.CHAR_UNDEFINED,
-            KeyEvent.KEY_LOCATION_UNKNOWN,
-        )
-        val released = KeyEvent(
-            window,
-            KeyEvent.KEY_RELEASED,
-            now,
-            0,
-            KeyEvent.VK_ESCAPE,
-            KeyEvent.CHAR_UNDEFINED,
-            KeyEvent.KEY_LOCATION_UNKNOWN,
-        )
-        java.awt.EventQueue.invokeLater {
-            Toolkit.getDefaultToolkit().systemEventQueue.postEvent(pressed)
-            Toolkit.getDefaultToolkit().systemEventQueue.postEvent(released)
-        }
+        DesktopBackHandlers.handleBack()
     }
     Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.MOUSE_EVENT_MASK)
     return {

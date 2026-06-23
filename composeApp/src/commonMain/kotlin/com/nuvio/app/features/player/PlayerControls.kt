@@ -28,11 +28,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Forward10
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.SwapHoriz
@@ -79,6 +85,7 @@ internal fun PlayerControlsShell(
     resizeMode: PlayerResizeMode,
     isLocked: Boolean,
     showPlaybackControls: Boolean = true,
+    isFullscreen: Boolean = false,
     onLockToggle: () -> Unit,
     onBack: () -> Unit,
     onTogglePlayback: () -> Unit,
@@ -94,6 +101,7 @@ internal fun PlayerControlsShell(
     onEpisodesClick: (() -> Unit)? = null,
     onOpenInExternalPlayer: (() -> Unit)? = null,
     onSubmitIntroClick: (() -> Unit)? = null,
+    onFullscreenClick: (() -> Unit)? = null,
     parentalWarnings: List<ParentalWarning> = emptyList(),
     showParentalGuide: Boolean = false,
     onParentalGuideAnimationComplete: () -> Unit = {},
@@ -152,12 +160,14 @@ internal fun PlayerControlsShell(
                 metrics = metrics,
                 isLocked = isLocked,
                 showActions = showPlaybackControls,
+                isFullscreen = isFullscreen,
                 onSubmitIntroClick = onSubmitIntroClick,
                 parentalWarnings = parentalWarnings,
                 showParentalGuide = showParentalGuide,
                 onParentalGuideAnimationComplete = onParentalGuideAnimationComplete,
                 onLockToggle = onLockToggle,
                 onVideoSettingsClick = onVideoSettingsClick,
+                onFullscreenClick = onFullscreenClick,
                 onBack = onBack,
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -225,12 +235,14 @@ private fun PlayerHeader(
     metrics: PlayerLayoutMetrics,
     isLocked: Boolean,
     showActions: Boolean,
+    isFullscreen: Boolean,
     onSubmitIntroClick: (() -> Unit)?,
     parentalWarnings: List<ParentalWarning>,
     showParentalGuide: Boolean,
     onParentalGuideAnimationComplete: () -> Unit,
     onLockToggle: () -> Unit,
     onVideoSettingsClick: (() -> Unit)?,
+    onFullscreenClick: (() -> Unit)?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -348,6 +360,15 @@ private fun PlayerHeader(
                             buttonSize = metrics.headerIconSize + 16.dp,
                             iconSize = metrics.headerIconSize,
                             onClick = onVideoSettingsClick,
+                        )
+                    }
+                    if (onFullscreenClick != null) {
+                        PlayerHeaderIconButton(
+                            icon = if (isFullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+                            contentDescription = stringResource(Res.string.compose_player_close),
+                            buttonSize = metrics.headerIconSize + 16.dp,
+                            iconSize = metrics.headerIconSize,
+                            onClick = onFullscreenClick,
                         )
                     }
                     NuvioBackButton(
@@ -509,9 +530,7 @@ private fun ProgressControls(
     modifier: Modifier = Modifier,
 ) {
     val durationMs = playbackSnapshot.durationMs.coerceAtLeast(1L)
-    val aspectRatioPainter = appIconPainter(AppIconResource.PlayerAspectRatio)
-    val subtitlesPainter = appIconPainter(AppIconResource.PlayerSubtitles)
-    val audioPainter = appIconPainter(AppIconResource.PlayerAudioFilled)
+    val compactMode = metrics.sliderTouchHeight >= 24.dp
 
     Column(modifier = modifier) {
         Slider(
@@ -524,86 +543,239 @@ private fun ProgressControls(
             onValueChangeFinished = { onScrubFinished(displayedPositionMs.coerceIn(0L, durationMs)) },
             valueRange = 0f..durationMs.toFloat(),
         )
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp)
                 .padding(top = 4.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TimePill(text = formatPlaybackTime(displayedPositionMs), fontSize = metrics.timeSize)
-            TimePill(text = formatPlaybackTime(durationMs), fontSize = metrics.timeSize)
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Surface(
-                color = Color.Black.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(24.dp),
-                ),
-            ) {
+            val actionsSection: @Composable () -> Unit = {
                 Row(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.spacedBy(if (compactMode) 0.dp else 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    PlayerActionPillButton(
+                    PlayerActionButton(
                         label = stringResource(resizeMode.labelRes),
-                        painter = aspectRatioPainter,
+                        icon = Icons.Rounded.AspectRatio,
+                        painter = appIconPainter(AppIconResource.PlayerAspectRatio),
+                        compact = compactMode,
                         onClick = onResizeModeClick,
                     )
-                    PlayerActionPillButton(
+                    PlayerActionButton(
                         label = formatPlaybackSpeedLabel(playbackSnapshot.playbackSpeed),
                         icon = Icons.Rounded.Speed,
+                        painter = null,
+                        compact = compactMode,
                         onClick = onSpeedClick,
                     )
-                    PlayerActionPillButton(
+                    PlayerActionButton(
                         label = stringResource(Res.string.compose_player_subs),
-                        painter = subtitlesPainter,
+                        icon = Icons.Rounded.ClosedCaption,
+                        painter = appIconPainter(AppIconResource.PlayerSubtitles),
+                        compact = compactMode,
                         onClick = onSubtitleClick,
                     )
-                    PlayerActionPillButton(
+                    PlayerActionButton(
                         label = stringResource(Res.string.compose_player_audio),
-                        painter = audioPainter,
+                        icon = Icons.Rounded.QueueMusic,
+                        painter = appIconPainter(AppIconResource.PlayerAudioFilled),
+                        compact = compactMode,
                         onClick = onAudioClick,
                     )
                     if (onSourcesClick != null) {
-                        PlayerActionPillButton(
+                        PlayerActionButton(
                             label = stringResource(Res.string.compose_player_sources),
                             icon = Icons.Rounded.SwapHoriz,
+                            painter = null,
+                            compact = compactMode,
                             onClick = onSourcesClick,
                         )
                     }
                     if (onEpisodesClick != null) {
-                        PlayerActionPillButton(
+                        PlayerActionButton(
                             label = stringResource(Res.string.compose_player_episodes),
                             icon = Icons.Rounded.VideoLibrary,
+                            painter = null,
+                            compact = compactMode,
                             onClick = onEpisodesClick,
                         )
                     }
                     if (onOpenInExternalPlayer != null) {
-                        PlayerActionPillButton(
+                        PlayerActionButton(
                             label = stringResource(Res.string.streams_open_external_player),
                             icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                            painter = null,
+                            compact = compactMode,
                             onClick = onOpenInExternalPlayer,
                         )
                     }
-                    InlineVolumeControl(
+                }
+            }
+
+            val playbackStatusSection: @Composable () -> Unit = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(if (compactMode) 12.dp else 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DedicatedVolumeControl(
                         volume = currentVolume,
                         isMuted = isVolumeMuted,
+                        compact = compactMode,
                         onVolumeChange = onVolumeSliderChange,
                         onClickIcon = onClickVolumeIcon,
                     )
+                    TimeLabel(
+                        positionMs = displayedPositionMs,
+                        durationMs = durationMs,
+                        fontSize = metrics.timeSize,
+                    )
+                }
+            }
+
+            if (compactMode) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    actionsSection()
+                    playbackStatusSection()
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    actionsSection()
+                    Spacer(modifier = Modifier.weight(1f))
+                    playbackStatusSection()
                 }
             }
         }
     }
+}
+
+@Composable
+private fun PlayerActionButton(
+    label: String,
+    icon: ImageVector,
+    painter: Painter?,
+    compact: Boolean,
+    onClick: () -> Unit,
+) {
+    if (compact) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                painter != null -> Icon(
+                    painter = painter,
+                    contentDescription = label,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp),
+                )
+                else -> Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(22.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            when {
+                painter != null -> Icon(
+                    painter = painter,
+                    contentDescription = label,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+                else -> Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.nuvioTypeScale.labelSm,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                softWrap = false,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DedicatedVolumeControl(
+    volume: Float,
+    isMuted: Boolean,
+    compact: Boolean,
+    onVolumeChange: (Float) -> Unit,
+    onClickIcon: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = if (isMuted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
+            contentDescription = stringResource(Res.string.compose_player_volume),
+            tint = Color.White,
+            modifier = Modifier
+                .size(if (compact) 34.dp else 30.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onClickIcon)
+                .padding(4.dp),
+        )
+        Slider(
+            value = volume,
+            onValueChange = onVolumeChange,
+            valueRange = 0f..100f,
+            modifier = Modifier.width(if (compact) 150.dp else 144.dp).height(24.dp),
+            colors = SliderDefaults.colors(
+                thumbColor = Color(0xFF2F6FED),
+                activeTrackColor = Color(0xFF2F6FED),
+                inactiveTrackColor = Color.White.copy(alpha = 0.26f),
+            ),
+        )
+    }
+}
+
+@Composable
+private fun TimeLabel(
+    positionMs: Long,
+    durationMs: Long,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+) {
+    Text(
+        text = "${formatPlaybackTime(positionMs)} / ${formatPlaybackTime(durationMs)}",
+        style = MaterialTheme.nuvioTypeScale.labelSm.copy(
+            fontSize = fontSize,
+            lineHeight = fontSize * 1.25f,
+            fontWeight = FontWeight.Medium,
+        ),
+        color = Color.White,
+        maxLines = 1,
+    )
 }
 
 @Composable
@@ -698,109 +870,12 @@ internal fun LockedPlayerOverlay(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TimePill(text = formatPlaybackTime(displayedPositionMs), fontSize = metrics.timeSize)
-                TimePill(text = formatPlaybackTime(durationMs), fontSize = metrics.timeSize)
+                TimeLabel(
+                    positionMs = displayedPositionMs,
+                    durationMs = durationMs,
+                    fontSize = metrics.timeSize,
+                )
             }
         }
-    }
-}
-
-@Composable
-private fun TimePill(
-    text: String,
-    fontSize: androidx.compose.ui.unit.TextUnit,
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.Black.copy(alpha = 0.5f))
-            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.nuvioTypeScale.labelSm.copy(
-                fontSize = fontSize,
-                lineHeight = fontSize * 1.25f,
-                fontWeight = FontWeight.Medium,
-            ),
-            color = Color.White,
-        )
-    }
-}
-
-@Composable
-private fun PlayerActionPillButton(
-    label: String,
-    onClick: () -> Unit,
-    icon: ImageVector? = null,
-    painter: Painter? = null,
-) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(22.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        when {
-            painter != null -> Icon(
-                painter = painter,
-                contentDescription = label,
-                tint = Color.White,
-                modifier = Modifier.size(18.dp),
-            )
-
-            icon != null -> Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = Color.White,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.nuvioTypeScale.labelSm,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            softWrap = false,
-        )
-    }
-}
-
-@Composable
-private fun InlineVolumeControl(
-    volume: Float,
-    isMuted: Boolean,
-    onVolumeChange: (Float) -> Unit,
-    onClickIcon: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(22.dp))
-            .clickable(onClick = onClickIcon)
-            .padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = if (isMuted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
-            contentDescription = stringResource(Res.string.compose_player_volume),
-            tint = Color.White,
-            modifier = Modifier.size(18.dp),
-        )
-        Slider(
-            value = volume,
-            onValueChange = onVolumeChange,
-            valueRange = 0f..100f,
-            modifier = Modifier.width(80.dp).height(24.dp),
-            colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = Color(0xFF1A73E8),
-                inactiveTrackColor = Color.White.copy(alpha = 0.3f),
-            ),
-        )
     }
 }

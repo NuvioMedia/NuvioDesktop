@@ -14,6 +14,7 @@ import com.nuvio.app.features.player.PlayerControlsState
 import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.player.PlayerPlaybackSnapshot
 import com.nuvio.app.features.player.PlayerResizeMode
+import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.player.PlayerSettingsUiState
 import com.nuvio.app.features.player.DesktopHwdecMode
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MAX_MS
@@ -150,6 +151,7 @@ internal class NativePlayerController(
                 NativePlayerBridge.resizeNativeView(handle, w, h)
             }
             updateControls(controlsState)
+            configureIosVideoOutput(PlayerSettingsRepository.uiState.value)
         }.onFailure { error ->
             System.err.println("[NUVIO_ATTACH] FAILED: ${error.message}")
             pending.onError(error.message)
@@ -177,6 +179,7 @@ internal class NativePlayerController(
             if (handle == 0L) error("Native player did not return a handle.")
             host.nativeHandle = handle
             updateControls(controlsState)
+            configureIosVideoOutput(PlayerSettingsRepository.uiState.value)
         }.onFailure { error ->
             System.err.println("[NUVIO_ATTACH] FAILED: ${error.message}")
             pending.onError(error.message)
@@ -250,11 +253,7 @@ internal class NativePlayerController(
                 }
             }
             "toggleFullscreen" -> {
-                if (host is java.awt.Component) {
-                    toggleDesktopAppFullscreen(
-                        SwingUtilities.getWindowAncestor(host as java.awt.Component)
-                    )
-                }
+                toggleDesktopAppFullscreen()
             }
             "volumeChange" -> setFallbackVolume(value.toFloat())
             else -> {
@@ -303,6 +302,9 @@ internal class NativePlayerController(
                 adjustFallbackVolume(5f)
             }
             PlayerControlsAction.Speed -> cycleFallbackSpeed()
+            PlayerControlsAction.Fullscreen -> {
+                toggleDesktopAppFullscreen()
+            }
             else -> Unit
         }
     }

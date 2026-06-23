@@ -88,6 +88,7 @@ internal object NativePlayerBridge {
     external fun shutdownWebView2Warmup()
     external fun renderFrame(handle: Long, dstPixels: IntArray, dstW: Int, dstH: Int): Boolean
     external fun resizeNativeView(handle: Long, width: Int, height: Int)
+    external fun isWaylandSession(): Boolean
 
     val controlsPageUrl: String by lazy { controlsPageAssets.url }
     private val controlsPageAssets: ControlsPageAssets by lazy { exportControlsPageAssets() }

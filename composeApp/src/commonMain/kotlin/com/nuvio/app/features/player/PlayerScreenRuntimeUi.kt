@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.core.ui.toggleFullscreenAction
 import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.MetaVideo
@@ -31,6 +32,7 @@ import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
 import com.nuvio.app.features.watching.application.WatchingState
 import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
+import com.nuvio.app.isLinux
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -297,7 +299,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         subtitleAutoSyncIsLoading = subtitleAutoSyncState.isLoading,
         subtitleAutoSyncErrorMessage = subtitleAutoSyncState.errorMessage.orEmpty(),
         closeModalsToken = playerControlsCloseModalsToken,
-        showOpeningOverlay = openingOverlayWanted,
+        showOpeningOverlay = false,
         openingArtwork = background ?: poster,
         openingLogo = logo,
         openingTitle = title,
@@ -455,11 +457,17 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             suppressOpeningOverlay = isDesktop && playerSurfaceSourceUrl != null,
         )
         RenderPlayerModals(displayedPositionMs = displayedPositionMs)
+        PlayerToastOverlay(
+            message = toastMessage.orEmpty(),
+            visible = toastVisible,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
     }
 }
 
 @Composable
 private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, isEpisode: Boolean) {
+    val volumeLabel = stringResource(Res.string.compose_player_volume)
     AnimatedVisibility(
         visible = (controlsVisible || showParentalGuide) && !playerControlsLocked,
         enter = fadeIn(),
@@ -478,6 +486,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             resizeMode = resizeMode,
             isLocked = playerControlsLocked,
             showPlaybackControls = controlsVisible,
+            isFullscreen = isDesktopAppFullscreen,
             onLockToggle = {
                 if (playerControlsLocked) unlockPlayerControls() else lockPlayerControls()
             },
@@ -547,6 +556,14 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             } else {
                 null
             },
+            onFullscreenClick = if (isDesktop) {
+                {
+                    isDesktopAppFullscreen = !isDesktopAppFullscreen
+                    toggleFullscreenAction()
+                }
+            } else {
+                null
+            },
             parentalWarnings = parentalWarnings,
             showParentalGuide = showParentalGuide,
             onParentalGuideAnimationComplete = { showParentalGuide = false },
@@ -572,10 +589,12 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                     currentVolume = previousVolume
                     playerController?.setVolume(previousVolume)
                     isVolumeMuted = false
+                    showToast("$volumeLabel: ${previousVolume.toInt()}%")
                 } else {
                     previousVolume = currentVolume
                     playerController?.setVolume(0f)
                     isVolumeMuted = true
+                    showToast("$volumeLabel: 0%")
                 }
             },
             modifier = Modifier.fillMaxSize(),
@@ -661,6 +680,9 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
         }
         PlayerControlsAction.DoubleTapSeekForward -> {
             prepareDoubleTapSeekForNativeFallback(PlayerSeekDirection.Forward)
+            return false
+        }
+        PlayerControlsAction.Fullscreen -> {
             return false
         }
     }
@@ -1219,10 +1241,7 @@ private fun BoxScope.RenderPlaybackOverlays(
             metrics = metrics,
             horizontalSafePadding = horizontalSafePadding,
             onUnlock = { unlockPlayerControls() },
-            showOpeningOverlay = playerSettingsUiState.showLoadingOverlay &&
-                !initialLoadCompleted &&
-                errorMessage == null &&
-                !suppressOpeningOverlay,
+            showOpeningOverlay = false,
             backdropArtwork = background ?: poster,
             logo = logo,
             title = title,
@@ -1239,7 +1258,7 @@ private fun BoxScope.RenderPlaybackOverlays(
             renderedGestureFeedback = renderedGestureFeedback,
             initialLoadCompleted = initialLoadCompleted,
             pausedOverlayVisible = pausedOverlayVisible,
-            activeSkipInterval = activeSkipInterval.takeUnless { isDesktop },
+            activeSkipInterval = activeSkipInterval.takeUnless { isDesktop && !isLinux },
             skipIntervalDismissed = skipIntervalDismissed,
             controlsVisible = controlsVisible,
             onSkipInterval = { interval ->
@@ -1252,7 +1271,7 @@ private fun BoxScope.RenderPlaybackOverlays(
             overlayBottomPadding = overlayBottomPadding,
             isSeries = isSeries,
             nextEpisodeInfo = nextEpisodeInfo,
-            showNextEpisodeCard = showNextEpisodeCard && !isDesktop,
+            showNextEpisodeCard = showNextEpisodeCard && !(isDesktop && !isLinux),
             nextEpisodeAutoPlaySearching = nextEpisodeAutoPlaySearching,
             nextEpisodeAutoPlaySourceName = nextEpisodeAutoPlaySourceName,
             nextEpisodeAutoPlayCountdown = nextEpisodeAutoPlayCountdown,

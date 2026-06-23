@@ -54,6 +54,7 @@ enum class PlayerControlsAction {
     VideoSettings,
     DoubleTapSeekBack,
     DoubleTapSeekForward,
+    Fullscreen,
 }
 
 data class PlayerControlsState(

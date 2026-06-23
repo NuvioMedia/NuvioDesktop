@@ -28,4 +28,6 @@ asset
 scripts/scrape_android_compose_animation_docs.py
 tools
 AGENTS.md
-server
+serverrelease-assets/linux/*.AppImage
+release-assets/linux/*.AppImage.zsync
+release-assets/linux/*.deb
