@@ -66,6 +66,9 @@ jobs:
       - name: Make scripts executable
         run: chmod +x ./gradlew ./scripts/*.sh
 
+      - name: Create local.properties
+        run: touch local.properties
+
       - name: Read version
         id: version
         run: |
@@ -77,7 +80,6 @@ jobs:
         env:
           JAVA_HOME: /usr/lib/jvm/jdk-21
         run: |
-          touch local.properties
           if [[ "${{ inputs.rpm_only }}" == "true" ]]; then
             ./scripts/build-linux-fedora-release.sh --rpm-only --skip-mpv
           else
