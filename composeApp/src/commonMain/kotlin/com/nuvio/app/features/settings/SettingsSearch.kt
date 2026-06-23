@@ -614,6 +614,8 @@ internal fun settingsSearchEntries(
             section = playbackSubtitleRendering,
             icon = Icons.Rounded.PlayArrow,
             rows = listOf(
+                PlaybackSearchRow("subtitle-shadow", stringResource(Res.string.settings_playback_subtitle_shadow), stringResource(Res.string.settings_playback_subtitle_shadow_description)),
+                PlaybackSearchRow("subtitle-shadow-density", stringResource(Res.string.settings_playback_subtitle_shadow_density)),
                 PlaybackSearchRow("libass", stringResource(Res.string.settings_playback_enable_libass), stringResource(Res.string.settings_playback_enable_libass_description)),
                 PlaybackSearchRow("libass-render", stringResource(Res.string.settings_playback_render_type)),
             ),

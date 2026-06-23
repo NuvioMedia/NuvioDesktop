@@ -407,6 +407,8 @@ internal class NativePlayerController(
                 bold = style.bold,
                 fontSize = style.toMpvSubtitleFontSize(),
                 subPos = style.toMpvSubtitlePosition(),
+                shadowEnabled = style.shadowEnabled,
+                shadowDensity = style.shadowDensity,
             )
         }
     }
@@ -665,6 +667,10 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonField("outlineLabel", outlineLabel)
         append(',')
+        appendJsonField("shadowLabel", shadowLabel)
+        append(',')
+        appendJsonField("shadowDensityLabel", shadowDensityLabel)
+        append(',')
         appendJsonField("boldLabel", boldLabel)
         append(',')
         appendJsonField("bottomOffsetLabel", bottomOffsetLabel)
@@ -857,7 +863,7 @@ private fun StringBuilder.appendJsonField(name: String, value: Float?) {
     if (value == null || value.isNaN() || value.isInfinite()) {
         append("null")
     } else {
-        append(value.coerceIn(0f, 1f))
+        append(value)
     }
 }
 
@@ -992,6 +998,10 @@ private fun StringBuilder.appendSubtitleStyleJson(style: SubtitleStyleState) {
     appendJsonField("outlineColor", style.outlineColor.toStorageHexString())
     append(',')
     appendJsonField("outlineEnabled", style.outlineEnabled)
+    append(',')
+    appendJsonField("shadowEnabled", style.shadowEnabled)
+    append(',')
+    appendJsonField("shadowDensity", style.shadowDensity)
     append(',')
     appendJsonField("bold", style.bold)
     append(',')

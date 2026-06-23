@@ -95,6 +95,12 @@ const fontSizeValue = document.getElementById("fontSizeValue");
 const fontSizePlus = document.getElementById("fontSizePlus");
 const outlineLabel = document.getElementById("outlineLabel");
 const outlineToggle = document.getElementById("outlineToggle");
+const shadowLabel = document.getElementById("shadowLabel");
+const shadowToggle = document.getElementById("shadowToggle");
+const shadowDensityLabel = document.getElementById("shadowDensityLabel");
+const shadowDensityMinus = document.getElementById("shadowDensityMinus");
+const shadowDensityValue = document.getElementById("shadowDensityValue");
+const shadowDensityPlus = document.getElementById("shadowDensityPlus");
 const boldLabel = document.getElementById("boldLabel");
 const boldToggle = document.getElementById("boldToggle");
 const bottomOffsetLabel = document.getElementById("bottomOffsetLabel");
@@ -223,6 +229,8 @@ let state = {
   loadingSubtitleLinesLabel: "Loading subtitle lines...",
   fontSizeLabel: "Font Size",
   outlineLabel: "Outline",
+  shadowLabel: "Shadow",
+  shadowDensityLabel: "Shadow Density",
   boldLabel: "Bold",
   bottomOffsetLabel: "Bottom Offset",
   colorLabel: "Color",
@@ -308,6 +316,8 @@ let state = {
     textColor: "#FFFFFFFF",
     outlineColor: "#FF000000",
     outlineEnabled: true,
+    shadowEnabled: false,
+    shadowDensity: 1.0,
     bold: false,
     fontSizeSp: 18,
     bottomOffset: 20,
@@ -1095,6 +1105,11 @@ const renderSubtitleStylePanel = () => {
   outlineLabel.textContent = state.outlineLabel || "Outline";
   outlineToggle.textContent = style.outlineEnabled ? (state.onLabel || "On") : (state.offLabel || "Off");
   outlineToggle.classList.toggle("primary", Boolean(style.outlineEnabled));
+  shadowLabel.textContent = state.shadowLabel || "Shadow";
+  shadowToggle.textContent = style.shadowEnabled ? (state.onLabel || "On") : (state.offLabel || "Off");
+  shadowToggle.classList.toggle("primary", Boolean(style.shadowEnabled));
+  shadowDensityLabel.textContent = state.shadowDensityLabel || "Shadow Density";
+  shadowDensityValue.textContent = (typeof style.shadowDensity === "number" ? style.shadowDensity : 1.0).toFixed(1);
   boldLabel.textContent = state.boldLabel || "Bold";
   boldToggle.textContent = style.bold ? (state.onLabel || "On") : (state.offLabel || "Off");
   boldToggle.classList.toggle("primary", Boolean(style.bold));
@@ -2254,6 +2269,18 @@ fontSizePlus.addEventListener("click", event => {
 outlineToggle.addEventListener("click", event => {
   event.stopPropagation();
   send("subtitleOutlineToggle", 0);
+});
+shadowToggle.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleShadowToggle", 0);
+});
+shadowDensityMinus.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleShadowDensityDelta", -0.2);
+});
+shadowDensityPlus.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleShadowDensityDelta", 0.2);
 });
 boldToggle.addEventListener("click", event => {
   event.stopPropagation();
