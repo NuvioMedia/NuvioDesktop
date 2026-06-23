@@ -1193,7 +1193,7 @@ compose.desktop {
                 menuGroup = "Nuvio"
             }
             linux {
-                iconFile.set(project.file("src/desktopMain/resources/icons/nuvio_256.png"))
+                iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon.png"))
                 rpmLicenseType = "Proprietary"
             }
         }
@@ -1269,7 +1269,7 @@ val buildAppImage = tasks.register<Exec>("buildAppImage") {
             )
             setExecutable(true)
         }
-        val iconFile = project.file("src/desktopMain/resources/icons/nuvio_256.png")
+        val iconFile = project.file("src/desktopMain/resources/icons/nuvio-app-icon.png")
         if (iconFile.exists()) {
             iconFile.copyTo(appDir.resolve("Nuvio.png"), overwrite = true)
         }

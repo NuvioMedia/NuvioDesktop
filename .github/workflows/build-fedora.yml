@@ -1,0 +1,94 @@
+name: Build Fedora RPM
+
+on:
+  workflow_dispatch:
+    inputs:
+      rpm_only:
+        description: "Build only RPM (skip AppImage)"
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-fedora:
+    name: Build Fedora RPM
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:latest
+      options: --privileged
+
+    steps:
+      - name: Install system dependencies
+        run: |
+          dnf install -y \
+            java-17-openjdk-devel \
+            gcc \
+            make \
+            pkgconf \
+            mpv-devel \
+            rpm-build \
+            rpmrebuild \
+            git \
+            which
+          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk" >> "$GITHUB_ENV"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Make scripts executable
+        run: chmod +x ./gradlew ./scripts/*.sh
+
+      - name: Read version
+        id: version
+        run: |
+          version=$(grep '^VERSION_NAME=' composeApp/Configuration/DesktopVersion.properties | cut -d= -f2 | tr -d ' \r')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building version: $version"
+
+      - name: Build RPM
+        run: |
+          if [[ "${{ inputs.rpm_only }}" == "true" ]]; then
+            ./scripts/build-linux-fedora-release.sh --rpm-only --skip-mpv
+          else
+            ./scripts/build-linux-fedora-release.sh --skip-mpv
+          fi
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fedora-rpm-${{ steps.version.outputs.version }}
+          path: release-assets/linux-fedora/*.rpm
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload AppImage artifact
+        if: inputs.rpm_only != true
+        uses: actions/upload-artifact@v4
+        with:
+          name: fedora-appimage-${{ steps.version.outputs.version }}
+          path: release-assets/linux-fedora/*.AppImage
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/linux-fedora/*.rpm
+            release-assets/linux-fedora/*.AppImage
+          draft: true
+          generate_release_notes: true
