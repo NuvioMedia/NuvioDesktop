@@ -1482,6 +1482,10 @@ private fun MainAppContent(
                 .background(MaterialTheme.nuvio.colors.background),
         ) {
             SharedTransitionLayout {
+                PlatformBackHandler(
+                    enabled = true,
+                    onBack = { navController.popBackStack() },
+                )
                 NavHost(
                     navController = navController,
                     startDestination = TabsRoute,

@@ -43,6 +43,8 @@ internal class NativePlayerHost : PlayerHost {
         val pix = pixelBuffer?.takeIf { it.size >= count }
             ?: IntArray(count).also { pixelBuffer = it }
 
+        pix.fill(0)
+
         if (!NativePlayerBridge.renderFrame(handle, pix, width, height)) return false
 
         val bytes = pixelBytes?.takeIf { it.size >= byteCount }

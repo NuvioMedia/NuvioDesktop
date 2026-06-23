@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.geometry.Offset
+import com.nuvio.app.core.ui.toggleFullscreenAction
+import com.nuvio.app.isDesktop
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import kotlinx.coroutines.delay
@@ -327,6 +329,10 @@ internal fun PlayerScreenRuntime.rememberSurfaceGestureCallbacks(): PlayerSurfac
     val onSurfaceDoubleTap = rememberUpdatedState { offset: Offset ->
         if (playerControlsLocked) {
             revealLockedOverlay()
+            return@rememberUpdatedState
+        }
+        if (isDesktop) {
+            toggleFullscreenAction()
             return@rememberUpdatedState
         }
         if (!playerSettingsUiState.touchGesturesEnabled) {

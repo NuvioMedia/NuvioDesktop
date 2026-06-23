@@ -18,10 +18,10 @@ import javax.swing.SwingUtilities
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.nuvio.app.core.ui.DesktopBackHandlers
+import com.nuvio.app.features.player.desktop.DesktopHostOs
 
-internal object DesktopAppNavigation {
-    var currentBackHandler: (() -> Unit)? = null
-}
+internal object DesktopAppNavigation
 
 private object DesktopAppFullscreen {
     private var toggleHandler: ((Window?) -> Unit)? = null
@@ -177,7 +177,7 @@ internal fun installDesktopAppFullscreenShortcuts(window: Window): () -> Unit {
             if (isDesktopAppFullscreen(window)) {
                 toggleDesktopAppFullscreen(window)
             } else {
-                DesktopAppNavigation.currentBackHandler?.invoke()
+                DesktopBackHandlers.handleBack()
             }
             return@KeyEventDispatcher true
         }
@@ -207,14 +207,14 @@ internal fun installDesktopMouseButtonShortcuts(window: Window): () -> Unit {
     val listener = AWTEventListener { awtEvent ->
         if (awtEvent.id != MouseEvent.MOUSE_PRESSED) return@AWTEventListener
         val mouseEvent = awtEvent as? MouseEvent ?: return@AWTEventListener
-        if (mouseEvent.button !in 4..5) return@AWTEventListener
-        if (!window.isFocused) return@AWTEventListener
-        val backHandler = DesktopAppNavigation.currentBackHandler
-        if (backHandler != null) {
-            backHandler()
-            return@AWTEventListener
+        val isSideButton = if (DesktopHostOs.current == DesktopHostOs.LINUX) {
+            mouseEvent.button in 6..9
+        } else {
+            mouseEvent.button in 4..5
         }
-        toggleDesktopAppFullscreen(window)
+        if (!isSideButton) return@AWTEventListener
+        if (!window.isFocused) return@AWTEventListener
+        DesktopBackHandlers.handleBack()
     }
     Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.MOUSE_EVENT_MASK)
     return {
