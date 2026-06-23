@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.isIos
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -351,6 +352,7 @@ private fun ActiveScrapersStatusBlock(
         groups.filter { it.isLoading }.map { it.addonName }.distinct()
     }
     if (activeScrapers.isEmpty()) return
+    val scrollState = rememberScrollState()
 
     Column(
         modifier = modifier
@@ -369,7 +371,8 @@ private fun ActiveScrapersStatusBlock(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                .nuvioDesktopDragScroll(scrollState)
+                .horizontalScroll(scrollState),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             activeScrapers.forEach { addonName ->
