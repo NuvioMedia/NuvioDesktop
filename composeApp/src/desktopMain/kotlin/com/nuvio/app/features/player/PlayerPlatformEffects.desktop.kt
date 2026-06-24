@@ -82,8 +82,9 @@ private class DesktopKeepAwakeController : AutoCloseable {
     }
 
     private fun startLinuxInhibit(): Process? {
-        return runCatching {
-            ProcessBuilder(
+        // Tier 1: systemd-inhibit (systemd / elogind / Devuan)
+        runCatching {
+            val process = ProcessBuilder(
                 "systemd-inhibit",
                 "--what=handle-lid-switch:sleep:idle",
                 "--who=Nuvio",
@@ -91,7 +92,38 @@ private class DesktopKeepAwakeController : AutoCloseable {
                 "sleep",
                 "infinity",
             ).start()
-        }.getOrNull()
+            if (process.isAlive) return process
+        }
+
+        // Tier 2: D-Bus direct call to logind (any distro with logind running)
+        runCatching {
+            val process = ProcessBuilder(
+                "dbus-send",
+                "--session",
+                "--type=method_call",
+                "--dest=org.freedesktop.login1",
+                "/org/freedesktop/login1",
+                "org.freedesktop.login1.Manager.Inhibit",
+                "string:sleep",
+                "string:Nuvio",
+                "string:Playing video",
+                "string:delay",
+            ).start()
+            process.waitFor()
+            if (process.exitValue() == 0) return process
+        }
+
+        // Tier 3: xdg-screensaver (X11 fallback)
+        runCatching {
+            val process = ProcessBuilder(
+                "xdg-screensaver",
+                "suspend",
+                "0",
+            ).start()
+            if (process.isAlive) return process
+        }
+
+        return null
     }
 
     private fun stopInhibit() {

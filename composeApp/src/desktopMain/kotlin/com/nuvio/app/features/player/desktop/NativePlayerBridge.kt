@@ -28,8 +28,6 @@ internal object NativePlayerBridge {
 
     external fun create(
         hostViewPtr: Long,
-        hostWidth: Int,
-        hostHeight: Int,
         sourceUrl: String,
         headerLines: Array<String>,
         playWhenReady: Boolean,
@@ -71,6 +69,14 @@ internal object NativePlayerBridge {
         borderColorRgb: Int,
         textColorRgb: Int,
     )
+    external fun setWindowBorderlessFullscreen(
+        windowHwnd: Long,
+        fullscreen: Boolean,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+    )
 
     external fun setSubtitleDelayMs(handle: Long, delayMs: Int)
     external fun applySubtitleStyle(
@@ -83,12 +89,15 @@ internal object NativePlayerBridge {
         fontSize: Float,
         subPos: Int,
     )
-    external fun setProperty(handle: Long, name: String, value: String)
     external fun warmupWebView2(controlsPageUrl: String): Boolean
     external fun shutdownWebView2Warmup()
+
+    // Linux-specific native methods
     external fun renderFrame(handle: Long, dstPixels: IntArray, dstW: Int, dstH: Int): Boolean
+    external fun renderFrameBytes(handle: Long, dstBytes: ByteArray, dstW: Int, dstH: Int): Boolean
     external fun resizeNativeView(handle: Long, width: Int, height: Int)
     external fun isWaylandSession(): Boolean
+    external fun setProperty(handle: Long, name: String, value: String)
 
     val controlsPageUrl: String by lazy { controlsPageAssets.url }
     private val controlsPageAssets: ControlsPageAssets by lazy { exportControlsPageAssets() }
@@ -186,7 +195,6 @@ internal object NativePlayerBridge {
 
         return when (platformDir) {
             "windows" -> listOf("libmpv-2.dll")
-            "linux" -> listOf("libmpv.so.2")
             else -> emptyList()
         }
     }

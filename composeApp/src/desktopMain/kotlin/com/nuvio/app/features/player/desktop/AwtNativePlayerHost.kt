@@ -26,6 +26,7 @@ internal class AwtNativePlayerHost : Canvas(), PlayerHost {
     private var firstPaintNotified = false
     private var firstFullSizePaintNotified = false
     override var onMouseClick: (() -> Unit)? = null
+    override var onDoubleClick: (() -> Unit)? = null
     override var onCursorActivity: (() -> Unit)? = null
     private var controlsVisible = true
     private var cursorVisible = true
@@ -85,7 +86,11 @@ internal class AwtNativePlayerHost : Canvas(), PlayerHost {
         addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 noteCursorActivity()
-                onMouseClick?.invoke()
+                if (e.clickCount >= 2) {
+                    onDoubleClick?.invoke()
+                } else {
+                    onMouseClick?.invoke()
+                }
             }
         })
         addMouseMotionListener(object : MouseMotionAdapter() {

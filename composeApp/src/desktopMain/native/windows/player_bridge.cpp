@@ -1874,7 +1874,6 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     JNIEnv *env,
     jobject,
     jlong hostViewPtr,
-    jint hostWidth, jint hostHeight,
     jstring sourceUrl,
     jobjectArray headerLines,
     jboolean playWhenReady,
@@ -1883,7 +1882,6 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jint decoderPriority, jboolean nvidiaRtxSuperResolutionEnabled,
     jobject eventSink
 ) {
-    (void)hostWidth; (void)hostHeight;
     (void)decoderPriority; (void)nvidiaRtxSuperResolutionEnabled;
     HWND hostHwnd = (HWND)(intptr_t)hostViewPtr;
     std::string sourceUrlText = jstringToUtf8(env, sourceUrl);

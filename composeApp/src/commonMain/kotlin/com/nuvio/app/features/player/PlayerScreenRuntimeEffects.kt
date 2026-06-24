@@ -231,11 +231,6 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
             initialSeekApplied = true
             return@LaunchedEffect
         }
-        if (isDesktop && activeInitialPositionMs > 0L) {
-            initialSeekApplied = true
-            return@LaunchedEffect
-        }
-
         controller.seekTo(targetPositionMs)
         initialSeekApplied = true
     }

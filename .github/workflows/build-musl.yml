@@ -1,0 +1,140 @@
+name: Build musl (Alpine)
+
+on:
+  workflow_dispatch:
+    inputs:
+      appimage_only:
+        description: "Build only AppImage (skip tarball)"
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-musl:
+    name: Build musl (Alpine)
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+      options: --privileged
+
+    steps:
+      - name: Install system dependencies
+        run: |
+          apk add --no-cache \
+            openjdk21-jdk \
+            gcc \
+            musl-dev \
+            make \
+            pkgconf \
+            mpv-dev \
+            mpv-libs-static \
+            egl-dev \
+            mesa-gl-dev \
+            gbm-dev \
+            libx11-dev \
+            zlib-dev \
+            git \
+            curl
+
+      - name: Set JAVA_HOME
+        run: echo "JAVA_HOME=/usr/lib/jvm/java-21-openjdk" >> "$GITHUB_ENV"
+
+      - name: Install appimagetool
+        run: |
+          curl -sL "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -o /usr/local/bin/appimagetool
+          chmod +x /usr/local/bin/appimagetool
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Make scripts executable
+        run: chmod +x ./gradlew ./scripts/*.sh
+
+      - name: Create local.properties
+        run: touch local.properties
+
+      - name: Read version
+        id: version
+        run: |
+          version=$(grep '^VERSION_NAME=' composeApp/Configuration/DesktopVersion.properties | cut -d= -f2 | tr -d ' \r')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building version: $version"
+
+      - name: Build with Gradle (musl-gcc)
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-21-openjdk
+        run: |
+          ./gradlew \
+            :composeApp:buildLinuxPlayerBridge \
+            :composeApp:prepareLinuxPlayerRuntime \
+            :composeApp:generateLinuxPlayerRuntimeIndex \
+            :composeApp:desktopJar \
+            --no-configuration-cache \
+            -PlinuxCc=musl-gcc \
+            -PlinuxCflags='-static-libgcc'
+
+      - name: Create AppDir
+        run: |
+          echo "=== Creating musl AppDir ==="
+          APPDIR=/tmp/nuvio-musl.AppDir
+          mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib/nuvio" "$APPDIR/usr/share/applications" "$APPDIR/usr/share/icons/hicolor/256x256/apps"
+
+          # Copy the JAR
+          cp composeApp/build/libs/desktop.jar "$APPDIR/usr/lib/nuvio/nuvio.jar"
+
+          # Copy the musl-compiled native bridge
+          cp composeApp/build/native/linux/libplayer_bridge.so "$APPDIR/usr/lib/nuvio/"
+
+          # Copy the runtime files (libmpv.so, libmpv.so.2) from the build output
+          cp composeApp/build/native/linux-runtime/* "$APPDIR/usr/lib/nuvio/" 2>/dev/null || true
+
+          # Create launcher script
+          cat > "$APPDIR/usr/bin/nuvio" << 'EOF'
+#!/bin/sh
+APP_DIR="$(dirname "$0")"
+LIB_DIR="$APP_DIR/../lib/nuvio"
+exec java -Djava.library.path="$LIB_DIR" -jar "$LIB_DIR/nuvio.jar" "$@"
+EOF
+          chmod +x "$APPDIR/usr/bin/nuvio"
+
+          # Copy desktop file and icon
+          cp composeApp/src/desktopMain/resources/*.desktop "$APPDIR/usr/share/applications/" 2>/dev/null || true
+          cp composeApp/src/desktopMain/resources/*.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/" 2>/dev/null || true
+
+          echo "=== AppDir contents ==="
+          ls -la "$APPDIR/usr/lib/nuvio/"
+
+      - name: Create AppImage
+        if: inputs.appimage_only != true
+        run: |
+          echo "=== Creating musl AppImage ==="
+          appimagetool /tmp/nuvio-musl.AppDir "Nuvio-${{ steps.version.outputs.version }}-musl-x86_64.AppImage" || true
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: musl-appimage-${{ steps.version.outputs.version }}
+          path: "Nuvio-*-musl-*.AppImage"
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "Nuvio-*-musl-*.AppImage"
+          draft: true
+          generate_release_notes: true
