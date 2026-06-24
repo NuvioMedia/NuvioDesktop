@@ -608,6 +608,10 @@ JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBr
         task->frameH = 0;
         task->frameReady = 0;
         pthread_mutex_unlock(&task->frameMutex);
+        /* NOTE: do NOT destroy frameMutex here.
+         * renderFrame() may still be called concurrently by the Kotlin
+         * render loop, which locks this mutex. Destroying it here causes
+         * use-after-free -> SIGABRT.  Leaking the mutex is safe. */
     }
 
     free(task->sourceUrl);
@@ -617,6 +621,10 @@ JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBr
         free(task->headers);
         task->headers = NULL;
     }
+    /* NOTE: do NOT free(task) here.
+     * The Kotlin render loop may still hold the handle and call renderFrame()
+     * concurrently.  Freeing the struct would cause use-after-free / SIGABRT.
+     * The tiny leak (one ~80-byte struct per player session) is acceptable. */
 }
 
 /* ---- Wayland session detection ---- */
@@ -734,47 +742,6 @@ JNIEXPORT jboolean JNICALL Java_com_nuvio_app_features_player_desktop_NativePlay
         dst, dstW, dstH);
 
     (*env)->ReleaseIntArrayElements(env, dstPixels, dst, 0);
-    pthread_mutex_unlock(&task->frameMutex);
-    return JNI_TRUE;
-}
-
-JNIEXPORT jboolean JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_renderFrameBytes(
-    JNIEnv *env, jobject thiz, jlong handle,
-    jbyteArray dstBytes, jint dstW, jint dstH) {
-    (void)thiz;
-    CreateTask *task = h(handle);
-    if (!task || !task->alive) return JNI_FALSE;
-    if (task->gpuMode == 1) return JNI_FALSE;
-    if (!task->frameData) return JNI_FALSE;
-
-    pthread_mutex_lock(&task->frameMutex);
-
-    int srcW = task->frameW;
-    int srcH = task->frameH;
-    int srcStride = task->frameStride;
-    char *src = task->frameData;
-
-    if (!task->frameReady || srcW <= 0 || srcH <= 0) {
-        pthread_mutex_unlock(&task->frameMutex);
-        return JNI_FALSE;
-    }
-    task->frameReady = 0;
-
-    jbyte *dst = (*env)->GetByteArrayElements(env, dstBytes, NULL);
-    if (!dst) { pthread_mutex_unlock(&task->frameMutex); return JNI_FALSE; }
-
-    jsize dstLen = (*env)->GetArrayLength(env, dstBytes);
-    if (dstLen < (jsize)(dstW * dstH * 4)) {
-        (*env)->ReleaseByteArrayElements(env, dstBytes, dst, JNI_ABORT);
-        pthread_mutex_unlock(&task->frameMutex);
-        return JNI_FALSE;
-    }
-
-    letterbox_scale_rgba_to_bgra(
-        (unsigned char *)src, srcW, srcH, srcStride,
-        (unsigned char *)dst, dstW, dstH);
-
-    (*env)->ReleaseByteArrayElements(env, dstBytes, dst, 0);
     pthread_mutex_unlock(&task->frameMutex);
     return JNI_TRUE;
 }
@@ -1043,11 +1010,6 @@ JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBr
 JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applyWindowChrome(
     JNIEnv *env, jobject thiz, jlong wnd, jboolean dark, jint cap, jint border, jint txt) {
     (void)env; (void)thiz; (void)wnd; (void)dark; (void)cap; (void)border; (void)txt;
-}
-
-JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowBorderlessFullscreen(
-    JNIEnv *env, jobject thiz, jlong hwnd, jboolean fs, jint x, jint y, jint w, jint h) {
-    (void)env; (void)thiz; (void)hwnd; (void)fs; (void)x; (void)y; (void)w; (void)h;
 }
 
 JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSubtitleDelayMs(

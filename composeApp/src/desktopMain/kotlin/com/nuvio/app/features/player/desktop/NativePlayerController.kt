@@ -57,13 +57,6 @@ internal class NativePlayerController(
         host.onMouseClick = {
             onAction(PlayerControlsAction.ToggleChrome)
         }
-        host.onDoubleClick = {
-            val window = (host as? java.awt.Component)?.let {
-                SwingUtilities.getWindowAncestor(it)
-            }
-            toggleDesktopAppFullscreen(window)
-            lastSentControlsStructureKey = null
-        }
     }
 
     fun attach(
@@ -86,14 +79,14 @@ internal class NativePlayerController(
         )
         pendingSource = pending
 
-        if (host is NativePlayerHost) {
-            val nativeHost = host as NativePlayerHost
-            nativeHost.onPeerReady = { attachPending() }
-            if (nativeHost.isDisplayable) {
+        if (host is AwtNativePlayerHost) {
+            val awtHost = host as AwtNativePlayerHost
+            awtHost.onPeerReady = { attachPending() }
+            if (awtHost.isDisplayable) {
                 attachPending()
             }
         } else {
-            // WaylandPlayerHost — no AWT peer needed
+            // NativePlayerHost (Linux Skia) — no AWT peer needed
             attachPending()
         }
     }
@@ -101,26 +94,28 @@ internal class NativePlayerController(
     private fun attachPending() {
         val pending = pendingSource ?: return
 
-        if (host is NativePlayerHost) {
-            val nativeHost = host as NativePlayerHost
+        if (host is AwtNativePlayerHost) {
+            val awtHost = host as AwtNativePlayerHost
             SwingUtilities.invokeLater {
-                if (!nativeHost.isDisplayable) {
+                if (!awtHost.isDisplayable) {
                     return@invokeLater
                 }
-                attachPendingAwt(pending, nativeHost)
+                attachPendingAwt(pending, awtHost)
             }
         } else {
             attachPendingDirect(pending)
         }
     }
 
-    private fun attachPendingAwt(pending: PendingSource, nativeHost: NativePlayerHost) {
+    private fun attachPendingAwt(pending: PendingSource, awtHost: AwtNativePlayerHost) {
         disposePlayerHandle()
         runCatching {
-            val hostViewPtr = AwtNativeViewResolver.resolveNativeViewPointer(nativeHost)
+            val hostViewPtr = AwtNativeViewResolver.resolveNativeViewPointer(awtHost)
             val resolvedSource = resolveSourceUrl(pending.sourceUrl)
             handle = NativePlayerBridge.create(
                 hostViewPtr = hostViewPtr,
+                hostWidth = awtHost.width,
+                hostHeight = awtHost.height,
                 sourceUrl = resolvedSource,
                 headerLines = pending.headerLines.toTypedArray(),
                 playWhenReady = pending.playWhenReady,
@@ -131,8 +126,8 @@ internal class NativePlayerController(
                 eventSink = eventSink,
             )
             if (handle == 0L) error("Native player did not return a handle.")
-            nativeHost.nativeHandle = handle
-            nativeHost.onResize = { w, h ->
+            awtHost.nativeHandle = handle
+            awtHost.onResize = { w, h ->
                 NativePlayerBridge.resizeNativeView(handle, w, h)
             }
             updateControls(controlsState)
@@ -147,6 +142,8 @@ internal class NativePlayerController(
             val resolvedSource = resolveSourceUrl(pending.sourceUrl)
             handle = NativePlayerBridge.create(
                 hostViewPtr = 0L,
+                hostWidth = 0,
+                hostHeight = 0,
                 sourceUrl = resolvedSource,
                 headerLines = pending.headerLines.toTypedArray(),
                 playWhenReady = pending.playWhenReady,
@@ -243,10 +240,7 @@ internal class NativePlayerController(
                 }
             }
             "toggleFullscreen" -> {
-                val window = (host as? java.awt.Component)?.let {
-                    SwingUtilities.getWindowAncestor(it)
-                }
-                toggleDesktopAppFullscreen(window)
+                toggleDesktopAppFullscreen()
                 lastSentControlsStructureKey = null
                 updateControls(controlsState)
             }

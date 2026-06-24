@@ -1,107 +1,73 @@
 package com.nuvio.app.features.player.desktop
 
-import java.awt.Canvas
-import java.awt.Color
+import org.jetbrains.skia.ColorAlphaType
+import org.jetbrains.skia.Image
+import org.jetbrains.skia.ImageInfo
 import java.awt.Cursor
-import java.awt.Graphics
+import java.awt.KeyboardFocusManager
 import java.awt.Point
 import java.awt.Toolkit
-import java.awt.event.ComponentAdapter
-import java.awt.event.ComponentEvent
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import java.awt.event.MouseMotionAdapter
+import java.awt.Window
 import java.awt.image.BufferedImage
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import javax.swing.Timer
 
-private val usesSoftwareRendering: Boolean
-    get() = DesktopHostOs.current == DesktopHostOs.LINUX && DesktopHostOs.isWayland
+internal class NativePlayerHost : PlayerHost {
+    @Volatile
+    override var nativeHandle: Long = 0L
 
-internal class NativePlayerHost : Canvas(), PlayerHost {
-    var onPeerReady: (() -> Unit)? = null
-    var onDisplayableChanged: ((Boolean) -> Unit)? = null
-    var onFirstPaint: (() -> Unit)? = null
-    var onFirstFullSizePaint: (() -> Unit)? = null
-    var onResize: ((width: Int, height: Int) -> Unit)? = null
-    private var firstPaintNotified = false
-    private var firstFullSizePaintNotified = false
     override var onMouseClick: (() -> Unit)? = null
-    override var onDoubleClick: (() -> Unit)? = null
     override var onCursorActivity: (() -> Unit)? = null
+
+    private var pixelBuffer: IntArray? = null
+    private var pixelBytes: ByteArray? = null
+    private var gcCounter = 0
+    private var lastWidth = 0
+    private var lastHeight = 0
+
+    var latestImage: Image? = null
+        private set
+
     private var controlsVisible = true
     private var cursorVisible = true
     private var cursorHideTimer: Timer? = null
 
-    private var renderTimer: Timer? = null
-    private var pixelBuffer: IntArray? = null
-    private var frameImage: BufferedImage? = null
+    fun renderFrame(width: Int, height: Int): Boolean {
+        val handle = nativeHandle
+        if (handle == 0L || width <= 0 || height <= 0) return false
 
-    @Volatile
-    override var nativeHandle: Long = 0L
-        set(value) {
-            field = value
-            if (value != 0L && usesSoftwareRendering) {
-                startRenderTimer()
-            } else {
-                stopRenderTimer()
-            }
+        val count = width * height
+        val byteCount = count * 4
+
+        val pix = pixelBuffer?.takeIf { it.size >= count }
+            ?: IntArray(count).also { pixelBuffer = it }
+
+        pix.fill(0)
+
+        if (!NativePlayerBridge.renderFrame(handle, pix, width, height)) return false
+
+        val bytes = pixelBytes?.takeIf { it.size >= byteCount }
+            ?: ByteArray(byteCount).also { pixelBytes = it }
+
+        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().put(pix, 0, count)
+
+        val sizeChanged = width != lastWidth || height != lastHeight
+        val imageInfo = ImageInfo.makeS32(width, height, ColorAlphaType.UNPREMUL)
+        val previousImage = latestImage
+
+        if (sizeChanged || previousImage == null) {
+            latestImage = Image.makeRaster(imageInfo, bytes, width * 4)
+            previousImage?.close()
+            lastWidth = width
+            lastHeight = height
+        } else {
+            latestImage = Image.makeRaster(imageInfo, bytes, width * 4)
+            previousImage.close()
         }
 
-    private fun startRenderTimer() {
-        if (renderTimer != null) return
-        renderTimer = Timer(33) {
-            if (nativeHandle != 0L && isDisplayable) {
-                repaint()
-            } else {
-                stopRenderTimer()
-            }
-        }.apply {
-            isRepeats = true
-            start()
-        }
-    }
-
-    private fun stopRenderTimer() {
-        renderTimer?.stop()
-        renderTimer = null
-    }
-
-    private companion object {
-        const val CursorIdleHideDelayMs = 3_000
-
-        val hiddenCursor: Cursor by lazy {
-            val image = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
-            Toolkit.getDefaultToolkit().createCustomCursor(image, Point(0, 0), "nuvio-hidden-cursor")
-        }
-    }
-
-    init {
-        background = Color.BLACK
-        ignoreRepaint = false
-        addComponentListener(object : ComponentAdapter() {
-            override fun componentResized(e: ComponentEvent) {
-                onResize?.invoke(width, height)
-            }
-        })
-        addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                noteCursorActivity()
-                if (e.clickCount >= 2) {
-                    onDoubleClick?.invoke()
-                } else {
-                    onMouseClick?.invoke()
-                }
-            }
-        })
-        addMouseMotionListener(object : MouseMotionAdapter() {
-            override fun mouseMoved(event: MouseEvent) {
-                noteCursorActivity()
-            }
-
-            override fun mouseDragged(event: MouseEvent) {
-                noteCursorActivity()
-            }
-        })
+        if (++gcCounter % 300 == 0) System.gc()
+        return true
     }
 
     override fun setControlsVisible(visible: Boolean) {
@@ -112,7 +78,6 @@ internal class NativePlayerHost : Canvas(), PlayerHost {
     }
 
     override fun noteCursorActivity() {
-        onCursorActivity?.invoke()
         if (controlsVisible) {
             cancelCursorHideTimer()
             setCursorVisible(true)
@@ -128,17 +93,11 @@ internal class NativePlayerHost : Canvas(), PlayerHost {
         setCursorVisible(true)
     }
 
-    override fun dispose() {
-        stopRenderTimer()
-        pixelBuffer = null
-        frameImage = null
-        resetCursorVisibility()
-    }
-
     private fun setCursorVisible(visible: Boolean) {
         if (cursorVisible == visible) return
         cursorVisible = visible
-        cursor = if (visible) Cursor.getDefaultCursor() else hiddenCursor
+        val window = activeWindow ?: return
+        window.cursor = if (visible) Cursor.getDefaultCursor() else hiddenCursor
     }
 
     private fun restartCursorHideTimer() {
@@ -159,62 +118,23 @@ internal class NativePlayerHost : Canvas(), PlayerHost {
         cursorHideTimer = null
     }
 
-    override fun update(graphics: Graphics) {
-        paint(graphics)
-    }
+    private val activeWindow: Window?
+        get() = KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow
+            ?: Window.getWindows().firstOrNull { it.isVisible && it.isActive }
 
-    override fun paint(graphics: Graphics) {
-        val handle = nativeHandle
-        if (handle != 0L && usesSoftwareRendering && width > 0 && height > 0) {
-            val w = width
-            val h = height
-            var buf = pixelBuffer
-            if (buf == null || buf.size < w * h) {
-                buf = IntArray(w * h)
-                pixelBuffer = buf
-            }
-            if (NativePlayerBridge.renderFrame(handle, buf, w, h)) {
-                var img = frameImage
-                if (img == null || img.width != w || img.height != h) {
-                    img = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
-                    frameImage = img
-                }
-                img.setRGB(0, 0, w, h, buf, 0, w)
-                graphics.drawImage(img, 0, 0, null)
-            } else {
-                graphics.color = Color.BLACK
-                graphics.fillRect(0, 0, w, h)
-            }
-        } else {
-            graphics.color = Color.BLACK
-            graphics.fillRect(0, 0, width, height)
-        }
-        if (!firstPaintNotified) {
-            firstPaintNotified = true
-            onFirstPaint?.invoke()
-        }
-        if (!firstFullSizePaintNotified && width > 1 && height > 1) {
-            firstFullSizePaintNotified = true
-            onFirstFullSizePaint?.invoke()
-        }
-    }
-
-    override fun addNotify() {
-        super.addNotify()
-        onDisplayableChanged?.invoke(true)
-        repaint()
-        onPeerReady?.invoke()
-    }
-
-    override fun removeNotify() {
-        onDisplayableChanged?.invoke(false)
-        firstPaintNotified = false
-        firstFullSizePaintNotified = false
-        onPeerReady = null
-        onFirstPaint = null
-        onFirstFullSizePaint = null
-        stopRenderTimer()
+    override fun dispose() {
         resetCursorVisibility()
-        super.removeNotify()
+        latestImage?.close()
+        latestImage = null
+        pixelBuffer = null
+        pixelBytes = null
+    }
+
+    private companion object {
+        const val CursorIdleHideDelayMs = 3_000
+        val hiddenCursor: Cursor by lazy {
+            val image = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
+            Toolkit.getDefaultToolkit().createCustomCursor(image, Point(0, 0), "nuvio-hidden-cursor")
+        }
     }
 }

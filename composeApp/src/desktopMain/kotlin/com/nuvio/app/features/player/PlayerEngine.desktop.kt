@@ -27,11 +27,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.features.player.desktop.AwtNativePlayerHost
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopPlayerLaunchShield
 import com.nuvio.app.features.player.desktop.NativePlayerController
 import com.nuvio.app.features.player.desktop.NativePlayerHost
-import com.nuvio.app.features.player.desktop.WaylandPlayerHost
 import com.nuvio.app.features.player.desktop.toggleDesktopAppFullscreen
 import java.awt.AWTEvent
 import java.awt.Toolkit
@@ -62,9 +62,9 @@ actual fun PlatformPlayerSurface(
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
 ) {
-    if (DesktopHostOs.current == DesktopHostOs.LINUX && DesktopHostOs.isWayland) {
-        // Wayland: no wid support, must use SW rendering with Compose Canvas overlay
-        LinuxWaylandPlayerSurface(
+    if (DesktopHostOs.current == DesktopHostOs.LINUX) {
+        // Linux: SW rendering via Skia Image + Compose Canvas overlay
+        LinuxComposePlayerSurface(
             sourceUrl = sourceUrl,
             sourceHeaders = sourceHeaders,
             modifier = modifier,
@@ -80,9 +80,9 @@ actual fun PlatformPlayerSurface(
             onSnapshot = onSnapshot,
             onError = onError,
         )
-    } else if (DesktopHostOs.current == DesktopHostOs.MACOS || DesktopHostOs.current == DesktopHostOs.WINDOWS || DesktopHostOs.current == DesktopHostOs.LINUX) {
-        // macOS, Windows, and Linux X11: GPU-direct rendering via native view pointer
-        NativePlayerSurface(
+    } else if (DesktopHostOs.current == DesktopHostOs.MACOS || DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+        // macOS, Windows: GPU-direct rendering via AWT Canvas
+        LegacyAwtNativePlayerSurface(
             sourceUrl = sourceUrl,
             sourceHeaders = sourceHeaders,
             modifier = modifier,
@@ -108,11 +108,11 @@ actual fun PlatformPlayerSurface(
 }
 
 /**
- * Linux Wayland path: renders video frames in a Compose [Canvas] so controls overlay correctly.
- * mpv renders to EGL FBO (via GBM /dev/dri/renderD128), glReadPixels to byte[], Skia Image in Canvas.
+ * Linux path: renders video frames in a Compose [Canvas] so controls overlay correctly.
+ * Uses Skia Image-based SW rendering for Wayland/X11 compatibility.
  */
 @Composable
-private fun LinuxWaylandPlayerSurface(
+private fun LinuxComposePlayerSurface(
     sourceUrl: String,
     sourceHeaders: Map<String, String>,
     modifier: Modifier,
@@ -128,7 +128,7 @@ private fun LinuxWaylandPlayerSurface(
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
 ) {
-    val host = remember { WaylandPlayerHost() }
+    val host = remember { NativePlayerHost() }
     val controller = remember(host) { NativePlayerController(host) }
     var surfaceSize by remember { mutableStateOf(IntSize.Zero) }
     var frameTick by remember { mutableIntStateOf(0) }
@@ -275,11 +275,11 @@ private fun LinuxWaylandPlayerSurface(
 }
 
 /**
- * macOS / Windows / Linux X11 path: uses AWT Canvas + SwingPanel.
+ * macOS / Windows path: uses AWT Canvas + SwingPanel.
  * These platforms get the native view pointer for hardware-accelerated rendering.
  */
 @Composable
-private fun NativePlayerSurface(
+private fun LegacyAwtNativePlayerSurface(
     sourceUrl: String,
     sourceHeaders: Map<String, String>,
     modifier: Modifier,
@@ -295,7 +295,7 @@ private fun NativePlayerSurface(
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
 ) {
-    val host = remember { NativePlayerHost() }
+    val host = remember { AwtNativePlayerHost() }
     val controller = remember(host) { NativePlayerController(host) }
     val hostFirstPaintComplete = remember { mutableStateOf(false) }
     val hostFirstFullSizePaintComplete = remember { mutableStateOf(false) }

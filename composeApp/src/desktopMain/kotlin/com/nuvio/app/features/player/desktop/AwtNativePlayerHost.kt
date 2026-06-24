@@ -26,7 +26,6 @@ internal class AwtNativePlayerHost : Canvas(), PlayerHost {
     private var firstPaintNotified = false
     private var firstFullSizePaintNotified = false
     override var onMouseClick: (() -> Unit)? = null
-    override var onDoubleClick: (() -> Unit)? = null
     override var onCursorActivity: (() -> Unit)? = null
     private var controlsVisible = true
     private var cursorVisible = true
@@ -86,11 +85,7 @@ internal class AwtNativePlayerHost : Canvas(), PlayerHost {
         addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 noteCursorActivity()
-                if (e.clickCount >= 2) {
-                    onDoubleClick?.invoke()
-                } else {
-                    onMouseClick?.invoke()
-                }
+                onMouseClick?.invoke()
             }
         })
         addMouseMotionListener(object : MouseMotionAdapter() {
@@ -184,23 +179,19 @@ internal class AwtNativePlayerHost : Canvas(), PlayerHost {
         }
         if (!firstPaintNotified) {
             firstPaintNotified = true
-            System.err.println("[NUVIO_HOST] first paint w=$width h=$height")
             onFirstPaint?.invoke()
         }
         if (!firstFullSizePaintNotified && width > 1 && height > 1) {
             firstFullSizePaintNotified = true
-            System.err.println("[NUVIO_HOST] first full-size paint w=$width h=$height")
             onFirstFullSizePaint?.invoke()
         }
     }
 
     override fun addNotify() {
         super.addNotify()
-        System.err.println("[NUVIO_HOST] addNotify() w=$width h=$height")
         onDisplayableChanged?.invoke(true)
         if (!firstFullSizePaintNotified && width > 1 && height > 1) {
             firstFullSizePaintNotified = true
-            System.err.println("[NUVIO_HOST] addNotify: firstFullSizePaintNotified=true")
             onFirstFullSizePaint?.invoke()
         }
         repaint()
@@ -208,7 +199,6 @@ internal class AwtNativePlayerHost : Canvas(), PlayerHost {
     }
 
     override fun removeNotify() {
-        System.err.println("[NUVIO_HOST] removeNotify()")
         stopRenderTimer()
         nativeHandle = 0L
         onDisplayableChanged?.invoke(false)
