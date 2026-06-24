@@ -1351,7 +1351,11 @@ private:
                 std::string headers;
                 for (size_t index = 0; index < headerLines.size(); index++) {
                     if (index > 0) headers.push_back(',');
-                    headers += headerLines[index];
+                    // Escape backslashes and commas in header values
+                    for (char c : headerLines[index]) {
+                        if (c == '\\' || c == ',') headers.push_back('\\');
+                        headers.push_back(c);
+                    }
                 }
                 setMpvOptionStringLocked("http-header-fields", headers.c_str());
             }
