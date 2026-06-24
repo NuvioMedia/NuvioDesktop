@@ -161,17 +161,77 @@ fi
 
 if [[ "$deb_only" == true ]]; then
   echo "Building DEB only..."
-  gradle_tasks+=(":composeApp:patchLinuxDebDependencies")
+  gradle_tasks+=(":composeApp:packageReleaseDeb")
 elif [[ "$appimage_only" == true ]]; then
   echo "Building AppImage only..."
-  gradle_tasks+=(":composeApp:buildAppImage")
+  gradle_tasks+=(":composeApp:packageReleaseAppImage")
 else
   echo "Building DEB + AppImage..."
-  gradle_tasks+=(":composeApp:patchLinuxDebDependencies" ":composeApp:buildAppImage")
+  gradle_tasks+=(":composeApp:packageReleaseDeb" ":composeApp:packageReleaseAppImage")
 fi
 
 echo "Running: ./gradlew ${gradle_tasks[*]} ${gradle_common[*]} ${extra_gradle_args[*]}"
 ./gradlew "${gradle_tasks[@]}" "${gradle_common[@]}" "${extra_gradle_args[@]}"
+
+# Patch DEB dependencies for all built DEB packages
+deb_dirs=(
+  "$repo_root/composeApp/build/compose/binaries/main-release/deb"
+  "$repo_root/composeApp/build/compose/binaries/main/deb"
+)
+for deb_dir in "${deb_dirs[@]}"; do
+  if [[ -d "$deb_dir" ]]; then
+    for deb in "$deb_dir"/*.deb; do
+      [[ -f "$deb" ]] || continue
+      echo "Patching DEB deps: $(basename "$deb")"
+      bash "$repo_root/scripts/patch-deb-deps.sh" "$deb"
+    done
+  fi
+done
+
+# ------------------------------------------------------------------
+# Build AppImage from app image directory using appimagetool
+# ------------------------------------------------------------------
+app_image_parent="$repo_root/composeApp/build/compose/binaries/main-release/app"
+app_image_dir="$app_image_parent/Nuvio"
+appimage_output_dir="$repo_root/composeApp/build/compose/binaries/main-release/appimage"
+icon_src="$repo_root/composeApp/src/desktopMain/resources/icons/nuvio-app-icon.png"
+
+if [[ -d "$app_image_dir" ]] && command -v appimagetool &>/dev/null; then
+  echo ""
+  echo "Building AppImage with appimagetool..."
+
+  # appimagetool requires a .desktop file, icon, and AppRun in the parent directory
+  desktop_file="$app_image_parent/nuvio-app.desktop"
+  cat > "$desktop_file" <<-EOF
+[Desktop Entry]
+Name=Nuvio
+Exec=Nuvio/bin/Nuvio
+Icon=nuvio-app
+Type=Application
+Categories=AudioVideo;Player;
+Terminal=false
+EOF
+
+  # AppRun is the entry point executed when launching the AppImage
+  apprun_file="$app_image_parent/AppRun"
+  cat > "$apprun_file" <<-'EOF'
+#!/bin/bash
+dir="$(dirname "$(readlink -f "$0")")"
+export LD_LIBRARY_PATH="$dir/Nuvio/lib:$dir/Nuvio/lib/runtime/lib:${LD_LIBRARY_PATH:-}"
+exec "$dir/Nuvio/bin/Nuvio" "$@"
+EOF
+  chmod +x "$apprun_file"
+
+  # Copy icon to parent directory (appimagetool looks for it alongside the .desktop)
+  if [[ -f "$icon_src" ]]; then
+    cp "$icon_src" "$app_image_parent/nuvio-app.png"
+  fi
+
+  mkdir -p "$appimage_output_dir"
+  appimage_name="Nuvio-${marketing_version}-x86_64.AppImage"
+  ARCH=x86_64 appimagetool "$app_image_parent" "$appimage_output_dir/$appimage_name"
+  echo "AppImage created: $appimage_output_dir/$appimage_name"
+fi
 
 # ------------------------------------------------------------------
 # Collect artifacts
