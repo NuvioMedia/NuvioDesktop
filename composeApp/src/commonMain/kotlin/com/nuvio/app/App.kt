@@ -109,12 +109,14 @@ import com.nuvio.app.core.ui.configurePlatformImageLoader
 import com.nuvio.app.core.ui.NuvioToastHost
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.NuvioFloatingPrompt
+import com.nuvio.app.core.ui.ProfileMeshBackground
 import com.nuvio.app.core.ui.TraktListPickerDialog
 import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.NativeNavigationTab
 import com.nuvio.app.core.ui.NativeTabBridge
+import com.nuvio.app.core.ui.desktopUiScaleForWindow
 import com.nuvio.app.core.ui.isLiquidGlassNativeTabBarSupported
 import com.nuvio.app.core.ui.localizedContinueWatchingSubtitle
 import com.nuvio.app.core.ui.nuvio
@@ -179,6 +181,7 @@ import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.profiles.ProfileSelectionScreen
 import com.nuvio.app.features.profiles.ProfileSwitcherTab
 import com.nuvio.app.features.profiles.SidebarProfileSwitcherStack
+import com.nuvio.app.features.profiles.parseHexColor
 import com.nuvio.app.features.profiles.profileAvatarImageUrl
 import com.nuvio.app.features.search.SearchScreen
 import com.nuvio.app.features.settings.SettingsScreen
@@ -198,7 +201,6 @@ import com.nuvio.app.features.collection.CollectionEditorRepository
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.collection.CollectionSyncService
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
-import com.nuvio.app.features.home.HomeCatalogSettingsSyncService
 import com.nuvio.app.features.collection.FolderDetailScreen
 import com.nuvio.app.features.collection.FolderDetailRepository
 import com.nuvio.app.features.streams.StreamAutoPlayPolicy
@@ -428,7 +430,6 @@ private suspend fun warmProfileBoundRepositories() {
         WatchedRepository.ensureLoaded()
         WatchProgressRepository.ensureLoaded()
         CollectionSyncService.startObserving()
-        HomeCatalogSettingsSyncService.startObserving()
         ProfileSettingsSync.startObserving()
     }
 }
@@ -479,50 +480,56 @@ fun App() {
         ThemeSettingsRepository.selectedTheme
     }.collectAsStateWithLifecycle()
     val amoledEnabled by remember { ThemeSettingsRepository.amoledEnabled }.collectAsStateWithLifecycle()
-    NuvioTheme(appTheme = selectedTheme, amoled = amoledEnabled) {
-        LaunchedEffect(Unit) {
-            refreshSyncBackendSelection()
-            AuthRepository.initialize()
-        }
-
-        LaunchedEffect(Unit) {
-            AppForegroundMonitor.events().collect {
-                refreshSyncBackendSelection()
-            }
-        }
-
-        LaunchedEffect(Unit) {
-            NetworkStatusRepository.ensureStarted()
-            ProfileRepository.loadCachedProfiles()
-            AvatarRepository.fetchAvatars()
-        }
-
-        val authState by AuthRepository.state.collectAsStateWithLifecycle()
-        val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
-        val profileAvatars by AvatarRepository.avatars.collectAsStateWithLifecycle()
-        val networkStatusUiState by remember {
-            NetworkStatusRepository.uiState
-        }.collectAsStateWithLifecycle()
-
-        LaunchedEffect(
-            profileState.activeProfile?.profileIndex,
-            profileState.activeProfile?.name,
-            profileState.activeProfile?.avatarColorHex,
-            profileState.activeProfile?.avatarId,
-            profileState.activeProfile?.avatarUrl,
-            profileAvatars,
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val desktopUiScale = desktopUiScaleForWindow(maxWidth.value, maxHeight.value)
+        NuvioTheme(
+            appTheme = selectedTheme,
+            amoled = amoledEnabled,
+            desktopUiScale = desktopUiScale,
         ) {
-            val activeProfile = profileState.activeProfile
-            val avatarItem = activeProfile?.avatarId?.let { avatarId ->
-                profileAvatars.find { it.id == avatarId }
+            LaunchedEffect(Unit) {
+                refreshSyncBackendSelection()
+                AuthRepository.initialize()
             }
-            NativeTabBridge.publishProfileTabIcon(
-                name = activeProfile?.name,
-                avatarColorHex = activeProfile?.avatarColorHex,
-                avatarImageUrl = activeProfile?.let { profileAvatarImageUrl(it, avatarItem) },
-                avatarBackgroundColorHex = avatarItem?.bgColor,
-            )
-        }
+
+            LaunchedEffect(Unit) {
+                AppForegroundMonitor.events().collect {
+                    refreshSyncBackendSelection()
+                }
+            }
+
+            LaunchedEffect(Unit) {
+                NetworkStatusRepository.ensureStarted()
+                ProfileRepository.loadCachedProfiles()
+                AvatarRepository.fetchAvatars()
+            }
+
+            val authState by AuthRepository.state.collectAsStateWithLifecycle()
+            val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
+            val profileAvatars by AvatarRepository.avatars.collectAsStateWithLifecycle()
+            val networkStatusUiState by remember {
+                NetworkStatusRepository.uiState
+            }.collectAsStateWithLifecycle()
+
+            LaunchedEffect(
+                profileState.activeProfile?.profileIndex,
+                profileState.activeProfile?.name,
+                profileState.activeProfile?.avatarColorHex,
+                profileState.activeProfile?.avatarId,
+                profileState.activeProfile?.avatarUrl,
+                profileAvatars,
+            ) {
+                val activeProfile = profileState.activeProfile
+                val avatarItem = activeProfile?.avatarId?.let { avatarId ->
+                    profileAvatars.find { it.id == avatarId }
+                }
+                NativeTabBridge.publishProfileTabIcon(
+                    name = activeProfile?.name,
+                    avatarColorHex = activeProfile?.avatarColorHex,
+                    avatarImageUrl = activeProfile?.let { profileAvatarImageUrl(it, avatarItem) },
+                    avatarBackgroundColorHex = avatarItem?.bgColor,
+                )
+            }
 
         var gateScreen by rememberSaveable { mutableStateOf(AppGateScreen.Loading.name) }
         var editingProfile by remember { mutableStateOf<NuvioProfile?>(null) }
@@ -744,6 +751,7 @@ fun App() {
         }
     }
 }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -797,26 +805,42 @@ private fun MainAppContent(
             }
         }
         val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
-    val playerSettingsUiState by PlayerSettingsRepository.uiState.collectAsStateWithLifecycle()
-    val externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported
-    val p2pSettingsUiState by P2pSettingsRepository.uiState.collectAsStateWithLifecycle()
-    val watchedUiState by WatchedRepository.uiState.collectAsStateWithLifecycle()
-    val downloadsUiState by DownloadsRepository.uiState.collectAsStateWithLifecycle()
-    val networkStatusUiState by remember {
-        NetworkStatusRepository.uiState
-    }.collectAsStateWithLifecycle()
-    val downloadedProviderLabel = stringResource(Res.string.provider_downloaded)
-    val externalPlayerNotConfiguredText = stringResource(Res.string.external_player_not_configured)
-    val externalPlayerUnavailableText = stringResource(Res.string.external_player_unavailable)
-    val externalPlayerFailedText = stringResource(Res.string.external_player_failed)
-    val cloudLibraryPlayFailedText = stringResource(Res.string.cloud_library_play_failed)
-    val cloudLibraryPlayDisabledText = stringResource(Res.string.cloud_library_play_disabled)
-    val cloudLibraryPlayNotConnectedText = stringResource(Res.string.cloud_library_play_not_connected)
-    val nativeTabHomeTitle = stringResource(Res.string.compose_nav_home)
-    val nativeTabSearchTitle = stringResource(Res.string.compose_nav_search)
-    val nativeTabLibraryTitle = stringResource(Res.string.compose_nav_library)
-    val nativeTabProfileTitle = stringResource(Res.string.compose_nav_profile)
-    val isTraktLibrarySource = libraryUiState.sourceMode == LibrarySourceMode.TRAKT
+        val launchOverlayProfileColor = remember(profileState.activeProfile, profileState.profiles) {
+            val sourceProfile = profileState.activeProfile ?: profileState.profiles.firstOrNull()
+            sourceProfile?.avatarColorHex?.let(::parseHexColor) ?: Color(0xFF1E88E5)
+        }
+        val externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported
+        val playerSettingsUiState by remember {
+            PlayerSettingsRepository.ensureLoaded()
+            PlayerSettingsRepository.uiState
+        }.collectAsStateWithLifecycle()
+        val p2pSettingsUiState by remember {
+            P2pSettingsRepository.ensureLoaded()
+            P2pSettingsRepository.uiState
+        }.collectAsStateWithLifecycle()
+        val watchedUiState by remember {
+            WatchedRepository.ensureLoaded()
+            WatchedRepository.uiState
+        }.collectAsStateWithLifecycle()
+        val downloadsUiState by remember {
+            DownloadsRepository.ensureLoaded()
+            DownloadsRepository.uiState
+        }.collectAsStateWithLifecycle()
+        val networkStatusUiState by remember {
+            NetworkStatusRepository.uiState
+        }.collectAsStateWithLifecycle()
+        val downloadedProviderLabel = stringResource(Res.string.provider_downloaded)
+        val externalPlayerNotConfiguredText = stringResource(Res.string.external_player_not_configured)
+        val externalPlayerUnavailableText = stringResource(Res.string.external_player_unavailable)
+        val externalPlayerFailedText = stringResource(Res.string.external_player_failed)
+        val cloudLibraryPlayFailedText = stringResource(Res.string.cloud_library_play_failed)
+        val cloudLibraryPlayDisabledText = stringResource(Res.string.cloud_library_play_disabled)
+        val cloudLibraryPlayNotConnectedText = stringResource(Res.string.cloud_library_play_not_connected)
+        val nativeTabHomeTitle = stringResource(Res.string.compose_nav_home)
+        val nativeTabSearchTitle = stringResource(Res.string.compose_nav_search)
+        val nativeTabLibraryTitle = stringResource(Res.string.compose_nav_library)
+        val nativeTabProfileTitle = stringResource(Res.string.compose_nav_profile)
+        val isTraktLibrarySource = libraryUiState.sourceMode == LibrarySourceMode.TRAKT
     var initialHomeReady by rememberSaveable { mutableStateOf(false) }
     var offlineLaunchRouteHandled by rememberSaveable { mutableStateOf(false) }
     var networkToastBaselineReady by rememberSaveable { mutableStateOf(false) }
@@ -1667,7 +1691,9 @@ private fun MainAppContent(
                                         },
                                         onAccountSettingsClick = { navController.navigate(AccountSettingsRoute) },
                                         onSupportersContributorsSettingsClick = {
-                                            navController.navigate(SupportersContributorsSettingsRoute)
+                                            if (AppFeaturePolicy.supportersContributorsPageEnabled) {
+                                                navController.navigate(SupportersContributorsSettingsRoute)
+                                            }
                                         },
                                         onLicensesAttributionsSettingsClick = {
                                             navController.navigate(LicensesAttributionsSettingsRoute)
@@ -2731,9 +2757,15 @@ private fun MainAppContent(
                         navController = navController,
                         backStackEntry = backStackEntry,
                     )
-                    SupportersContributorsSettingsScreen(
-                        onBack = onBack,
-                    )
+                    if (AppFeaturePolicy.supportersContributorsPageEnabled) {
+                        SupportersContributorsSettingsScreen(
+                            onBack = onBack,
+                        )
+                    } else {
+                        LaunchedEffect(Unit) {
+                            onBack()
+                        }
+                    }
                 }
                 composable<LicensesAttributionsSettingsRoute> { backStackEntry ->
                     val onBack = rememberGuardedPopBackStack(
@@ -2959,7 +2991,10 @@ private fun MainAppContent(
                 enter = fadeIn(),
                 exit = fadeOut(androidx.compose.animation.core.tween(400)),
             ) {
-                AppLaunchOverlay(modifier = Modifier.fillMaxSize())
+                AppLaunchOverlay(
+                    profileColor = launchOverlayProfileColor,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
 
             NuvioFloatingPrompt(
@@ -3614,15 +3649,19 @@ private fun TabletTopPillItem(
 
 @Composable
 private fun AppLaunchOverlay(
+    profileColor: Color = Color(0xFF1E88E5),
     modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
     Box(
         modifier = modifier
-            .background(tokens.colors.background)
             .zIndex(NuvioTokens.Z.dialog),
         contentAlignment = Alignment.Center,
     ) {
+        ProfileMeshBackground(
+            profileColor = profileColor,
+            modifier = Modifier.fillMaxSize(),
+        )
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

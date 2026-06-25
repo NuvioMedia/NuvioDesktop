@@ -54,6 +54,9 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
     @get:Input
     abstract val syncBackendManifestUrl: Property<String>
 
+    @get:Input
+    abstract val debugBuild: Property<Boolean>
+
     @TaskAction
     fun generate() {
         val props = Properties()
@@ -153,6 +156,15 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
                 |    const val VERSION_CODE = ${appVersionCode.get()}
                 |    const val DESKTOP_VERSION_NAME = "${desktopAppVersionName.get()}"
                 |    const val DESKTOP_VERSION_CODE = ${desktopAppVersionCode.get()}
+                |}
+                """.trimMargin()
+            )
+            resolve("AppBuildConfig.kt").writeText(
+                """
+                |package com.nuvio.app.core.build
+                |
+                |object AppBuildConfig {
+                |    const val IS_DEBUG_BUILD = ${debugBuild.get()}
                 |}
                 """.trimMargin()
             )
@@ -464,6 +476,35 @@ fun runtimeConfigValue(key: String, fallback: String = ""): String =
         ?: providers.environmentVariable(key).orNull?.trim()?.takeIf { it.isNotBlank() }
         ?: fallback
 
+fun booleanConfigValue(key: String): Boolean? {
+    val rawValue = runtimeLocalProperties.getProperty(key)
+        ?: providers.environmentVariable(key).orNull
+        ?: providers.gradleProperty(key).orNull
+    return rawValue
+        ?.trim()
+        ?.lowercase()
+        ?.let { value ->
+            when (value) {
+                "1", "true", "yes", "y", "debug" -> true
+                "0", "false", "no", "n", "release" -> false
+                else -> null
+            }
+        }
+}
+
+val xcodeConfiguration = providers.environmentVariable("CONFIGURATION").orNull
+    ?.trim()
+    ?.lowercase()
+val kotlinFrameworkBuildType = providers.environmentVariable("KOTLIN_FRAMEWORK_BUILD_TYPE").orNull
+    ?.trim()
+    ?.lowercase()
+val inferredDebugBuild = requestedGradleTasks.any { "debug" in it } ||
+    xcodeConfiguration == "debug" ||
+    kotlinFrameworkBuildType == "debug"
+val isDebugBuild = booleanConfigValue("NUVIO_DEBUG_BUILD")
+    ?: booleanConfigValue("nuvio.debugBuild")
+    ?: inferredDebugBuild
+
 val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generateRuntimeConfigs") {
     outputDir.set(generatedRuntimeConfigDir)
     localPropertiesFile.set(rootProject.layout.projectDirectory.file("local.properties"))
@@ -476,6 +517,7 @@ val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generat
     nuvioSupabaseUrl.set(runtimeConfigValue("NUVIO_SUPABASE_URL"))
     nuvioSupabaseAnonKey.set(runtimeConfigValue("NUVIO_SUPABASE_ANON_KEY"))
     syncBackendManifestUrl.set(runtimeConfigValue("SYNC_BACKEND_MANIFEST_URL"))
+    debugBuild.set(isDebugBuild)
 }
 
 val isMacHost = System.getProperty("os.name").contains("mac", ignoreCase = true)
