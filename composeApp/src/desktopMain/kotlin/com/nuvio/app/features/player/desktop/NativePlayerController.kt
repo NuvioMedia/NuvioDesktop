@@ -1,6 +1,7 @@
 package com.nuvio.app.features.player.desktop
 
 import androidx.compose.ui.graphics.Color
+import co.touchlab.kermit.Logger
 import com.nuvio.app.features.player.PlayerControlAddonSubtitleItem
 import com.nuvio.app.features.player.PlayerControlEpisodeItem
 import com.nuvio.app.features.player.PlayerControlFilterItem
@@ -32,6 +33,10 @@ internal class NativePlayerController(
 ) : PlayerEngineController {
     private companion object {
         val json = Json { ignoreUnknownKeys = true }
+        val log = Logger.withTag("NativePlayerControls")
+
+        @Volatile
+        var rememberedVolumeLevel: Float = 1f
     }
 
     @Volatile
@@ -70,6 +75,10 @@ internal class NativePlayerController(
             onError = onError,
         )
         pendingSource = pending
+        log.d {
+            "attach requested source=${sourceUrl.toPlaybackLogKey()} headers=${sourceHeaders.size} " +
+                "playWhenReady=$playWhenReady initialPositionMs=$initialPositionMs decoderPriority=$decoderPriority"
+        }
         host.onPeerReady = { attachPending() }
         if (host.isDisplayable) {
             attachPending()
@@ -105,9 +114,15 @@ internal class NativePlayerController(
                     eventSink = eventSink,
                 )
                 if (handle == 0L) error("Native player did not return a handle.")
+                log.d {
+                    "attach created handle=$handle source=${resolvedSource.toPlaybackLogKey()} " +
+                        "initialPositionMs=${pending.initialPositionMs}"
+                }
+                applyRememberedVolume()
                 updateControls(controlsState)
                 applyPendingSubtitleSettings()
             }.onFailure { error ->
+                log.w(error) { "attach failed source=${pending.sourceUrl.toPlaybackLogKey()}" }
                 pending.onError(error.message)
             }
         }
@@ -123,6 +138,7 @@ internal class NativePlayerController(
         this.onEvent = onEvent
         this.onScrubChange = onScrubChange
         this.onScrubFinished = onScrubFinished
+        log.d { "control callbacks attached handle=$handle" }
         host.onCursorActivity = {
             this.onEvent("cursorActivity", 0.0)
         }
@@ -148,7 +164,28 @@ internal class NativePlayerController(
         )
         if (structureKey == lastSentControlsStructureKey) return
         lastSentControlsStructureKey = structureKey
+        log.d {
+            "updateControls handle=$current title=${stateWithVolume.title.take(40)} " +
+                "pos=${stateWithVolume.positionMs} duration=${stateWithVolume.durationMs} " +
+                "speed=${stateWithVolume.playbackSpeedLabel} audioLabel=${stateWithVolume.audioLabel} " +
+                "subsLabel=${stateWithVolume.subtitlesLabel} fullscreen=$isFullscreen"
+        }
         NativePlayerBridge.updateControls(current, stateWithVolume.toControlsJson(isFullscreen))
+    }
+
+    fun onDesktopFullscreenChanged() {
+        lastSentControlsStructureKey = null
+        updateControls(controlsState)
+        requestKeyboardFocus()
+    }
+
+    private fun requestKeyboardFocus() {
+        SwingUtilities.invokeLater {
+            if (!host.isDisplayable) return@invokeLater
+            host.requestFocusInWindow()
+            val current = handle.takeIf { it != 0L } ?: return@invokeLater
+            NativePlayerBridge.requestFocus(current)
+        }
     }
 
     fun setResizeMode(mode: PlayerResizeMode) {
@@ -166,31 +203,40 @@ internal class NativePlayerController(
     }
 
     private fun handlePlayerEvent(type: String, value: Double) {
+        if (type.shouldLogNativeControlEvent()) {
+            log.d { "event received handle=$handle type=$type value=$value" }
+        }
         when (type) {
             "cursorActivity" -> host.noteCursorActivity()
             "scrubChange" -> {
-                if (!onScrubChange(value.toLong())) {
+                val handled = onScrubChange(value.toLong())
+                log.d { "scrubChange positionMs=${value.toLong()} handled=$handled handle=$handle" }
+                if (!handled) {
                     updateLocalProgress(value.toLong())
                 }
             }
             "scrubFinish" -> {
                 val scrubHandled = onScrubFinished(value.toLong())
+                log.d { "scrubFinish positionMs=${value.toLong()} handled=$scrubHandled handle=$handle" }
                 if (!scrubHandled) {
                     seekTo(value.toLong())
                 }
             }
             "toggleFullscreen" -> {
                 toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
-                lastSentControlsStructureKey = null
-                updateControls(controlsState)
+                onDesktopFullscreenChanged()
             }
             "volumeChange" -> setFallbackVolume(value.toFloat())
             else -> {
                 val eventHandled = onEvent(type, value)
+                if (type.shouldLogNativeControlEvent()) {
+                    log.d { "event delegated type=$type handled=$eventHandled handle=$handle" }
+                }
                 if (eventHandled) return
                 val action = type.toPlayerControlsAction()
                 if (action == null) return
                 val actionHandled = onAction(action)
+                log.d { "action delegated action=$action handled=$actionHandled handle=$handle" }
                 if (!actionHandled) {
                     handleFallbackAction(action)
                 }
@@ -204,6 +250,7 @@ internal class NativePlayerController(
     }
 
     private fun handleFallbackAction(action: PlayerControlsAction) {
+        log.d { "fallback action=$action handle=$handle" }
         when (action) {
             PlayerControlsAction.TogglePlayback,
             PlayerControlsAction.KeyboardTogglePlayback -> {
@@ -242,10 +289,20 @@ internal class NativePlayerController(
         val current = handle
         if (current != 0L) {
             val nextLevel = level.coerceIn(0f, 1f)
+            rememberedVolumeLevel = nextLevel
             NativePlayerBridge.setVolume(current, nextLevel)
             controlsState = controlsState.copy(volumeLevel = nextLevel)
             updateControls(controlsState)
         }
+    }
+
+    private fun applyRememberedVolume() {
+        val current = handle
+        if (current == 0L) return
+        val level = rememberedVolumeLevel.coerceIn(0f, 1f)
+        NativePlayerBridge.setVolume(current, level)
+        controlsState = controlsState.copy(volumeLevel = level)
+        log.d { "applied remembered volume level=$level handle=$current" }
     }
 
     private fun fallbackSeekBy(offsetMs: Long) {
@@ -299,18 +356,22 @@ internal class NativePlayerController(
     }
 
     override fun play() {
+        log.d { "play handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.setPaused(it, false) }
     }
 
     override fun pause() {
+        log.d { "pause handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.setPaused(it, true) }
     }
 
     override fun seekTo(positionMs: Long) {
+        log.d { "seekTo positionMs=$positionMs handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.seekTo(it, positionMs) }
     }
 
     override fun seekBy(offsetMs: Long) {
+        log.d { "seekBy offsetMs=$offsetMs handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.seekBy(it, offsetMs) }
     }
 
@@ -328,6 +389,7 @@ internal class NativePlayerController(
     }
 
     override fun setPlaybackSpeed(speed: Float) {
+        log.d { "setPlaybackSpeed speed=$speed handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.setSpeed(it, speed) }
     }
 
@@ -360,25 +422,38 @@ internal class NativePlayerController(
 
     override fun selectAudioTrack(index: Int) {
         val current = handle.takeIf { it != 0L } ?: return
-        val trackId = resolveTrackId(index, decodeTracks { NativePlayerBridge.audioTracksJson(it) }) ?: return
+        val tracks = decodeTracks { NativePlayerBridge.audioTracksJson(it) }
+        val trackId = resolveTrackId(index, tracks) ?: run {
+            log.w { "selectAudioTrack missing track index=$index count=${tracks.size} handle=$current" }
+            return
+        }
+        log.d { "selectAudioTrack index=$index trackId=$trackId count=${tracks.size} handle=$current" }
         NativePlayerBridge.selectAudioTrack(current, trackId)
     }
 
     override fun selectSubtitleTrack(index: Int) {
         val current = handle.takeIf { it != 0L } ?: return
         if (index < 0) {
+            log.d { "selectSubtitleTrack off handle=$current" }
             NativePlayerBridge.selectSubtitleTrack(current, -1)
             return
         }
-        val trackId = resolveTrackId(index, decodeTracks { NativePlayerBridge.subtitleTracksJson(it) }) ?: return
+        val tracks = decodeTracks { NativePlayerBridge.subtitleTracksJson(it) }
+        val trackId = resolveTrackId(index, tracks) ?: run {
+            log.w { "selectSubtitleTrack missing track index=$index count=${tracks.size} handle=$current" }
+            return
+        }
+        log.d { "selectSubtitleTrack index=$index trackId=$trackId count=${tracks.size} handle=$current" }
         NativePlayerBridge.selectSubtitleTrack(current, trackId)
     }
 
     override fun setSubtitleUri(url: String) {
+        log.d { "setSubtitleUri ${url.toPlaybackLogKey()} handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.addSubtitleUrl(it, url) }
     }
 
     override fun clearExternalSubtitle() {
+        log.d { "clearExternalSubtitle handle=$handle" }
         handle.takeIf { it != 0L }?.let(NativePlayerBridge::clearExternalSubtitles)
     }
 
@@ -387,8 +462,13 @@ internal class NativePlayerController(
         val trackId = if (trackIndex < 0) {
             -1
         } else {
-            resolveTrackId(trackIndex, decodeTracks { NativePlayerBridge.subtitleTracksJson(it) }) ?: return
+            val tracks = decodeTracks { NativePlayerBridge.subtitleTracksJson(it) }
+            resolveTrackId(trackIndex, tracks) ?: run {
+                log.w { "clearExternalSubtitleAndSelect missing track index=$trackIndex count=${tracks.size} handle=$current" }
+                return
+            }
         }
+        log.d { "clearExternalSubtitleAndSelect trackIndex=$trackIndex trackId=$trackId handle=$current" }
         NativePlayerBridge.clearExternalSubtitlesAndSelect(current, trackId)
     }
 
@@ -436,6 +516,25 @@ internal class NativePlayerController(
             json.decodeFromString<List<NativeMpvTrack>>(readJson(current))
         }.getOrDefault(emptyList())
     }
+}
+
+private fun String.toPlaybackLogKey(): String {
+    val scheme = substringBefore(':', missingDelimiterValue = "unknown")
+        .takeIf { it.isNotBlank() }
+        ?: "unknown"
+    return "scheme=$scheme length=$length hash=${hashCode()}"
+}
+
+private fun String.shouldLogNativeControlEvent(): Boolean {
+    val normalized = lowercase()
+    return normalized.contains("audio") ||
+        normalized.contains("subtitle") ||
+        normalized.contains("speed") ||
+        normalized.contains("scrub") ||
+        normalized.contains("seek") ||
+        normalized.contains("episode") ||
+        normalized == "resize" ||
+        normalized == "toggle"
 }
 
 @Serializable

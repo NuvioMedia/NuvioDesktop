@@ -1408,6 +1408,8 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     setMpvOptionString(_mpv, "input-vo-keyboard", "no");
     setMpvOptionString(_mpv, "keep-open", "yes");
     setMpvOptionString(_mpv, "vo", "libmpv");
+    setMpvOptionString(_mpv, "ao", "avfoundation,coreaudio,");
+    setMpvOptionString(_mpv, "audio-channels", "auto");
     setMpvOptionString(_mpv, "hwdec", "auto");
     setMpvOptionString(_mpv, "gpu-hwdec-interop", "auto");
     setMpvOptionString(_mpv, "hwdec-codecs", "all");
