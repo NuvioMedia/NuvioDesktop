@@ -15,6 +15,7 @@
 #include <atomic>
 #include <cmath>
 #include <dlfcn.h>
+#include <locale.h>
 #include <string>
 #include <vector>
 
@@ -1396,6 +1397,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
               playWhenReady:(BOOL)playWhenReady
            initialPositionMs:(long long)initialPositionMs
             decoderPriority:(int)decoderPriority {
+    setlocale(LC_NUMERIC, "C");
     _mpv = mpv_create();
     if (!_mpv) {
         @throw [NSException exceptionWithName:@"PlayerBridgeError"
@@ -2033,15 +2035,18 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     [self setStringProperty:"sub-color" value:textColor ?: @"#FFFFFFFF"];
     [self setStringProperty:"sub-back-color" value:backgroundColor ?: @"#00000000"];
     [self setStringProperty:"sub-outline-color" value:outlineColor ?: @"#FF000000"];
+    BOOL hasBg = ![(backgroundColor ?: @"") hasPrefix:@"#00"];
     [self setStringProperty:"sub-border-style"
-                      value:[(backgroundColor ?: @"") hasPrefix:@"#00"] ? @"outline-and-shadow" : @"opaque-box"];
+                      value:hasBg ? @"background-box" : @"outline-and-shadow"];
     [self setStringProperty:"sub-bold" value:bold ? @"yes" : @"no"];
 
     // Shadow support
     if (shadowEnabled) {
         [self setStringProperty:"sub-shadow-color" value:@"#FF000000"];
     } else {
-        [self setStringProperty:"sub-shadow-color" value:@"#00000000"];
+        if (!hasBg) {
+            [self setStringProperty:"sub-shadow-color" value:@"#00000000"];
+        }
     }
 
     double outline = MAX(0.0, MIN(8.0, outlineSize));
@@ -2053,7 +2058,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     int64_t position = MAX(0, MIN(150, subPos));
     mpv_set_property(_mpv, "sub-pos", MPV_FORMAT_INT64, &position);
 
-    double shadowOffset = shadowEnabled ? shadowDensity : 0.0;
+    double shadowOffset = (shadowEnabled || hasBg) ? shadowDensity : 0.0;
     mpv_set_property(_mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadowOffset);
 }
 

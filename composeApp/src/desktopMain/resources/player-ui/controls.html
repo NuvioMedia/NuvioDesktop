@@ -280,15 +280,15 @@
                   <button class="round-step" id="fontSizePlus" type="button">+</button>
                 </div>
               </div>
-              <div class="style-row">
+              <div class="style-row" id="subtitleOutlineRow">
                 <span class="style-label" id="outlineLabel">Outline</span>
                 <button class="panel-button" id="outlineToggle" type="button">On</button>
               </div>
-              <div class="style-row">
+              <div class="style-row" id="subtitleShadowRow">
                 <span class="style-label" id="shadowLabel">Shadow</span>
                 <button class="panel-button" id="shadowToggle" type="button">On</button>
               </div>
-              <div class="style-row">
+              <div class="style-row" id="subtitleShadowDensityRow">
                 <span class="style-label" id="shadowDensityLabel">Shadow Density</span>
                 <div class="stepper">
                   <button class="round-step" id="shadowDensityMinus" type="button">-</button>
@@ -320,9 +320,21 @@
                   <button class="round-step" id="textOpacityPlus" type="button">+</button>
                 </div>
               </div>
-              <div class="swatch-section">
+              <div class="swatch-section" id="subtitleOutlineColorSection">
                 <span class="style-label" id="outlineColorLabel">Outline Color</span>
                 <div class="swatch-row" id="outlineColorSwatches"></div>
+              </div>
+              <div class="swatch-section" id="subtitleBackgroundColorSection">
+                <span class="style-label" id="subtitleBackgroundColorLabel">Background Color</span>
+                <div class="swatch-row" id="subtitleBackgroundColorSwatches"></div>
+              </div>
+              <div class="style-row" id="subtitleBackgroundOpacityRow">
+                <span class="style-label" id="subtitleBackgroundOpacityLabel">Background Opacity</span>
+                <div class="stepper">
+                  <button class="round-step" id="subtitleBackgroundOpacityMinus" type="button">-</button>
+                  <span class="stepper-value" id="subtitleBackgroundOpacityValue">55%</span>
+                  <button class="round-step" id="subtitleBackgroundOpacityPlus" type="button">+</button>
+                </div>
               </div>
               <div class="style-row">
                 <span></span>

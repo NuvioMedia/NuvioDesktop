@@ -155,7 +155,9 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
             outlineSize: outlineSize,
             bold: bold,
             fontSize: fontSize,
-            subPos: Int(subPos)
+            subPos: Int(subPos),
+            shadowEnabled: false,
+            shadowDensity: 0.0
         )
     }
 
@@ -679,25 +681,50 @@ final class MPVPlayerViewController: UIViewController {
         outlineSize: Float,
         bold: Bool,
         fontSize: Float,
-        subPos: Int
+        subPos: Int,
+        shadowEnabled: Bool = false,
+        shadowDensity: Float = 0.0
     ) {
         guard mpv != nil else { return }
 
+        // IMPORTANT: sub-shadow-color is an ALIAS for sub-back-color in mpv.
+        // Handle the three mutually-exclusive modes explicitly.
         checkError(mpv_set_property_string(mpv, "sub-ass-override", "force"))
         checkError(mpv_set_property_string(mpv, "sub-color", textColor))
-        checkError(mpv_set_property_string(mpv, "sub-back-color", backgroundColor))
         checkError(mpv_set_property_string(mpv, "sub-outline-color", outlineColor))
-        checkError(mpv_set_property_string(mpv, "sub-border-style", backgroundColor.hasPrefix("#00") ? "outline-and-shadow" : "opaque-box"))
         setStringProperty("sub-bold", bold ? "yes" : "no")
-
-        var outline = Double(outlineSize)
-        checkError(mpv_set_property(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline))
 
         var size = Double(fontSize)
         checkError(mpv_set_property(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size))
 
         var position = Int64(subPos)
         checkError(mpv_set_property(mpv, "sub-pos", MPV_FORMAT_INT64, &position))
+
+        let hasBackground = !backgroundColor.hasPrefix("#00")
+
+        if hasBackground {
+            checkError(mpv_set_property_string(mpv, "sub-border-style", "background-box"))
+            checkError(mpv_set_property_string(mpv, "sub-back-color", backgroundColor))
+            var outline = 0.0
+            checkError(mpv_set_property(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline))
+            checkError(mpv_set_property(mpv, "sub-border-size", MPV_FORMAT_DOUBLE, &outline))
+            var boxMargin = 6.0
+            checkError(mpv_set_property(mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &boxMargin))
+        } else {
+            checkError(mpv_set_property_string(mpv, "sub-border-style", "outline-and-shadow"))
+            var outline = Double(outlineSize)
+            checkError(mpv_set_property(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline))
+            checkError(mpv_set_property(mpv, "sub-border-size", MPV_FORMAT_DOUBLE, &outline))
+            if shadowEnabled {
+                var shadowOffset = Double(shadowDensity)
+                checkError(mpv_set_property(mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadowOffset))
+                checkError(mpv_set_property_string(mpv, "sub-back-color", "#FF000000"))
+            } else {
+                var shadowOffset = 0.0
+                checkError(mpv_set_property(mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadowOffset))
+                checkError(mpv_set_property_string(mpv, "sub-back-color", "#00000000"))
+            }
+        }
     }
 
     func destroyPlayer() {

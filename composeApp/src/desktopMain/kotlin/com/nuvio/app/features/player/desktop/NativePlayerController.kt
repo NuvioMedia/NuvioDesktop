@@ -17,6 +17,7 @@ import com.nuvio.app.features.player.PlayerResizeMode
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MAX_MS
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MIN_MS
 import com.nuvio.app.features.player.SubtitleColorSwatches
+import com.nuvio.app.features.player.SubtitleBackgroundColorSwatches
 import com.nuvio.app.features.player.SubtitleStyleState
 import com.nuvio.app.features.player.SubtitleTrack
 import com.nuvio.app.features.player.inferForcedSubtitleTrack
@@ -411,17 +412,45 @@ internal class NativePlayerController(
             return
         }
         pendingSubtitleStyle = null
+
+        val hasBackground = style.backgroundColor.alpha > 0f
+
+        // IMPORTANT: in mpv, sub-shadow-color is an ALIAS for sub-back-color.
+        // They are the same property. Resolve the correct values per active mode
+        // before passing to the native bridge, which sets them directly as mpv properties.
+        val resolvedBackgroundColor: String
+        val resolvedOutlineSize: Float
+        val resolvedShadowEnabled: Boolean
+        val resolvedShadowDensity: Float
+        val resolvedBorderStyle: String
+
+        if (hasBackground) {
+            // Background mode: use background-box colored by sub-back-color.
+            resolvedBackgroundColor = style.backgroundColor.toMpvColorString()
+            resolvedOutlineSize = 0f
+            resolvedShadowEnabled = false   // shadow-offset used for box margin
+            resolvedShadowDensity = 6f      // small padding around the text box
+            resolvedBorderStyle = "background-box"
+        } else {
+            // Outline / shadow mode: standard outline-and-shadow.
+            resolvedBackgroundColor = "#00000000"
+            resolvedOutlineSize = if (style.outlineEnabled) style.outlineWidth.toFloat() else 0f
+            resolvedShadowEnabled = style.shadowEnabled
+            resolvedShadowDensity = style.shadowDensity
+            resolvedBorderStyle = "outline-and-shadow"
+        }
+
         NativePlayerBridge.applySubtitleStyle(
             handle = current,
             textColor = style.textColor.toMpvColorString(),
-            backgroundColor = style.backgroundColor.toMpvColorString(),
+            backgroundColor = resolvedBackgroundColor,
             outlineColor = style.outlineColor.toMpvColorString(),
-            outlineSize = if (style.outlineEnabled) style.outlineWidth.toFloat() else 0f,
+            outlineSize = resolvedOutlineSize,
             bold = style.bold,
             fontSize = style.toMpvSubtitleFontSize(),
             subPos = style.toMpvSubtitlePosition(),
-            shadowEnabled = style.shadowEnabled,
-            shadowDensity = style.shadowDensity,
+            shadowEnabled = resolvedShadowEnabled,
+            shadowDensity = resolvedShadowDensity,
         )
     }
 
@@ -845,6 +874,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonArrayField("subtitleColorSwatches", SubtitleColorSwatches.map { it.toStorageHexString() }) { append(it.toJsonString()) }
         append(',')
+        appendJsonArrayField("subtitleBackgroundColorSwatches", SubtitleBackgroundColorSwatches.map { it.toStorageHexString() }) { append(it.toJsonString()) }
+        append(',')
         appendJsonField("closeModalsToken", closeModalsToken)
         append('}')
     }
@@ -1006,6 +1037,8 @@ private fun StringBuilder.appendParentalWarningJson(item: ParentalWarning) {
 private fun StringBuilder.appendSubtitleStyleJson(style: SubtitleStyleState) {
     append('{')
     appendJsonField("textColor", style.textColor.toStorageHexString())
+    append(',')
+    appendJsonField("backgroundColor", style.backgroundColor.toStorageHexString())
     append(',')
     appendJsonField("outlineColor", style.outlineColor.toStorageHexString())
     append(',')

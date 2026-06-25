@@ -794,9 +794,18 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
                 PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(outlineColor = color.copy(alpha = subtitleStyle.outlineColor.alpha)))
             }
         }
+        "subtitleBackgroundColor" -> {
+            SubtitleBackgroundColorSwatches.getOrNull(value.toInt())?.let { color ->
+                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(backgroundColor = color))
+            }
+        }
         "subtitleTextOpacity" -> {
             val alpha = (value.toFloat() / 100f).coerceIn(0f, 1f)
             PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(textColor = subtitleStyle.textColor.copy(alpha = alpha)))
+        }
+        "subtitleBackgroundOpacity" -> {
+            val alpha = (value.toFloat() / 100f).coerceIn(0.05f, 1f)
+            PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(backgroundColor = subtitleStyle.backgroundColor.copy(alpha = alpha)))
         }
         "subtitleStyleReset" -> PlayerSettingsRepository.setSubtitleStyle(SubtitleStyleState.DEFAULT)
         "parentalGuideComplete" -> {

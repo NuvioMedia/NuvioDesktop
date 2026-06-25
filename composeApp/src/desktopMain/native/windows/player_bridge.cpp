@@ -957,9 +957,10 @@ public:
         setStringProperty("sub-color", textColor.empty() ? "#FFFFFFFF" : textColor);
         setStringProperty("sub-back-color", backgroundColor.empty() ? "#00000000" : backgroundColor);
         setStringProperty("sub-outline-color", outlineColor.empty() ? "#FF000000" : outlineColor);
+        bool hasBg = !backgroundColor.empty() && backgroundColor.rfind("#00", 0) != 0;
         setStringProperty(
             "sub-border-style",
-            backgroundColor.rfind("#00", 0) == 0 ? "outline-and-shadow" : "opaque-box"
+            hasBg ? "background-box" : "outline-and-shadow"
         );
         setStringProperty("sub-bold", bold ? "yes" : "no");
 
@@ -967,7 +968,9 @@ public:
         if (shadowEnabled) {
             setStringProperty("sub-shadow-color", "#FF000000");
         } else {
-            setStringProperty("sub-shadow-color", "#00000000");
+            if (!hasBg) {
+                setStringProperty("sub-shadow-color", "#00000000");
+            }
         }
 
         {
@@ -976,7 +979,7 @@ public:
             double outline = std::max(0.0, std::min(8.0, outlineSize));
             double size = std::max(18.0, std::min(96.0, fontSize));
             int64_t position = std::max(0, std::min(150, subPos));
-            double shadowOffset = shadowEnabled ? shadowDensity : 0.0;
+            double shadowOffset = (shadowEnabled || hasBg) ? shadowDensity : 0.0;
             mpvApi().setProperty(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
             mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
             mpvApi().setProperty(mpv, "sub-pos", MPV_FORMAT_INT64, &position);

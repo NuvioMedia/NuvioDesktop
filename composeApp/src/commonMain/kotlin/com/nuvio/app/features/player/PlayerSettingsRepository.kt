@@ -1,5 +1,6 @@
 package com.nuvio.app.features.player
 
+import androidx.compose.ui.graphics.Color
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.features.player.skip.NextEpisodeThresholdMode
 import com.nuvio.app.features.streams.StreamAutoPlayMode
@@ -492,7 +493,34 @@ object PlayerSettingsRepository {
 
     fun setSubtitleStyle(style: SubtitleStyleState) {
         ensureLoaded()
-        val normalized = style.copy(fontSizeSp = style.fontSizeSp.coerceIn(subtitleFontSizeRangeSp))
+        // Determine what changed compared to the current `subtitleStyle`
+        val normalized = when {
+            // 1. If background color changed from transparent/none to active:
+            style.backgroundColor != subtitleStyle.backgroundColor && style.backgroundColor.alpha > 0f -> {
+                style.copy(outlineEnabled = false, shadowEnabled = false)
+            }
+            // 2. If outline was toggled to true:
+            style.outlineEnabled && !subtitleStyle.outlineEnabled -> {
+                style.copy(backgroundColor = Color.Transparent, shadowEnabled = false)
+            }
+            // 3. If shadow was toggled to true:
+            style.shadowEnabled && !subtitleStyle.shadowEnabled -> {
+                style.copy(backgroundColor = Color.Transparent, outlineEnabled = false)
+            }
+            // 4. Fallback static normalization:
+            else -> {
+                if (style.backgroundColor.alpha > 0f) {
+                    style.copy(outlineEnabled = false, shadowEnabled = false)
+                } else if (style.outlineEnabled) {
+                    style.copy(backgroundColor = Color.Transparent, shadowEnabled = false)
+                } else if (style.shadowEnabled) {
+                    style.copy(backgroundColor = Color.Transparent, outlineEnabled = false)
+                } else {
+                    style
+                }
+            }
+        }.copy(fontSizeSp = style.fontSizeSp.coerceIn(subtitleFontSizeRangeSp))
+
         if (subtitleStyle == normalized) return
         subtitleStyle = normalized
         publish()

@@ -615,6 +615,25 @@ private fun PlaybackSettingsSection(
                     isTablet = isTablet,
                     onClick = { showSubtitleBackgroundColorDialog = true },
                 )
+                if (subtitleStyle.backgroundColor.alpha > 0f) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSliderRow(
+                        title = stringResource(Res.string.settings_playback_subtitle_background_opacity),
+                        value = (subtitleStyle.backgroundColor.alpha * 100f).roundToInt().coerceIn(5, 100),
+                        valueText = "${(subtitleStyle.backgroundColor.alpha * 100f).roundToInt()}%",
+                        valueRange = 5..100,
+                        step = 5,
+                        enabled = subtitleRenderingEnabled,
+                        isTablet = isTablet,
+                        onValueChange = { newPercent ->
+                            PlayerSettingsRepository.setSubtitleStyle(
+                                subtitleStyle.copy(
+                                    backgroundColor = subtitleStyle.backgroundColor.copy(alpha = newPercent / 100f)
+                                )
+                            )
+                        },
+                    )
+                }
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
                     title = stringResource(Res.string.settings_playback_subtitle_outline),

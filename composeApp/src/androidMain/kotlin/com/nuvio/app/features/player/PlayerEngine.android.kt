@@ -1147,15 +1147,35 @@ private class NuvioLibmpvView(
             override fun applySubtitleStyle(style: SubtitleStyleState) {
                 mpv.setPropertyString("sub-ass-override", "force")
                 mpv.setPropertyString("sub-color", style.textColor.toMpvColor())
-                mpv.setPropertyString("sub-back-color", style.backgroundColor.toMpvColor())
                 mpv.setPropertyString("sub-outline-color", style.outlineColor.toMpvColor())
                 mpv.setPropertyString("sub-border-color", style.outlineColor.toMpvColor())
-                mpv.setPropertyString("sub-border-style", style.toMpvSubtitleBorderStyle())
                 mpv.setPropertyString("sub-bold", if (style.bold) "yes" else "no")
                 mpv.setPropertyInt("sub-font-size", style.toMpvSubtitleFontSize())
-                mpv.setPropertyInt("sub-outline-size", style.toMpvSubtitleOutlineSize())
-                mpv.setPropertyInt("sub-border-size", style.toMpvSubtitleOutlineSize())
                 mpv.setPropertyInt("sub-pos", (100 - style.bottomOffset / 10).coerceIn(0, 100))
+
+                // sub-shadow-color is an ALIAS for sub-back-color in mpv (same property).
+                // Handle the three mutually-exclusive modes explicitly.
+                val hasBackground = style.backgroundColor.alphaByte() > 0
+
+                if (hasBackground) {
+                    mpv.setPropertyString("sub-border-style", "background-box")
+                    mpv.setPropertyString("sub-back-color", style.backgroundColor.toMpvColor())
+                    mpv.setPropertyInt("sub-outline-size", 0)
+                    mpv.setPropertyInt("sub-border-size", 0)
+                    mpv.setPropertyDouble("sub-shadow-offset", 6.0)
+                } else {
+                    mpv.setPropertyString("sub-border-style", "outline-and-shadow")
+                    val outlineSize = style.toMpvSubtitleOutlineSize()
+                    mpv.setPropertyInt("sub-outline-size", outlineSize)
+                    mpv.setPropertyInt("sub-border-size", outlineSize)
+                    if (style.shadowEnabled) {
+                        mpv.setPropertyDouble("sub-shadow-offset", style.shadowDensity.toDouble())
+                        mpv.setPropertyString("sub-back-color", "#FF000000")
+                    } else {
+                        mpv.setPropertyDouble("sub-shadow-offset", 0.0)
+                        mpv.setPropertyString("sub-back-color", "#00000000")
+                    }
+                }
             }
 
             override fun setSubtitleDelayMs(delayMs: Int) {
@@ -1254,20 +1274,10 @@ private fun SubtitleStyleState.toMpvSubtitleFontSize(): Int =
 private fun SubtitleStyleState.toMpvSubtitleOutlineSize(): Int =
     if (!outlineEnabled) 0 else (outlineWidth * MPV_SUBTITLE_OUTLINE_SIZE_SCALE).toInt().coerceAtLeast(1)
 
-private fun SubtitleStyleState.toMpvSubtitleBorderStyle(): String =
-    if (outlineEnabled) {
-        "outline-and-shadow"
-    } else if (backgroundColor.alphaByte() > 0) {
-        "opaque-box"
-    } else {
-        "outline-and-shadow"
-    }
-
 private const val MPV_SUBTITLE_FONT_SIZE_SCALE = 55.0 / 18.0
 private const val MPV_SUBTITLE_FONT_SIZE_MIN = 36
 private const val MPV_SUBTITLE_FONT_SIZE_MAX = 122
 private const val MPV_SUBTITLE_OUTLINE_SIZE_SCALE = 1.5
-
 private fun ExoPlayer.snapshot(): PlayerPlaybackSnapshot =
     PlayerPlaybackSnapshot(
         isLoading = playbackState == Player.STATE_IDLE || playbackState == Player.STATE_BUFFERING,

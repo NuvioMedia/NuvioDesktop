@@ -115,6 +115,18 @@ const textOpacityValue = document.getElementById("textOpacityValue");
 const textOpacityPlus = document.getElementById("textOpacityPlus");
 const outlineColorLabel = document.getElementById("outlineColorLabel");
 const outlineColorSwatches = document.getElementById("outlineColorSwatches");
+const subtitleOutlineRow = document.getElementById("subtitleOutlineRow");
+const subtitleShadowRow = document.getElementById("subtitleShadowRow");
+const subtitleShadowDensityRow = document.getElementById("subtitleShadowDensityRow");
+const subtitleOutlineColorSection = document.getElementById("subtitleOutlineColorSection");
+const subtitleBackgroundColorSection = document.getElementById("subtitleBackgroundColorSection");
+const subtitleBackgroundColorSwatches = document.getElementById("subtitleBackgroundColorSwatches");
+const subtitleBackgroundOpacityRow = document.getElementById("subtitleBackgroundOpacityRow");
+const subtitleBackgroundOpacityMinus = document.getElementById("subtitleBackgroundOpacityMinus");
+const subtitleBackgroundOpacityValue = document.getElementById("subtitleBackgroundOpacityValue");
+const subtitleBackgroundOpacityPlus = document.getElementById("subtitleBackgroundOpacityPlus");
+const subtitleBackgroundColorLabel = document.getElementById("subtitleBackgroundColorLabel");
+const subtitleBackgroundOpacityLabel = document.getElementById("subtitleBackgroundOpacityLabel");
 const subtitleStyleReset = document.getElementById("subtitleStyleReset");
 const sourceModal = document.getElementById("sourceModal");
 const sourcePanelTitle = document.getElementById("sourcePanelTitle");
@@ -314,6 +326,7 @@ let state = {
   subtitleAutoSyncErrorMessage: "",
   subtitleStyle: {
     textColor: "#FFFFFFFF",
+    backgroundColor: "#00000000",
     outlineColor: "#FF000000",
     outlineEnabled: true,
     shadowEnabled: false,
@@ -323,6 +336,7 @@ let state = {
     bottomOffset: 20,
   },
   subtitleColorSwatches: [],
+  subtitleBackgroundColorSwatches: [],
   closeModalsToken: 0,
 };
 let isScrubbing = false;
@@ -1044,9 +1058,9 @@ const sameRgb = (left, right) => {
   return a.red === b.red && a.green === b.green && a.blue === b.blue;
 };
 
-const renderSwatches = (container, selectedColor, eventType) => {
+const renderSwatches = (container, selectedColor, eventType, colorsArray) => {
   container.textContent = "";
-  const colors = Array.isArray(state.subtitleColorSwatches) ? state.subtitleColorSwatches : [];
+  const colors = Array.isArray(colorsArray) ? colorsArray : [];
   colors.forEach((color, index) => {
     const parsed = parseArgb(color);
     const swatch = document.createElement("button");
@@ -1120,9 +1134,17 @@ const renderSubtitleStylePanel = () => {
   const textAlpha = Math.round((parseArgb(style.textColor).alpha / 255) * 100);
   textOpacityValue.textContent = `${textAlpha}%`;
   outlineColorLabel.textContent = state.outlineColorLabel || "Outline Color";
+
+  subtitleBackgroundColorLabel.textContent = state.subtitleBackgroundColorLabel || "Background Color";
+  subtitleBackgroundOpacityLabel.textContent = state.subtitleBackgroundOpacityLabel || "Background Opacity";
+  const bgAlpha = Math.round((parseArgb(style.backgroundColor).alpha / 255) * 100);
+  subtitleBackgroundOpacityValue.textContent = `${bgAlpha}%`;
+
   subtitleStyleReset.textContent = state.resetDefaultsLabel || "Reset Defaults";
-  renderSwatches(subtitleColorSwatches, style.textColor, "subtitleTextColor");
-  renderSwatches(outlineColorSwatches, style.outlineColor, "subtitleOutlineColor");
+  renderSwatches(subtitleColorSwatches, style.textColor, "subtitleTextColor", state.subtitleColorSwatches);
+  renderSwatches(outlineColorSwatches, style.outlineColor, "subtitleOutlineColor", state.subtitleColorSwatches);
+  renderSwatches(subtitleBackgroundColorSwatches, style.backgroundColor, "subtitleBackgroundColor", state.subtitleBackgroundColorSwatches);
+
   renderAutoSyncCues();
 };
 
@@ -2305,6 +2327,20 @@ textOpacityPlus.addEventListener("click", event => {
   const style = state.subtitleStyle || {};
   const next = Math.min(100, Math.round((parseArgb(style.textColor).alpha / 255) * 100) + 10);
   send("subtitleTextOpacity", next);
+});
+subtitleBackgroundOpacityMinus.addEventListener("click", event => {
+  event.stopPropagation();
+  const style = state.subtitleStyle || {};
+  const bgAlpha = Math.round((parseArgb(style.backgroundColor).alpha / 255) * 100);
+  const next = Math.max(5, bgAlpha - 10);
+  send("subtitleBackgroundOpacity", next);
+});
+subtitleBackgroundOpacityPlus.addEventListener("click", event => {
+  event.stopPropagation();
+  const style = state.subtitleStyle || {};
+  const bgAlpha = Math.round((parseArgb(style.backgroundColor).alpha / 255) * 100);
+  const next = Math.min(100, bgAlpha + 10);
+  send("subtitleBackgroundOpacity", next);
 });
 subtitleStyleReset.addEventListener("click", event => {
   event.stopPropagation();

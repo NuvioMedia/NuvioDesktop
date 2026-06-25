@@ -22,9 +22,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -52,18 +56,30 @@ fun SubtitleStylePanel(
     val sectionPadding = if (isCompact) 12.dp else 16.dp
     val gap = if (isCompact) 12.dp else 16.dp
 
+    // Local state for instant button feedback — same pattern as mobile.
+    val localStyle = remember { mutableStateOf(style) }
+    LaunchedEffect(style) {
+        if (style != localStyle.value) {
+            localStyle.value = style
+        }
+    }
+    val commit: (SubtitleStyleState) -> Unit = { newStyle ->
+        localStyle.value = newStyle
+        onStyleChanged(newStyle)
+    }
+
     Column(
         verticalArrangement = Arrangement.spacedBy(gap),
     ) {
         StyleControlsCard(
-            style = style,
+            style = localStyle.value,
             subtitleDelayMs = subtitleDelayMs,
             selectedAddonSubtitle = selectedAddonSubtitle,
             subtitleAutoSyncState = subtitleAutoSyncState,
             isCompact = isCompact,
             sectionPadding = sectionPadding,
             colorScheme = colorScheme,
-            onStyleChanged = onStyleChanged,
+            onStyleChanged = commit,
             onSubtitleDelayChanged = onSubtitleDelayChanged,
             onSubtitleDelayReset = onSubtitleDelayReset,
             onAutoSyncCapture = onAutoSyncCapture,
@@ -195,7 +211,18 @@ private fun StyleControlsCard(
                         else colorScheme.surface.copy(alpha = 0.8f)
                     )
                     .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(10.dp))
-                    .clickable { onStyleChanged(style.copy(outlineEnabled = !style.outlineEnabled)) }
+                    .clickable {
+                        val newOutlineEnabled = !style.outlineEnabled
+                        if (newOutlineEnabled) {
+                            onStyleChanged(style.copy(
+                                outlineEnabled = true,
+                                shadowEnabled = false,
+                                backgroundColor = Color.Transparent,
+                            ))
+                        } else {
+                            onStyleChanged(style.copy(outlineEnabled = false))
+                        }
+                    }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {
                 Text(
@@ -227,7 +254,18 @@ private fun StyleControlsCard(
                         else colorScheme.surface.copy(alpha = 0.8f)
                     )
                     .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(10.dp))
-                    .clickable { onStyleChanged(style.copy(shadowEnabled = !style.shadowEnabled)) }
+                    .clickable {
+                        val newShadowEnabled = !style.shadowEnabled
+                        if (newShadowEnabled) {
+                            onStyleChanged(style.copy(
+                                shadowEnabled = true,
+                                outlineEnabled = false,
+                                backgroundColor = Color.Transparent,
+                            ))
+                        } else {
+                            onStyleChanged(style.copy(shadowEnabled = false))
+                        }
+                    }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {
                 Text(
@@ -337,6 +375,54 @@ private fun StyleControlsCard(
             selectedColor = style.outlineColor,
             onColorSelected = { onStyleChanged(style.copy(outlineColor = it)) },
         )
+
+        ColorPickerRow(
+            label = stringResource(Res.string.settings_playback_subtitle_background_color),
+            colors = SubtitleBackgroundColorSwatches,
+            selectedColor = style.backgroundColor,
+            onColorSelected = { color ->
+                if (color.alpha == 0f) {
+                    onStyleChanged(style.copy(backgroundColor = Color.Transparent))
+                } else {
+                    // Turning on background disables outline and shadow
+                    onStyleChanged(style.copy(
+                        backgroundColor = color,
+                        outlineEnabled = false,
+                        shadowEnabled = false,
+                    ))
+                }
+            },
+        )
+
+        if (style.backgroundColor.alpha > 0f) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val currentBgAlphaPercent = (style.backgroundColor.alpha * 100f).roundToInt().coerceIn(0, 100)
+                Text(
+                    text = stringResource(Res.string.settings_playback_subtitle_background_opacity),
+                    color = colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                StepperControl(
+                    value = "$currentBgAlphaPercent%",
+                    onMinus = {
+                        val newAlpha = (currentBgAlphaPercent - 10).coerceAtLeast(5) / 100f
+                        onStyleChanged(style.copy(backgroundColor = style.backgroundColor.copy(alpha = newAlpha)))
+                    },
+                    onPlus = {
+                        val newAlpha = (currentBgAlphaPercent + 10).coerceAtMost(100) / 100f
+                        onStyleChanged(style.copy(backgroundColor = style.backgroundColor.copy(alpha = newAlpha)))
+                    },
+                    buttonSize = btnSize,
+                    buttonRadius = btnRadius,
+                    minWidth = 58.dp,
+                )
+            }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
