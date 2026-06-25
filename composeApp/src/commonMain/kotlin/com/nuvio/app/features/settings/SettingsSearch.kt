@@ -552,7 +552,7 @@ internal fun settingsSearchEntries(
                     ),
                 )
             }
-            if (externalPlayerSupported && isIos) {
+            if (externalPlayerSupported && (isIos || isDesktop)) {
                 add(
                     PlaybackSearchRow(
                         "external-player-app",

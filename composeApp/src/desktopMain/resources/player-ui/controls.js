@@ -68,6 +68,8 @@ const nextEpisodeStatus = document.getElementById("nextEpisodeStatus");
 const nextEpisodeAction = document.getElementById("nextEpisodeAction");
 const sourcesButton = document.getElementById("sourcesButton");
 const episodesButton = document.getElementById("episodesButton");
+const externalPlayerButton = document.getElementById("externalPlayerButton");
+const externalPlayerLabel = document.getElementById("externalPlayerLabel");
 const lockedLabel = document.getElementById("lockedLabel");
 const audioModal = document.getElementById("audioModal");
 const subtitleModal = document.getElementById("subtitleModal");
@@ -1858,12 +1860,16 @@ const renderChrome = () => {
   audioLabel.textContent = state.audioLabel || "Audio";
   sourcesLabel.textContent = state.sourcesLabel || "Sources";
   episodesLabel.textContent = state.episodesLabel || "Episodes";
+  if (externalPlayerLabel) {
+    externalPlayerLabel.textContent = state.externalPlayerLabel || "External";
+  }
   setActionButtonLabel("resize", state.resizeModeLabel || "Fit");
   setActionButtonLabel("speed", state.playbackSpeedLabel || "1x");
   setActionButtonLabel("subtitles", state.subtitlesLabel || "Subs");
   setActionButtonLabel("audio", state.audioLabel || "Audio");
   setActionButtonLabel("sources", state.sourcesLabel || "Sources");
   setActionButtonLabel("episodes", state.episodesLabel || "Episodes");
+  setActionButtonLabel("external", state.externalPlayerLabel || "External");
   lockedLabel.textContent = state.tapToUnlockLabel || "Tap to unlock";
   const showBuffering = Boolean(!showError && state.isLoading && !state.isLocked && !activeModal && !showOpening);
   bufferingStatus.classList.toggle("visible", showBuffering);
@@ -1873,6 +1879,7 @@ const renderChrome = () => {
   setVisible(videoSettingsButton, Boolean(state.showVideoSettings));
   setVisible(sourcesButton, Boolean(state.showSources));
   setVisible(episodesButton, Boolean(state.showEpisodes));
+  setVisible(externalPlayerButton, Boolean(state.showExternalPlayer));
   syncActionFocusState();
 
   const playPauseLabel = isPlaying ? state.pauseLabel : state.playLabel;

@@ -8,7 +8,7 @@ actual object AppFeaturePolicy {
     actual val accountDeletionEnabled: Boolean = false
     actual val personalMediaAddonCopyEnabled: Boolean = false
     actual val p2pEnabled: Boolean = false
-    actual val externalPlayerSupported: Boolean = false
+    actual val externalPlayerSupported: Boolean = true
     actual val trailerPlaybackMode: TrailerPlaybackMode = TrailerPlaybackMode.EXTERNAL
     actual val heroTrailerPlaybackSupported: Boolean = false
     actual val inAppUpdaterEnabled: Boolean = true

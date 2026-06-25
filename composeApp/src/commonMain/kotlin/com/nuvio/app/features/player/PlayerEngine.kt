@@ -167,6 +167,7 @@ data class PlayerControlsState(
     val showSources: Boolean = false,
     val showEpisodes: Boolean = false,
     val showExternalPlayer: Boolean = false,
+    val externalPlayerPromptVisible: Boolean = false,
     val durationMs: Long = 0L,
     val positionMs: Long = 0L,
     val sourceIsLoading: Boolean = false,
