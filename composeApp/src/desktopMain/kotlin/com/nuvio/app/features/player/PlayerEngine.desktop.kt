@@ -109,7 +109,7 @@ private fun NativePlayerSurface(
     val decoderPriority = playerSettings.decoderPriority
     val nvidiaRtxSuperResolutionEnabled = playerSettings.nvidiaRtxSuperResolutionEnabled
 
-    LaunchedEffect(controller) {
+    LaunchedEffect(controller, sourceUrl, playbackHeaders) {
         onControllerReady(controller)
     }
 
@@ -162,6 +162,7 @@ private fun NativePlayerSurface(
             nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
             onError = { message -> latestOnError.value(message) },
         )
+        onControllerReady(controller)
     }
 
     LaunchedEffect(controller, playWhenReady) {
