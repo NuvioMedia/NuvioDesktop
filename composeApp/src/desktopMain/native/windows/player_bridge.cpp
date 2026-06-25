@@ -160,6 +160,33 @@ void setDwmWindowAttribute(HWND hwnd, DWORD attribute, const void *value, DWORD 
     (void)DwmSetWindowAttribute(hwnd, attribute, value, valueSize);
 }
 
+bool getMonitorRect(HWND hwnd, bool workArea, RECT &rect) {
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    if (!monitor) return false;
+
+    MONITORINFO monitorInfo = {};
+    monitorInfo.cbSize = sizeof(MONITORINFO);
+    if (!GetMonitorInfoW(monitor, &monitorInfo)) return false;
+
+    rect = workArea ? monitorInfo.rcWork : monitorInfo.rcMonitor;
+    const LONG width = rect.right - rect.left;
+    const LONG height = rect.bottom - rect.top;
+    if (width <= 0 || height <= 0) return false;
+
+    return true;
+}
+
+RECT resolveBorderlessFullscreenRect(HWND hwnd, int x, int y, int width, int height) {
+    RECT rect = {};
+    if (getMonitorRect(hwnd, false, rect)) return rect;
+
+    rect.left = x;
+    rect.top = y;
+    rect.right = x + std::max(1, width);
+    rect.bottom = y + std::max(1, height);
+    return rect;
+}
+
 void applyDwmWindowChrome(HWND hwnd, bool darkMode, COLORREF captionColor, COLORREF borderColor, COLORREF textColor) {
     if (!hwnd || !IsWindow(hwnd)) return;
 
@@ -196,6 +223,7 @@ void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width
             }
         }
 
+        RECT fullscreenRect = resolveBorderlessFullscreenRect(hwnd, x, y, width, height);
         if (IsIconic(hwnd) || IsZoomed(hwnd)) {
             ShowWindow(hwnd, SW_RESTORE);
         }
@@ -210,10 +238,10 @@ void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width
         SetWindowPos(
             hwnd,
             HWND_TOP,
-            x,
-            y,
-            std::max(1, width),
-            std::max(1, height),
+            fullscreenRect.left,
+            fullscreenRect.top,
+            fullscreenRect.right - fullscreenRect.left,
+            fullscreenRect.bottom - fullscreenRect.top,
             SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOACTIVATE
         );
         return;
@@ -234,10 +262,23 @@ void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width
 
     SetWindowLongPtrW(hwnd, GWL_STYLE, state.style);
     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, state.exStyle);
-    if (state.wasMaximized) {
-        state.placement.length = sizeof(WINDOWPLACEMENT);
-        state.placement.showCmd = SW_SHOWMAXIMIZED;
-        SetWindowPlacement(hwnd, &state.placement);
+    SetWindowPos(
+        hwnd,
+        nullptr,
+        0,
+        0,
+        0,
+        0,
+        SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE
+    );
+
+    state.placement.length = sizeof(WINDOWPLACEMENT);
+    const bool restoreMaximized = state.wasMaximized || state.placement.showCmd == SW_SHOWMAXIMIZED;
+    if (restoreMaximized) {
+        WINDOWPLACEMENT normalPlacement = state.placement;
+        normalPlacement.showCmd = SW_SHOWNORMAL;
+        SetWindowPlacement(hwnd, &normalPlacement);
+        ShowWindow(hwnd, SW_MAXIMIZE);
 
         HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
         MONITORINFO monitorInfo;
@@ -257,17 +298,7 @@ void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width
         return;
     }
 
-    state.placement.length = sizeof(WINDOWPLACEMENT);
     SetWindowPlacement(hwnd, &state.placement);
-    SetWindowPos(
-        hwnd,
-        nullptr,
-        0,
-        0,
-        0,
-        0,
-        SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE
-    );
 }
 
 bool containsCaseInsensitive(const std::string &haystack, const std::string &needle) {
