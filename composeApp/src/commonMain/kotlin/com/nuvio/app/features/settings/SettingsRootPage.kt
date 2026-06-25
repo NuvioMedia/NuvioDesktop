@@ -14,7 +14,6 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Style
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,7 +32,6 @@ import nuvio.composeapp.generated.resources.compose_settings_page_integrations
 import nuvio.composeapp.generated.resources.compose_settings_page_licenses_attributions
 import nuvio.composeapp.generated.resources.compose_settings_page_notifications
 import nuvio.composeapp.generated.resources.compose_settings_page_playback
-import nuvio.composeapp.generated.resources.compose_settings_page_streams
 import nuvio.composeapp.generated.resources.compose_settings_page_supporters_contributors
 import nuvio.composeapp.generated.resources.compose_settings_root_account_description
 import nuvio.composeapp.generated.resources.compose_settings_root_appearance_description
@@ -45,7 +43,6 @@ import nuvio.composeapp.generated.resources.compose_settings_root_downloads_titl
 import nuvio.composeapp.generated.resources.compose_settings_root_general_section
 import nuvio.composeapp.generated.resources.compose_settings_root_integrations_description
 import nuvio.composeapp.generated.resources.compose_settings_root_notifications_description
-import nuvio.composeapp.generated.resources.compose_settings_root_streams_description
 import nuvio.composeapp.generated.resources.compose_settings_root_switch_profile_description
 import nuvio.composeapp.generated.resources.compose_settings_root_switch_profile_title
 import nuvio.composeapp.generated.resources.compose_settings_root_trakt_description
@@ -63,7 +60,6 @@ import org.jetbrains.compose.resources.stringResource
 internal fun LazyListScope.settingsRootContent(
     isTablet: Boolean,
     onPlaybackClick: () -> Unit,
-    onStreamsClick: () -> Unit,
     onAppearanceClick: () -> Unit,
     onAdvancedClick: () -> Unit,
     onNotificationsClick: () -> Unit,
@@ -82,6 +78,7 @@ internal fun LazyListScope.settingsRootContent(
     showGeneralSection: Boolean = true,
     showAboutSection: Boolean = true,
     showAdvancedSection: Boolean = true,
+    showSupportersContributorsPage: Boolean = true,
 ) {
     if (showAccountSection) {
         item {
@@ -161,14 +158,6 @@ internal fun LazyListScope.settingsRootContent(
                     )
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(
-                        title = stringResource(Res.string.compose_settings_page_streams),
-                        description = stringResource(Res.string.compose_settings_root_streams_description),
-                        icon = Icons.Rounded.Style,
-                        isTablet = isTablet,
-                        onClick = onStreamsClick,
-                    )
-                    SettingsGroupDivider(isTablet = isTablet)
-                    SettingsNavigationRow(
                         title = stringResource(Res.string.compose_settings_page_integrations),
                         description = stringResource(Res.string.compose_settings_root_integrations_description),
                         icon = Icons.Rounded.Link,
@@ -196,14 +185,16 @@ internal fun LazyListScope.settingsRootContent(
                 isTablet = isTablet,
             ) {
                 SettingsGroup(isTablet = isTablet) {
-                    SettingsNavigationRow(
-                        title = stringResource(Res.string.compose_settings_page_supporters_contributors),
-                        description = stringResource(Res.string.about_supporters_contributors_subtitle),
-                        icon = Icons.Rounded.Favorite,
-                        isTablet = isTablet,
-                        onClick = onSupportersContributorsClick,
-                    )
-                    SettingsGroupDivider(isTablet = isTablet)
+                    if (showSupportersContributorsPage) {
+                        SettingsNavigationRow(
+                            title = stringResource(Res.string.compose_settings_page_supporters_contributors),
+                            description = stringResource(Res.string.about_supporters_contributors_subtitle),
+                            icon = Icons.Rounded.Favorite,
+                            isTablet = isTablet,
+                            onClick = onSupportersContributorsClick,
+                        )
+                        SettingsGroupDivider(isTablet = isTablet)
+                    }
                     SettingsNavigationRow(
                         title = stringResource(Res.string.compose_settings_page_licenses_attributions),
                         description = stringResource(Res.string.about_licenses_attributions_subtitle),

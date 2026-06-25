@@ -39,6 +39,8 @@ internal class NativePlayerController(
     private var handle: Long = 0L
     private var pendingSource: PendingSource? = null
     private var controlsState = PlayerControlsState()
+    private var pendingSubtitleDelayMs: Int? = null
+    private var pendingSubtitleStyle: SubtitleStyleState? = null
     private var lastSentControlsStructureKey: NativeControlsStructureKey? = null
     private var pendingSubtitleStyle: SubtitleStyleState? = null
     private var pendingSubtitleDelayMs: Int? = null
@@ -107,8 +109,7 @@ internal class NativePlayerController(
                 )
                 if (handle == 0L) error("Native player did not return a handle.")
                 updateControls(controlsState)
-                pendingSubtitleStyle?.let { applySubtitleStyle(it) }
-                pendingSubtitleDelayMs?.let { setSubtitleDelayMs(it) }
+                applyPendingSubtitleSettings()
             }.onFailure { error ->
                 pending.onError(error.message)
             }
@@ -393,10 +394,10 @@ internal class NativePlayerController(
     }
 
     override fun setSubtitleDelayMs(delayMs: Int) {
-        val current = handle
-        if (current == 0L) {
-            pendingSubtitleDelayMs = delayMs
-            return
+        val clamped = delayMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS)
+        pendingSubtitleDelayMs = clamped
+        handle.takeIf { it != 0L }?.let { current ->
+            NativePlayerBridge.setSubtitleDelayMs(current, clamped)
         }
         pendingSubtitleDelayMs = null
         NativePlayerBridge.setSubtitleDelayMs(
@@ -406,10 +407,9 @@ internal class NativePlayerController(
     }
 
     override fun applySubtitleStyle(style: SubtitleStyleState) {
-        val current = handle
-        if (current == 0L) {
-            pendingSubtitleStyle = style
-            return
+        pendingSubtitleStyle = style
+        handle.takeIf { it != 0L }?.let { current ->
+            applySubtitleStyle(current, style)
         }
         pendingSubtitleStyle = null
 
@@ -451,6 +451,29 @@ internal class NativePlayerController(
             subPos = style.toMpvSubtitlePosition(),
             shadowEnabled = resolvedShadowEnabled,
             shadowDensity = resolvedShadowDensity,
+        )
+    }
+
+    private fun applyPendingSubtitleSettings() {
+        val current = handle.takeIf { it != 0L } ?: return
+        pendingSubtitleDelayMs?.let { delayMs ->
+            NativePlayerBridge.setSubtitleDelayMs(current, delayMs)
+        }
+        pendingSubtitleStyle?.let { style ->
+            applySubtitleStyle(current, style)
+        }
+    }
+
+    private fun applySubtitleStyle(handle: Long, style: SubtitleStyleState) {
+        NativePlayerBridge.applySubtitleStyle(
+            handle = handle,
+            textColor = style.textColor.toMpvColorString(),
+            backgroundColor = style.backgroundColor.toMpvColorString(),
+            outlineColor = style.outlineColor.toMpvColorString(),
+            outlineSize = if (style.outlineEnabled) style.outlineWidth.toFloat() else 0f,
+            bold = style.bold,
+            fontSize = style.toMpvSubtitleFontSize(),
+            subPos = style.toMpvSubtitlePosition(),
         )
     }
 

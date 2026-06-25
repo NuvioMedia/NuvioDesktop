@@ -6,7 +6,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,16 +39,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -56,9 +59,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.isDesktop
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
+import com.nuvio.app.core.ui.ProfileMeshBackground
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
@@ -76,6 +81,7 @@ fun ProfileSelectionScreen(
     val scope = rememberCoroutineScope()
     var pinDialogProfile by remember { mutableStateOf<NuvioProfile?>(null) }
     var isEditMode by remember { mutableStateOf(false) }
+    var hoveredProfileIndex by remember { mutableStateOf<Int?>(null) }
 
     val titleAlpha = remember { Animatable(0f) }
     val titleOffset = remember { Animatable(20f) }
@@ -100,26 +106,43 @@ fun ProfileSelectionScreen(
     }
 
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val profiles = profileState.profiles
+    val backgroundProfileColor = remember(profileState.activeProfile, profiles, hoveredProfileIndex) {
+        val hoveredProfile = if (isDesktop) {
+            profiles.firstOrNull { it.profileIndex == hoveredProfileIndex }
+        } else {
+            null
+        }
+        val sourceProfile = hoveredProfile ?: profileState.activeProfile ?: profiles.firstOrNull()
+        sourceProfile?.avatarColorHex?.let(::parseHexColor) ?: Color(0xFF1E88E5)
+    }
+
+    LaunchedEffect(profiles) {
+        if (hoveredProfileIndex != null && profiles.none { it.profileIndex == hoveredProfileIndex }) {
+            hoveredProfileIndex = null
+        }
+    }
+
+    fun updateHoveredProfile(profile: NuvioProfile, isHovered: Boolean) {
+        hoveredProfileIndex = if (isHovered) {
+            profile.profileIndex
+        } else {
+            hoveredProfileIndex.takeUnless { it == profile.profileIndex }
+        }
+    }
 
     BoxWithConstraints(
         modifier = modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
-                    ),
-                ),
-            )
-            .padding(top = statusBarTop),
+            .fillMaxSize(),
     ) {
         val isTabletLayout = maxWidth >= 768.dp
+
+        ProfileMeshBackground(profileColor = backgroundProfileColor)
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(top = statusBarTop)
                 .then(
                     if (isTabletLayout) {
                         Modifier
@@ -137,7 +160,7 @@ fun ProfileSelectionScreen(
                 text = stringResource(Res.string.profile_who_is_watching),
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontSize = 30.sp,
-                    letterSpacing = (-0.5).sp,
+                    letterSpacing = 0.sp,
                 ),
                 color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Bold,
@@ -149,7 +172,6 @@ fun ProfileSelectionScreen(
 
             Spacer(modifier = Modifier.height(if (isTabletLayout) 28.dp else 48.dp))
 
-            val profiles = profileState.profiles
             val items = profiles.size + if (profiles.size < 4) 1 else 0
 
             if (isTabletLayout) {
@@ -170,6 +192,7 @@ fun ProfileSelectionScreen(
                                     profile = profile,
                                     isEditMode = isEditMode,
                                     animDelay = currentIndex * 80,
+                                    onHoverChange = { isHovered -> updateHoveredProfile(profile, isHovered) },
                                     onClick = {
                                         if (isEditMode) {
                                             onEditProfile(profile)
@@ -210,6 +233,7 @@ fun ProfileSelectionScreen(
                                             profile = profile,
                                             isEditMode = isEditMode,
                                             animDelay = currentIndex * 80,
+                                            onHoverChange = { isHovered -> updateHoveredProfile(profile, isHovered) },
                                             onClick = {
                                                 if (isEditMode) {
                                                     onEditProfile(profile)
@@ -292,6 +316,7 @@ private fun ProfileAvatarCard(
     profile: NuvioProfile,
     isEditMode: Boolean,
     animDelay: Int,
+    onHoverChange: (Boolean) -> Unit,
     onClick: () -> Unit,
 ) {
     val avatarColor = remember(profile.avatarColorHex) {
@@ -318,7 +343,23 @@ private fun ProfileAvatarCard(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val currentOnHoverChange = rememberUpdatedState(onHoverChange)
     val pressScale = if (isPressed) 0.95f else 1f
+
+    LaunchedEffect(isHovered, profile.profileIndex) {
+        if (isDesktop) {
+            currentOnHoverChange.value(isHovered)
+        }
+    }
+
+    DisposableEffect(profile.profileIndex) {
+        onDispose {
+            if (isDesktop) {
+                currentOnHoverChange.value(false)
+            }
+        }
+    }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -331,6 +372,13 @@ private fun ProfileAvatarCard(
                 translationY = animOffset.value
             }
             .clip(RoundedCornerShape(20.dp))
+            .then(
+                if (isDesktop) {
+                    Modifier.hoverable(interactionSource)
+                } else {
+                    Modifier
+                },
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
