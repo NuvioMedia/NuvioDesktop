@@ -83,6 +83,9 @@ internal fun settingsSearchEntries(
     downloadsEnabled: Boolean,
     notificationsEnabled: Boolean,
     externalPlayerSupported: Boolean,
+    supportersContributorsPageEnabled: Boolean,
+    accountDeletionEnabled: Boolean,
+    personalMediaAddonCopyEnabled: Boolean,
     liquidGlassNativeTabBarSupported: Boolean,
     switchProfileAvailable: Boolean,
     checkForUpdatesAvailable: Boolean,
@@ -269,14 +272,16 @@ internal fun settingsSearchEntries(
             icon = Icons.Rounded.Notifications,
         )
     }
-    addPage(
-        page = SettingsPage.SupportersContributors,
-        key = "supporters",
-        title = supportersPage,
-        description = stringResource(Res.string.about_supporters_contributors_subtitle),
-        category = aboutCategory,
-        icon = Icons.Rounded.Favorite,
-    )
+    if (supportersContributorsPageEnabled) {
+        addPage(
+            page = SettingsPage.SupportersContributors,
+            key = "supporters",
+            title = supportersPage,
+            description = stringResource(Res.string.about_supporters_contributors_subtitle),
+            category = aboutCategory,
+            icon = Icons.Rounded.Favorite,
+        )
+    }
     addPage(
         page = SettingsPage.LicensesAttributions,
         key = "licenses-attributions",
@@ -324,7 +329,7 @@ internal fun settingsSearchEntries(
             key = "check-updates",
             title = stringResource(Res.string.compose_settings_root_check_updates_title),
             description = stringResource(Res.string.compose_settings_root_check_updates_description),
-            page = supportersPage,
+            page = if (supportersContributorsPageEnabled) supportersPage else licensesPage,
             section = stringResource(Res.string.compose_settings_root_about_section),
             category = aboutCategory,
             icon = Icons.Rounded.CloudDownload,
@@ -350,6 +355,18 @@ internal fun settingsSearchEntries(
         category = accountCategory,
         icon = Icons.Rounded.AccountCircle,
     )
+    if (accountDeletionEnabled) {
+        addRow(
+            page = SettingsPage.Account,
+            key = "account-delete",
+            title = stringResource(Res.string.settings_account_delete_account),
+            description = stringResource(Res.string.settings_account_delete_account_description),
+            pageLabel = accountPage,
+            section = accountPage,
+            category = accountCategory,
+            icon = Icons.Rounded.AccountCircle,
+        )
+    }
 
     addRow(
         page = SettingsPage.Appearance,
@@ -426,7 +443,13 @@ internal fun settingsSearchEntries(
         page = SettingsPage.Addons,
         key = "addons",
         title = addonsPage,
-        description = stringResource(Res.string.settings_content_discovery_addons_description),
+        description = stringResource(
+            if (personalMediaAddonCopyEnabled) {
+                Res.string.settings_content_discovery_addons_description_appstore
+            } else {
+                Res.string.settings_content_discovery_addons_description
+            },
+        ),
         icon = Icons.Rounded.Extension,
     )
     if (pluginsEnabled) {
@@ -456,8 +479,8 @@ internal fun settingsSearchEntries(
         key = "collections",
         title = collectionsPage,
         description = stringResource(Res.string.settings_content_discovery_collections_description),
-        page = contentDiscoveryPage,
-        section = stringResource(Res.string.settings_content_discovery_section_home),
+        page = layoutPage,
+        section = stringResource(Res.string.settings_appearance_section_home),
         category = generalCategory,
         icon = Icons.Rounded.CollectionsBookmark,
         target = SettingsSearchTarget.Collections,
