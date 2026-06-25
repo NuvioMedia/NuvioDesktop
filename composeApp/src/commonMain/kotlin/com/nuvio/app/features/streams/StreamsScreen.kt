@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -78,6 +79,7 @@ import com.nuvio.app.core.ui.NuvioBottomSheetDivider
 import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
+import com.nuvio.app.core.ui.nuvioWindowsTouchVerticalDragScroll
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.core.ui.secondaryClick
 import com.nuvio.app.features.downloads.DownloadsRepository
@@ -871,9 +873,13 @@ internal fun StreamList(
         StreamBadgeSettingsRepository.ensureLoaded()
         StreamBadgeSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
 
     LazyColumn(
-        modifier = modifier.fillMaxWidth(),
+        state = listState,
+        modifier = modifier
+            .fillMaxWidth()
+            .nuvioWindowsTouchVerticalDragScroll(listState),
         contentPadding = PaddingValues(
             horizontal = 12.dp,
             vertical = 12.dp,
