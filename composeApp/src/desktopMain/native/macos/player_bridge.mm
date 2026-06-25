@@ -2058,7 +2058,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     int64_t position = MAX(0, MIN(150, subPos));
     mpv_set_property(_mpv, "sub-pos", MPV_FORMAT_INT64, &position);
 
-    double shadowOffset = (shadowEnabled || hasBg) ? shadowDensity : 0.0;
+    double shadowOffset = shadowEnabled ? shadowDensity : (hasBg ? 6.0 : 0.0);
     mpv_set_property(_mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadowOffset);
 }
 

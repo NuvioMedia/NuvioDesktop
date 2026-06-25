@@ -979,7 +979,7 @@ public:
             double outline = std::max(0.0, std::min(8.0, outlineSize));
             double size = std::max(18.0, std::min(96.0, fontSize));
             int64_t position = std::max(0, std::min(150, subPos));
-            double shadowOffset = (shadowEnabled || hasBg) ? shadowDensity : 0.0;
+            double shadowOffset = shadowEnabled ? shadowDensity : (hasBg ? 6.0 : 0.0);
             mpvApi().setProperty(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
             mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
             mpvApi().setProperty(mpv, "sub-pos", MPV_FORMAT_INT64, &position);

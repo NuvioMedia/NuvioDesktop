@@ -42,8 +42,6 @@ internal class NativePlayerController(
     private var pendingSubtitleDelayMs: Int? = null
     private var pendingSubtitleStyle: SubtitleStyleState? = null
     private var lastSentControlsStructureKey: NativeControlsStructureKey? = null
-    private var pendingSubtitleStyle: SubtitleStyleState? = null
-    private var pendingSubtitleDelayMs: Int? = null
     private var onAction: (PlayerControlsAction) -> Boolean = { false }
     private var onEvent: (String, Double) -> Boolean = { _, _ -> false }
     private var onScrubChange: (Long) -> Boolean = { false }
@@ -399,11 +397,6 @@ internal class NativePlayerController(
         handle.takeIf { it != 0L }?.let { current ->
             NativePlayerBridge.setSubtitleDelayMs(current, clamped)
         }
-        pendingSubtitleDelayMs = null
-        NativePlayerBridge.setSubtitleDelayMs(
-            current,
-            delayMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS),
-        )
     }
 
     override fun applySubtitleStyle(style: SubtitleStyleState) {
@@ -411,47 +404,6 @@ internal class NativePlayerController(
         handle.takeIf { it != 0L }?.let { current ->
             applySubtitleStyle(current, style)
         }
-        pendingSubtitleStyle = null
-
-        val hasBackground = style.backgroundColor.alpha > 0f
-
-        // IMPORTANT: in mpv, sub-shadow-color is an ALIAS for sub-back-color.
-        // They are the same property. Resolve the correct values per active mode
-        // before passing to the native bridge, which sets them directly as mpv properties.
-        val resolvedBackgroundColor: String
-        val resolvedOutlineSize: Float
-        val resolvedShadowEnabled: Boolean
-        val resolvedShadowDensity: Float
-        val resolvedBorderStyle: String
-
-        if (hasBackground) {
-            // Background mode: use background-box colored by sub-back-color.
-            resolvedBackgroundColor = style.backgroundColor.toMpvColorString()
-            resolvedOutlineSize = 0f
-            resolvedShadowEnabled = false   // shadow-offset used for box margin
-            resolvedShadowDensity = 6f      // small padding around the text box
-            resolvedBorderStyle = "background-box"
-        } else {
-            // Outline / shadow mode: standard outline-and-shadow.
-            resolvedBackgroundColor = "#00000000"
-            resolvedOutlineSize = if (style.outlineEnabled) style.outlineWidth.toFloat() else 0f
-            resolvedShadowEnabled = style.shadowEnabled
-            resolvedShadowDensity = style.shadowDensity
-            resolvedBorderStyle = "outline-and-shadow"
-        }
-
-        NativePlayerBridge.applySubtitleStyle(
-            handle = current,
-            textColor = style.textColor.toMpvColorString(),
-            backgroundColor = resolvedBackgroundColor,
-            outlineColor = style.outlineColor.toMpvColorString(),
-            outlineSize = resolvedOutlineSize,
-            bold = style.bold,
-            fontSize = style.toMpvSubtitleFontSize(),
-            subPos = style.toMpvSubtitlePosition(),
-            shadowEnabled = resolvedShadowEnabled,
-            shadowDensity = resolvedShadowDensity,
-        )
     }
 
     private fun applyPendingSubtitleSettings() {
@@ -474,6 +426,8 @@ internal class NativePlayerController(
             bold = style.bold,
             fontSize = style.toMpvSubtitleFontSize(),
             subPos = style.toMpvSubtitlePosition(),
+            shadowEnabled = style.shadowEnabled,
+            shadowDensity = style.shadowDensity,
         )
     }
 
