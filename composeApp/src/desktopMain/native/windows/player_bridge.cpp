@@ -159,6 +159,33 @@ void setDwmWindowAttribute(HWND hwnd, DWORD attribute, const void *value, DWORD 
     (void)DwmSetWindowAttribute(hwnd, attribute, value, valueSize);
 }
 
+bool getMonitorRect(HWND hwnd, bool workArea, RECT &rect) {
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    if (!monitor) return false;
+
+    MONITORINFO monitorInfo = {};
+    monitorInfo.cbSize = sizeof(MONITORINFO);
+    if (!GetMonitorInfoW(monitor, &monitorInfo)) return false;
+
+    rect = workArea ? monitorInfo.rcWork : monitorInfo.rcMonitor;
+    const LONG width = rect.right - rect.left;
+    const LONG height = rect.bottom - rect.top;
+    if (width <= 0 || height <= 0) return false;
+
+    return true;
+}
+
+RECT resolveBorderlessFullscreenRect(HWND hwnd, int x, int y, int width, int height) {
+    RECT rect = {};
+    if (getMonitorRect(hwnd, false, rect)) return rect;
+
+    rect.left = x;
+    rect.top = y;
+    rect.right = x + std::max(1, width);
+    rect.bottom = y + std::max(1, height);
+    return rect;
+}
+
 void applyDwmWindowChrome(HWND hwnd, bool darkMode, COLORREF captionColor, COLORREF borderColor, COLORREF textColor) {
     if (!hwnd || !IsWindow(hwnd)) return;
 
@@ -194,6 +221,7 @@ void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width
             }
         }
 
+        RECT fullscreenRect = resolveBorderlessFullscreenRect(hwnd, x, y, width, height);
         if (IsIconic(hwnd) || IsZoomed(hwnd)) {
             ShowWindow(hwnd, SW_RESTORE);
         }
@@ -208,10 +236,10 @@ void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width
         SetWindowPos(
             hwnd,
             HWND_TOP,
-            x,
-            y,
-            std::max(1, width),
-            std::max(1, height),
+            fullscreenRect.left,
+            fullscreenRect.top,
+            fullscreenRect.right - fullscreenRect.left,
+            fullscreenRect.bottom - fullscreenRect.top,
             SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOACTIVATE
         );
         return;
@@ -232,8 +260,6 @@ void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width
 
     SetWindowLongPtrW(hwnd, GWL_STYLE, state.style);
     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, state.exStyle);
-    state.placement.length = sizeof(WINDOWPLACEMENT);
-    SetWindowPlacement(hwnd, &state.placement);
     SetWindowPos(
         hwnd,
         nullptr,
@@ -243,6 +269,18 @@ void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width
         0,
         SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE
     );
+
+    state.placement.length = sizeof(WINDOWPLACEMENT);
+    const bool restoreMaximized = state.placement.showCmd == SW_SHOWMAXIMIZED;
+    if (restoreMaximized) {
+        WINDOWPLACEMENT normalPlacement = state.placement;
+        normalPlacement.showCmd = SW_SHOWNORMAL;
+        SetWindowPlacement(hwnd, &normalPlacement);
+        ShowWindow(hwnd, SW_MAXIMIZE);
+        return;
+    }
+
+    SetWindowPlacement(hwnd, &state.placement);
 }
 
 bool containsCaseInsensitive(const std::string &haystack, const std::string &needle) {
@@ -780,6 +818,12 @@ public:
         }
         postUiTask([self = shared_from_this()]() {
             self->flushPendingControlsJsonIfReady();
+        });
+    }
+
+    void requestFocus() {
+        postUiTask([self = shared_from_this()]() {
+            self->focusNativeControls();
         });
     }
 
@@ -1420,6 +1464,22 @@ private:
         }
     }
 
+    void focusNativeControls() {
+        if (containerHwnd && IsWindow(containerHwnd)) {
+            SetFocus(containerHwnd);
+        }
+        if (controller) {
+            controller->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+        }
+        if (webView && controlsWebReady.load()) {
+            webView->ExecuteScript(
+                L"(function(){var root=document.getElementById('playerRoot');"
+                L"if(root){root.focus({preventScroll:true});}})()",
+                nullptr
+            );
+        }
+    }
+
     void flushPendingControlsJsonIfReady() {
         if (!webView || !controlsWebReady.load()) {
             return;
@@ -1993,6 +2053,12 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_updateControls(JNI
     auto player = playerFromHandle(handle);
     std::string controlsJsonText = jstringToUtf8(env, controlsJson);
     if (player) player->updateControlsJson(controlsJsonText);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_requestFocus(JNIEnv *, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    if (player) player->requestFocus();
 }
 
 extern "C" JNIEXPORT void JNICALL

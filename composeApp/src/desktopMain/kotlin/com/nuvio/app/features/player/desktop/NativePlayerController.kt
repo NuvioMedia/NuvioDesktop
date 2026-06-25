@@ -174,6 +174,21 @@ internal class NativePlayerController(
         NativePlayerBridge.updateControls(current, stateWithVolume.toControlsJson(isFullscreen))
     }
 
+    fun onDesktopFullscreenChanged() {
+        lastSentControlsStructureKey = null
+        updateControls(controlsState)
+        requestKeyboardFocus()
+    }
+
+    private fun requestKeyboardFocus() {
+        SwingUtilities.invokeLater {
+            if (!host.isDisplayable) return@invokeLater
+            host.requestFocusInWindow()
+            val current = handle.takeIf { it != 0L } ?: return@invokeLater
+            NativePlayerBridge.requestFocus(current)
+        }
+    }
+
     fun setResizeMode(mode: PlayerResizeMode) {
         handle.takeIf { it != 0L }?.let { current ->
             NativePlayerBridge.setResizeMode(
@@ -210,8 +225,7 @@ internal class NativePlayerController(
             }
             "toggleFullscreen" -> {
                 toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
-                lastSentControlsStructureKey = null
-                updateControls(controlsState)
+                onDesktopFullscreenChanged()
             }
             "volumeChange" -> setFallbackVolume(value.toFloat())
             else -> {
