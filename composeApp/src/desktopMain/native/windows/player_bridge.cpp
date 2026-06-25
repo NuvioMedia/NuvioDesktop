@@ -72,6 +72,7 @@ struct BorderlessFullscreenState {
     LONG_PTR style = 0;
     LONG_PTR exStyle = 0;
     WINDOWPLACEMENT placement = {};
+    bool wasMaximized = false;
 };
 
 std::mutex gBorderlessFullscreenMutex;
@@ -190,6 +191,7 @@ void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width
                 state.exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
                 state.placement.length = sizeof(WINDOWPLACEMENT);
                 GetWindowPlacement(hwnd, &state.placement);
+                state.wasMaximized = IsZoomed(hwnd);
                 gBorderlessFullscreenStates.emplace(hwnd, state);
             }
         }
@@ -232,6 +234,29 @@ void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width
 
     SetWindowLongPtrW(hwnd, GWL_STYLE, state.style);
     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, state.exStyle);
+    if (state.wasMaximized) {
+        state.placement.length = sizeof(WINDOWPLACEMENT);
+        state.placement.showCmd = SW_SHOWMAXIMIZED;
+        SetWindowPlacement(hwnd, &state.placement);
+
+        HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO monitorInfo;
+        monitorInfo.cbSize = sizeof(MONITORINFO);
+        if (GetMonitorInfoW(monitor, &monitorInfo)) {
+            const RECT &work = monitorInfo.rcWork;
+            SetWindowPos(
+                hwnd,
+                nullptr,
+                work.left,
+                work.top,
+                std::max(1L, work.right - work.left),
+                std::max(1L, work.bottom - work.top),
+                SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE
+            );
+        }
+        return;
+    }
+
     state.placement.length = sizeof(WINDOWPLACEMENT);
     SetWindowPlacement(hwnd, &state.placement);
     SetWindowPos(

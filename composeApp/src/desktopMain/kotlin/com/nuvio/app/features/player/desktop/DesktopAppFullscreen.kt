@@ -2,9 +2,12 @@ package com.nuvio.app.features.player.desktop
 
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
+import java.awt.Frame
 import java.awt.GraphicsEnvironment
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
+import java.awt.Rectangle
+import java.awt.Toolkit
 import java.awt.Window
 import java.awt.event.KeyEvent
 import javax.swing.SwingUtilities
@@ -77,7 +80,7 @@ internal class DesktopAppFullscreenController {
 
     fun toggle(window: Window, windowState: WindowState) {
         if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
-            toggleWindowsFullscreen(window)
+            toggleWindowsFullscreen(window, windowState)
         } else {
             toggleComposeFullscreen(windowState)
         }
@@ -105,15 +108,20 @@ internal class DesktopAppFullscreenController {
         }
     }
 
-    private fun toggleWindowsFullscreen(window: Window) {
+    private fun toggleWindowsFullscreen(window: Window, windowState: WindowState) {
         if (windowsFullscreenState?.window === window) {
-            exitWindowsFullscreen(window)
+            exitWindowsFullscreen(window, windowState)
         } else {
-            enterWindowsFullscreen(window)
+            enterWindowsFullscreen(window, windowState)
         }
     }
 
-    private fun enterWindowsFullscreen(window: Window) {
+    private fun enterWindowsFullscreen(window: Window, windowState: WindowState) {
+        val restorePlacement = window.restorePlacement(windowState)
+        if (restorePlacement == WindowPlacement.Maximized) {
+            (window as? Frame)?.maximizedBounds = window.workAreaBounds()
+        }
+
         val gc = window.graphicsConfiguration
             ?: GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.defaultConfiguration
         val screenBounds = gc.bounds
@@ -130,12 +138,16 @@ internal class DesktopAppFullscreenController {
             width = (screenBounds.width * scaleX).toInt(),
             height = (screenBounds.height * scaleY).toInt(),
         )
-        windowsFullscreenState = WindowsFullscreenState(window = window, windowHwnd = hwnd)
+        windowsFullscreenState = WindowsFullscreenState(
+            window = window,
+            windowHwnd = hwnd,
+            restorePlacement = restorePlacement,
+        )
         window.toFront()
         window.requestFocus()
     }
 
-    private fun exitWindowsFullscreen(window: Window) {
+    private fun exitWindowsFullscreen(window: Window, windowState: WindowState? = null) {
         val fullscreenState = windowsFullscreenState?.takeIf { it.window === window } ?: return
         NativePlayerBridge.setWindowBorderlessFullscreen(
             windowHwnd = fullscreenState.windowHwnd,
@@ -146,13 +158,72 @@ internal class DesktopAppFullscreenController {
             height = 0,
         )
         windowsFullscreenState = null
+        window.restorePlacementAfterNativeFullscreen(windowState, fullscreenState.restorePlacement)
     }
 
     private data class WindowsFullscreenState(
         val window: Window,
         val windowHwnd: Long,
+        val restorePlacement: WindowPlacement,
     )
 }
+
+private fun Window.restorePlacement(windowState: WindowState): WindowPlacement {
+    val frame = this as? Frame
+    val isNativeMaximized = frame?.extendedState?.let { state ->
+        state and Frame.MAXIMIZED_BOTH == Frame.MAXIMIZED_BOTH
+    } == true
+    if (isNativeMaximized) return WindowPlacement.Maximized
+    return windowState.placement.takeUnless { it == WindowPlacement.Fullscreen }
+        ?: WindowPlacement.Floating
+}
+
+private fun Window.restorePlacementAfterNativeFullscreen(
+    windowState: WindowState?,
+    placement: WindowPlacement,
+) {
+    SwingUtilities.invokeLater {
+        val frame = this as? Frame
+        if (placement == WindowPlacement.Maximized && frame != null) {
+            val workArea = workAreaBounds()
+            frame.maximizedBounds = workArea
+            frame.extendedState = frame.extendedState or Frame.MAXIMIZED_BOTH
+            windowState?.placement = WindowPlacement.Maximized
+
+            SwingUtilities.invokeLater {
+                if (frame.bounds.exceeds(workArea)) {
+                    frame.extendedState = frame.extendedState and Frame.MAXIMIZED_BOTH.inv()
+                    frame.bounds = workArea
+                    frame.extendedState = frame.extendedState or Frame.MAXIMIZED_BOTH
+                }
+                frame.invalidate()
+                frame.validate()
+                frame.repaint()
+            }
+        } else {
+            windowState?.placement = placement
+        }
+    }
+}
+
+private fun Window.workAreaBounds(): Rectangle {
+    val gc = graphicsConfiguration
+        ?: GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.defaultConfiguration
+    val bounds = gc.bounds
+    val insets = Toolkit.getDefaultToolkit().getScreenInsets(gc)
+    return Rectangle(
+        bounds.x + insets.left,
+        bounds.y + insets.top,
+        (bounds.width - insets.left - insets.right).coerceAtLeast(1),
+        (bounds.height - insets.top - insets.bottom).coerceAtLeast(1),
+    )
+}
+
+private fun Rectangle.exceeds(bounds: Rectangle): Boolean =
+    x < bounds.x ||
+        y < bounds.y ||
+        x + width > bounds.x + bounds.width ||
+        y + height > bounds.y + bounds.height
 
 internal fun installDesktopAppFullscreenShortcuts(window: Window): () -> Unit {
     val dispatcher = KeyEventDispatcher { event ->
