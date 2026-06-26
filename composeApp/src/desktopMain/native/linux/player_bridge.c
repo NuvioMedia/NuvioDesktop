@@ -42,10 +42,12 @@ static void on_load(void) {
 static pthread_mutex_t glCacheMutex = PTHREAD_MUTEX_INITIALIZER;
 static struct {
     int valid;
+    int useGLX;
     int gbmFd;
     struct gbm_device *gbmDevice;
     EGLDisplay eglDisplay;
     EGLContext eglContext;
+    EGLSurface eglSurface;
     mpv_handle *mpv;
     mpv_render_context *renderCtx;
     GLuint fbo;
@@ -852,6 +854,8 @@ JNIEXPORT jlong JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerB
         task->gbmDevice = glCache.gbmDevice;
         task->eglDisplay = glCache.eglDisplay;
         task->eglContext = glCache.eglContext;
+        task->eglSurface = glCache.eglSurface;
+        task->useGLX = glCache.useGLX;
         task->fbo = glCache.fbo;
         task->fboTex = glCache.fboTex;
         task->fboW = glCache.fboW;
@@ -1064,10 +1068,12 @@ JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBr
         /* Cache for reuse — do NOT free mpv/renderCtx (crashes Gallium) */
         pthread_mutex_lock(&glCacheMutex);
         glCache.valid = 1;
+        glCache.useGLX = task->useGLX;
         glCache.gbmFd = task->gbmFd;
         glCache.gbmDevice = task->gbmDevice;
         glCache.eglDisplay = task->eglDisplay;
         glCache.eglContext = task->eglContext;
+        glCache.eglSurface = task->eglSurface;
         glCache.mpv = task->mpv;
         glCache.renderCtx = task->renderCtx;
         glCache.fbo = task->fbo;
