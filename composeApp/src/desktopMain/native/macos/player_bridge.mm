@@ -1408,6 +1408,8 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     setMpvOptionString(_mpv, "input-vo-keyboard", "no");
     setMpvOptionString(_mpv, "keep-open", "yes");
     setMpvOptionString(_mpv, "vo", "libmpv");
+    setMpvOptionString(_mpv, "ao", "avfoundation,coreaudio,");
+    setMpvOptionString(_mpv, "audio-channels", "auto");
     setMpvOptionString(_mpv, "hwdec", "auto");
     setMpvOptionString(_mpv, "gpu-hwdec-interop", "auto");
     setMpvOptionString(_mpv, "hwdec-codecs", "all");
@@ -1436,7 +1438,13 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     setMpvOptionString(_mpv, "hr-seek", "no");
 
     if (headerLines.count > 0) {
-        NSString *headers = [headerLines componentsJoinedByString:@","];
+        NSMutableArray *escaped = [NSMutableArray arrayWithCapacity:headerLines.count];
+        for (NSString *line in headerLines) {
+            NSString *esc = [[line stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"]
+                             stringByReplacingOccurrencesOfString:@"," withString:@"\\,"];
+            [escaped addObject:esc];
+        }
+        NSString *headers = [escaped componentsJoinedByString:@","];
         setMpvOptionString(_mpv, "http-header-fields", headers.UTF8String);
     }
 

@@ -13,6 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
+import co.touchlab.kermit.Logger
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.details.MetaDetailsRepository
@@ -34,6 +35,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+
+private val playerControlsLog = Logger.withTag("PlayerControls")
 
 @Composable
 internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
@@ -550,6 +553,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
 }
 
 private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControlsAction): Boolean {
+    playerControlsLog.d { "action=$action ${playerControlLogContext()}" }
     when (action) {
         PlayerControlsAction.ToggleChrome -> {
             if (playerControlsLocked) {
@@ -633,6 +637,9 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
 }
 
 private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: Double): Boolean {
+    if (type.shouldLogPlayerControlsEvent()) {
+        playerControlsLog.d { "event type=$type value=$value ${playerControlLogContext()}" }
+    }
     when (type) {
         "cursorActivity" -> {
             if (!playerControlsLocked) {
@@ -731,6 +738,9 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         "selectBuiltInSubtitleTrack" -> {
             val index = value.toInt()
             val wasCustom = useCustomSubtitles
+            playerControlsLog.d {
+                "selectBuiltInSubtitleTrack index=$index wasCustom=$wasCustom tracks=${subtitleTracks.size} ${playerControlLogContext()}"
+            }
             selectedSubtitleIndex = index
             selectedAddonSubtitleId = null
             useCustomSubtitles = false
@@ -744,6 +754,9 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         "fetchAddonSubtitles" -> fetchAddonSubtitlesForActiveItem()
         "selectAddonSubtitle" -> {
             val addon = visibleAddonSubtitles.getOrNull(value.toInt()) ?: return true
+            playerControlsLog.d {
+                "selectAddonSubtitle index=${value.toInt()} addonId=${addon.id} language=${addon.language} ${playerControlLogContext()}"
+            }
             selectedAddonSubtitleId = addon.id
             selectedSubtitleIndex = -1
             useCustomSubtitles = true
@@ -938,15 +951,34 @@ private fun formatPlayerControlsSeconds(seconds: Double): String {
 }
 
 private fun PlayerScreenRuntime.handlePlayerControlsScrubChange(positionMs: Long) {
+    playerControlsLog.d { "scrubChange positionMs=$positionMs ${playerControlLogContext()}" }
     isScrubbingTimeline = true
     scrubbingPositionMs = positionMs
 }
 
 private fun PlayerScreenRuntime.handlePlayerControlsScrubFinished(positionMs: Long) {
+    playerControlsLog.d { "scrubFinished positionMs=$positionMs controller=${playerController != null} ${playerControlLogContext()}" }
     isScrubbingTimeline = false
     scrubbingPositionMs = null
     playerController?.seekTo(positionMs)
     scheduleProgressSyncAfterSeek()
+}
+
+private fun PlayerScreenRuntime.playerControlLogContext(): String =
+    "video=${activeVideoId ?: "none"} s=${activeSeasonNumber ?: "-"} e=${activeEpisodeNumber ?: "-"} " +
+        "pos=${playbackSnapshot.positionMs} duration=${playbackSnapshot.durationMs} " +
+        "speed=${playbackSnapshot.playbackSpeed} controller=${playerController != null}"
+
+private fun String.shouldLogPlayerControlsEvent(): Boolean {
+    val normalized = lowercase()
+    return normalized.contains("audio") ||
+        normalized.contains("subtitle") ||
+        normalized.contains("speed") ||
+        normalized.contains("scrub") ||
+        normalized.contains("seek") ||
+        normalized.contains("episode") ||
+        normalized == "resize" ||
+        normalized == "toggle"
 }
 
 private fun PlayerScreenRuntime.openInExternalPlayer() {
