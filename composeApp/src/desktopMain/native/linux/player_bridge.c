@@ -172,11 +172,10 @@ static int initEGL(CreateTask *task) {
         }
         DBG("EGL: initialized %d.%d via GBM\n", major, minor);
 
-        /* Use GLES3 — NVIDIA proprietary EGL doesn't support Desktop GL
-         * with pbuffer/surfaceless offscreen contexts. */
-        eglBindAPI(EGL_OPENGL_ES_API);
+        /* Use Desktop GL — NVIDIA goes through GLX fallback anyway */
+        eglBindAPI(EGL_OPENGL_API);
         EGLint configAttribs[] = {
-            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
             EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8,
             EGL_NONE
         };
@@ -189,8 +188,15 @@ static int initEGL(CreateTask *task) {
             task->eglDisplay = EGL_NO_DISPLAY; continue;
         }
 
-        EGLint ctxAttribs[] = { EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 0, EGL_NONE };
+        EGLint ctxAttribs[] = { EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 3,
+                                EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+                                EGL_NONE };
         task->eglContext = eglCreateContext(task->eglDisplay, config, EGL_NO_CONTEXT, ctxAttribs);
+        if (task->eglContext == EGL_NO_CONTEXT) {
+            /* Fallback: try without core profile */
+            EGLint ctxAttribs2[] = { EGL_NONE };
+            task->eglContext = eglCreateContext(task->eglDisplay, config, EGL_NO_CONTEXT, ctxAttribs2);
+        }
         if (task->eglContext == EGL_NO_CONTEXT) {
             DBG("EGL: context creation failed (err=0x%x)\n", eglGetError());
             eglTerminate(task->eglDisplay); gbm_device_destroy(task->gbmDevice);
