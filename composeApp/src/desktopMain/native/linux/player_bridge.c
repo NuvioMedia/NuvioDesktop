@@ -1058,11 +1058,17 @@ JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBr
     pthread_cond_signal(&task->frameCond);
 
     if (task->gpuMode == 2) {
+        /* Detach render callback first to prevent new frames during shutdown */
+        if (task->renderCtx) {
+            mpv_render_context_set_update_callback(task->renderCtx, NULL, NULL);
+        }
         if (task->mpv) {
             const char *cmd[] = {"stop", NULL};
             mpv_command(task->mpv, cmd);
             mpv_wakeup(task->mpv);
         }
+        /* Signal render thread again after stop (it may be waiting on frameCond) */
+        pthread_cond_signal(&task->frameCond);
         if (task->renderThread) pthread_join(task->renderThread, NULL);
 
         /* Cache for reuse — do NOT free mpv/renderCtx (crashes Gallium) */
