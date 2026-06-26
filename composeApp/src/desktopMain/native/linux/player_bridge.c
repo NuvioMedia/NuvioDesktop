@@ -1062,14 +1062,22 @@ JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBr
         if (task->renderCtx) {
             mpv_render_context_set_update_callback(task->renderCtx, NULL, NULL);
         }
+        /* NVIDIA/GLX dispose ordering — fixes a hard deadlock:
+         * The render thread owns the GLX context. If we send mpv "stop" first, mpv's
+         * core thread tears down the decoder (vd_lavc_destroy -> vkDestroyDevice) on the
+         * NVIDIA driver WHILE the render thread is still doing GL work on the same
+         * context — both threads then block forever inside libnvidia-glcore, and
+         * dispose() hangs on pthread_join (player "won't die", app won't close).
+         * So: join the render thread FIRST (it finishes its frame, unbinds the GL
+         * context via glXMakeCurrent(None), and exits), THEN stop playback — no
+         * concurrent GL/VK teardown on the driver. */
+        pthread_cond_signal(&task->frameCond);
+        if (task->renderThread) pthread_join(task->renderThread, NULL);
         if (task->mpv) {
             const char *cmd[] = {"stop", NULL};
             mpv_command(task->mpv, cmd);
             mpv_wakeup(task->mpv);
         }
-        /* Signal render thread again after stop (it may be waiting on frameCond) */
-        pthread_cond_signal(&task->frameCond);
-        if (task->renderThread) pthread_join(task->renderThread, NULL);
 
         /* Cache for reuse — do NOT free mpv/renderCtx (crashes Gallium) */
         pthread_mutex_lock(&glCacheMutex);
