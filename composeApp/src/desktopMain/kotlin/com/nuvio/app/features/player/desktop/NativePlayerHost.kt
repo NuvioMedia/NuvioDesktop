@@ -6,22 +6,34 @@ import java.awt.Cursor
 import java.awt.Graphics
 import java.awt.Point
 import java.awt.Toolkit
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
+import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
 import java.awt.image.BufferedImage
+import javax.swing.Timer
 
-internal class NativePlayerHost : Canvas() {
+internal class NativePlayerHost : Canvas(), PlayerHost {
     var onPeerReady: (() -> Unit)? = null
     var onDisplayableChanged: ((Boolean) -> Unit)? = null
     var onFirstPaint: (() -> Unit)? = null
     var onFirstFullSizePaint: (() -> Unit)? = null
-    var onCursorActivity: (() -> Unit)? = null
+    var onResize: ((width: Int, height: Int) -> Unit)? = null
     private var firstPaintNotified = false
     private var firstFullSizePaintNotified = false
+    override var onMouseClick: (() -> Unit)? = null
+    override var onCursorActivity: (() -> Unit)? = null
     private var controlsVisible = true
     private var cursorVisible = true
+    private var cursorHideTimer: Timer? = null
+
+    @Volatile
+    override var nativeHandle: Long = 0L
 
     private companion object {
+        const val CursorIdleHideDelayMs = 3_000
+
         val hiddenCursor: Cursor by lazy {
             val image = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
             Toolkit.getDefaultToolkit().createCustomCursor(image, Point(0, 0), "nuvio-hidden-cursor")
@@ -31,6 +43,17 @@ internal class NativePlayerHost : Canvas() {
     init {
         background = Color.BLACK
         ignoreRepaint = false
+        addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) {
+                onResize?.invoke(width, height)
+            }
+        })
+        addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                noteCursorActivity()
+                onMouseClick?.invoke()
+            }
+        })
         addMouseMotionListener(object : MouseMotionAdapter() {
             override fun mouseMoved(event: MouseEvent) {
                 noteCursorActivity()
@@ -42,24 +65,56 @@ internal class NativePlayerHost : Canvas() {
         })
     }
 
-    fun setControlsVisible(visible: Boolean) {
+    override fun setControlsVisible(visible: Boolean) {
+        if (controlsVisible == visible) return
         controlsVisible = visible
+        cancelCursorHideTimer()
         setCursorVisible(visible)
     }
 
-    fun noteCursorActivity() {
+    override fun noteCursorActivity() {
         onCursorActivity?.invoke()
+        if (controlsVisible) {
+            cancelCursorHideTimer()
+            setCursorVisible(true)
+            return
+        }
+        setCursorVisible(true)
+        restartCursorHideTimer()
     }
 
-    fun resetCursorVisibility() {
+    override fun resetCursorVisibility() {
         controlsVisible = true
+        cancelCursorHideTimer()
         setCursorVisible(true)
+    }
+
+    override fun dispose() {
+        resetCursorVisibility()
     }
 
     private fun setCursorVisible(visible: Boolean) {
         if (cursorVisible == visible) return
         cursorVisible = visible
         cursor = if (visible) Cursor.getDefaultCursor() else hiddenCursor
+    }
+
+    private fun restartCursorHideTimer() {
+        cancelCursorHideTimer()
+        cursorHideTimer = Timer(CursorIdleHideDelayMs) {
+            if (!controlsVisible) {
+                setCursorVisible(false)
+            }
+            cancelCursorHideTimer()
+        }.apply {
+            isRepeats = false
+            start()
+        }
+    }
+
+    private fun cancelCursorHideTimer() {
+        cursorHideTimer?.stop()
+        cursorHideTimer = null
     }
 
     override fun update(graphics: Graphics) {
