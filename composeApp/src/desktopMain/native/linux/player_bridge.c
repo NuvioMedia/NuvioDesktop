@@ -1187,7 +1187,28 @@ JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBr
 
 JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setResizeMode(JNIEnv *env, jobject thiz, jlong hdl, jint mode) {
     (void)env; (void)thiz; CreateTask *task = getTask(hdl); if (!task || !task->mpv) return;
-    mpv_set_property_string(task->mpv, "panscan", mode == 1 ? "1.0" : "0.0");
+    /* mode: 0=Fit, 1=Fill, 2=Zoom, 3=Stretch */
+    DBG("setResizeMode: mode=%d\n", mode);
+
+    const char *panscan = "0.0";
+    const char *keepaspect = "yes";
+    switch (mode) {
+    case 1: /* Fill */
+    case 2: /* Zoom */
+        panscan = "1.0";
+        break;
+    case 3: /* Stretch */
+        keepaspect = "no";
+        break;
+    default: /* Fit */
+        break;
+    }
+    mpv_set_property_string(task->mpv, "keepaspect", keepaspect);
+    mpv_set_property_string(task->mpv, "panscan", panscan);
+    mpv_set_property_string(task->mpv, "video-unscaled", "no");
+    mpv_set_property_string(task->mpv, "video-aspect-override", "no");
+    mpv_set_property_string(task->mpv, "sub-use-margins", (mode == 0 || mode == 1 || mode == 2) ? "yes" : "no");
+    mpv_set_property_string(task->mpv, "sub-pos", "100");
 }
 
 JNIEXPORT jlong JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_durationMs(JNIEnv *env, jobject thiz, jlong hdl) {

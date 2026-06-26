@@ -272,57 +272,10 @@ private fun LinuxPlayerSurface(
                     val dstW = size.width
                     val dstH = size.height
 
-                    // mpv renders video centered in FBO with letterbox.
-                    // Calculate the actual video area within the FBO.
-                    val videoAspect = host.videoWidth.toFloat() / host.videoHeight.toFloat().coerceAtLeast(1f)
-                    val fboAspect = imgW / imgH
-                    val videoInFbo: org.jetbrains.skia.Rect = if (videoAspect > 0f && host.videoWidth > 0) {
-                        if (fboAspect > videoAspect) {
-                            // Pillarbox (black bars left/right)
-                            val vw = imgH * videoAspect
-                            org.jetbrains.skia.Rect.makeXYWH((imgW - vw) / 2f, 0f, vw, imgH)
-                        } else {
-                            // Letterbox (black bars top/bottom)
-                            val vh = imgW / videoAspect
-                            org.jetbrains.skia.Rect.makeXYWH(0f, (imgH - vh) / 2f, imgW, vh)
-                        }
-                    } else {
-                        org.jetbrains.skia.Rect.makeWH(imgW, imgH)
-                    }
-
-                    val srcRect: org.jetbrains.skia.Rect
-                    val dstRect: org.jetbrains.skia.Rect
-                    when (resizeMode) {
-                        PlayerResizeMode.Stretch -> {
-                            // Stretch video (no black bars) to fill entire canvas
-                            srcRect = videoInFbo
-                            dstRect = org.jetbrains.skia.Rect.makeWH(dstW, dstH)
-                        }
-                        PlayerResizeMode.Zoom, PlayerResizeMode.Fill -> {
-                            // Scale to fill canvas (no black bars), crop overflow
-                            srcRect = videoInFbo
-                            val vidW = videoInFbo.width
-                            val vidH = videoInFbo.height
-                            val scale = maxOf(dstW / vidW, dstH / vidH)
-                            val scaledW = vidW * scale
-                            val scaledH = vidH * scale
-                            dstRect = org.jetbrains.skia.Rect.makeXYWH(
-                                (dstW - scaledW) / 2f, (dstH - scaledH) / 2f, scaledW, scaledH
-                            )
-                        }
-                        else -> {
-                            // Fit (letterbox) — show full video with black bars
-                            srcRect = videoInFbo
-                            val vidW = videoInFbo.width
-                            val vidH = videoInFbo.height
-                            val scale = minOf(dstW / vidW, dstH / vidH)
-                            val scaledW = vidW * scale
-                            val scaledH = vidH * scale
-                            dstRect = org.jetbrains.skia.Rect.makeXYWH(
-                                (dstW - scaledW) / 2f, (dstH - scaledH) / 2f, scaledW, scaledH
-                            )
-                        }
-                    }
+                    // Draw full FBO — mpv handles letterbox/zoom/stretch internally
+                    // via panscan property. Subtitles are always correctly positioned.
+                    val srcRect = org.jetbrains.skia.Rect.makeWH(imgW, imgH)
+                    val dstRect = org.jetbrains.skia.Rect.makeWH(dstW, dstH)
                     canvas.drawImageRect(
                         skiaImage,
                         srcRect,
