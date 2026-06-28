@@ -54,6 +54,7 @@ actual fun PlatformPlayerSurface(
         NativePlayerSurface(
             sourceUrl = sourceUrl,
             sourceHeaders = sourceHeaders,
+            externalSubtitles = externalSubtitles,
             modifier = modifier,
             playWhenReady = playWhenReady,
             resizeMode = resizeMode,
@@ -81,6 +82,7 @@ actual fun PlatformPlayerSurface(
 private fun NativePlayerSurface(
     sourceUrl: String,
     sourceHeaders: Map<String, String>,
+    externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     modifier: Modifier,
     playWhenReady: Boolean,
     resizeMode: PlayerResizeMode,
@@ -165,6 +167,20 @@ private fun NativePlayerSurface(
             onError = { message -> latestOnError.value(message) },
         )
         onControllerReady(controller)
+    }
+
+    LaunchedEffect(controller, sourceUrl, externalSubtitles, hostFirstFullSizePaintComplete.value) {
+        if (!hostFirstFullSizePaintComplete.value) {
+            return@LaunchedEffect
+        }
+        if (externalSubtitles.isEmpty()) {
+            return@LaunchedEffect
+        }
+        // Give the native player a moment to load the media before attaching subs.
+        delay(600L)
+        externalSubtitles.forEach { subtitle ->
+            controller.setSubtitleUri(subtitle.url)
+        }
     }
 
     LaunchedEffect(controller, playWhenReady) {
