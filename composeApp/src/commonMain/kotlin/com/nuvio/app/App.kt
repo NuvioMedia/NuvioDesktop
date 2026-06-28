@@ -154,6 +154,7 @@ import com.nuvio.app.features.library.LibraryRepository
 import com.nuvio.app.features.library.LibrarySection
 import com.nuvio.app.features.library.LibrarySourceMode
 import com.nuvio.app.features.library.LibraryScreen
+import com.nuvio.app.features.library.traktListKeyFromSectionType
 import com.nuvio.app.features.library.toLibraryItem
 import com.nuvio.app.features.library.toMetaPreview
 import com.nuvio.app.features.notifications.EpisodeReleaseNotificationsRepository
@@ -1646,7 +1647,7 @@ private fun MainAppContent(
                                                 PosterActionTarget(
                                                     preview = item.toMetaPreview(),
                                                     libraryItem = item,
-                                                    libraryListKey = section.type,
+                                                    libraryListKey = section.listKey,
                                                 ),
                                             )
                                         },
@@ -2679,7 +2680,7 @@ private fun MainAppContent(
                                     PosterActionTarget(
                                         preview = meta,
                                         libraryItem = meta.toLibraryItem(savedAtEpochMs = 0L),
-                                        libraryListKey = target.sectionType,
+                                        libraryListKey = traktListKeyFromSectionType(target.sectionType),
                                     )
                                 } else {
                                     PosterActionTarget(preview = meta)

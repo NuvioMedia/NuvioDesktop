@@ -31,7 +31,13 @@ data class LibrarySection(
     val type: String,
     val displayTitle: String,
     val items: List<LibraryItem>,
+    val listKey: String = type,
 )
+
+const val LIBRARY_SECTION_TYPE_SEPARATOR: String = " "
+
+fun traktListKeyFromSectionType(sectionType: String): String =
+    sectionType.substringBeforeLast(LIBRARY_SECTION_TYPE_SEPARATOR)
 
 enum class LibrarySourceMode {
     LOCAL,

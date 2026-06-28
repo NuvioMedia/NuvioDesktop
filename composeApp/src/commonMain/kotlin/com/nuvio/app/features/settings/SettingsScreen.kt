@@ -693,6 +693,7 @@ private fun MobileSettingsScreen(
                     settingsUiState = traktSettingsUiState,
                     commentsEnabled = traktCommentsEnabled,
                     onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
+                    onUnifiedTraktWatchlistChange = TraktSettingsRepository::setUnifiedTraktWatchlist,
                 )
             }
         }
@@ -1106,6 +1107,7 @@ private fun TabletSettingsScreen(
                         settingsUiState = traktSettingsUiState,
                         commentsEnabled = traktCommentsEnabled,
                         onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
+                        onUnifiedTraktWatchlistChange = TraktSettingsRepository::setUnifiedTraktWatchlist,
                     )
                 }
             }

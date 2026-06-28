@@ -41,6 +41,8 @@ import kotlinx.serialization.json.put
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.library_local_tab_title
 import nuvio.composeapp.generated.resources.library_other
+import nuvio.composeapp.generated.resources.media_movies
+import nuvio.composeapp.generated.resources.media_series
 import nuvio.composeapp.generated.resources.trakt_lists_update_failed
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
@@ -120,6 +122,12 @@ object LibraryRepository {
                     publish()
                 }
             }
+        }
+        syncScope.launch {
+            TraktSettingsRepository.uiState
+                .map { it.unifiedTraktWatchlist }
+                .distinctUntilChanged()
+                .collectLatest { publish() }
         }
     }
 
@@ -425,16 +433,36 @@ object LibraryRepository {
     private fun publish() {
         if (isTraktLibrarySourceActive()) {
             val traktState = TraktLibraryRepository.uiState.value
-            val sections = traktState.listTabs.mapNotNull { tab ->
-                val listItems = traktState.entriesByList[tab.key].orEmpty()
-                if (listItems.isEmpty()) {
-                    null
-                } else {
-                    LibrarySection(
-                        type = tab.key,
-                        displayTitle = tab.title,
-                        items = listItems,
-                    )
+            val splitByType = !TraktSettingsRepository.uiState.value.unifiedTraktWatchlist
+
+            val sections = if (splitByType) {
+                traktState.listTabs.flatMap { tab ->
+                    val listItems = traktState.entriesByList[tab.key].orEmpty()
+                    listItems
+                        .groupBy { it.type }
+                        .entries
+                        .sortedBy { it.key }
+                        .map { (itemType, typeItems) ->
+                            LibrarySection(
+                                type = "${tab.key}$LIBRARY_SECTION_TYPE_SEPARATOR$itemType",
+                                displayTitle = "${tab.title} (${libraryContentTypeLabel(itemType)})",
+                                items = typeItems,
+                                listKey = tab.key,
+                            )
+                        }
+                }
+            } else {
+                traktState.listTabs.mapNotNull { tab ->
+                    val listItems = traktState.entriesByList[tab.key].orEmpty()
+                    if (listItems.isEmpty()) {
+                        null
+                    } else {
+                        LibrarySection(
+                            type = tab.key,
+                            displayTitle = tab.title,
+                            items = listItems,
+                        )
+                    }
                 }
             }
 
@@ -608,3 +636,10 @@ private fun localizedLibraryOtherTitle(): String =
 private fun localizedStringOrDefault(resource: StringResource, fallback: String): String =
     runCatching { runBlocking { getString(resource) } }
         .getOrDefault(fallback)
+
+private fun libraryContentTypeLabel(type: String): String =
+    when (type.lowercase()) {
+        "movie" -> localizedStringOrDefault(Res.string.media_movies, "Movies")
+        "series" -> localizedStringOrDefault(Res.string.media_series, "Series")
+        else -> type.toLibraryDisplayTitle()
+    }

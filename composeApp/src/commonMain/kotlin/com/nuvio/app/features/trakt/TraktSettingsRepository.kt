@@ -59,6 +59,7 @@ data class TraktSettingsUiState(
     val continueWatchingDaysCap: Int = TRAKT_DEFAULT_CONTINUE_WATCHING_DAYS_CAP,
     val librarySourceMode: LibrarySourceMode = DEFAULT_LIBRARY_SOURCE_MODE,
     val moreLikeThisSource: MoreLikeThisSourcePreference = DEFAULT_MORE_LIKE_THIS_SOURCE,
+    val unifiedTraktWatchlist: Boolean = true,
 )
 
 @Serializable
@@ -67,6 +68,7 @@ private data class StoredTraktSettings(
     val continueWatchingDaysCap: Int = TRAKT_DEFAULT_CONTINUE_WATCHING_DAYS_CAP,
     val librarySourceMode: String? = null,
     val moreLikeThisSource: String? = null,
+    val unifiedTraktWatchlist: Boolean? = null,
 )
 
 object TraktSettingsRepository {
@@ -123,6 +125,13 @@ object TraktSettingsRepository {
         persist()
     }
 
+    fun setUnifiedTraktWatchlist(enabled: Boolean) {
+        ensureLoaded()
+        if (_uiState.value.unifiedTraktWatchlist == enabled) return
+        _uiState.value = _uiState.value.copy(unifiedTraktWatchlist = enabled)
+        persist()
+    }
+
     private fun loadFromDisk() {
         hasLoaded = true
 
@@ -142,6 +151,7 @@ object TraktSettingsRepository {
                 continueWatchingDaysCap = normalizeTraktContinueWatchingDaysCap(stored.continueWatchingDaysCap),
                 librarySourceMode = librarySourceModeFromStorage(stored.librarySourceMode),
                 moreLikeThisSource = MoreLikeThisSourcePreference.fromStorage(stored.moreLikeThisSource),
+                unifiedTraktWatchlist = stored.unifiedTraktWatchlist ?: true,
             )
         } else {
             TraktSettingsUiState()
@@ -156,6 +166,7 @@ object TraktSettingsRepository {
                     continueWatchingDaysCap = _uiState.value.continueWatchingDaysCap,
                     librarySourceMode = _uiState.value.librarySourceMode.name,
                     moreLikeThisSource = _uiState.value.moreLikeThisSource.name,
+                    unifiedTraktWatchlist = _uiState.value.unifiedTraktWatchlist,
                 ),
             ),
         )

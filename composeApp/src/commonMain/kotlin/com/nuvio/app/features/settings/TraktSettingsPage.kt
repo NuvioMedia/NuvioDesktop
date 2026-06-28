@@ -89,6 +89,8 @@ import nuvio.composeapp.generated.resources.trakt_library_source_subtitle
 import nuvio.composeapp.generated.resources.trakt_library_source_title
 import nuvio.composeapp.generated.resources.trakt_library_source_trakt
 import nuvio.composeapp.generated.resources.trakt_library_source_trakt_selected
+import nuvio.composeapp.generated.resources.trakt_unified_watchlist_subtitle
+import nuvio.composeapp.generated.resources.trakt_unified_watchlist_title
 import nuvio.composeapp.generated.resources.trakt_more_like_this_source_dialog_subtitle
 import nuvio.composeapp.generated.resources.trakt_more_like_this_source_dialog_title
 import nuvio.composeapp.generated.resources.trakt_more_like_this_source_subtitle
@@ -111,6 +113,7 @@ internal fun LazyListScope.traktSettingsContent(
     settingsUiState: TraktSettingsUiState,
     commentsEnabled: Boolean,
     onCommentsEnabledChange: (Boolean) -> Unit,
+    onUnifiedTraktWatchlistChange: (Boolean) -> Unit,
 ) {
     item {
         SettingsGroup(isTablet = isTablet) {
@@ -144,6 +147,7 @@ internal fun LazyListScope.traktSettingsContent(
                         settingsUiState = settingsUiState,
                         commentsEnabled = commentsEnabled,
                         onCommentsEnabledChange = onCommentsEnabledChange,
+                        onUnifiedTraktWatchlistChange = onUnifiedTraktWatchlistChange,
                     )
                 }
             }
@@ -157,6 +161,7 @@ private fun TraktFeatureRows(
     settingsUiState: TraktSettingsUiState,
     commentsEnabled: Boolean,
     onCommentsEnabledChange: (Boolean) -> Unit,
+    onUnifiedTraktWatchlistChange: (Boolean) -> Unit,
 ) {
     var showLibrarySourceDialog by rememberSaveable { mutableStateOf(false) }
     var showWatchProgressDialog by rememberSaveable { mutableStateOf(false) }
@@ -180,6 +185,16 @@ private fun TraktFeatureRows(
         isTablet = isTablet,
         onClick = { showLibrarySourceDialog = true },
     )
+    if (settingsUiState.librarySourceMode == LibrarySourceMode.TRAKT) {
+        SettingsGroupDivider(isTablet = isTablet)
+        SettingsSwitchRow(
+            title = stringResource(Res.string.trakt_unified_watchlist_title),
+            description = stringResource(Res.string.trakt_unified_watchlist_subtitle),
+            checked = settingsUiState.unifiedTraktWatchlist,
+            isTablet = isTablet,
+            onCheckedChange = onUnifiedTraktWatchlistChange,
+        )
+    }
     SettingsGroupDivider(isTablet = isTablet)
     TraktSettingsActionRow(
         title = stringResource(Res.string.trakt_watch_progress_title),
