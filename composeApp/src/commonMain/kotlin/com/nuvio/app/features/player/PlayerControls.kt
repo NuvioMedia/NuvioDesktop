@@ -43,6 +43,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -505,14 +507,21 @@ private fun ProgressControls(
     val audioPainter = appIconPainter(AppIconResource.PlayerAudioFilled)
 
     Column(modifier = modifier) {
+        // Track the latest value from onValueChange: on a single track-click the Slider fires
+        // onValueChange then onValueChangeFinished within one frame, before displayedPositionMs
+        // recomposes — so seeking to displayedPositionMs would use the stale (pre-click) position.
+        val pendingScrubMs = remember { mutableStateOf(displayedPositionMs) }
         Slider(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(metrics.sliderTouchHeight)
                 .graphicsLayer(scaleY = metrics.sliderScaleY),
             value = displayedPositionMs.coerceIn(0L, durationMs).toFloat(),
-            onValueChange = { value -> onScrubChange(value.toLong()) },
-            onValueChangeFinished = { onScrubFinished(displayedPositionMs.coerceIn(0L, durationMs)) },
+            onValueChange = { value ->
+                pendingScrubMs.value = value.toLong()
+                onScrubChange(value.toLong())
+            },
+            onValueChangeFinished = { onScrubFinished(pendingScrubMs.value.coerceIn(0L, durationMs)) },
             valueRange = 0f..durationMs.toFloat(),
         )
         Row(
