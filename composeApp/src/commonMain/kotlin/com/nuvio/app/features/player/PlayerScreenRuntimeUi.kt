@@ -650,6 +650,9 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         "hideChrome" -> {
             controlsVisible = false
         }
+        "togglePlayback" -> {
+            if (!playerControlsLocked) togglePlayback()
+        }
         "keepChromeVisible" -> {
             controlsVisible = true
             controlsActivityTick += 1

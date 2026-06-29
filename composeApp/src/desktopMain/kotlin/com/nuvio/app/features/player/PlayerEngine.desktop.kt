@@ -24,6 +24,10 @@ import com.nuvio.app.features.player.desktop.DesktopPlayerLaunchShield
 import com.nuvio.app.features.player.desktop.NativePlayerController
 import com.nuvio.app.features.player.desktop.NativePlayerHost
 import com.nuvio.app.features.player.desktop.desktopFullscreenChanges
+import java.awt.KeyEventDispatcher
+import java.awt.KeyboardFocusManager
+import java.awt.event.KeyEvent
+import javax.swing.text.JTextComponent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 
@@ -50,6 +54,8 @@ actual fun PlatformPlayerSurface(
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
 ) {
+    DesktopSpaceTogglesPlayback(onPlayerControlsEvent)
+
     if (DesktopHostOs.current == DesktopHostOs.MACOS || DesktopHostOs.current == DesktopHostOs.WINDOWS) {
         NativePlayerSurface(
             sourceUrl = sourceUrl,
@@ -75,6 +81,34 @@ actual fun PlatformPlayerSurface(
         onControllerReady = onControllerReady,
         onSnapshot = onSnapshot,
     )
+}
+
+/**
+ * Space toggles play/pause for any desktop player surface. Uses a global
+ * KeyEventDispatcher (not an AWTEventListener) so the event can be consumed —
+ * otherwise Space would also activate a focused button or scroll the page.
+ * Debounced by event timestamp to ignore key auto-repeat (X11 emits repeated
+ * press/release pairs while held), and skips text components so Space still
+ * types in inputs (e.g. subtitle search).
+ */
+@Composable
+private fun DesktopSpaceTogglesPlayback(onPlayerControlsEvent: (String, Double) -> Boolean) {
+    val latestOnEvent = rememberUpdatedState(onPlayerControlsEvent)
+    DisposableEffect(Unit) {
+        val kfm = KeyboardFocusManager.getCurrentKeyboardFocusManager()
+        var lastToggle = 0L
+        val dispatcher = KeyEventDispatcher { e ->
+            if (e.keyCode != KeyEvent.VK_SPACE) return@KeyEventDispatcher false
+            if (kfm.focusOwner is JTextComponent) return@KeyEventDispatcher false
+            if (e.id == KeyEvent.KEY_PRESSED && e.getWhen() - lastToggle > 300L) {
+                lastToggle = e.getWhen()
+                latestOnEvent.value("togglePlayback", 0.0)
+            }
+            true
+        }
+        kfm.addKeyEventDispatcher(dispatcher)
+        onDispose { kfm.removeKeyEventDispatcher(dispatcher) }
+    }
 }
 
 @Composable
