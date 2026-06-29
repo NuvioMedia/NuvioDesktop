@@ -287,7 +287,8 @@ private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
         ) {
             return@LaunchedEffect
         }
-        delay(3500)
+        // Desktop hides faster after the cursor stops/leaves; touch keeps the longer dwell.
+        delay(if (isDesktop) 2000 else 3500)
         controlsVisible = false
     }
 
