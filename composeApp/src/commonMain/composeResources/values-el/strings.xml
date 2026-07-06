@@ -521,7 +521,7 @@
     <string name="settings_playback_minutes_value">%1$s λεπτά</string>
     <string name="settings_playback_no_items_available">Δεν υπάρχουν διαθέσιμα στοιχεία</string>
     <string name="settings_playback_not_set">Δεν έχει οριστεί</string>
-    <string name="settings_playback_nvidia_rtx_super_resolution">Super Resolution RTX Video</string>
+    <string name="settings_playback_nvidia_rtx_super_resolution">RTX Video Super Resolution</string>
     <string name="settings_playback_nvidia_rtx_super_resolution_desc">Αύξηση ανάλυσης βίντεο χαμηλής ευκρίνειας χρησιμοποιώντας NVIDIA RTX AI Super Resolution.</string>
     <string name="settings_playback_nvidia_rtx_video_section">NVIDIA RTX Video</string>
     <string name="settings_playback_option_default">Προεπιλογή</string>
