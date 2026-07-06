@@ -7,6 +7,8 @@
     <string name="action_delete">Διαγραφή</string>
     <string name="action_done">Τέλος</string>
     <string name="action_edit">Επεξεργασία</string>
+    <string name="action_exit_fullscreen">Έξοδος από πλήρη οθόνη</string>
+    <string name="action_fullscreen">Πλήρης οθόνη</string>
     <string name="action_import">Εισαγωγή</string>
     <string name="action_next">Επόμενο</string>
     <string name="action_ok">ΟΚ</string>
@@ -118,6 +120,7 @@
     <string name="collections_tab_all">Όλα</string>
     <string name="collections_your_collections">Οι συλλογές σας</string>
     <string name="compose_about_made_with">Φτιαγμένο με ❤️ από την Tapframe και φίλους</string>
+    <string name="compose_about_based_on_version_format">Βασισμένο στο Nuvio %1$s</string>
     <string name="compose_about_version_format">Έκδοση %1$s (%2$s)</string>
     <string name="compose_action_off">Απενεργοποίηση</string>
     <string name="compose_action_on">Ενεργοποίηση</string>
@@ -172,6 +175,7 @@
     <string name="compose_player_reset_defaults">Επαναφορά προεπιλογών</string>
     <string name="compose_player_resize_fill">Πλήρωση</string>
     <string name="compose_player_resize_fit">Προσαρμογή</string>
+    <string name="compose_player_resize_stretch">Τέντωμα</string>
     <string name="compose_player_resize_zoom">Ζουμ</string>
     <string name="compose_player_seek_back_10">Μετακίνηση 10 δευτερόλεπτα πίσω</string>
     <string name="compose_player_seek_delta_backward">-%1$ds</string>
@@ -262,6 +266,8 @@
     <string name="downloads_empty_episodes">Δεν υπάρχουν ολοκληρωμένα επεισόδια</string>
     <string name="downloads_empty_title">Δεν υπάρχουν λήψεις ακόμα</string>
     <string name="downloads_episode_count">%1$d ληφθέν(τα) επεισόδιο(α)</string>
+    <string name="downloads_open_directory">Άνοιγμα φακέλου λήψεων</string>
+    <string name="downloads_open_directory_failed">Δεν ήταν δυνατό το άνοιγμα του φακέλου λήψεων</string>
     <string name="downloads_section_active">Ενεργές</string>
     <string name="downloads_section_movies">Ταινίες</string>
     <string name="downloads_section_shows">Σειρές</string>
@@ -281,6 +287,19 @@
     <string name="home_view_all">Προβολή όλων</string>
     <string name="play_manually">Χειροκίνητη αναπαραγωγή</string>
     <string name="poster_logo_content_description">Λογότυπο %1$s</string>
+    <string name="sentry_disable_dialog_subtitle">Μελλοντικά σφάλματα και τρέχοντα ANR από αυτή τη συσκευή δεν θα αναφέρονται. Αυτό μπορεί να κάνει τα σφάλματα που σχετίζονται με συγκεκριμένες συσκευές πολύ πιο δύσκολο να διορθωθούν.</string>
+    <string name="sentry_disable_dialog_title">Απενεργοποίηση αναφορών σφαλμάτων;</string>
+    <string name="sentry_enable_dialog_subtitle">Οι αναφορές σφαλμάτων βοηθούν στον εντοπισμό προβλημάτων σε συγκεκριμένες συσκευές χωρίς να χρειάζεται να αναπαράγετε το πρόβλημα με αρχεία καταγραφής ADB.</string>
+    <string name="sentry_enable_dialog_title">Ενεργοποίηση αναφορών σφαλμάτων;</string>
+    <string name="sentry_help_body">Οι αναφορές ομαδοποιούνται ανά έκδοση εφαρμογής, μοντέλο συσκευής, έκδοση Android και ίχνος στοίβας, ώστε να διορθώνονται πρώτα τα πιο συχνά πραγματικά σφάλματα.</string>
+    <string name="sentry_help_title">Πώς βοηθά</string>
+    <string name="sentry_keep_enabled">Διατήρηση ενεργών</string>
+    <string name="sentry_not_sent_body">Κωδικοί πρόσβασης, access tokens, refresh tokens, σώματα αιτημάτων, σώματα αποκρίσεων, headers, cookies, στιγμιότυπα οθόνης, ιεραρχία προβολών, session replay, ακατέργαστα διαγνωστικά δεδομένα και τιμές query ή fragment από URLs ροών.</string>
+    <string name="sentry_not_sent_title">Δεν αποστέλλονται</string>
+    <string name="sentry_sent_body">Σφάλματα, τρέχοντα ANR, ίχνη στοίβας, έκδοση εφαρμογής, τύπος build, flavor, μεταδεδομένα συσκευής και λειτουργικού, καθώς και ασφαλή network breadcrumbs με μέθοδο, host, path, status, duration και τύπο εξαίρεσης.</string>
+    <string name="sentry_sent_title">Αποστέλλονται</string>
+    <string name="sentry_turn_off">Απενεργοποίηση</string>
+    <string name="sentry_turn_on">Ενεργοποίηση</string>
     <string name="settings_account">Λογαριασμός</string>
     <string name="settings_account_delete_account">Διαγραφή λογαριασμού</string>
     <string name="settings_account_delete_account_description">Αυτό θα διαγράψει μόνιμα τον λογαριασμό σας και όλα τα σχετικά δεδομένα.</string>
@@ -298,6 +317,10 @@
     <string name="settings_appearance_amoled_description">Χρήση καθαρού μαύρου φόντου για οθόνες OLED.</string>
     <string name="settings_appearance_app_language">Γλώσσα εφαρμογής</string>
     <string name="settings_appearance_app_language_sheet_title">Επιλογή γλώσσας</string>
+    <string name="settings_appearance_desktop_navigation">Πλοήγηση επιφάνειας εργασίας</string>
+    <string name="settings_appearance_desktop_navigation_sheet_title">Επιλογή πλοήγησης</string>
+    <string name="settings_appearance_desktop_navigation_sidebar">Πλαϊνή στήλη</string>
+    <string name="settings_appearance_desktop_navigation_top_bar">Επάνω γραμμή</string>
     <string name="settings_appearance_continue_watching_description">Εμφάνιση, απόκρυψη και στυλ της ενότητας Συνέχεια παρακολούθησης.</string>
     <string name="settings_appearance_poster_customization_description">Ρύθμιση κοινού πλάτους κάρτας αφίσας και προεπιλογών ακτίνας γωνίας.</string>
     <string name="settings_appearance_section_display">ΟΘΟΝΗ</string>
@@ -498,6 +521,9 @@
     <string name="settings_playback_minutes_value">%1$s λεπτά</string>
     <string name="settings_playback_no_items_available">Δεν υπάρχουν διαθέσιμα στοιχεία</string>
     <string name="settings_playback_not_set">Δεν έχει οριστεί</string>
+    <string name="settings_playback_nvidia_rtx_super_resolution">Super Resolution RTX Video</string>
+    <string name="settings_playback_nvidia_rtx_super_resolution_desc">Αύξηση ανάλυσης βίντεο χαμηλής ευκρίνειας χρησιμοποιώντας NVIDIA RTX AI Super Resolution.</string>
+    <string name="settings_playback_nvidia_rtx_video_section">NVIDIA RTX Video</string>
     <string name="settings_playback_option_default">Προεπιλογή</string>
     <string name="settings_playback_option_device_language">Γλώσσα συσκευής</string>
     <string name="settings_playback_option_forced">Αναγκαστικό</string>
@@ -618,12 +644,16 @@
     <string name="settings_trakt_connect">Σύνδεση Trakt</string>
     <string name="settings_trakt_connected_as">Συνδεδεμένος ως %1$s</string>
     <string name="settings_trakt_default_user">Χρήστης Trakt</string>
+    <string name="settings_trakt_device_code_copied">Ο κώδικας αντιγράφηκε.</string>
+    <string name="settings_trakt_device_finish_sign_in">Εισαγωγή αυτού του κωδικού στο Trakt</string>
+    <string name="settings_trakt_device_instructions">Ανοίξτε τον σύνδεσμο και εισαγάγετε αυτόν τον κωδικό για να εγκρίνετε το Nuvio. Αυτή η οθόνη θα ενημερωθεί αυτόματα.</string>
     <string name="settings_trakt_disconnect">Αποσύνδεση</string>
     <string name="settings_trakt_failed_open_browser">Αποτυχία ανοίγματος προγράμματος περιήγησης</string>
     <string name="settings_trakt_features">ΛΕΙΤΟΥΡΓΙΕΣ</string>
     <string name="settings_trakt_finish_sign_in">Ολοκληρώστε τη σύνδεση Trakt στο πρόγραμμα περιήγησής σας</string>
     <string name="settings_trakt_intro_description">Παρακολουθήστε τι βλέπετε, αποθηκεύστε σε λίστα παρακολούθησης ή προσαρμοσμένες λίστες και διατηρήστε τη βιβλιοθήκη σας συγχρονισμένη με το Trakt.</string>
     <string name="settings_trakt_missing_credentials">Λείπουν διαπιστευτήρια Trakt στο local.properties (TRAKT_CLIENT_ID / TRAKT_CLIENT_SECRET).</string>
+    <string name="settings_trakt_open_activation">Άνοιγμα ενεργοποίησης Trakt</string>
     <string name="settings_trakt_open_login">Άνοιγμα σύνδεσης Trakt</string>
     <string name="settings_trakt_save_actions_description">Οι ενέργειες αποθήκευσης μπορούν τώρα να στοχεύουν στη λίστα παρακολούθησης Trakt και τις προσωπικές λίστες.</string>
     <string name="settings_trakt_sign_in_description">Συνδεθείτε με το Trakt για να ενεργοποιήσετε την αποθήκευση βάσει λίστας και τη λειτουργία βιβλιοθήκης Trakt.</string>
@@ -1380,6 +1410,10 @@
     <string name="entity_browse_catalogue">Catalogue</string>
     <string name="entity_browse_country">Country</string>
     <string name="entity_browse_type">Type</string>
+    <plurals name="entity_browse_title_count">
+        <item quantity="one">%d τίτλος</item>
+        <item quantity="other">%d τίτλοι</item>
+    </plurals>
     <string name="episode_mark_previous_seasons_watched">Mark Προηγούμενο seasons as watched</string>
     <string name="external_player_android_system">Android system Αναπαραγωγήer</string>
     <string name="external_player_failed">Couldn't Άνοιγμα external player</string>
@@ -1515,6 +1549,9 @@
     <string name="settings_advanced_clear_cw_cache">Εκκαθάριση Continue Watching Cache</string>
     <string name="settings_advanced_clear_cw_cache_done">Cache Εκκαθάρισηed</string>
     <string name="settings_advanced_clear_cw_cache_subtitle">Κατάργηση cached Continue Watching data and refresh watch progress</string>
+    <string name="settings_advanced_section_diagnostics">ΔΙΑΓΝΩΣΤΙΚΑ</string>
+    <string name="settings_advanced_sentry_reports">Αναφορές σφαλμάτων Sentry</string>
+    <string name="settings_advanced_sentry_reports_subtitle">Στείλτε αναφορές σφαλμάτων και ANR με ασφαλές περιεχόμενο. Ενεργό από προεπιλογή.</string>
     <string name="settings_advanced_remember_last_profile">Remember Last Προφίλ</string>
     <string name="settings_advanced_remember_last_profile_description">Remember last selected Προφίλ at startup</string>
     <string name="settings_advanced_section_cache">Προσωρινή μνήμη</string>
@@ -1860,6 +1897,10 @@
     <string name="trakt_cw_window_subtitle">Choose how much Trakt activity should appear in Συνέχεια watching.</string>
     <string name="trakt_cw_window_title">Συνέχεια Watching Window</string>
     <string name="trakt_days_format">%1$d days</string>
+    <string name="trakt_device_authorization_expired">Η εξουσιοδότηση Trakt έληξε. Δοκιμάστε ξανά.</string>
+    <string name="trakt_device_authorization_failed">Αδυναμία έναρξης εξουσιοδότησης συσκευής Trakt.</string>
+    <string name="trakt_device_authorization_starting">Έναρξη σύνδεσης Trakt…</string>
+    <string name="trakt_device_authorization_waiting">Αναμονή για έγκριση Trakt…</string>
     <string name="trakt_disconnected">Αποσυνδεδεμένος from Trakt</string>
     <string name="trakt_disconnected_status">Αποσυνδεδεμένος from Trakt</string>
     <string name="trakt_error_add_list_failed">Failed to Προσθήκη to Trakt list</string>
@@ -1913,4 +1954,5 @@
     <string name="updates_github_api_error">GitHub releases API Σφάλμα: %1$d</string>
     <string name="updates_no_channel_release">No upΗμερομηνία has been published yet.</string>
     <string name="updates_release_missing_title">Release has Όχι tag or name</string>
+    <string name="updates_update_asset_missing">Δεν βρέθηκε συμβατό asset ενημέρωσης στην έκδοση</string>
 </resources>
