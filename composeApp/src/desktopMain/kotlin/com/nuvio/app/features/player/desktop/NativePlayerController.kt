@@ -29,7 +29,7 @@ import javax.swing.SwingUtilities
 import kotlin.concurrent.Volatile
 
 internal class NativePlayerController(
-    private val host: NativePlayerHost,
+    private val host: PlayerHost,
 ) : PlayerEngineController {
     private companion object {
         val json = Json { ignoreUnknownKeys = true }
@@ -79,21 +79,34 @@ internal class NativePlayerController(
             "attach requested source=${sourceUrl.toPlaybackLogKey()} headers=${sourceHeaders.size} " +
                 "playWhenReady=$playWhenReady initialPositionMs=$initialPositionMs decoderPriority=$decoderPriority"
         }
-        host.onPeerReady = { attachPending() }
-        if (host.isDisplayable) {
+        if (host is NativePlayerHost) {
+            host.onPeerReady = { attachPending() }
+            if (host.isDisplayable) {
+                attachPending()
+            }
+        } else {
+            // LinuxPlayerHost — no AWT peer needed, attach immediately
             attachPending()
         }
     }
 
     private fun attachPending() {
         val pending = pendingSource ?: return
+
+        if (host is LinuxPlayerHost) {
+            // Linux offscreen path — no AWT peer, no SwingUtilities needed
+            attachPendingDirect(pending)
+            return
+        }
+
+        val nativeHost = host as NativePlayerHost
         SwingUtilities.invokeLater {
-            if (!host.isDisplayable) {
+            if (!nativeHost.isDisplayable) {
                 return@invokeLater
             }
             disposePlayerHandle()
             runCatching {
-                val hostViewPtr = AwtNativeViewResolver.resolveNativeViewPointer(host)
+                val hostViewPtr = AwtNativeViewResolver.resolveNativeViewPointer(nativeHost)
                 val resolvedSource = if (pending.sourceUrl.startsWith("file:", ignoreCase = true)) {
                     runCatching { java.io.File(java.net.URI(pending.sourceUrl)).absolutePath }.getOrElse {
                         val stripped = pending.sourceUrl.replaceFirst(Regex("^file:/{1,3}", RegexOption.IGNORE_CASE), "")
@@ -128,6 +141,43 @@ internal class NativePlayerController(
         }
     }
 
+    private fun attachPendingDirect(pending: PendingSource) {
+        disposePlayerHandle()
+        runCatching {
+            val resolvedSource = if (pending.sourceUrl.startsWith("file:", ignoreCase = true)) {
+                runCatching { java.io.File(java.net.URI(pending.sourceUrl)).absolutePath }.getOrElse {
+                    val stripped = pending.sourceUrl.replaceFirst(Regex("^file:/{1,3}", RegexOption.IGNORE_CASE), "")
+                    runCatching { java.net.URLDecoder.decode(stripped, "UTF-8") }.getOrDefault(stripped)
+                }
+            } else {
+                pending.sourceUrl
+            }
+            handle = NativePlayerBridge.create(
+                hostViewPtr = 0L,
+                sourceUrl = resolvedSource,
+                headerLines = pending.headerLines.toTypedArray(),
+                playWhenReady = pending.playWhenReady,
+                initialPositionMs = pending.initialPositionMs,
+                controlsPageUrl = NativePlayerBridge.controlsPageUrl,
+                decoderPriority = pending.decoderPriority,
+                nvidiaRtxSuperResolutionEnabled = pending.nvidiaRtxSuperResolutionEnabled,
+                eventSink = eventSink,
+            )
+            if (handle == 0L) error("Native player did not return a handle.")
+            host.nativeHandle = handle
+            log.d {
+                "attach direct handle=$handle source=${resolvedSource.toPlaybackLogKey()} " +
+                    "initialPositionMs=${pending.initialPositionMs}"
+            }
+            applyRememberedVolume()
+            updateControls(controlsState)
+            applyPendingSubtitleSettings()
+        }.onFailure { error ->
+            log.w(error) { "attach direct failed source=${pending.sourceUrl.toPlaybackLogKey()}" }
+            pending.onError(error.message)
+        }
+    }
+
     fun setControlCallbacks(
         onAction: (PlayerControlsAction) -> Boolean,
         onEvent: (String, Double) -> Boolean,
@@ -157,7 +207,9 @@ internal class NativePlayerController(
             state
         }
         controlsState = stateWithVolume
-        val isFullscreen = isDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
+        val isFullscreen = (host as? java.awt.Component)?.let {
+            isDesktopAppFullscreen(SwingUtilities.getWindowAncestor(it))
+        } ?: false
         val structureKey = NativeControlsStructureKey(
             state = stateWithVolume.nativeControlsStructureKey(),
             isFullscreen = isFullscreen,
@@ -180,9 +232,10 @@ internal class NativePlayerController(
     }
 
     private fun requestKeyboardFocus() {
+        val nativeHost = host as? NativePlayerHost ?: return
         SwingUtilities.invokeLater {
-            if (!host.isDisplayable) return@invokeLater
-            host.requestFocusInWindow()
+            if (!nativeHost.isDisplayable) return@invokeLater
+            nativeHost.requestFocusInWindow()
             val current = handle.takeIf { it != 0L } ?: return@invokeLater
             NativePlayerBridge.requestFocus(current)
         }
@@ -223,7 +276,8 @@ internal class NativePlayerController(
                 }
             }
             "toggleFullscreen" -> {
-                toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
+                val window = (host as? java.awt.Component)?.let { SwingUtilities.getWindowAncestor(it) }
+                toggleDesktopAppFullscreen(window)
                 onDesktopFullscreenChanged()
             }
             "volumeChange" -> setFallbackVolume(value.toFloat())
