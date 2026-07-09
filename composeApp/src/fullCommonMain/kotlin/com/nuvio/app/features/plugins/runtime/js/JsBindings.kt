@@ -11,6 +11,7 @@ internal object JsBindings {
 
             ${fetchPolyfill()}
             ${abortControllerPolyfill()}
+            ${timerPolyfill()}
             ${base64Polyfill()}
             ${urlPolyfill()}
             ${cryptoPolyfill()}
@@ -104,6 +105,68 @@ internal object JsBindings {
                 this.signal.dispatchEvent({ type: 'abort' });
             };
             globalThis.AbortController = AbortController;
+        }
+    """.trimIndent()
+
+    // Backed by the __native_delay async binding (TimerBridge). Callbacks run as
+    // QuickJS jobs on the runtime's coroutine scope, so they are processed while
+    // the host awaits the plugin result and cancelled when the instance closes.
+    private fun timerPolyfill() = """
+        if (typeof setTimeout === 'undefined') {
+            (function() {
+                var timerSeq = 1;
+                var activeTimers = {};
+
+                function runCallback(fn, args) {
+                    try {
+                        if (typeof fn === 'function') fn.apply(undefined, args);
+                        else if (typeof fn === 'string') (new Function(fn))();
+                    } catch (e) {
+                        console.error('timer callback error:', e && e.message ? e.message : e);
+                    }
+                }
+
+                globalThis.setTimeout = function(fn, ms) {
+                    var id = timerSeq++;
+                    var args = Array.prototype.slice.call(arguments, 2);
+                    activeTimers[id] = true;
+                    __native_delay(Number(ms) || 0).then(function() {
+                        if (!activeTimers[id]) return;
+                        delete activeTimers[id];
+                        runCallback(fn, args);
+                    });
+                    return id;
+                };
+
+                globalThis.clearTimeout = function(id) {
+                    delete activeTimers[id];
+                };
+
+                globalThis.setInterval = function(fn, ms) {
+                    var id = timerSeq++;
+                    var args = Array.prototype.slice.call(arguments, 2);
+                    activeTimers[id] = true;
+                    function tick() {
+                        __native_delay(Number(ms) || 0).then(function() {
+                            if (!activeTimers[id]) return;
+                            runCallback(fn, args);
+                            tick();
+                        });
+                    }
+                    tick();
+                    return id;
+                };
+
+                globalThis.clearInterval = function(id) {
+                    delete activeTimers[id];
+                };
+
+                globalThis.setImmediate = function(fn) {
+                    var args = Array.prototype.slice.call(arguments, 1);
+                    return globalThis.setTimeout.apply(undefined, [fn, 0].concat(args));
+                };
+                globalThis.clearImmediate = globalThis.clearTimeout;
+            })();
         }
     """.trimIndent()
 
