@@ -1,4 +1,4 @@
-/* __NUVIO_PLAYER_FONT_FACES__ */
+﻿/* __NUVIO_PLAYER_FONT_FACES__ */
 
 :root {
   --hp: 20px;
@@ -811,6 +811,68 @@ button:disabled {
 .header-button svg {
   width: var(--header-icon);
   height: var(--header-icon);
+}
+
+.stream-info-panel {
+  position: absolute;
+  top: calc(var(--slider-bottom) + env(safe-area-inset-top) + var(--header-button) + 12px);
+  right: var(--hp);
+  z-index: 20;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(15, 15, 15, .92);
+  border: 1px solid rgba(255, 255, 255, .12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+}
+
+.stream-info-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.5);
+  margin-bottom: 10px;
+}
+
+.stream-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.stream-info-row + .stream-info-row {
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.stream-info-label {
+  font-size: 11px;
+  color: rgba(255,255,255,.5);
+  white-space: nowrap;
+}
+
+.stream-info-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,.9);
+  text-align: right;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stream-info-value.hdr-dv {
+  color: #aac8f0;
+}
+
+.stream-info-value.hdr-hdr {
+  color: #aaf0c0;
 }
 
 .center-controls {
@@ -2397,3 +2459,4 @@ svg {
   fill: currentColor;
   stroke: none;
 }
+

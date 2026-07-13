@@ -1968,6 +1968,110 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     return [self tracksJsonForType:@"sub"];
 }
 
+- (NSString *)mediaInfoJson {
+    if (!_mpv) return @"{}";
+    long long count = [self int64Property:"track-list/count" fallback:0];
+
+    NSString *videoCodec = @"";
+    NSString *videoDecoder = @"";
+    NSString *dvProfile = @"";
+    NSString *codecProfile = @"";
+    NSString *filename = [self stringProperty:"filename" fallback:@""];
+    NSString *gamma = [self stringProperty:"video-params/gamma" fallback:@""];
+    NSString *primaries = [self stringProperty:"video-params/primaries" fallback:@""];
+    NSString *colorLevels = [self stringProperty:"video-params/colorlevels" fallback:@""];
+    NSString *pixelFmt = [self stringProperty:"video-out-params/pixelformat" fallback:@""];
+    long long videoW = [self int64Property:"video-params/w" fallback:0];
+    long long videoH = [self int64Property:"video-params/h" fallback:0];
+    double fps = [self doubleProperty:"container-fps" fallback:0.0];
+    NSString *hwdecCurrent = [self stringProperty:"hwdec-current" fallback:@""];
+    NSString *hdrFormat = @"";
+
+    for (long long index = 0; index < count; index++) {
+        NSString *typeKey = [NSString stringWithFormat:@"track-list/%lld/type", index];
+        NSString *type = [self stringProperty:typeKey.UTF8String fallback:@""];
+        if ([type isEqualToString:@"video"]) {
+            videoCodec = [self stringProperty:[NSString stringWithFormat:@"track-list/%lld/codec", index].UTF8String fallback:@""];
+            videoDecoder = [self stringProperty:[NSString stringWithFormat:@"track-list/%lld/decoder-desc", index].UTF8String fallback:@""];
+            dvProfile = [self stringProperty:[NSString stringWithFormat:@"track-list/%lld/dolby-vision-profile", index].UTF8String fallback:@""];
+            if (dvProfile.length == 0) {
+                dvProfile = [self stringProperty:[NSString stringWithFormat:@"track-list/%lld/dv_profile", index].UTF8String fallback:@""];
+            }
+            codecProfile = [self stringProperty:[NSString stringWithFormat:@"track-list/%lld/codec-profile", index].UTF8String fallback:@""];
+            
+            BOOL isDvValid = dvProfile.length > 0 &&
+                             ![[dvProfile lowercaseString] isEqualToString:@"none"] &&
+                             ![[dvProfile lowercaseString] isEqualToString:@"unknown"] &&
+                             ![[dvProfile lowercaseString] isEqualToString:@"0"] &&
+                             ![[dvProfile lowercaseString] isEqualToString:@"false"];
+                             
+            if (isDvValid || [videoDecoder localizedCaseInsensitiveContainsString:@"dovi"] || [codecProfile localizedCaseInsensitiveContainsString:@"dovi"]) {
+                hdrFormat = @"dolby_vision";
+            }
+            break;
+        }
+    }
+    
+    if (hdrFormat.length == 0) {
+        if ([gamma isEqualToString:@"pq"] || [gamma isEqualToString:@"hlg"] || [primaries isEqualToString:@"bt.2020"] || [primaries isEqualToString:@"bt.2020nc"]) {
+            hdrFormat = @"hdr";
+        }
+    }
+
+    NSString *audioCodec = @"";
+    NSString *audioDecoder = @"";
+    NSString *audioChannels = @"";
+    NSString *audioSampleRate = @"";
+    NSString *audioLang = @"";
+    for (long long index = 0; index < count; index++) {
+        NSString *typeKey = [NSString stringWithFormat:@"track-list/%lld/type", index];
+        NSString *type = [self stringProperty:typeKey.UTF8String fallback:@""];
+        NSString *selKey = [NSString stringWithFormat:@"track-list/%lld/selected", index];
+        NSString *selected = [self stringProperty:selKey.UTF8String fallback:@""];
+        if ([type isEqualToString:@"audio"] && [selected isEqualToString:@"yes"]) {
+            audioCodec = [self stringProperty:[NSString stringWithFormat:@"track-list/%lld/codec", index].UTF8String fallback:@""];
+            audioDecoder = [self stringProperty:[NSString stringWithFormat:@"track-list/%lld/decoder-desc", index].UTF8String fallback:@""];
+            audioChannels = [self stringProperty:[NSString stringWithFormat:@"track-list/%lld/demux-channel-count", index].UTF8String fallback:@""];
+            audioSampleRate = [self stringProperty:[NSString stringWithFormat:@"track-list/%lld/demux-samplerate", index].UTF8String fallback:@""];
+            audioLang = [self stringProperty:[NSString stringWithFormat:@"track-list/%lld/lang", index].UTF8String fallback:@""];
+            break;
+        }
+    }
+
+    double vBitrate = [self doubleProperty:"video-bitrate" fallback:0.0];
+    double aBitrate = [self doubleProperty:"audio-bitrate" fallback:0.0];
+    double vBitrateKbps = std::isfinite(vBitrate) && vBitrate > 0 ? vBitrate / 1000.0 : 0.0;
+    double aBitrateKbps = std::isfinite(aBitrate) && aBitrate > 0 ? aBitrate / 1000.0 : 0.0;
+
+    NSDictionary *dict = @{
+        @"hdrFormat": hdrFormat ?: @"",
+        @"filename": filename ?: @"",
+        @"videoCodec": videoCodec ?: @"",
+        @"videoDecoder": videoDecoder ?: @"",
+        @"dvProfile": dvProfile ?: @"",
+        @"codecProfile": codecProfile ?: @"",
+        @"gamma": gamma ?: @"",
+        @"primaries": primaries ?: @"",
+        @"colorLevels": colorLevels ?: @"",
+        @"pixelFormat": pixelFmt ?: @"",
+        @"videoWidth": @(videoW),
+        @"videoHeight": @(videoH),
+        @"fps": @(fps),
+        @"hwdecCurrent": hwdecCurrent ?: @"",
+        @"audioCodec": audioCodec ?: @"",
+        @"audioDecoder": audioDecoder ?: @"",
+        @"audioChannels": audioChannels ?: @"",
+        @"audioSampleRate": audioSampleRate ?: @"",
+        @"audioLang": audioLang ?: @"",
+        @"videoBitrateKbps": @(llround(vBitrateKbps)),
+        @"audioBitrateKbps": @(llround(aBitrateKbps))
+    };
+
+    NSData *data = [NSJSONSerialization dataWithJSONObject:dict options:0 error:nil];
+    if (!data) return @"{}";
+    return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"{}";
+}
+
 - (void)selectAudioTrackId:(int)trackId {
     if (!_mpv) return;
     int64_t id = trackId;
@@ -2703,6 +2807,18 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setResizeMode(
     runOnMainAsync(^{
         [player setResizeMode:(int)mode];
     });
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_mediaInfoJson(
+    JNIEnv *env,
+    jobject /* bridge */,
+    jlong handle
+) {
+    if (handle == 0) return env->NewStringUTF("{}");
+    MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
+    NSString *json = [player mediaInfoJson] ?: @"{}";
+    return env->NewStringUTF(json.UTF8String);
 }
 
 extern "C" JNIEXPORT jstring JNICALL

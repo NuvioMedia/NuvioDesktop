@@ -1004,6 +1004,113 @@ public:
         return tracksJsonForType("sub");
     }
 
+    // Returns a JSON object with rich media info for display in the player info panel.
+    std::string mediaInfoJson() {
+        long long count = int64Property("track-list/count", 0);
+
+        // --- Video track info ---
+        std::string videoCodec, videoDecoder, dvProfile, codecProfile;
+        std::string filename    = stringProperty("filename", "");
+        std::string gamma       = stringProperty("video-params/gamma", "");
+        std::string primaries   = stringProperty("video-params/primaries", "");
+        std::string colorLevels = stringProperty("video-params/colorlevels", "");
+        std::string pixelFmt    = stringProperty("video-out-params/pixelformat", "");
+        long long   videoW      = int64Property("video-params/w", 0);
+        long long   videoH      = int64Property("video-params/h", 0);
+        double      fps         = doubleProperty("container-fps", 0.0);
+
+        std::string hdrFormat = "";
+
+        for (long long i = 0; i < count; i++) {
+            std::string type = stringProperty(("track-list/" + std::to_string(i) + "/type").c_str(), "");
+            if (type == "video") {
+                videoCodec   = stringProperty(("track-list/" + std::to_string(i) + "/codec").c_str(), "");
+                videoDecoder = stringProperty(("track-list/" + std::to_string(i) + "/decoder-desc").c_str(), "");
+                dvProfile    = stringProperty(("track-list/" + std::to_string(i) + "/dolby-vision-profile").c_str(), "");
+                if (dvProfile.empty())
+                    dvProfile = stringProperty(("track-list/" + std::to_string(i) + "/dv_profile").c_str(), "");
+                codecProfile = stringProperty(("track-list/" + std::to_string(i) + "/codec-profile").c_str(), "");
+                
+                auto isDvValid = [](const std::string& dv) {
+                    if (dv.empty()) return false;
+                    std::string lower = dv;
+                    for (auto & c: lower) c = tolower(c);
+                    return lower != "none" && lower != "unknown" && lower != "0" && lower != "false";
+                };
+                
+                if (isDvValid(dvProfile) || containsCaseInsensitive(videoDecoder, "dovi") || containsCaseInsensitive(codecProfile, "dovi")) {
+                    hdrFormat = "dolby_vision";
+                }
+                break;
+            }
+        }
+        
+        if (hdrFormat.empty()) {
+            if (gamma == "pq" || gamma == "hlg" || primaries == "bt.2020" || primaries == "bt.2020nc") {
+                hdrFormat = "hdr";
+            }
+        }
+
+        // --- Audio track info (selected track) ---
+        std::string audioCodec, audioDecoder, audioChannels, audioSampleRate, audioLang;
+        for (long long i = 0; i < count; i++) {
+            std::string type     = stringProperty(("track-list/" + std::to_string(i) + "/type").c_str(), "");
+            std::string selected = stringProperty(("track-list/" + std::to_string(i) + "/selected").c_str(), "");
+            if (type == "audio" && selected == "yes") {
+                audioCodec      = stringProperty(("track-list/" + std::to_string(i) + "/codec").c_str(), "");
+                audioDecoder    = stringProperty(("track-list/" + std::to_string(i) + "/decoder-desc").c_str(), "");
+                audioChannels   = stringProperty(("track-list/" + std::to_string(i) + "/audio-channels").c_str(), "");
+                audioSampleRate = stringProperty(("track-list/" + std::to_string(i) + "/demux-samplerate").c_str(), "");
+                audioLang       = stringProperty(("track-list/" + std::to_string(i) + "/lang").c_str(), "");
+                break;
+            }
+        }
+
+        // --- Bitrate ---
+        long long videoBitrate = int64Property("video-bitrate", 0);
+        long long audioBitrate = int64Property("audio-bitrate", 0);
+
+        // Helper to escape JSON strings
+        auto jsonStr = [](const std::string& s) -> std::string {
+            std::string out = "\"";
+            for (char c : s) {
+                if (c == '"') out += "\\\"";
+                else if (c == '\\') out += "\\\\";
+                else out += c;
+            }
+            out += "\"";
+            return out;
+        };
+
+        std::string result = "{";
+        result += "\"hdrFormat\":" + jsonStr(hdrFormat) + ",";
+        result += "\"filename\":" + jsonStr(filename) + ",";
+        result += "\"videoCodec\":" + jsonStr(videoCodec) + ",";
+        result += "\"videoDecoder\":" + jsonStr(videoDecoder) + ",";
+        result += "\"dvProfile\":" + jsonStr(dvProfile) + ",";
+        result += "\"codecProfile\":" + jsonStr(codecProfile) + ",";
+        result += "\"gamma\":" + jsonStr(gamma) + ",";
+        result += "\"primaries\":" + jsonStr(primaries) + ",";
+        result += "\"colorLevels\":" + jsonStr(colorLevels) + ",";
+        result += "\"pixelFormat\":" + jsonStr(pixelFmt) + ",";
+        result += "\"videoWidth\":" + std::to_string(videoW) + ",";
+        result += "\"videoHeight\":" + std::to_string(videoH) + ",";
+        result += "\"fps\":" + (fps > 0 ? std::to_string(fps) : "0") + ",";
+        result += "\"audioCodec\":" + jsonStr(audioCodec) + ",";
+        result += "\"audioDecoder\":" + jsonStr(audioDecoder) + ",";
+        result += "\"audioChannels\":" + jsonStr(audioChannels) + ",";
+        result += "\"audioSampleRate\":" + jsonStr(audioSampleRate) + ",";
+        result += "\"audioLang\":" + jsonStr(audioLang) + ",";
+        std::string hwdecCurrent = stringProperty("hwdec-current", "");
+
+        result += "\"videoBitrateKbps\":" + std::to_string(videoBitrate / 1000) + ",";
+        result += "\"audioBitrateKbps\":" + std::to_string(audioBitrate / 1000) + ",";
+        result += "\"hwdecCurrent\":" + jsonStr(hwdecCurrent);
+        result += "}";
+        return result;
+    }
+
+
     void selectAudioTrackId(int trackId) {
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
@@ -2204,6 +2311,12 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setResizeMode(JNIEnv *, jobject, jlong handle, jint mode) {
     auto player = playerFromHandle(handle);
     if (player) player->setResizeMode(mode);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_mediaInfoJson(JNIEnv *env, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    return newJavaStringUtf8(env, player ? player->mediaInfoJson() : "{}");
 }
 
 extern "C" JNIEXPORT jstring JNICALL
