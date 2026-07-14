@@ -37,6 +37,8 @@ internal object DesktopStorage {
     }
 
     private fun resolveAppDataDir(): Path {
+        resolvePortableRoot()?.let { return it.resolve(PORTABLE_DATA_DIR_NAME) }
+
         val osName = System.getProperty("os.name").orEmpty().lowercase(Locale.ROOT)
         val userHome = Paths.get(System.getProperty("user.home").orEmpty())
         return when {
@@ -51,6 +53,43 @@ internal object DesktopStorage {
             }
         }
     }
+
+    /**
+     * Portable mode: keep every byte Nuvio writes (preferences, downloads, torrserver,
+     * updates, caches, temp) inside a folder on the removable drive instead of the host's
+     * user profile. Returns the portable root, or null to fall back to the per-OS location.
+     *
+     * Activation, highest priority first:
+     *  1. `-Dnuvio.portable.dir=<path>` or the `NUVIO_PORTABLE_DIR` environment variable.
+     *  2. A `nuvio-portable` marker file found next to the launcher (walking up a few
+     *     levels). Drop an empty file named `nuvio-portable` beside `Nuvio.exe` on the USB
+     *     stick and the app stores its data in `NuvioData/` right there.
+     */
+    private fun resolvePortableRoot(): Path? {
+        (System.getProperty("nuvio.portable.dir") ?: System.getenv("NUVIO_PORTABLE_DIR"))
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return Paths.get(it) }
+
+        // jpackage sets this to the launched native executable (e.g. ...\Nuvio\Nuvio.exe);
+        // fall back to the code source location when running from a plain jar / from source.
+        val launcherDir = (System.getProperty("jpackage.app-path")?.let(Paths::get)?.parent)
+            ?: runCatching {
+                Paths.get(javaClass.protectionDomain.codeSource.location.toURI())
+            }.getOrNull()?.let { if (Files.isDirectory(it)) it else it.parent }
+            ?: return null
+
+        var dir: Path? = launcherDir
+        repeat(PORTABLE_MARKER_MAX_DEPTH) {
+            val current = dir ?: return null
+            if (Files.exists(current.resolve(PORTABLE_MARKER_NAME))) return current
+            dir = current.parent
+        }
+        return null
+    }
+
+    private const val PORTABLE_MARKER_NAME = "nuvio-portable"
+    private const val PORTABLE_DATA_DIR_NAME = "NuvioData"
+    private const val PORTABLE_MARKER_MAX_DEPTH = 6
 
     internal class Store(
         private val file: Path,

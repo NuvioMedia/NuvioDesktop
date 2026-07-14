@@ -76,6 +76,29 @@ Platform-specific packaging:
 ./gradlew :composeApp:packageReleaseDeb
 ```
 
+### Portable Windows build (USB, no installer)
+
+Build an installer-free Windows app-image that keeps **all** of its data next to the executable
+instead of `%APPDATA%`, so it can run from a USB drive:
+
+```powershell
+# on a Windows host
+.\gradlew.bat :composeApp:packageWindowsPortable
+```
+
+Output: `composeApp/build/compose/portable/Nuvio/`. Copy that whole `Nuvio` folder onto the USB
+drive and launch `Nuvio.exe` from there. The folder ships with an empty `nuvio-portable` marker
+file next to `Nuvio.exe`; while it is present, Nuvio stores everything it writes (preferences,
+logins, downloads, torrserver P2P engine, updates, caches and temp files) under a `NuvioData`
+folder right beside the executable. Delete the marker to make that copy behave like a normal
+install again.
+
+Portable mode can also be forced without the marker via `-Dnuvio.portable.dir=<path>` or the
+`NUVIO_PORTABLE_DIR` environment variable.
+
+> Note: this keeps Nuvio's own data off the host, but it cannot remove the traces Windows itself
+> records when any program runs from removable media (Prefetch, ShellBags, USB device history).
+
 ## Project Structure
 
 - `composeApp/` contains the app code.

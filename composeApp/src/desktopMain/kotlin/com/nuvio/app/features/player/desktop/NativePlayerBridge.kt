@@ -1,8 +1,14 @@
 package com.nuvio.app.features.player.desktop
 
+import com.nuvio.app.core.storage.DesktopStorage
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
+
+// Root for the bridge's scratch files. Lives under DesktopStorage.rootDir so that, in
+// portable mode, nothing is written to the host's system temp directory.
+private fun nativePlayerTempDir(name: String): File =
+    DesktopStorage.rootDir.resolve("tmp").resolve(name).toFile().apply { mkdirs() }
 
 internal fun interface NativePlayerEventSink {
     fun onPlayerEvent(type: String, value: Double)
@@ -140,7 +146,7 @@ internal object NativePlayerBridge {
         val resource = "/native/$platformDir/$libraryName"
         val input = NativePlayerBridge::class.java.getResourceAsStream(resource)
             ?: error("Missing bundled native player bridge: $resource")
-        val dir = File(System.getProperty("java.io.tmpdir"), "native-player-bridge").apply { mkdirs() }
+        val dir = nativePlayerTempDir("native-player-bridge")
         val suffix = libraryName.substringAfter("player_bridge", ".dylib")
         val file = Files.createTempFile(dir.toPath(), "player-bridge-", suffix).toFile()
         file.deleteOnExit()
@@ -251,7 +257,7 @@ internal object NativePlayerBridge {
         }
 
     private fun exportControlsPageAssets(): ControlsPageAssets {
-        val root = File(System.getProperty("java.io.tmpdir"), "nuvio-player-ui").apply { mkdirs() }
+        val root = nativePlayerTempDir("nuvio-player-ui")
         val fontsDir = root.resolve("fonts").apply { mkdirs() }
         val htmlFile = root.resolve("controls.html")
         writeTextIfChanged(

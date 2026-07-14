@@ -1276,6 +1276,44 @@ fun publishWindowsMsiArtifact(msi: File) {
     logger.lifecycle("Published Windows MSI artifact: ${publishedMsi.absolutePath}")
 }
 
+/**
+ * Turns the release app-image into a fully portable Windows build: an installer-free folder
+ * carrying its own JRE plus a `nuvio-portable` marker. The marker is read at runtime by
+ * DesktopStorage.resolvePortableRoot(), which then keeps every file Nuvio writes
+ * (preferences, downloads, torrserver, updates, caches, temp) inside `NuvioData` next to the
+ * executable instead of the host's `%APPDATA%`. Copy the resulting folder onto a USB stick.
+ */
+fun assembleWindowsPortable() {
+    if (!isWindowsHost) {
+        error(
+            "packageWindowsPortable must run on a Windows host: jpackage produces an " +
+                "app-image only for the current operating system.",
+        )
+    }
+    val appImage = layout.buildDirectory.dir("compose/binaries/main-release/app/Nuvio").get().asFile
+    if (!appImage.isDirectory) {
+        error("Expected the release app-image at ${appImage.absolutePath}; did createReleaseDistributable run?")
+    }
+
+    val portableDir = layout.buildDirectory.dir("compose/portable/Nuvio").get().asFile
+    if (portableDir.exists() && !portableDir.deleteRecursively()) {
+        error("Could not clear previous portable output at ${portableDir.absolutePath}")
+    }
+    if (!appImage.copyRecursively(portableDir, overwrite = true)) {
+        error("Failed to copy app-image into ${portableDir.absolutePath}")
+    }
+
+    // Sits next to Nuvio.exe; its mere presence switches the app into portable mode.
+    portableDir.resolve("nuvio-portable").writeText(
+        "Keep this file next to Nuvio.exe.\n" +
+            "While it is present, Nuvio stores all of its data in the NuvioData folder right\n" +
+            "here instead of the host PC's user profile. Delete it to fall back to %APPDATA%.\n",
+    )
+
+    logger.lifecycle("Portable Windows build ready: ${portableDir.absolutePath}")
+    logger.lifecycle("Copy the whole 'Nuvio' folder to your USB drive and launch Nuvio.exe from there.")
+}
+
 tasks.matching { it.name == "packageDmg" }.configureEach {
     doLast {
         if (!isMacosDmgNotarizationRequested) {
@@ -1317,6 +1355,16 @@ tasks.matching { it.name == "packageReleaseMsi" }.configureEach {
     notCompatibleWithConfigurationCache("Windows MSI artifact publication uses script file operations.")
     doLast {
         publishWindowsMsiOutput(release = true)
+    }
+}
+
+tasks.register("packageWindowsPortable") {
+    group = "distribution"
+    description = "Builds a fully portable Windows app-image (no installer) that stores all data next to Nuvio.exe."
+    notCompatibleWithConfigurationCache("Portable packaging uses script file operations.")
+    dependsOn("createReleaseDistributable")
+    doLast {
+        assembleWindowsPortable()
     }
 }
 
