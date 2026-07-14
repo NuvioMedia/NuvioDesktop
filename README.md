@@ -86,8 +86,10 @@ instead of `%APPDATA%`, so it can run from a USB drive:
 .\gradlew.bat :composeApp:packageWindowsPortable
 ```
 
-Output: `composeApp/build/compose/portable/Nuvio/`. Copy that whole `Nuvio` folder onto the USB
-drive and launch `Nuvio.exe` from there. The folder ships with an empty `nuvio-portable` marker
+Output: the ready-to-run folder `composeApp/build/compose/portable/Nuvio/`, plus a zipped copy
+at `composeApp/build/compose/release-portables/Nuvio-Windows-Portable-<version>.zip` for easy
+sharing. Copy the `Nuvio` folder (or unzip the archive) onto the USB drive and launch `Nuvio.exe`
+from there. The folder ships with an empty `nuvio-portable` marker
 file next to `Nuvio.exe`; while it is present, Nuvio stores everything it writes (preferences,
 logins, downloads, torrserver P2P engine, updates, caches and temp files) under a `NuvioData`
 folder right beside the executable. Delete the marker to make that copy behave like a normal

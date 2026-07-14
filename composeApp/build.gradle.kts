@@ -1312,6 +1312,33 @@ fun assembleWindowsPortable() {
 
     logger.lifecycle("Portable Windows build ready: ${portableDir.absolutePath}")
     logger.lifecycle("Copy the whole 'Nuvio' folder to your USB drive and launch Nuvio.exe from there.")
+
+    val zipFile = zipWindowsPortable(portableDir)
+    logger.lifecycle("Portable Windows archive: ${zipFile.absolutePath}")
+}
+
+/**
+ * Zips the portable `Nuvio` folder into a single distributable archive. The `Nuvio/` folder is
+ * kept as the top-level entry so unzipping yields the same ready-to-run folder, marker included.
+ */
+fun zipWindowsPortable(portableDir: File): File {
+    val outputDir = layout.buildDirectory.dir("compose/release-portables").get().asFile
+    outputDir.mkdirs()
+    val zipFile = outputDir.resolve("Nuvio-Windows-Portable-$desktopReleaseVersionName.zip")
+    if (zipFile.exists() && !zipFile.delete()) {
+        error("Could not replace existing portable archive: ${zipFile.absolutePath}")
+    }
+
+    val baseDir = portableDir.parentFile // contains only the Nuvio/ folder
+    java.util.zip.ZipOutputStream(zipFile.outputStream().buffered()).use { zip ->
+        portableDir.walkTopDown().filter { it.isFile }.forEach { file ->
+            val entryName = baseDir.toPath().relativize(file.toPath()).toString().replace('\\', '/')
+            zip.putNextEntry(java.util.zip.ZipEntry(entryName))
+            file.inputStream().buffered().use { it.copyTo(zip) }
+            zip.closeEntry()
+        }
+    }
+    return zipFile
 }
 
 tasks.matching { it.name == "packageDmg" }.configureEach {
