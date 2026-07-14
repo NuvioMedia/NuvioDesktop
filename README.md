@@ -18,6 +18,12 @@
 
 </div>
 
+## ⚠️ Alpha Software — Testers Only
+
+Nuvio Desktop is currently in alpha and is intended only for testers. It is under active development and is not suitable for daily use.
+
+Expect breaking changes with every update. Features, settings, stored data, and compatibility may change or stop working without notice. Do not rely on this build as your primary media app, and report any issues you encounter during testing.
+
 ## About
 
 Nuvio Desktop is a media client for browsing metadata, managing collections and watch progress, downloading media, and playing streams from user-installed extensions or user-provided sources.

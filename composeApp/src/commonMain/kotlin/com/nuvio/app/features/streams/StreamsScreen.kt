@@ -160,7 +160,12 @@ fun StreamsScreen(
     val storedProgress = if (startFromBeginning) {
         null
     } else {
-        watchProgressUiState.byVideoId[videoId]
+        watchProgressUiState.progressForVideo(
+            videoId = videoId,
+            parentMetaId = parentMetaId,
+            seasonNumber = seasonNumber,
+            episodeNumber = episodeNumber,
+        )
     }
     val storedProgressFraction = storedProgress
         ?.takeIf { it.isResumable }

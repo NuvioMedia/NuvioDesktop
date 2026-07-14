@@ -90,10 +90,10 @@ fun <T> NuvioShelfSection(
     viewAllPillSize: NuvioViewAllPillSize = NuvioViewAllPillSize.Default,
     key: ((T) -> Any)? = null,
     animatePlacement: Boolean = false,
+    state: LazyListState = rememberLazyListState(),
     itemContent: @Composable (T) -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
-    val rowState = rememberLazyListState()
     val duplicateSafeEntries = remember(entries, key) {
         key?.let { entries.withDuplicateSafeLazyKeys(it) }
     }
@@ -112,8 +112,8 @@ fun <T> NuvioShelfSection(
             )
         }
         LazyRow(
-            state = rowState,
-            modifier = rowModifier.nuvioDesktopDragScroll(rowState),
+            state = state,
+            modifier = rowModifier.nuvioDesktopDragScroll(state),
             contentPadding = rowContentPadding,
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {
