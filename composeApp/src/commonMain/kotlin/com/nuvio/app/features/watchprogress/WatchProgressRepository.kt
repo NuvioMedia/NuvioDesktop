@@ -1171,24 +1171,33 @@ object WatchProgressRepository {
 
     private fun currentEntries(): List<WatchProgressEntry> {
         return if (shouldUseTraktProgress()) {
-            // Merge Trakt remote progress with local-only entries that use
-            // non-Trakt-compatible IDs (kitsu:, mal:, anilist:, etc.).
-            // Trakt will never return these IDs, so they must come from local storage.
             val traktItems = TraktProgressRepository.uiState.value.entries
-            val localNonTraktItems = localEntriesSnapshot().filter {
-                !isTraktCompatibleId(it.parentMetaId)
-            }
-            if (localNonTraktItems.isEmpty()) {
-                traktItems
+            val localItems = localEntriesSnapshot()
+            // When Trakt data hasn't loaded yet (e.g., first launch after upgrade
+            // when local cache was wiped), fall back to local entries so Continue
+            // Watching is visible immediately. Once Trakt sync completes, its data
+            // takes priority.
+            if (traktItems.isEmpty() && localItems.isNotEmpty()) {
+                localItems
             } else {
-                val traktKeys = traktItems.map { it.videoId }.toSet()
-                val merged = traktItems.toMutableList()
-                localNonTraktItems.forEach { localItem ->
-                    if (localItem.videoId !in traktKeys) {
-                        merged.add(localItem)
-                    }
+                // Merge Trakt remote progress with local-only entries that use
+                // non-Trakt-compatible IDs (kitsu:, mal:, anilist:, etc.).
+                // Trakt will never return these IDs, so they must come from local storage.
+                val localNonTraktItems = localItems.filter {
+                    !isTraktCompatibleId(it.parentMetaId)
                 }
-                merged
+                if (localNonTraktItems.isEmpty()) {
+                    traktItems
+                } else {
+                    val traktKeys = traktItems.map { it.videoId }.toSet()
+                    val merged = traktItems.toMutableList()
+                    localNonTraktItems.forEach { localItem ->
+                        if (localItem.videoId !in traktKeys) {
+                            merged.add(localItem)
+                        }
+                    }
+                    merged
+                }
             }
         } else {
             localEntriesSnapshot()

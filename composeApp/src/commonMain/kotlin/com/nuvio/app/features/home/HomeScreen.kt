@@ -125,6 +125,15 @@ fun HomeScreen(
         if (authState !is AuthState.Authenticated || authState.isAnonymous) {
             WatchProgressSourceCoordinator.ensureStarted()
         }
+        // Trigger catalog refresh immediately if manifests are already available,
+        // rather than waiting for the catalogRefreshKey LaunchedEffect which relies
+        // on Compose recomposition and may not fire if the addon state reference
+        // doesn't change.
+        val initialAddons = AddonRepository.uiState.value.addons.enabledAddons()
+        if (initialAddons.any { it.manifest != null }) {
+            HomeCatalogSettingsRepository.syncCatalogs(initialAddons)
+            HomeRepository.refresh(initialAddons)
+        }
     }
 
     val addonsUiState by AddonRepository.uiState.collectAsStateWithLifecycle()
