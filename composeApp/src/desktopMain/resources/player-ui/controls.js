@@ -1370,8 +1370,9 @@ const appendEpisodeRow = (container, item) => {
     send("selectEpisode", Number(item.index) || 0);
   });
 
+  let thumb = null;
   if (item.thumbnail) {
-    const thumb = document.createElement("span");
+    thumb = document.createElement("span");
     thumb.className = "episode-thumb";
     const image = document.createElement("img");
     image.alt = "";
@@ -1409,6 +1410,21 @@ const appendEpisodeRow = (container, item) => {
     copy.appendChild(overview);
   }
   row.appendChild(copy);
+
+  if (item.isWatched) {
+    const badge = document.createElement("span");
+    badge.className = "episode-watched-badge";
+    badge.setAttribute("aria-hidden", "true");
+    const check = buildCheckIcon();
+    check.setAttribute("class", "episode-watched-check");
+    badge.appendChild(check);
+    if (thumb) {
+      thumb.appendChild(badge);
+    } else {
+      top.appendChild(badge);
+    }
+  }
+
   container.appendChild(row);
 };
 
