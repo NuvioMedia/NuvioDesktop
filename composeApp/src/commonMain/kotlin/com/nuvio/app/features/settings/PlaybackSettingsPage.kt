@@ -987,6 +987,21 @@ private fun PlaybackSettingsSection(
 
         if (isWindows) {
             SettingsSection(
+                title = stringResource(Res.string.settings_playback_windows_audio_section),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_hdmi_passthrough),
+                        description = stringResource(Res.string.settings_playback_hdmi_passthrough_desc),
+                        checked = autoPlayPlayerSettings.windowsHdmiPassthroughEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setWindowsHdmiPassthroughEnabled,
+                    )
+                }
+            }
+
+            SettingsSection(
                 title = stringResource(Res.string.settings_playback_nvidia_rtx_video_section),
                 isTablet = isTablet,
             ) {

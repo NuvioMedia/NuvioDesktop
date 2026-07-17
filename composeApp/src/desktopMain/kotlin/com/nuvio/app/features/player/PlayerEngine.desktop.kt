@@ -119,6 +119,8 @@ private fun NativePlayerSurface(
     val playerSettings by PlayerSettingsRepository.uiState.collectAsState()
     val decoderPriority = playerSettings.decoderPriority
     val nvidiaRtxSuperResolutionEnabled = playerSettings.nvidiaRtxSuperResolutionEnabled
+    val windowsHdmiPassthroughEnabled =
+        DesktopHostOs.current == DesktopHostOs.WINDOWS && playerSettings.windowsHdmiPassthroughEnabled
 
     LaunchedEffect(controller, sourceUrl, playbackHeaders) {
         onControllerReady(controller)
@@ -163,6 +165,7 @@ private fun NativePlayerSurface(
         playbackHeaders,
         decoderPriority,
         nvidiaRtxSuperResolutionEnabled,
+        windowsHdmiPassthroughEnabled,
         hostFirstFullSizePaintComplete.value,
         initialPositionMs,
         initialPositionRequestKey,
@@ -178,6 +181,7 @@ private fun NativePlayerSurface(
             initialPositionMs = initialPositionMs,
             decoderPriority = decoderPriority,
             nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
+            windowsHdmiPassthroughEnabled = windowsHdmiPassthroughEnabled,
             onError = { message -> latestOnError.value(message) },
         )
         initialPositionRequestKey?.let { key ->

@@ -74,6 +74,7 @@ internal class NativePlayerController(
         initialPositionMs: Long,
         decoderPriority: Int,
         nvidiaRtxSuperResolutionEnabled: Boolean,
+        windowsHdmiPassthroughEnabled: Boolean,
         onError: (String?) -> Unit,
     ) {
         val pending = PendingSource(
@@ -83,12 +84,14 @@ internal class NativePlayerController(
             initialPositionMs = initialPositionMs.coerceAtLeast(0L),
             decoderPriority = decoderPriority,
             nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
+            windowsHdmiPassthroughEnabled = windowsHdmiPassthroughEnabled,
             onError = onError,
         )
         pendingSource = pending
         log.d {
             "attach requested source=${sourceUrl.toPlaybackLogKey()} headers=${sourceHeaders.size} " +
-                "playWhenReady=$playWhenReady initialPositionMs=$initialPositionMs decoderPriority=$decoderPriority"
+                "playWhenReady=$playWhenReady initialPositionMs=$initialPositionMs decoderPriority=$decoderPriority " +
+                "hdmiPassthrough=$windowsHdmiPassthroughEnabled"
         }
         host.onPeerReady = { attachPending() }
         if (host.isDisplayable) {
@@ -159,6 +162,7 @@ internal class NativePlayerController(
                     controlsPageUrl = NativePlayerBridge.controlsPageUrl,
                     decoderPriority = pending.decoderPriority,
                     nvidiaRtxSuperResolutionEnabled = pending.nvidiaRtxSuperResolutionEnabled,
+                    windowsHdmiPassthroughEnabled = pending.windowsHdmiPassthroughEnabled,
                     eventSink = eventSink,
                 ).also { if (it == 0L) error("Native player did not return a handle.") }
             }.onSuccess { created ->
@@ -346,6 +350,7 @@ internal class NativePlayerController(
     }
 
     private fun setFallbackVolume(level: Float) {
+        if (pendingSource?.windowsHdmiPassthroughEnabled == true) return
         val current = handle
         if (current != 0L) {
             val nextLevel = level.coerceIn(0f, 1f)
@@ -360,6 +365,10 @@ internal class NativePlayerController(
     private fun applyRememberedVolume() {
         val current = handle
         if (current == 0L) return
+        if (pendingSource?.windowsHdmiPassthroughEnabled == true) {
+            controlsState = controlsState.copy(volumeLevel = 1f)
+            return
+        }
         val level = rememberedVolumeLevel.coerceIn(0f, 1f)
         NativePlayerBridge.setVolume(current, level)
         controlsState = controlsState.copy(volumeLevel = level)
@@ -374,6 +383,7 @@ internal class NativePlayerController(
     }
 
     private fun cycleFallbackSpeed() {
+        if (pendingSource?.windowsHdmiPassthroughEnabled == true) return
         val current = handle
         if (current == 0L) return
         val speeds = listOf(1f, 1.25f, 1.5f, 2f)
@@ -450,12 +460,14 @@ internal class NativePlayerController(
             initialPositionMs = pending.initialPositionMs,
             decoderPriority = pending.decoderPriority,
             nvidiaRtxSuperResolutionEnabled = pending.nvidiaRtxSuperResolutionEnabled,
+            windowsHdmiPassthroughEnabled = pending.windowsHdmiPassthroughEnabled,
             onError = pending.onError,
         )
     }
 
     override fun setPlaybackSpeed(speed: Float) {
         log.d { "setPlaybackSpeed speed=$speed handle=$handle" }
+        if (pendingSource?.windowsHdmiPassthroughEnabled == true) return
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.setSpeed(it, speed) }
     }
 
@@ -666,6 +678,7 @@ private data class PendingSource(
     val initialPositionMs: Long,
     val decoderPriority: Int,
     val nvidiaRtxSuperResolutionEnabled: Boolean,
+    val windowsHdmiPassthroughEnabled: Boolean,
     val onError: (String?) -> Unit,
 )
 
