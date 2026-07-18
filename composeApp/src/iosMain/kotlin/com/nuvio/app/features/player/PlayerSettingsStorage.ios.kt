@@ -204,6 +204,10 @@ actual object PlayerSettingsStorage {
         NSUserDefaults.standardUserDefaults.setBool(enabled, forKey = ProfileScopedKey.of(showParentalGuideKey))
     }
 
+    actual fun loadVideoClickTogglesPlayback(): Boolean? = null
+
+    actual fun saveVideoClickTogglesPlayback(enabled: Boolean) = Unit
+
     actual fun loadResizeMode(): String? {
         val defaults = NSUserDefaults.standardUserDefaults
         val key = ProfileScopedKey.of(resizeModeKey)

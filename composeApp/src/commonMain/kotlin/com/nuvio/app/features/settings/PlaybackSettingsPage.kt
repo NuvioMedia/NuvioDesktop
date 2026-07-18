@@ -349,6 +349,16 @@ private fun PlaybackSettingsSection(
                     isTablet = isTablet,
                     onCheckedChange = PlayerSettingsRepository::setShowParentalGuide,
                 )
+                if (isDesktop) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_video_click_toggles_playback),
+                        description = stringResource(Res.string.settings_playback_video_click_toggles_playback_description),
+                        checked = autoPlayPlayerSettings.videoClickTogglesPlayback,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setVideoClickTogglesPlayback,
+                    )
+                }
                 if (externalPlayerSupported) {
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(

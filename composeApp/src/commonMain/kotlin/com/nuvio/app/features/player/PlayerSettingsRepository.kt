@@ -34,6 +34,7 @@ fun snapToAllowedTimeout(value: Int): Int {
 data class PlayerSettingsUiState(
     val showLoadingOverlay: Boolean = true,
     val showParentalGuide: Boolean = true,
+    val videoClickTogglesPlayback: Boolean = false,
     val resizeMode: PlayerResizeMode = PlayerResizeMode.Fit,
     val holdToSpeedEnabled: Boolean = true,
     val holdToSpeedValue: Float = 2f,
@@ -101,6 +102,7 @@ object PlayerSettingsRepository {
     private var hasLoaded = false
     private var showLoadingOverlay = true
     private var showParentalGuide = true
+    private var videoClickTogglesPlayback = false
     private var resizeMode = PlayerResizeMode.Fit
     private var holdToSpeedEnabled = true
     private var holdToSpeedValue = 2f
@@ -173,6 +175,7 @@ object PlayerSettingsRepository {
         hasLoaded = false
         showLoadingOverlay = true
         showParentalGuide = true
+        videoClickTogglesPlayback = false
         resizeMode = PlayerResizeMode.Fit
         holdToSpeedEnabled = true
         holdToSpeedValue = 2f
@@ -238,6 +241,7 @@ object PlayerSettingsRepository {
         hasLoaded = true
         showLoadingOverlay = PlayerSettingsStorage.loadShowLoadingOverlay() ?: true
         showParentalGuide = PlayerSettingsStorage.loadShowParentalGuide() ?: true
+        videoClickTogglesPlayback = PlayerSettingsStorage.loadVideoClickTogglesPlayback() ?: false
         resizeMode = PlayerSettingsStorage.loadResizeMode()
             ?.let { runCatching { PlayerResizeMode.valueOf(it) }.getOrNull() }
             ?: PlayerResizeMode.Fit
@@ -526,6 +530,14 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveSubtitleBottomOffset(normalized.bottomOffset)
         PlayerSettingsStorage.saveSubtitleUseForcedSubtitles(normalized.useForcedSubtitles)
         PlayerSettingsStorage.saveSubtitleShowOnlyPreferredLanguages(normalized.showOnlyPreferredLanguages)
+    }
+
+    fun setVideoClickTogglesPlayback(enabled: Boolean) {
+        ensureLoaded()
+        if (videoClickTogglesPlayback == enabled) return
+        videoClickTogglesPlayback = enabled
+        publish()
+        PlayerSettingsStorage.saveVideoClickTogglesPlayback(enabled)
     }
 
     fun setAddonSubtitleStartupMode(mode: AddonSubtitleStartupMode) {
@@ -939,6 +951,7 @@ object PlayerSettingsRepository {
         _uiState.value = PlayerSettingsUiState(
             showLoadingOverlay = showLoadingOverlay,
             showParentalGuide = showParentalGuide,
+            videoClickTogglesPlayback = videoClickTogglesPlayback,
             resizeMode = resizeMode,
             holdToSpeedEnabled = holdToSpeedEnabled,
             holdToSpeedValue = holdToSpeedValue,

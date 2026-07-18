@@ -199,6 +199,10 @@ actual object PlayerSettingsStorage {
             ?.apply()
     }
 
+    actual fun loadVideoClickTogglesPlayback(): Boolean? = null
+
+    actual fun saveVideoClickTogglesPlayback(enabled: Boolean) = Unit
+
     actual fun loadResizeMode(): String? =
         preferences?.getString(ProfileScopedKey.of(resizeModeKey), null)
 

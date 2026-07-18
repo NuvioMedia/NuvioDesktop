@@ -1025,6 +1025,8 @@
     <string name="settings_playback_show_loading_overlay_description">Show loading screen until first video frame appears.</string>
     <string name="settings_playback_parental_guide">Content Warnings</string>
     <string name="settings_playback_parental_guide_description">Show parental guidance overlay when playback starts.</string>
+    <string name="settings_playback_video_click_toggles_playback">Click video to play or pause</string>
+    <string name="settings_playback_video_click_toggles_playback_description">Pause or resume playback with a single click on the video surface.</string>
     <string name="settings_playback_subtitle_background_color">Background Color</string>
     <string name="settings_playback_subtitle_bold">Bold</string>
     <string name="settings_playback_subtitle_bold_description">Use a heavier subtitle font weight.</string>

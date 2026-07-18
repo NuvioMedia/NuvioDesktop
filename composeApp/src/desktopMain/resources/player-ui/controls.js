@@ -168,6 +168,7 @@ let state = {
   playbackSpeedLabel: "1x",
   isFullscreen: false,
   volumeLevel: null,
+  videoClickTogglesPlayback: false,
   subtitlesLabel: "Subs",
   audioLabel: "Audio",
   sourcesLabel: "Sources",
@@ -2503,16 +2504,25 @@ window.playerControls = nextState => {
 
 root.addEventListener("click", event => {
   if (playbackErrorText()) return;
-  if (event.target.closest("button,input")) return;
+  if (isChromeInteractionTarget(event.target)) return;
   window.clearTimeout(tapTimer);
   tapTimer = window.setTimeout(() => {
-    toggleChrome();
+    if (state.isLocked) {
+      send("revealLockedOverlay", 0);
+      return;
+    }
+    noteChromeActivity(true);
+    if (state.videoClickTogglesPlayback) {
+      send("toggle", 0);
+    } else {
+      toggleChrome();
+    }
   }, 220);
 });
 
 root.addEventListener("dblclick", event => {
   if (playbackErrorText()) return;
-  if (event.target.closest("button,input")) return;
+  if (isChromeInteractionTarget(event.target)) return;
   event.preventDefault();
   window.clearTimeout(tapTimer);
   togglePlayerFullscreen();

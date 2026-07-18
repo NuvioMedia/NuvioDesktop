@@ -12,6 +12,7 @@ import com.nuvio.app.core.sync.encodeSyncFloat
 import com.nuvio.app.core.sync.encodeSyncInt
 import com.nuvio.app.core.sync.encodeSyncString
 import com.nuvio.app.core.sync.encodeSyncStringSet
+import com.nuvio.app.features.player.desktop.DesktopVideoClickStorage
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -161,6 +162,10 @@ internal actual object PlayerSettingsStorage {
     actual fun saveShowLoadingOverlay(enabled: Boolean) = saveBoolean(showLoadingOverlayKey, enabled)
     actual fun loadShowParentalGuide(): Boolean? = loadBoolean(showParentalGuideKey)
     actual fun saveShowParentalGuide(enabled: Boolean) = saveBoolean(showParentalGuideKey, enabled)
+    actual fun loadVideoClickTogglesPlayback(): Boolean? =
+        DesktopVideoClickStorage.loadVideoClickTogglesPlayback()
+    actual fun saveVideoClickTogglesPlayback(enabled: Boolean) =
+        DesktopVideoClickStorage.saveVideoClickTogglesPlayback(enabled)
     actual fun loadResizeMode(): String? = loadString(resizeModeKey)
     actual fun saveResizeMode(mode: String) = saveString(resizeModeKey, mode)
     actual fun loadHoldToSpeedEnabled(): Boolean? = loadBoolean(holdToSpeedEnabledKey)
