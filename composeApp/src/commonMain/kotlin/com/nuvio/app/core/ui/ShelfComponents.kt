@@ -5,10 +5,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -227,6 +229,7 @@ internal fun Modifier.nuvioDesktopDragScroll(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NuvioPosterCard(
     title: String,
@@ -252,10 +255,21 @@ fun NuvioPosterCard(
         shape = shape,
     )
     val shouldShowTitleBelow = showTitleBelow && !posterCardStyle.hideLabelsEnabled
+    val cardInteractionSource = remember { MutableInteractionSource() }
+    val isHovered by cardInteractionSource.collectIsHoveredAsState()
+    val isFocused by cardInteractionSource.collectIsFocusedAsState()
+    val marqueeModifier = if (isDesktop && (isHovered || isFocused)) {
+        Modifier.basicMarquee(
+            iterations = Int.MAX_VALUE,
+            velocity = 45.dp,
+        )
+    } else {
+        Modifier
+    }
 
     Column(
         modifier = Modifier
-            .desktopPosterHoverScale()
+            .desktopPosterHoverScale(interactionSource = cardInteractionSource)
             .then(modifier)
             .width(cardWidth),
         verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
@@ -276,6 +290,7 @@ fun NuvioPosterCard(
                     zoomImageUrl = imageUrl,
                     zoomCornerRadius = posterCardStyle.cornerRadiusDp.dp,
                     hoverScaleEnabled = false,
+                    interactionSource = cardInteractionSource,
                 ),
             contentAlignment = Alignment.Center,
         ) {
@@ -320,7 +335,9 @@ fun NuvioPosterCard(
                             color = tokens.colors.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = catalogLogoOverlaySize.textMaxWidth),
+                            modifier = Modifier
+                                .widthIn(max = catalogLogoOverlaySize.textMaxWidth)
+                                .then(marqueeModifier),
                         )
                     }
                 }
@@ -331,6 +348,7 @@ fun NuvioPosterCard(
         if (shouldShowTitleBelow) {
             Text(
                 text = title,
+                modifier = marqueeModifier,
                 style = MaterialTheme.typography.bodyMedium,
                 color = tokens.colors.textPrimary,
                 maxLines = 1,
@@ -339,6 +357,7 @@ fun NuvioPosterCard(
             if (!detailLine.isNullOrBlank()) {
                 Text(
                     text = detailLine,
+                    modifier = marqueeModifier,
                     style = MaterialTheme.typography.labelSmall,
                     color = tokens.colors.textMuted,
                     maxLines = 1,
@@ -573,10 +592,10 @@ internal fun Modifier.posterCardClickable(
     zoomImageUrl: String? = null,
     zoomCornerRadius: Dp = NuvioTokens.Radius.poster,
     hoverScaleEnabled: Boolean = true,
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ): Modifier {
     if (onClick == null && onLongClick == null) return this
     val bounds = remember { mutableStateOf<Rect?>(null) }
-    val interactionSource = remember { MutableInteractionSource() }
     val handleLongClick = onLongClick?.let { longClick ->
         {
             bounds.value?.takeIf { zoomImageUrl != null }?.let { cardBounds ->
