@@ -1004,6 +1004,25 @@ public:
         return tracksJsonForType("sub");
     }
 
+    std::string chaptersJson() {
+        long long count = int64Property("chapter-list/count", 0);
+        std::ostringstream json;
+        json << "[";
+        bool first = true;
+        for (long long index = 0; index < count; index++) {
+            std::string prefix = "chapter-list/" + std::to_string(index);
+            double time = doubleProperty((prefix + "/time").c_str(), -1.0);
+            if (!std::isfinite(time) || time < 0.0) continue;
+            std::string title = stringProperty((prefix + "/title").c_str(), "");
+            if (!first) json << ",";
+            first = false;
+            json << "{\"time\":" << time
+                 << ",\"title\":\"" << jsonEscape(title) << "\"}";
+        }
+        json << "]";
+        return json.str();
+    }
+
     void selectAudioTrackId(int trackId) {
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
@@ -1556,6 +1575,7 @@ private:
         bool loading = isLoading();
         std::string audioTracks = audioTracksJson();
         std::string subtitleTracks = subtitleTracksJson();
+        std::string chapters = chaptersJson();
 
         std::ostringstream script;
         script << "window.playerUpdate({duration:" << duration
@@ -1564,6 +1584,7 @@ private:
                << ",loading:" << (loading ? "true" : "false")
                << ",audioTracks:" << audioTracks
                << ",subtitleTracks:" << subtitleTracks
+               << ",chapters:" << chapters
                << "})";
         std::wstring wideScript = toWide(script.str());
         webView->ExecuteScript(wideScript.c_str(), nullptr);

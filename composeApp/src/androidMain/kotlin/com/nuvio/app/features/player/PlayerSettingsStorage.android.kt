@@ -199,6 +199,10 @@ actual object PlayerSettingsStorage {
             ?.apply()
     }
 
+    actual fun loadShowChapterMarkers(): Boolean? = null
+
+    actual fun saveShowChapterMarkers(enabled: Boolean) = Unit
+
     actual fun loadResizeMode(): String? =
         preferences?.getString(ProfileScopedKey.of(resizeModeKey), null)
 

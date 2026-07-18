@@ -179,6 +179,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         pauseOverlayDescription = (pauseDescription ?: activeStreamSubtitle).orEmpty(),
         resizeModeLabel = stringResource(resizeMode.labelRes),
         playbackSpeedLabel = formatPlaybackSpeedLabel(playbackSnapshot.playbackSpeed),
+        showChapterMarkers = playerSettingsUiState.showChapterMarkers,
         subtitlesLabel = stringResource(Res.string.compose_player_subs),
         audioLabel = stringResource(Res.string.compose_player_audio),
         sourcesLabel = stringResource(Res.string.compose_player_sources),

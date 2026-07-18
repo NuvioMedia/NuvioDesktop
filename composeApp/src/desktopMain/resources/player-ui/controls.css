@@ -138,6 +138,32 @@ button:disabled {
   cursor: default;
 }
 
+.timeline {
+  position: relative;
+  width: 100%;
+  height: 10px;
+}
+
+.chapter-markers {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+.chapter-marker {
+  position: absolute;
+  top: 1px;
+  width: 2px;
+  height: 8px;
+  transform: translateX(-1px);
+  border-radius: 1px;
+  background: rgba(0, 0, 0, .72);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .74);
+}
+
 .player {
   position: relative;
   width: 100%;

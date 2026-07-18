@@ -196,7 +196,10 @@
             <span class="provider" id="providerName"></span>
           </div>
         </section>
-        <input id="seek" class="scrub" type="range" min="0" max="1000" value="0" aria-label="Seek">
+        <div class="timeline">
+          <input id="seek" class="scrub" type="range" min="0" max="1000" value="0" aria-label="Seek">
+          <div class="chapter-markers" id="chapterMarkers" aria-hidden="true"></div>
+        </div>
         <div class="time-row">
           <span class="time-pill" id="position">00:00</span>
           <span class="time-pill" id="duration">00:00</span>

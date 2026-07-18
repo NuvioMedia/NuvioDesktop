@@ -7,6 +7,8 @@ internal expect object PlayerSettingsStorage {
     fun saveShowLoadingOverlay(enabled: Boolean)
     fun loadShowParentalGuide(): Boolean?
     fun saveShowParentalGuide(enabled: Boolean)
+    fun loadShowChapterMarkers(): Boolean?
+    fun saveShowChapterMarkers(enabled: Boolean)
     fun loadResizeMode(): String?
     fun saveResizeMode(mode: String)
     fun loadHoldToSpeedEnabled(): Boolean?

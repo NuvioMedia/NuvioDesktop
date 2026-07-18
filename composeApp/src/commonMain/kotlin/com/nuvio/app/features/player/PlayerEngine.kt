@@ -64,6 +64,7 @@ data class PlayerControlsState(
     val resizeModeLabel: String = "Fit",
     val playbackSpeedLabel: String = "1x",
     val volumeLevel: Float? = null,
+    val showChapterMarkers: Boolean = false,
     val subtitlesLabel: String = "Subs",
     val audioLabel: String = "Audio",
     val sourcesLabel: String = "Sources",

@@ -349,6 +349,16 @@ private fun PlaybackSettingsSection(
                     isTablet = isTablet,
                     onCheckedChange = PlayerSettingsRepository::setShowParentalGuide,
                 )
+                if (isDesktop) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_show_chapter_markers),
+                        description = stringResource(Res.string.settings_playback_show_chapter_markers_description),
+                        checked = autoPlayPlayerSettings.showChapterMarkers,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setShowChapterMarkers,
+                    )
+                }
                 if (externalPlayerSupported) {
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(

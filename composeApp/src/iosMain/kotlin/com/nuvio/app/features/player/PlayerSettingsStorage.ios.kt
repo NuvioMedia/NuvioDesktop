@@ -204,6 +204,10 @@ actual object PlayerSettingsStorage {
         NSUserDefaults.standardUserDefaults.setBool(enabled, forKey = ProfileScopedKey.of(showParentalGuideKey))
     }
 
+    actual fun loadShowChapterMarkers(): Boolean? = null
+
+    actual fun saveShowChapterMarkers(enabled: Boolean) = Unit
+
     actual fun loadResizeMode(): String? {
         val defaults = NSUserDefaults.standardUserDefaults
         val key = ProfileScopedKey.of(resizeModeKey)

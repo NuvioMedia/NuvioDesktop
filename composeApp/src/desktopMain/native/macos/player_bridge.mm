@@ -109,6 +109,7 @@
 - (BOOL)isEnded;
 - (NSString *)audioTracksJson;
 - (NSString *)subtitleTracksJson;
+- (NSString *)chaptersJson;
 - (void)selectAudioTrackId:(int)trackId;
 - (void)selectSubtitleTrackId:(int)trackId;
 - (void)addSubtitleUrl:(NSString *)url;
@@ -1504,6 +1505,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
             double speed = [self rawSpeed];
             NSString *audioTracks = [self audioTracksJson] ?: @"[]";
             NSString *subtitleTracks = [self subtitleTracksJson] ?: @"[]";
+            NSString *chapters = [self chaptersJson] ?: @"[]";
             NSString *gamma = [[self stringProperty:"video-params/gamma" fallback:@""] lowercaseString];
             NSString *primaries = [[self stringProperty:"video-params/primaries" fallback:@""] lowercaseString];
             [self updateCachedDuration:duration
@@ -1521,13 +1523,14 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                 }
                 [self applyHdrForPolledGamma:gamma primaries:primaries reason:@"sync" force:NO];
                 NSString *script = [NSString stringWithFormat:
-                    @"window.playerUpdate({duration:%0.3f,position:%0.3f,paused:%@,loading:%@,audioTracks:%@,subtitleTracks:%@})",
+                    @"window.playerUpdate({duration:%0.3f,position:%0.3f,paused:%@,loading:%@,audioTracks:%@,subtitleTracks:%@,chapters:%@})",
                     duration,
                     position,
                     paused ? @"true" : @"false",
                     loading ? @"true" : @"false",
                     audioTracks,
-                    subtitleTracks];
+                    subtitleTracks,
+                    chapters];
                 [self->_webView evaluateJavaScript:script completionHandler:nil];
             });
         }
@@ -1966,6 +1969,22 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
 - (NSString *)subtitleTracksJson {
     return [self tracksJsonForType:@"sub"];
+}
+
+- (NSString *)chaptersJson {
+    long long count = [self int64Property:"chapter-list/count" fallback:0];
+    NSMutableArray *chapters = [NSMutableArray arrayWithCapacity:(NSUInteger)MAX(0, count)];
+    for (long long index = 0; index < count; index++) {
+        NSString *prefix = [NSString stringWithFormat:@"chapter-list/%lld", index];
+        NSString *timeKey = [prefix stringByAppendingString:@"/time"];
+        double time = [self doubleProperty:timeKey.UTF8String fallback:-1.0];
+        if (!std::isfinite(time) || time < 0.0) continue;
+        NSString *titleKey = [prefix stringByAppendingString:@"/title"];
+        NSString *title = [self stringProperty:titleKey.UTF8String fallback:@""];
+        [chapters addObject:@{@"time": @(time), @"title": title ?: @""}];
+    }
+    NSData *data = [NSJSONSerialization dataWithJSONObject:chapters options:0 error:nil];
+    return data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"[]";
 }
 
 - (void)selectAudioTrackId:(int)trackId {

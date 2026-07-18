@@ -1,5 +1,6 @@
 const root = document.getElementById("playerRoot");
 const seek = document.getElementById("seek");
+const chapterMarkers = document.getElementById("chapterMarkers");
 const positionLabel = document.getElementById("position");
 const durationLabel = document.getElementById("duration");
 const timeLabel = document.getElementById("timeLabel");
@@ -168,6 +169,8 @@ let state = {
   playbackSpeedLabel: "1x",
   isFullscreen: false,
   volumeLevel: null,
+  showChapterMarkers: false,
+  chapters: [],
   subtitlesLabel: "Subs",
   audioLabel: "Audio",
   sourcesLabel: "Sources",
@@ -657,12 +660,37 @@ const formatTime = milliseconds => {
     : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 };
 
+let lastChapterMarkerSignature = "";
+
+const renderChapterMarkers = durationMs => {
+  const chapters = Array.isArray(state.chapters) ? state.chapters : [];
+  const visibleChapters = state.showChapterMarkers && durationMs > 0
+    ? chapters.filter(chapter => {
+        const timeMs = Number(chapter.time) * 1000;
+        return Number.isFinite(timeMs) && timeMs > 0 && timeMs < durationMs;
+      })
+    : [];
+  const signature = visibleChapters
+    .map(chapter => `${Number(chapter.time).toFixed(3)}:${String(chapter.title || "")}`)
+    .join("|");
+  if (signature === lastChapterMarkerSignature) return;
+  lastChapterMarkerSignature = signature;
+  chapterMarkers.textContent = "";
+  visibleChapters.forEach(chapter => {
+    const marker = document.createElement("span");
+    marker.className = "chapter-marker";
+    marker.style.left = `${Math.max(0, Math.min(100, Number(chapter.time) * 100000 / durationMs))}%`;
+    chapterMarkers.appendChild(marker);
+  });
+};
+
 const setProgress = (positionMs, durationMs) => {
   const percent = durationMs > 0 ? Math.max(0, Math.min(100, positionMs / durationMs * 100)) : 0;
   seek.value = Math.round(percent * 10);
   seek.style.setProperty("--progress", `${percent}%`);
   positionLabel.textContent = formatTime(positionMs);
   durationLabel.textContent = formatTime(durationMs);
+  renderChapterMarkers(durationMs);
   if (timeLabel) {
     timeLabel.textContent = `${formatTime(positionMs)} / ${formatTime(durationMs)}`;
   }
@@ -2448,6 +2476,7 @@ window.playerUpdate = update => {
   const positionMs = Math.round((Number(update.position) || 0) * 1000);
   const audioTracks = normalizeTracks(update.audioTracks);
   const subtitleTracks = normalizeTracks(update.subtitleTracks);
+  const chapters = normalizeItems(update.chapters);
   const audioTracksChanged = trackListSignature(audioTracks) !== trackListSignature(state.audioTracks);
   const subtitleTracksChanged = trackListSignature(subtitleTracks) !== trackListSignature(state.subtitleTracks);
   state = {
@@ -2458,6 +2487,7 @@ window.playerUpdate = update => {
     isLoading: Boolean(update.loading || update.isLoading),
     audioTracks,
     subtitleTracks,
+    chapters,
   };
   renderChrome();
   if ((audioTracksChanged && activeModal === "audio") ||
