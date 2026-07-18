@@ -36,7 +36,7 @@ internal class NativePlayerController(
         val log = Logger.withTag("NativePlayerControls")
 
         @Volatile
-        var rememberedVolumeLevel: Float = 1f
+        var rememberedVolumeLevel: Float = DesktopPlayerVolumeStorage.loadVolumeLevel() ?: 1f
     }
 
     @Volatile
@@ -290,6 +290,7 @@ internal class NativePlayerController(
         if (current != 0L) {
             val nextLevel = level.coerceIn(0f, 1f)
             rememberedVolumeLevel = nextLevel
+            DesktopPlayerVolumeStorage.saveVolumeLevel(nextLevel)
             NativePlayerBridge.setVolume(current, nextLevel)
             controlsState = controlsState.copy(volumeLevel = nextLevel)
             updateControls(controlsState)
