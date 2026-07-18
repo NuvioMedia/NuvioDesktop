@@ -45,6 +45,7 @@ internal class NativePlayerController(
     private var controlsState = PlayerControlsState()
     private var pendingSubtitleDelayMs: Int? = null
     private var pendingSubtitleStyle: SubtitleStyleState? = null
+    private var appliedSubtitleStyle: SubtitleStyleState? = null
     private var lastSentControlsStructureKey: NativeControlsStructureKey? = null
     private var onAction: (PlayerControlsAction) -> Boolean = { false }
     private var onEvent: (String, Double) -> Boolean = { _, _ -> false }
@@ -114,6 +115,7 @@ internal class NativePlayerController(
                     eventSink = eventSink,
                 )
                 if (handle == 0L) error("Native player did not return a handle.")
+                appliedSubtitleStyle = null
                 log.d {
                     "attach created handle=$handle source=${resolvedSource.toPlaybackLogKey()} " +
                         "initialPositionMs=${pending.initialPositionMs}"
@@ -481,7 +483,13 @@ internal class NativePlayerController(
     override fun applySubtitleStyle(style: SubtitleStyleState) {
         pendingSubtitleStyle = style
         handle.takeIf { it != 0L }?.let { current ->
-            applySubtitleStyle(current, style)
+            val previous = appliedSubtitleStyle
+            if (previous != null && previous.copy(overrideEmbeddedStyles = style.overrideEmbeddedStyles) == style) {
+                applySubtitleStyleMode(current, style)
+            } else {
+                applySubtitleStyle(current, style)
+            }
+            appliedSubtitleStyle = style
         }
     }
 
@@ -492,12 +500,23 @@ internal class NativePlayerController(
         }
         pendingSubtitleStyle?.let { style ->
             applySubtitleStyle(current, style)
+            appliedSubtitleStyle = style
         }
+    }
+
+    private fun applySubtitleStyleMode(handle: Long, style: SubtitleStyleState) {
+        NativePlayerBridge.applySubtitleStyleMode(
+            handle = handle,
+            overrideEmbeddedStyles = style.overrideEmbeddedStyles,
+            fontSize = style.toMpvSubtitleFontSize(),
+            subPos = style.toMpvSubtitlePosition(),
+        )
     }
 
     private fun applySubtitleStyle(handle: Long, style: SubtitleStyleState) {
         NativePlayerBridge.applySubtitleStyle(
             handle = handle,
+            overrideEmbeddedStyles = style.overrideEmbeddedStyles,
             textColor = style.textColor.toMpvColorString(),
             backgroundColor = style.backgroundColor.toMpvColorString(),
             outlineColor = style.outlineColor.toMpvColorString(),
@@ -758,6 +777,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("subtitleAddonsTabLabel", subtitleAddonsTabLabel)
         append(',')
         appendJsonField("subtitleStyleTabLabel", subtitleStyleTabLabel)
+        append(',')
+        appendJsonField("customSubtitleStyleLabel", customSubtitleStyleLabel)
         append(',')
         appendJsonField("noneLabel", noneLabel)
         append(',')
@@ -1103,6 +1124,8 @@ private fun StringBuilder.appendParentalWarningJson(item: ParentalWarning) {
 
 private fun StringBuilder.appendSubtitleStyleJson(style: SubtitleStyleState) {
     append('{')
+    appendJsonField("overrideEmbeddedStyles", style.overrideEmbeddedStyles)
+    append(',')
     appendJsonField("textColor", style.textColor.toStorageHexString())
     append(',')
     appendJsonField("outlineColor", style.outlineColor.toStorageHexString())

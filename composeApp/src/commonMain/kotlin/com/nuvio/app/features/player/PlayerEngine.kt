@@ -108,6 +108,7 @@ data class PlayerControlsState(
     val subtitleBuiltInTabLabel: String = "Built-in",
     val subtitleAddonsTabLabel: String = "Addons",
     val subtitleStyleTabLabel: String = "Style",
+    val customSubtitleStyleLabel: String = "Use custom styling",
     val noneLabel: String = "None",
     val fetchSubtitlesLabel: String = "Tap to fetch subtitles",
     val subtitleDelayLabel: String = "Subtitle Delay",

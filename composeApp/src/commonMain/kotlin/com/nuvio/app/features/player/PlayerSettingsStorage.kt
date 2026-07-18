@@ -51,6 +51,8 @@ internal expect object PlayerSettingsStorage {
     fun saveSubtitleUseForcedSubtitles(enabled: Boolean)
     fun loadSubtitleShowOnlyPreferredLanguages(): Boolean?
     fun saveSubtitleShowOnlyPreferredLanguages(enabled: Boolean)
+    fun loadSubtitleOverrideEmbeddedStyles(): Boolean?
+    fun saveSubtitleOverrideEmbeddedStyles(enabled: Boolean)
     fun loadAddonSubtitleStartupMode(): String?
     fun saveAddonSubtitleStartupMode(mode: String)
     fun loadStreamReuseLastLinkEnabled(): Boolean?

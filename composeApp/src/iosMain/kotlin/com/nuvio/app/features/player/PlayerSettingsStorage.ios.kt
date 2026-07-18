@@ -454,6 +454,10 @@ actual object PlayerSettingsStorage {
         saveBoolean(subtitleShowOnlyPreferredLanguagesKey, enabled)
     }
 
+    actual fun loadSubtitleOverrideEmbeddedStyles(): Boolean? = null
+
+    actual fun saveSubtitleOverrideEmbeddedStyles(enabled: Boolean) = Unit
+
     actual fun loadAddonSubtitleStartupMode(): String? {
         val defaults = NSUserDefaults.standardUserDefaults
         val key = ProfileScopedKey.of(addonSubtitleStartupModeKey)

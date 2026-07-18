@@ -531,6 +531,10 @@ actual object PlayerSettingsStorage {
             ?.apply()
     }
 
+    actual fun loadSubtitleOverrideEmbeddedStyles(): Boolean? = null
+
+    actual fun saveSubtitleOverrideEmbeddedStyles(enabled: Boolean) = Unit
+
     actual fun loadAddonSubtitleStartupMode(): String? =
         preferences?.getString(ProfileScopedKey.of(addonSubtitleStartupModeKey), null)
 

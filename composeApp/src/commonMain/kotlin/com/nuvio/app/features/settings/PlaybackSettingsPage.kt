@@ -529,6 +529,19 @@ private fun PlaybackSettingsSection(
             val subtitleRenderingEnabled = !autoPlayPlayerSettings.externalPlayerEnabled
             SettingsGroup(isTablet = isTablet) {
                 val subtitleStyle = autoPlayPlayerSettings.subtitleStyle
+                if (isDesktop) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_subtitle_custom_style),
+                        description = stringResource(Res.string.settings_playback_subtitle_custom_style_description),
+                        checked = subtitleStyle.overrideEmbeddedStyles,
+                        enabled = subtitleRenderingEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setSubtitleOverrideEmbeddedStyles,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                }
+                val customSubtitleRenderingEnabled = subtitleRenderingEnabled &&
+                    (!isDesktop || subtitleStyle.overrideEmbeddedStyles)
                 SettingsSliderRow(
                     title = stringResource(Res.string.settings_playback_subtitle_size),
                     value = subtitleStyle.fontSizeSp,
@@ -536,7 +549,7 @@ private fun PlaybackSettingsSection(
                     valueRange = subtitleFontSizeRangeSp,
                     step = 2,
                     isTablet = isTablet,
-                    enabled = subtitleRenderingEnabled,
+                    enabled = customSubtitleRenderingEnabled,
                     onValueChange = { value ->
                         PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(fontSizeSp = value))
                     },
@@ -549,7 +562,7 @@ private fun PlaybackSettingsSection(
                     valueRange = 0..200,
                     step = 5,
                     isTablet = isTablet,
-                    enabled = subtitleRenderingEnabled,
+                    enabled = customSubtitleRenderingEnabled,
                     onValueChange = { value ->
                         PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(bottomOffset = value))
                     },
@@ -559,7 +572,7 @@ private fun PlaybackSettingsSection(
                     title = stringResource(Res.string.settings_playback_subtitle_bold),
                     description = stringResource(Res.string.settings_playback_subtitle_bold_description),
                     checked = subtitleStyle.bold,
-                    enabled = subtitleRenderingEnabled,
+                    enabled = customSubtitleRenderingEnabled,
                     isTablet = isTablet,
                     onCheckedChange = { enabled ->
                         PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(bold = enabled))
@@ -569,7 +582,7 @@ private fun PlaybackSettingsSection(
                 SettingsNavigationRow(
                     title = stringResource(Res.string.settings_playback_subtitle_text_color),
                     description = subtitleColorLabel(subtitleStyle.textColor),
-                    enabled = subtitleRenderingEnabled,
+                    enabled = customSubtitleRenderingEnabled,
                     isTablet = isTablet,
                     onClick = { showSubtitleTextColorDialog = true },
                 )
@@ -597,7 +610,7 @@ private fun PlaybackSettingsSection(
                     SettingsNavigationRow(
                         title = stringResource(Res.string.settings_playback_subtitle_outline_color),
                         description = subtitleColorLabel(subtitleStyle.outlineColor),
-                        enabled = subtitleRenderingEnabled,
+                        enabled = customSubtitleRenderingEnabled,
                         isTablet = isTablet,
                         onClick = { showSubtitleOutlineColorDialog = true },
                     )

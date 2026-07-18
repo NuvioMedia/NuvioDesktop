@@ -55,6 +55,7 @@ internal val subtitleFontSizeRangeSp: IntRange
     get() = if (isDesktop) 6..40 else 12..40
 
 data class SubtitleStyleState(
+    val overrideEmbeddedStyles: Boolean = true,
     val textColor: Color = Color.White,
     val backgroundColor: Color = Color.Transparent,
     val outlineColor: Color = Color.Black,
