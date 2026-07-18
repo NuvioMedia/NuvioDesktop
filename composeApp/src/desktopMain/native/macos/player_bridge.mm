@@ -115,7 +115,11 @@
 - (void)removeExternalSubtitles;
 - (void)removeExternalSubtitlesAndSelect:(int)trackId;
 - (void)setSubtitleDelayMs:(int)delayMs;
-- (void)applySubtitleStyleWithTextColor:(NSString *)textColor
+- (void)applySubtitleStyleModeWithOverrideEmbeddedStyles:(BOOL)overrideEmbeddedStyles
+                                fontSize:(double)fontSize
+                                  subPos:(int)subPos;
+- (void)applySubtitleStyleWithOverrideEmbeddedStyles:(BOOL)overrideEmbeddedStyles
+                                   textColor:(NSString *)textColor
                         backgroundColor:(NSString *)backgroundColor
                             outlineColor:(NSString *)outlineColor
                              outlineSize:(double)outlineSize
@@ -2012,7 +2016,22 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     mpv_set_property(_mpv, "sub-delay", MPV_FORMAT_DOUBLE, &delaySeconds);
 }
 
-- (void)applySubtitleStyleWithTextColor:(NSString *)textColor
+- (void)applySubtitleStyleModeWithOverrideEmbeddedStyles:(BOOL)overrideEmbeddedStyles
+                                fontSize:(double)fontSize
+                                  subPos:(int)subPos {
+    if (!_mpv) return;
+    [self setStringProperty:"sub-ass-override" value:overrideEmbeddedStyles ? @"force" : @"scale"];
+
+    double size = MAX(18.0, MIN(96.0, fontSize));
+    double scale = overrideEmbeddedStyles ? 1.0 : size / 54.0;
+    mpv_set_property(_mpv, "sub-scale", MPV_FORMAT_DOUBLE, &scale);
+    mpv_set_property(_mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
+    int64_t position = MAX(0, MIN(150, subPos));
+    mpv_set_property(_mpv, "sub-pos", MPV_FORMAT_INT64, &position);
+}
+
+- (void)applySubtitleStyleWithOverrideEmbeddedStyles:(BOOL)overrideEmbeddedStyles
+                                   textColor:(NSString *)textColor
                         backgroundColor:(NSString *)backgroundColor
                             outlineColor:(NSString *)outlineColor
                              outlineSize:(double)outlineSize
@@ -2020,7 +2039,10 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                                 fontSize:(double)fontSize
                                   subPos:(int)subPos {
     if (!_mpv) return;
-    [self setStringProperty:"sub-ass-override" value:@"force"];
+    [self applySubtitleStyleModeWithOverrideEmbeddedStyles:overrideEmbeddedStyles
+                                                  fontSize:fontSize
+                                                    subPos:subPos];
+    if (!overrideEmbeddedStyles) return;
     [self setStringProperty:"sub-color" value:textColor ?: @"#FFFFFFFF"];
     [self setStringProperty:"sub-back-color" value:backgroundColor ?: @"#00000000"];
     [self setStringProperty:"sub-outline-color" value:outlineColor ?: @"#FF000000"];
@@ -2031,11 +2053,6 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     double outline = MAX(0.0, MIN(8.0, outlineSize));
     mpv_set_property(_mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
 
-    double size = MAX(18.0, MIN(96.0, fontSize));
-    mpv_set_property(_mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
-
-    int64_t position = MAX(0, MIN(150, subPos));
-    mpv_set_property(_mpv, "sub-pos", MPV_FORMAT_INT64, &position);
 }
 
 - (double)doubleProperty:(const char *)name fallback:(double)fallback {
@@ -2814,10 +2831,29 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSubtitleDelayMs
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyleMode(
+    JNIEnv * /* env */,
+    jobject /* bridge */,
+    jlong handle,
+    jboolean overrideEmbeddedStyles,
+    jfloat fontSize,
+    jint subPos
+) {
+    if (handle == 0) return;
+    MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
+    runOnMainAsync(^{
+        [player applySubtitleStyleModeWithOverrideEmbeddedStyles:overrideEmbeddedStyles == JNI_TRUE
+                                                      fontSize:(double)fontSize
+                                                        subPos:(int)subPos];
+    });
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle(
     JNIEnv *env,
     jobject /* bridge */,
     jlong handle,
+    jboolean overrideEmbeddedStyles,
     jstring textColor,
     jstring backgroundColor,
     jstring outlineColor,
@@ -2832,7 +2868,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
     std::string outline = jstringToString(env, outlineColor);
     MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
     runOnMainAsync(^{
-        [player applySubtitleStyleWithTextColor:[NSString stringWithUTF8String:text.c_str()]
+        [player applySubtitleStyleWithOverrideEmbeddedStyles:overrideEmbeddedStyles == JNI_TRUE
+                                                   textColor:[NSString stringWithUTF8String:text.c_str()]
                                 backgroundColor:[NSString stringWithUTF8String:background.c_str()]
                                     outlineColor:[NSString stringWithUTF8String:outline.c_str()]
                                      outlineSize:(double)outlineSize

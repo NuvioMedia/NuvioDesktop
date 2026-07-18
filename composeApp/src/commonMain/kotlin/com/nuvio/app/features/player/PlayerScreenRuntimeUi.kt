@@ -246,6 +246,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         subtitleBuiltInTabLabel = stringResource(Res.string.compose_player_built_in),
         subtitleAddonsTabLabel = stringResource(Res.string.addon_title),
         subtitleStyleTabLabel = stringResource(Res.string.compose_player_style),
+        customSubtitleStyleLabel = stringResource(Res.string.settings_playback_subtitle_custom_style),
         noneLabel = stringResource(Res.string.compose_player_none),
         fetchSubtitlesLabel = stringResource(Res.string.compose_player_fetch_subtitles),
         subtitleDelayLabel = stringResource(Res.string.compose_player_subtitle_delay),
@@ -820,6 +821,9 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         "subtitleAutoSyncCue" -> {
             val cue = playerControlsNearestSubtitleCues().getOrNull(value.toInt()) ?: return true
             applySubtitleAutoSyncCue(cue)
+        }
+        "subtitleStyleOverrideToggle" -> {
+            PlayerSettingsRepository.setSubtitleOverrideEmbeddedStyles(!subtitleStyle.overrideEmbeddedStyles)
         }
         "subtitleFontSizeDelta" -> {
             PlayerSettingsRepository.setSubtitleStyle(

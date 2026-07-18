@@ -80,8 +80,15 @@ internal object NativePlayerBridge {
     )
 
     external fun setSubtitleDelayMs(handle: Long, delayMs: Int)
+    external fun applySubtitleStyleMode(
+        handle: Long,
+        overrideEmbeddedStyles: Boolean,
+        fontSize: Float,
+        subPos: Int,
+    )
     external fun applySubtitleStyle(
         handle: Long,
+        overrideEmbeddedStyles: Boolean,
         textColor: String,
         backgroundColor: String,
         outlineColor: String,

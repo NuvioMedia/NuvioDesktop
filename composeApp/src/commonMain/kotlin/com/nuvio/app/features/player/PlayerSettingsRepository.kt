@@ -268,6 +268,8 @@ object PlayerSettingsRepository {
         secondaryPreferredSubtitleLanguage =
             normalizeLanguageCode(PlayerSettingsStorage.loadSecondaryPreferredSubtitleLanguage())
         subtitleStyle = SubtitleStyleState(
+            overrideEmbeddedStyles = PlayerSettingsStorage.loadSubtitleOverrideEmbeddedStyles()
+                ?: SubtitleStyleState.DEFAULT.overrideEmbeddedStyles,
             textColor = subtitleColorFromStorage(PlayerSettingsStorage.loadSubtitleTextColor())
                 ?: SubtitleStyleState.DEFAULT.textColor,
             backgroundColor = subtitleColorFromStorage(PlayerSettingsStorage.loadSubtitleBackgroundColor())
@@ -526,6 +528,15 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveSubtitleBottomOffset(normalized.bottomOffset)
         PlayerSettingsStorage.saveSubtitleUseForcedSubtitles(normalized.useForcedSubtitles)
         PlayerSettingsStorage.saveSubtitleShowOnlyPreferredLanguages(normalized.showOnlyPreferredLanguages)
+        PlayerSettingsStorage.saveSubtitleOverrideEmbeddedStyles(normalized.overrideEmbeddedStyles)
+    }
+
+    fun setSubtitleOverrideEmbeddedStyles(enabled: Boolean) {
+        ensureLoaded()
+        if (subtitleStyle.overrideEmbeddedStyles == enabled) return
+        subtitleStyle = subtitleStyle.copy(overrideEmbeddedStyles = enabled)
+        publish()
+        PlayerSettingsStorage.saveSubtitleOverrideEmbeddedStyles(enabled)
     }
 
     fun setAddonSubtitleStartupMode(mode: AddonSubtitleStartupMode) {

@@ -79,6 +79,9 @@ const subtitleAddonsTab = document.getElementById("subtitleAddonsTab");
 const subtitleStyleTab = document.getElementById("subtitleStyleTab");
 const addonSubtitleList = document.getElementById("addonSubtitleList");
 const subtitleStylePanel = document.getElementById("subtitleStylePanel");
+const customSubtitleStyleLabel = document.getElementById("customSubtitleStyleLabel");
+const customSubtitleStyleToggle = document.getElementById("customSubtitleStyleToggle");
+const customSubtitleStyleControls = document.getElementById("customSubtitleStyleControls");
 const subtitleDelayLabel = document.getElementById("subtitleDelayLabel");
 const subtitleDelayMinus = document.getElementById("subtitleDelayMinus");
 const subtitleDelayValue = document.getElementById("subtitleDelayValue");
@@ -212,6 +215,7 @@ let state = {
   subtitleBuiltInTabLabel: "Built-in",
   subtitleAddonsTabLabel: "Addons",
   subtitleStyleTabLabel: "Style",
+  customSubtitleStyleLabel: "Use custom styling",
   noneLabel: "None",
   fetchSubtitlesLabel: "Tap to fetch subtitles",
   subtitleDelayLabel: "Subtitle Delay",
@@ -305,6 +309,7 @@ let state = {
   subtitleAutoSyncIsLoading: false,
   subtitleAutoSyncErrorMessage: "",
   subtitleStyle: {
+    overrideEmbeddedStyles: true,
     textColor: "#FFFFFFFF",
     outlineColor: "#FF000000",
     outlineEnabled: true,
@@ -315,6 +320,8 @@ let state = {
   subtitleColorSwatches: [],
   closeModalsToken: 0,
 };
+let pendingSubtitleStyleOverride = null;
+let pendingSubtitleStyleOverrideTimer = 0;
 let isScrubbing = false;
 let scrubPositionMs = 0;
 let tapTimer = 0;
@@ -1084,12 +1091,25 @@ const renderAutoSyncCues = () => {
 
 const renderSubtitleStylePanel = () => {
   const style = state.subtitleStyle || {};
+  const storedOverrideEmbeddedStyles = style.overrideEmbeddedStyles !== false;
+  if (pendingSubtitleStyleOverride !== null && pendingSubtitleStyleOverride === storedOverrideEmbeddedStyles) {
+    pendingSubtitleStyleOverride = null;
+    window.clearTimeout(pendingSubtitleStyleOverrideTimer);
+    pendingSubtitleStyleOverrideTimer = 0;
+  }
+  const overrideEmbeddedStyles = pendingSubtitleStyleOverride ?? storedOverrideEmbeddedStyles;
   subtitleDelayLabel.textContent = state.subtitleDelayLabel || "Subtitle Delay";
   subtitleDelayValue.textContent = formatDelay(state.subtitleDelayMs);
   subtitleDelayReset.textContent = state.resetLabel || "Reset";
   autoSyncLabel.textContent = state.autoSyncLabel || "Auto Sync";
   autoSyncReload.textContent = state.reloadSmallLabel || "Reload";
   autoSyncCapture.textContent = state.captureLineLabel || "Capture";
+  customSubtitleStyleLabel.textContent = state.customSubtitleStyleLabel || "Use custom styling";
+  customSubtitleStyleToggle.textContent = overrideEmbeddedStyles
+    ? (state.onLabel || "On")
+    : (state.offLabel || "Off");
+  customSubtitleStyleToggle.classList.toggle("primary", overrideEmbeddedStyles);
+  customSubtitleStyleControls.classList.toggle("disabled", !overrideEmbeddedStyles);
   fontSizeLabel.textContent = state.fontSizeLabel || "Font Size";
   fontSizeValue.textContent = `${Number(style.fontSizeSp) || 18}sp`;
   outlineLabel.textContent = state.outlineLabel || "Outline";
@@ -2242,6 +2262,20 @@ autoSyncReload.addEventListener("click", event => {
 autoSyncCapture.addEventListener("click", event => {
   event.stopPropagation();
   send("subtitleAutoSyncCapture", 0);
+});
+customSubtitleStyleToggle.addEventListener("click", event => {
+  event.stopPropagation();
+  if (pendingSubtitleStyleOverride !== null) return;
+  const current = (state.subtitleStyle || {}).overrideEmbeddedStyles !== false;
+  pendingSubtitleStyleOverride = !current;
+  renderSubtitleStylePanel();
+  send("subtitleStyleOverrideToggle", 0);
+  window.clearTimeout(pendingSubtitleStyleOverrideTimer);
+  pendingSubtitleStyleOverrideTimer = window.setTimeout(() => {
+    pendingSubtitleStyleOverride = null;
+    pendingSubtitleStyleOverrideTimer = 0;
+    renderSubtitleStylePanel();
+  }, 1500);
 });
 fontSizeMinus.addEventListener("click", event => {
   event.stopPropagation();
