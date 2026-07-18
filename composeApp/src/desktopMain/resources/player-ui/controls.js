@@ -920,6 +920,24 @@ const appendEmptyTrackState = (container, label) => {
   container.appendChild(empty);
 };
 
+const displayLanguageName = language => {
+  const code = String(language || "").trim().replace(/_/g, "-");
+  if (!code) return "";
+  try {
+    const displayNames = new Intl.DisplayNames([navigator.language || "en"], { type: "language" });
+    return displayNames.of(code) || code;
+  } catch (_) {
+    return code;
+  }
+};
+
+const trackDisplayLabel = (track, fallback) => {
+  const base = String(track.label || track.language || fallback).trim();
+  const language = displayLanguageName(track.language);
+  if (!language || base.toLocaleLowerCase().includes(language.toLocaleLowerCase())) return base;
+  return `${language} • ${base}`;
+};
+
 const renderAudioTrackList = () => {
   audioTrackList.textContent = "";
   const tracks = normalizeTracks(state.audioTracks);
@@ -930,7 +948,7 @@ const renderAudioTrackList = () => {
   tracks.forEach(track => {
     appendTrackRow(
       audioTrackList,
-      track.label || track.language || `Track ${Number(track.index || 0) + 1}`,
+      trackDisplayLabel(track, `Track ${Number(track.index || 0) + 1}`),
       Boolean(track.selected),
       () => send("selectAudioTrack", trackIdValue(track)),
     );
@@ -951,7 +969,7 @@ const renderSubtitleTrackList = () => {
   tracks.forEach(track => {
     appendTrackRow(
       subtitleTrackList,
-      track.label || track.language || `Subtitle ${Number(track.index || 0) + 1}`,
+      trackDisplayLabel(track, `Subtitle ${Number(track.index || 0) + 1}`),
       Boolean(track.selected),
       () => send("selectBuiltInSubtitleTrack", Number(track.index) || 0),
       false,
