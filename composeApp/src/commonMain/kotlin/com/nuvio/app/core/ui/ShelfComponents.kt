@@ -24,8 +24,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -47,8 +48,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -64,7 +63,6 @@ import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.home_view_all
 import nuvio.composeapp.generated.resources.poster_logo_content_description
 import org.jetbrains.compose.resources.stringResource
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 enum class NuvioPosterShape {
@@ -93,6 +91,7 @@ fun <T> NuvioShelfSection(
     key: ((T) -> Any)? = null,
     animatePlacement: Boolean = false,
     state: LazyListState = rememberLazyListState(),
+    onUserScrollStarted: () -> Unit = {},
     itemContent: @Composable (T) -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
@@ -115,7 +114,10 @@ fun <T> NuvioShelfSection(
         }
         LazyRow(
             state = state,
-            modifier = rowModifier.nuvioDesktopDragScroll(state),
+            modifier = rowModifier.nuvioDesktopDragScroll(
+                state = state,
+                onDragStarted = onUserScrollStarted,
+            ),
             contentPadding = rowContentPadding,
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {
@@ -147,86 +149,34 @@ fun <T> NuvioShelfSection(
     }
 }
 
+@Composable
 internal fun Modifier.nuvioDesktopDragScroll(
     state: LazyListState,
+    onDragStarted: () -> Unit = {},
 ): Modifier {
     if (!isDesktop) return this
 
-    return pointerInput(state) {
-        awaitEachGesture {
-            val down = awaitFirstDown(pass = PointerEventPass.Initial)
-            var totalDx = 0f
-            var totalDy = 0f
-            var dragging = false
-
-            while (true) {
-                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                if (!change.pressed) break
-
-                val delta = change.position - change.previousPosition
-                totalDx += delta.x
-                totalDy += delta.y
-
-                if (!dragging) {
-                    val horizontalDrag =
-                        abs(totalDx) > viewConfiguration.touchSlop && abs(totalDx) > abs(totalDy)
-                    val verticalDrag =
-                        abs(totalDy) > viewConfiguration.touchSlop && abs(totalDy) > abs(totalDx)
-
-                    when {
-                        verticalDrag -> break
-                        horizontalDrag -> dragging = true
-                        else -> continue
-                    }
-                }
-
-                state.dispatchRawDelta(-delta.x)
-                change.consume()
-            }
-        }
-    }
+    val dragState = rememberDraggableState { delta -> state.dispatchRawDelta(-delta) }
+    return draggable(
+        state = dragState,
+        orientation = Orientation.Horizontal,
+        onDragStarted = { onDragStarted() },
+    )
 }
 
+@Composable
 internal fun Modifier.nuvioDesktopDragScroll(
     state: ScrollState,
+    onDragStarted: () -> Unit = {},
 ): Modifier {
     if (!isDesktop) return this
 
-    return pointerInput(state) {
-        awaitEachGesture {
-            val down = awaitFirstDown(pass = PointerEventPass.Initial)
-            var totalDx = 0f
-            var totalDy = 0f
-            var dragging = false
-
-            while (true) {
-                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                if (!change.pressed) break
-
-                val delta = change.position - change.previousPosition
-                totalDx += delta.x
-                totalDy += delta.y
-
-                if (!dragging) {
-                    val horizontalDrag =
-                        abs(totalDx) > viewConfiguration.touchSlop && abs(totalDx) > abs(totalDy)
-                    val verticalDrag =
-                        abs(totalDy) > viewConfiguration.touchSlop && abs(totalDy) > abs(totalDx)
-
-                    when {
-                        verticalDrag -> break
-                        horizontalDrag -> dragging = true
-                        else -> continue
-                    }
-                }
-
-                state.dispatchRawDelta(-delta.x)
-                change.consume()
-            }
-        }
-    }
+    val dragState = rememberDraggableState { delta -> state.dispatchRawDelta(-delta) }
+    return draggable(
+        state = dragState,
+        orientation = Orientation.Horizontal,
+        onDragStarted = { onDragStarted() },
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -284,7 +234,7 @@ fun NuvioPosterCard(
                     shape = cardShape,
                     surface = NuvioCardDepthSurface.Posters,
                 )
-                .posterCardClickable(
+                .posterCardClickableWithInteractionSource(
                     onClick = onClick,
                     onLongClick = onLongClick,
                     zoomImageUrl = imageUrl,
@@ -592,7 +542,28 @@ internal fun Modifier.posterCardClickable(
     zoomImageUrl: String? = null,
     zoomCornerRadius: Dp = NuvioTokens.Radius.poster,
     hoverScaleEnabled: Boolean = true,
-    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+): Modifier {
+    if (onClick == null && onLongClick == null) return this
+    val interactionSource = remember { MutableInteractionSource() }
+    return posterCardClickableWithInteractionSource(
+        onClick = onClick,
+        onLongClick = onLongClick,
+        zoomImageUrl = zoomImageUrl,
+        zoomCornerRadius = zoomCornerRadius,
+        hoverScaleEnabled = hoverScaleEnabled,
+        interactionSource = interactionSource,
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.posterCardClickableWithInteractionSource(
+    onClick: (() -> Unit)?,
+    onLongClick: (() -> Unit)?,
+    zoomImageUrl: String? = null,
+    zoomCornerRadius: Dp = NuvioTokens.Radius.poster,
+    hoverScaleEnabled: Boolean = true,
+    interactionSource: MutableInteractionSource,
 ): Modifier {
     if (onClick == null && onLongClick == null) return this
     val bounds = remember { mutableStateOf<Rect?>(null) }

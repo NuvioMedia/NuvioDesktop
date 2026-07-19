@@ -934,6 +934,7 @@ fun HomeScreen(
                         layout = continueWatchingLayout,
                         continueWatchingListState = continueWatchingListState,
                         upcomingListState = upcomingListState,
+                        onUserScrollStarted = { hasUserScrolledContinueWatching = true },
                         onItemClick = onContinueWatchingClick,
                         onItemLongPress = onContinueWatchingLongPress,
                     )
@@ -955,6 +956,7 @@ fun HomeScreen(
                         layout = continueWatchingLayout,
                         continueWatchingListState = continueWatchingListState,
                         upcomingListState = upcomingListState,
+                        onUserScrollStarted = { hasUserScrolledContinueWatching = true },
                         onItemClick = onContinueWatchingClick,
                         onItemLongPress = onContinueWatchingLongPress,
                     )
@@ -999,6 +1001,7 @@ fun HomeScreen(
                         layout = continueWatchingLayout,
                         continueWatchingListState = continueWatchingListState,
                         upcomingListState = upcomingListState,
+                        onUserScrollStarted = { hasUserScrolledContinueWatching = true },
                         onItemClick = onContinueWatchingClick,
                         onItemLongPress = onContinueWatchingLongPress,
                     )
@@ -1055,6 +1058,7 @@ private fun LazyListScope.homeContinueWatchingSections(
     layout: ContinueWatchingLayout,
     continueWatchingListState: LazyListState,
     upcomingListState: LazyListState,
+    onUserScrollStarted: () -> Unit = {},
     onItemClick: ((ContinueWatchingItem) -> Unit)?,
     onItemLongPress: ((ContinueWatchingItem) -> Unit)?,
 ) {
@@ -1071,6 +1075,7 @@ private fun LazyListScope.homeContinueWatchingSections(
                 sectionPadding = sectionPadding,
                 layout = layout,
                 listState = continueWatchingListState,
+                onUserScrollStarted = onUserScrollStarted,
                 onItemClick = onItemClick,
                 onItemLongPress = onItemLongPress,
             )

@@ -1,7 +1,12 @@
 package com.nuvio.app.features.home.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -66,6 +71,7 @@ import com.nuvio.app.features.watchprogress.ContinueWatchingItem
 import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import com.nuvio.app.features.watchprogress.computeAirDateBadgeText
+import com.nuvio.app.isDesktop
 import kotlin.math.roundToInt
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -74,6 +80,31 @@ private val ContinueWatchingStatusBadgeShape = RoundedCornerShape(4.dp)
 private val ContinueWatchingNewEpisodeBadgeColor = Color(0xFF1D4ED8)
 private val ContinueWatchingNewSeasonBadgeColor = Color(0xFFB45309)
 private const val ContinueWatchingLandscapeCardScale = 1.2f
+
+private data class ContinueWatchingTitleMarquee(
+    val isHovered: Boolean,
+    val hoverModifier: Modifier,
+    val textModifier: Modifier,
+)
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun rememberContinueWatchingTitleMarquee(): ContinueWatchingTitleMarquee {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    return ContinueWatchingTitleMarquee(
+        isHovered = isDesktop && isHovered,
+        hoverModifier = if (isDesktop) Modifier.hoverable(interactionSource) else Modifier,
+        textModifier = if (isDesktop && isHovered) {
+            Modifier.basicMarquee(
+                iterations = Int.MAX_VALUE,
+                velocity = 45.dp,
+            )
+        } else {
+            Modifier
+        },
+    )
+}
 
 internal fun continueWatchingLandscapeCardWidth(basePosterWidthDp: Int): Dp =
     (landscapePosterWidth(basePosterWidthDp).value * ContinueWatchingLandscapeCardScale).dp
@@ -198,6 +229,7 @@ internal fun HomeContinueWatchingSection(
     sectionPadding: Dp? = null,
     layout: ContinueWatchingLayout? = null,
     listState: LazyListState = rememberLazyListState(),
+    onUserScrollStarted: () -> Unit = {},
     onItemClick: ((ContinueWatchingItem) -> Unit)? = null,
     onItemLongPress: ((ContinueWatchingItem) -> Unit)? = null,
 ) {
@@ -214,6 +246,7 @@ internal fun HomeContinueWatchingSection(
             sectionPadding = sectionPadding,
             layout = layout,
             listState = listState,
+            onUserScrollStarted = onUserScrollStarted,
             onItemClick = onItemClick,
             onItemLongPress = onItemLongPress,
         )
@@ -229,6 +262,7 @@ internal fun HomeContinueWatchingSection(
                 sectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value),
                 layout = rememberContinueWatchingLayout(maxWidth.value),
                 listState = listState,
+                onUserScrollStarted = onUserScrollStarted,
                 onItemClick = onItemClick,
                 onItemLongPress = onItemLongPress,
             )
@@ -247,6 +281,7 @@ private fun HomeContinueWatchingSectionContent(
     sectionPadding: Dp,
     layout: ContinueWatchingLayout,
     listState: LazyListState,
+    onUserScrollStarted: () -> Unit,
     onItemClick: ((ContinueWatchingItem) -> Unit)?,
     onItemLongPress: ((ContinueWatchingItem) -> Unit)?,
 ) {
@@ -269,6 +304,7 @@ private fun HomeContinueWatchingSectionContent(
         key = { entry -> entry.videoId },
         animatePlacement = true,
         state = listState,
+        onUserScrollStarted = onUserScrollStarted,
     ) { entry ->
         val item = entry.item
         val onClick = if (entry.exiting) null else onItemClick?.let { { it(item) } }
@@ -635,6 +671,7 @@ private fun ContinueWatchingCard(
     onClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
 ) {
+    val titleMarquee = rememberContinueWatchingTitleMarquee()
     val posterCardStyle = rememberPosterCardStyleUiState()
     val cardMetrics = remember(posterCardStyle.widthDp, posterCardStyle.cornerRadiusDp) {
         val basePosterWidthDp = desktopCatalogShelfPosterBaseWidthDp(posterCardStyle.widthDp)
@@ -679,6 +716,7 @@ private fun ContinueWatchingCard(
                 shape = RoundedCornerShape(cardMetrics.cornerRadius),
                 surface = NuvioCardDepthSurface.ContinueWatching,
             )
+            .then(titleMarquee.hoverModifier)
             .posterCardClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
@@ -736,6 +774,9 @@ private fun ContinueWatchingCard(
             }
             Text(
                 text = item.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(titleMarquee.textModifier),
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontSize = cardMetrics.titleTextSize,
                     fontWeight = FontWeight.SemiBold,
@@ -847,8 +888,10 @@ private fun ContinueWatchingWideCard(
     onClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
 ) {
+    val titleMarquee = rememberContinueWatchingTitleMarquee()
     Row(
         modifier = Modifier
+            .then(titleMarquee.hoverModifier)
             .posterCardClickable(onClick = onClick, onLongClick = onLongClick)
             .width(layout.wideCardWidth)
             .height(layout.wideCardHeight)
@@ -887,7 +930,9 @@ private fun ContinueWatchingWideCard(
                 ) {
                     Text(
                         text = item.title,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(titleMarquee.textModifier),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = layout.wideTitleSize,
                             fontWeight = FontWeight.Bold,
@@ -969,9 +1014,11 @@ private fun ContinueWatchingPosterCard(
     onClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
 ) {
+    val titleMarquee = rememberContinueWatchingTitleMarquee()
     val imageUrl = item.continueWatchingPosterArtworkUrl(useEpisodeThumbnails)
     Column(
         modifier = Modifier
+            .then(titleMarquee.hoverModifier)
             .desktopPosterHoverScale()
             .width(layout.posterCardWidth),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -1061,14 +1108,16 @@ private fun ContinueWatchingPosterCard(
             ) {
                 Text(
                     text = item.title,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(titleMarquee.textModifier),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = layout.posterTitleSize,
                         fontWeight = FontWeight.SemiBold,
                         lineHeight = 18.sp,
                     ),
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
+                    maxLines = if (titleMarquee.isHovered) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
