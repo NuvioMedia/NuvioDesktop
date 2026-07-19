@@ -898,6 +898,7 @@ fun HomeScreen(
                                 sectionPadding = homeSectionPadding,
                                 layout = continueWatchingLayout,
                                 listState = continueWatchingListState,
+                                onUserScrollStarted = { hasUserScrolledContinueWatching = true },
                                 onItemClick = onContinueWatchingClick,
                                 onItemLongPress = onContinueWatchingLongPress,
                             )
@@ -924,6 +925,7 @@ fun HomeScreen(
                                 sectionPadding = homeSectionPadding,
                                 layout = continueWatchingLayout,
                                 listState = continueWatchingListState,
+                                onUserScrollStarted = { hasUserScrolledContinueWatching = true },
                                 onItemClick = onContinueWatchingClick,
                                 onItemLongPress = onContinueWatchingLongPress,
                             )
@@ -973,6 +975,7 @@ fun HomeScreen(
                                 sectionPadding = homeSectionPadding,
                                 layout = continueWatchingLayout,
                                 listState = continueWatchingListState,
+                                onUserScrollStarted = { hasUserScrolledContinueWatching = true },
                                 onItemClick = onContinueWatchingClick,
                                 onItemLongPress = onContinueWatchingLongPress,
                             )
