@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -52,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.isDesktop
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.kmpalette.extensions.painter.rememberPainterDominantColorState
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.ui.ProfileMeshBackground
@@ -107,15 +110,26 @@ fun ProfileSelectionScreen(
 
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val profiles = profileState.profiles
-    val backgroundProfileColor = remember(profileState.activeProfile, profiles, hoveredProfileIndex) {
-        val hoveredProfile = if (isDesktop) {
-            profiles.firstOrNull { it.profileIndex == hoveredProfileIndex }
-        } else {
-            null
-        }
-        val sourceProfile = hoveredProfile ?: profileState.activeProfile ?: profiles.firstOrNull()
-        sourceProfile?.avatarColorHex?.let(::parseHexColor) ?: Color(0xFF1E88E5)
+    // Dominant colours extracted from custom URL avatar images, keyed by image URL so repeated
+    // hovering reads the cache instead of re-extracting the palette.
+    val extractedAvatarColors = remember { mutableStateMapOf<String, Color>() }
+    val hoveredProfile = if (isDesktop) {
+        profiles.firstOrNull { it.profileIndex == hoveredProfileIndex }
+    } else {
+        null
     }
+    val backgroundSourceProfile = hoveredProfile ?: profileState.activeProfile ?: profiles.firstOrNull()
+    val backgroundExtractedColor = if (isDesktop) {
+        backgroundSourceProfile
+            ?.let { normalizedAvatarUrl(it.avatarUrl) }
+            ?.let { url -> extractedAvatarColors[url] }
+    } else {
+        null
+    }
+    val backgroundProfileColor = resolveProfileHoverColor(
+        profile = backgroundSourceProfile,
+        extractedColor = backgroundExtractedColor,
+    )
 
     LaunchedEffect(profiles) {
         if (hoveredProfileIndex != null && profiles.none { it.profileIndex == hoveredProfileIndex }) {
@@ -193,6 +207,11 @@ fun ProfileSelectionScreen(
                                     isEditMode = isEditMode,
                                     animDelay = currentIndex * 80,
                                     onHoverChange = { isHovered -> updateHoveredProfile(profile, isHovered) },
+                                    onDominantColor = { color ->
+                                        normalizedAvatarUrl(profile.avatarUrl)?.let { url ->
+                                            extractedAvatarColors[url] = color
+                                        }
+                                    },
                                     onClick = {
                                         if (isEditMode) {
                                             onEditProfile(profile)
@@ -234,6 +253,11 @@ fun ProfileSelectionScreen(
                                             isEditMode = isEditMode,
                                             animDelay = currentIndex * 80,
                                             onHoverChange = { isHovered -> updateHoveredProfile(profile, isHovered) },
+                                            onDominantColor = { color ->
+                                                normalizedAvatarUrl(profile.avatarUrl)?.let { url ->
+                                                    extractedAvatarColors[url] = color
+                                                }
+                                            },
                                             onClick = {
                                                 if (isEditMode) {
                                                     onEditProfile(profile)
@@ -317,6 +341,7 @@ private fun ProfileAvatarCard(
     isEditMode: Boolean,
     animDelay: Int,
     onHoverChange: (Boolean) -> Unit,
+    onDominantColor: (Color) -> Unit,
     onClick: () -> Unit,
 ) {
     val avatarColor = remember(profile.avatarColorHex) {
@@ -328,6 +353,27 @@ private fun ProfileAvatarCard(
     }
     val avatarImageUrl = remember(profile.avatarUrl, avatarItem) {
         profileAvatarImageUrl(profile, avatarItem)
+    }
+
+    val customImageUrl = remember(profile.avatarUrl) { normalizedAvatarUrl(profile.avatarUrl) }
+    val shouldExtractDominantColor = isDesktop && customImageUrl != null
+    val currentOnDominantColor = rememberUpdatedState(onDominantColor)
+    val dominantColorState = rememberPainterDominantColorState(
+        defaultColor = avatarColor,
+        defaultOnColor = avatarColor,
+    )
+    var loadedAvatarPainter by remember(customImageUrl) { mutableStateOf<Painter?>(null) }
+    var hasExtractedDominantColor by remember(customImageUrl) { mutableStateOf(false) }
+
+    LaunchedEffect(shouldExtractDominantColor, loadedAvatarPainter) {
+        val painter = loadedAvatarPainter
+        if (shouldExtractDominantColor && !hasExtractedDominantColor && painter != null) {
+            runCatching { dominantColorState.updateFrom(painter) }
+                .onSuccess {
+                    hasExtractedDominantColor = true
+                    currentOnDominantColor.value(dominantColorState.color)
+                }
+        }
     }
 
     val animAlpha = remember { Animatable(0f) }
@@ -423,6 +469,11 @@ private fun ProfileAvatarCard(
                         contentDescription = avatarItem?.displayName ?: profile.name,
                         modifier = Modifier.size(100.dp).clip(CircleShape),
                         contentScale = ContentScale.Crop,
+                        onSuccess = if (shouldExtractDominantColor) {
+                            { state -> loadedAvatarPainter = state.painter }
+                        } else {
+                            null
+                        },
                     )
                 } else if (profile.name.isNotBlank()) {
                     Text(

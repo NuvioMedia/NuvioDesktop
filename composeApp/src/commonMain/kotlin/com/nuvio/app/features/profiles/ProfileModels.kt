@@ -97,3 +97,20 @@ fun profileAvatarImageUrl(profile: NuvioProfile, avatar: AvatarCatalogItem?): St
             ?.storagePath
             ?.takeIf { it.isNotBlank() }
             ?.let(::avatarStorageUrl)
+
+/**
+ * Resolves the colour that drives the animated profile hover background.
+ *
+ * Built-in avatars (and any profile without a valid custom image URL) keep using their curated
+ * [NuvioProfile.avatarColorHex]. Profiles using a custom URL image use [extractedColor] once it has
+ * been extracted from the loaded image, falling back to [NuvioProfile.avatarColorHex] until then.
+ */
+fun resolveProfileHoverColor(profile: NuvioProfile?, extractedColor: Color?): Color {
+    if (profile == null) return Color(0xFF1E88E5)
+    val hasCustomImageUrl = normalizedAvatarUrl(profile.avatarUrl) != null
+    return if (hasCustomImageUrl && extractedColor != null) {
+        extractedColor
+    } else {
+        parseHexColor(profile.avatarColorHex)
+    }
+}
