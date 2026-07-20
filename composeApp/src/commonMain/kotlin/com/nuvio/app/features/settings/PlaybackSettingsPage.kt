@@ -87,8 +87,11 @@ import com.nuvio.app.features.plugins.PluginRepository
 import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamAutoPlaySource
 import com.nuvio.app.isDesktop
+import com.nuvio.app.isDesktopOpenGlRendererEnabled
+import com.nuvio.app.isDesktopRenderBackendConfigurable
 import com.nuvio.app.isIos
 import com.nuvio.app.isWindows
+import com.nuvio.app.setDesktopOpenGlRendererEnabled
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.StringResource
@@ -982,6 +985,27 @@ private fun PlaybackSettingsSection(
                         checked = autoPlayPlayerSettings.nvidiaRtxSuperResolutionEnabled,
                         isTablet = isTablet,
                         onCheckedChange = PlayerSettingsRepository::setNvidiaRtxSuperResolutionEnabled,
+                    )
+                }
+            }
+        }
+
+        if (isDesktopRenderBackendConfigurable) {
+            var useOpenGlRenderer by remember { mutableStateOf(isDesktopOpenGlRendererEnabled()) }
+            SettingsSection(
+                title = stringResource(Res.string.settings_playback_desktop_display_section),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_desktop_opengl_renderer),
+                        description = stringResource(Res.string.settings_playback_desktop_opengl_renderer_desc),
+                        checked = useOpenGlRenderer,
+                        isTablet = isTablet,
+                        onCheckedChange = { enabled ->
+                            useOpenGlRenderer = enabled
+                            setDesktopOpenGlRendererEnabled(enabled)
+                        },
                     )
                 }
             }

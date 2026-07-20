@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.player.PlatformPlayerSurface
+import com.nuvio.app.features.player.desktop.DesktopRenderSettings
 import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopWindowGeometry
@@ -34,6 +35,17 @@ private const val NuvioDesktopIconPath = "icons/nuvio-app-icon.png"
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 
 fun main(args: Array<String>) {
+    // Skiko defaults to Direct3D on Windows, which can misalign its present on high-refresh
+    // displays and show as UI flicker / a low frame-pace feel (video is unaffected). OpenGL
+    // avoids it but is opt-in: keep Direct3D by default and only switch when the user has
+    // enabled it in Settings and hasn't pinned a backend via property/env.
+    if (DesktopHostOs.current == DesktopHostOs.WINDOWS &&
+        System.getProperty("skiko.renderApi") == null &&
+        System.getenv("SKIKO_RENDER_API") == null &&
+        runCatching { DesktopRenderSettings.isOpenGlEnabled() }.getOrDefault(false)
+    ) {
+        System.setProperty("skiko.renderApi", "OPENGL")
+    }
     configureDesktopChrome()
     installDesktopOpenUriHandler()
     handleDesktopLaunchArgs(args)
