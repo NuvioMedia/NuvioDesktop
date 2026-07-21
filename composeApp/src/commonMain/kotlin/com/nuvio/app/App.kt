@@ -3017,8 +3017,18 @@ private fun MainAppContent(
                     )
                     val launch = remember(route.launchId) { PlayerLaunchStore.get(route.launchId) }
                     if (launch == null) {
+                        // The launch payload is already disposed, so this entry draws nothing but a
+                        // full-screen blank. The guarded pop cannot be trusted to get us out of it:
+                        // it no-ops once this route has popped before (popHandled is already spent),
+                        // and popBackStack also refuses when this is the only entry left. Either way
+                        // the user is stranded on an unrecoverable blank screen. Escape directly and
+                        // fall back to the tabs root if the stack itself cannot pop.
                         LaunchedEffect(route.launchId) {
-                            onBack()
+                            if (!navController.popBackStack(expectedRoute = route)) {
+                                navController.navigate(TabsRoute) {
+                                    popUpTo<PlayerRoute> { inclusive = true }
+                                }
+                            }
                         }
                         Box(modifier = Modifier.fillMaxSize())
                         return@entry
