@@ -6,9 +6,12 @@ import java.awt.Cursor
 import java.awt.Graphics
 import java.awt.Point
 import java.awt.Toolkit
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
 import java.awt.image.BufferedImage
+import javax.swing.SwingUtilities
 
 internal class NativePlayerHost : Canvas() {
     var onPeerReady: (() -> Unit)? = null
@@ -40,6 +43,30 @@ internal class NativePlayerHost : Canvas() {
                 noteCursorActivity()
             }
         })
+        if (DesktopHostOs.current == DesktopHostOs.LINUX) {
+            addComponentListener(object : ComponentAdapter() {
+                override fun componentResized(event: ComponentEvent) {
+                    notifyReadyIfSized()
+                }
+
+                override fun componentShown(event: ComponentEvent) {
+                    notifyReadyIfSized()
+                }
+            })
+        }
+    }
+
+    private fun notifyReadyIfSized() {
+        if (firstFullSizePaintNotified || width <= 1 || height <= 1) return
+        SwingUtilities.invokeLater {
+            if (!isDisplayable || firstFullSizePaintNotified || width <= 1 || height <= 1) return@invokeLater
+            if (!firstPaintNotified) {
+                firstPaintNotified = true
+                onFirstPaint?.invoke()
+            }
+            firstFullSizePaintNotified = true
+            onFirstFullSizePaint?.invoke()
+        }
     }
 
     fun setControlsVisible(visible: Boolean) {
@@ -84,6 +111,14 @@ internal class NativePlayerHost : Canvas() {
         onDisplayableChanged?.invoke(true)
         repaint()
         onPeerReady?.invoke()
+        if (DesktopHostOs.current == DesktopHostOs.LINUX) {
+            SwingUtilities.invokeLater {
+                if (!isDisplayable || firstPaintNotified) return@invokeLater
+                firstPaintNotified = true
+                onFirstPaint?.invoke()
+                notifyReadyIfSized()
+            }
+        }
     }
 
     override fun removeNotify() {

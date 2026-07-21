@@ -123,6 +123,9 @@ private fun NativePlayerSurface(
             if (!displayable) {
                 hostFirstPaintComplete.value = false
                 hostFirstFullSizePaintComplete.value = false
+                if (DesktopHostOs.current == DesktopHostOs.LINUX) {
+                    controller.dispose()
+                }
             }
         }
         host.onFirstPaint = {
