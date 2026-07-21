@@ -273,6 +273,10 @@
                 <div id="autoSyncCueList"></div>
               </div>
               <div class="style-row">
+                <span class="style-label" id="customSubtitleStyleLabel">Use custom styling</span>
+                <button class="panel-button" id="customSubtitleStyleToggle" type="button">On</button>
+              </div>
+              <div class="style-row">
                 <span class="style-label" id="fontSizeLabel">Font Size</span>
                 <div class="stepper">
                   <button class="round-step" id="fontSizeMinus" type="button">-</button>
@@ -281,20 +285,21 @@
                 </div>
               </div>
               <div class="style-row">
-                <span class="style-label" id="outlineLabel">Outline</span>
-                <button class="panel-button" id="outlineToggle" type="button">On</button>
-              </div>
-              <div class="style-row">
-                <span class="style-label" id="boldLabel">Bold</span>
-                <button class="panel-button" id="boldToggle" type="button">Off</button>
-              </div>
-              <div class="style-row">
                 <span class="style-label" id="bottomOffsetLabel">Bottom Offset</span>
                 <div class="stepper">
                   <button class="round-step" id="bottomOffsetMinus" type="button">-</button>
                   <span class="stepper-value" id="bottomOffsetValue">20</span>
                   <button class="round-step" id="bottomOffsetPlus" type="button">+</button>
                 </div>
+              </div>
+              <div class="custom-subtitle-style-controls" id="customSubtitleStyleControls">
+              <div class="style-row">
+                <span class="style-label" id="outlineLabel">Outline</span>
+                <button class="panel-button" id="outlineToggle" type="button">On</button>
+              </div>
+              <div class="style-row">
+                <span class="style-label" id="boldLabel">Bold</span>
+                <button class="panel-button" id="boldToggle" type="button">Off</button>
               </div>
               <div class="swatch-section">
                 <span class="style-label" id="subtitleColorLabel">Color</span>
@@ -315,6 +320,7 @@
               <div class="style-row">
                 <span></span>
                 <button class="panel-button" id="subtitleStyleReset" type="button">Reset Defaults</button>
+              </div>
               </div>
             </div>
           </div>

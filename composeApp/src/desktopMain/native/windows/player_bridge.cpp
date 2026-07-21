@@ -1143,7 +1143,25 @@ public:
         mpvApi().setProperty(mpv, "sub-delay", MPV_FORMAT_DOUBLE, &delaySeconds);
     }
 
+    void applySubtitleStyleMode(
+        bool overrideEmbeddedStyles,
+        double fontSize,
+        int subPos
+    ) {
+        setStringProperty("sub-ass-override", overrideEmbeddedStyles ? "force" : "scale");
+
+        std::lock_guard<std::mutex> lock(mpvMutex);
+        if (!mpv) return;
+        double size = std::max(18.0, std::min(96.0, fontSize));
+        double scale = overrideEmbeddedStyles ? 1.0 : size / 54.0;
+        int64_t position = std::max(0, std::min(150, subPos));
+        mpvApi().setProperty(mpv, "sub-scale", MPV_FORMAT_DOUBLE, &scale);
+        mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
+        mpvApi().setProperty(mpv, "sub-pos", MPV_FORMAT_INT64, &position);
+    }
+
     void applySubtitleStyle(
+        bool overrideEmbeddedStyles,
         const std::string &textColor,
         const std::string &backgroundColor,
         const std::string &outlineColor,
@@ -1152,7 +1170,8 @@ public:
         double fontSize,
         int subPos
     ) {
-        setStringProperty("sub-ass-override", "force");
+        applySubtitleStyleMode(overrideEmbeddedStyles, fontSize, subPos);
+        if (!overrideEmbeddedStyles) return;
         setStringProperty("sub-color", textColor.empty() ? "#FFFFFFFF" : textColor);
         setStringProperty("sub-back-color", backgroundColor.empty() ? "#00000000" : backgroundColor);
         setStringProperty("sub-outline-color", outlineColor.empty() ? "#FF000000" : outlineColor);
@@ -1166,11 +1185,7 @@ public:
             std::lock_guard<std::mutex> lock(mpvMutex);
             if (!mpv) return;
             double outline = std::max(0.0, std::min(8.0, outlineSize));
-            double size = std::max(18.0, std::min(96.0, fontSize));
-            int64_t position = std::max(0, std::min(150, subPos));
             mpvApi().setProperty(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
-            mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
-            mpvApi().setProperty(mpv, "sub-pos", MPV_FORMAT_INT64, &position);
         }
     }
 
@@ -2405,10 +2420,29 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSubtitleDelayMs
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyleMode(
+    JNIEnv *,
+    jobject,
+    jlong handle,
+    jboolean overrideEmbeddedStyles,
+    jfloat fontSize,
+    jint subPos
+) {
+    auto player = playerFromHandle(handle);
+    if (!player) return;
+    player->applySubtitleStyleMode(
+        overrideEmbeddedStyles == JNI_TRUE,
+        fontSize,
+        subPos
+    );
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle(
     JNIEnv *env,
     jobject,
     jlong handle,
+    jboolean overrideEmbeddedStyles,
     jstring textColor,
     jstring backgroundColor,
     jstring outlineColor,
@@ -2420,6 +2454,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
     auto player = playerFromHandle(handle);
     if (!player) return;
     player->applySubtitleStyle(
+        overrideEmbeddedStyles == JNI_TRUE,
         jstringToUtf8(env, textColor),
         jstringToUtf8(env, backgroundColor),
         jstringToUtf8(env, outlineColor),

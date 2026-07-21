@@ -1384,6 +1384,15 @@ button:disabled {
   cursor: pointer;
 }
 
+.custom-subtitle-style-controls {
+  display: contents;
+}
+
+.custom-subtitle-style-controls.disabled > * {
+  opacity: .42;
+  pointer-events: none;
+}
+
 .scrub::-webkit-slider-runnable-track {
   height: 10px;
   border-radius: 999px;
