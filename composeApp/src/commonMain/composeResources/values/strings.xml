@@ -1743,6 +1743,10 @@
     <string name="settings_playback_nvidia_rtx_video_section">NVIDIA RTX Video</string>
     <string name="settings_playback_nvidia_rtx_super_resolution">RTX Video Super Resolution</string>
     <string name="settings_playback_nvidia_rtx_super_resolution_desc">Upscale low-resolution video using NVIDIA RTX AI Super Resolution.</string>
+    <!-- Playback settings desktop display -->
+    <string name="settings_playback_desktop_display_section">Display</string>
+    <string name="settings_playback_desktop_opengl_renderer">Use OpenGL renderer</string>
+    <string name="settings_playback_desktop_opengl_renderer_desc">Draw the interface with OpenGL instead of Direct3D. Can reduce flicker or stutter on some high refresh rate displays. Restart the app to apply.</string>
     <!-- Playback settings iOS video output -->
     <string name="settings_playback_ios_video_output">iOS VIDEO OUTPUT</string>
     <string name="settings_playback_ios_hardware_decoder">Hardware decoder</string>

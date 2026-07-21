@@ -12,3 +12,7 @@ internal actual val isIos: Boolean = true
 internal actual val isDesktop: Boolean = false
 internal actual val isWindows: Boolean = false
 
+internal actual val isDesktopRenderBackendConfigurable: Boolean = false
+internal actual fun isDesktopOpenGlRendererEnabled(): Boolean = false
+internal actual fun setDesktopOpenGlRendererEnabled(enabled: Boolean) = Unit
+
