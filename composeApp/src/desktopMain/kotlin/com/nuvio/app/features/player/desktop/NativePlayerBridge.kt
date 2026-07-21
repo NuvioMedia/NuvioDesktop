@@ -124,7 +124,7 @@ internal object NativePlayerBridge {
 
     private fun loadNativeLibrary() {
         val platform = DesktopHostOs.current
-        require(platform == DesktopHostOs.MACOS || platform == DesktopHostOs.WINDOWS) {
+        require(platform == DesktopHostOs.MACOS || platform == DesktopHostOs.WINDOWS || platform == DesktopHostOs.LINUX) {
             "Native desktop playback is not implemented for $platform yet."
         }
 
