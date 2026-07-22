@@ -36,7 +36,7 @@ Release packages are provided for supported desktop platforms:
 
 - Windows: MSI installer
 - macOS: DMG installer
-- Linux: DEB package, when available
+- Linux: DEB and AppImage packages, when available
 
 ## Development
 
@@ -74,6 +74,8 @@ Platform-specific packaging:
 
 # Linux
 ./gradlew :composeApp:packageReleaseDeb
+# Requires appimagetool on PATH (or APPIMAGETOOL=/path/to/appimagetool).
+./gradlew :composeApp:packageReleasePortableAppImage
 ```
 
 ## Project Structure

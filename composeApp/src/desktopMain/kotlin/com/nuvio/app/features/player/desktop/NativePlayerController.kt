@@ -35,9 +35,6 @@ internal class NativePlayerController(
         val json = Json { ignoreUnknownKeys = true }
         val log = Logger.withTag("NativePlayerControls")
 
-        /** Cap on waiting for the previous player's teardown so a hung one cannot block playback. */
-        const val TEARDOWN_WAIT_MS = 5_000L
-
         @Volatile
         var rememberedVolumeLevel: Float = 1f
     }
@@ -104,12 +101,8 @@ internal class NativePlayerController(
                 createPlayer(pending)
                 return@invokeLater
             }
-            // The previous player is still tearing down natively. It owns child windows of this
-            // same host, so creating the next one on top of it races its teardown and can leave the
-            // new player wedged (controls never resized, playback never starts). Wait for it, but
-            // off the EDT, because the teardown itself needs the EDT to keep pumping messages.
             Thread({
-                runCatching { teardown.join(TEARDOWN_WAIT_MS) }
+                runCatching { teardown.join() }
                 SwingUtilities.invokeLater {
                     if (host.isDisplayable && pendingSource === pending) {
                         createPlayer(pending)
@@ -414,6 +407,15 @@ internal class NativePlayerController(
             isDaemon = true
             start()
         }
+    }
+
+    fun detachBeforeHostRemoval() {
+        if (DesktopHostOs.current != DesktopHostOs.LINUX) return
+        val current = handle
+        handle = 0L
+        lastSentControlsStructureKey = null
+        if (current == 0L) return
+        NativePlayerBridge.dispose(current)
     }
 
     override fun play() {

@@ -15,6 +15,7 @@ import javax.swing.SwingUtilities
 
 internal class NativePlayerHost : Canvas() {
     var onPeerReady: (() -> Unit)? = null
+    var onBeforeRemoveNotify: (() -> Unit)? = null
     var onDisplayableChanged: ((Boolean) -> Unit)? = null
     var onFirstPaint: (() -> Unit)? = null
     var onFirstFullSizePaint: (() -> Unit)? = null
@@ -122,10 +123,12 @@ internal class NativePlayerHost : Canvas() {
     }
 
     override fun removeNotify() {
+        onBeforeRemoveNotify?.invoke()
         onDisplayableChanged?.invoke(false)
         firstPaintNotified = false
         firstFullSizePaintNotified = false
         onPeerReady = null
+        onBeforeRemoveNotify = null
         onFirstPaint = null
         onFirstFullSizePaint = null
         resetCursorVisibility()

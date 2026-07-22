@@ -891,6 +891,8 @@ val generateWindowsPlayerRuntimeIndex = tasks.register<GenerateNativeRuntimeInde
 
 val linuxPlayerBridgeSource = layout.projectDirectory.file("src/desktopMain/native/linux/player_bridge.c")
 val linuxPlayerBridgeOutput = layout.buildDirectory.file("native/linux/libplayer_bridge.so")
+val linuxPlayerRuntimeSource = layout.projectDirectory.dir("src/desktopMain/native/linux/live")
+val linuxPlayerRuntimeOutput = layout.buildDirectory.dir("native/linux-runtime")
 val linuxPlayerBridgeJavaHome = providers.systemProperty("java.home").get()
 val linuxPlayerBridgePkgConfigLibs = listOf("mpv", "x11", "gtk+-3.0", "webkit2gtk-4.1", "epoxy")
 if (isLinuxHost) {
@@ -927,7 +929,110 @@ val buildLinuxPlayerBridge = tasks.register<Exec>("buildLinuxPlayerBridge") {
     commandLine(linuxPlayerBridgeCommand)
 }
 
+abstract class PrepareLinuxPlayerRuntimeTask : DefaultTask() {
+    @get:Optional
+    @get:InputDirectory
+    abstract val sourceDir: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun prepare() {
+        val source = sourceDir.asFile.orNull
+        val output = outputDir.get().asFile
+        output.deleteRecursively()
+        output.mkdirs()
+
+        source?.takeIf(File::isDirectory)?.walkTopDown()?.forEach { sourceFile ->
+            val target = output.resolve(sourceFile.relativeTo(source).path)
+            if (sourceFile.isDirectory) {
+                target.mkdirs()
+            } else {
+                target.parentFile.mkdirs()
+                sourceFile.copyTo(target, overwrite = true)
+                target.setExecutable(sourceFile.canExecute())
+            }
+        }
+    }
+}
+
+abstract class PackageLinuxAppImageTask @Inject constructor(
+    private val execOperations: ExecOperations,
+) : DefaultTask() {
+    @get:InputDirectory
+    abstract val composeAppDir: DirectoryProperty
+
+    @get:InputFile
+    abstract val iconFile: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val appDir: DirectoryProperty
+
+    @get:OutputFile
+    abstract val outputFile: RegularFileProperty
+
+    @get:Input
+    abstract val appImageTool: Property<String>
+
+    @get:Input
+    abstract val architecture: Property<String>
+
+    @TaskAction
+    fun packageAppImage() {
+        val source = composeAppDir.get().asFile
+        val destination = appDir.get().asFile
+        val usrDir = destination.resolve("usr")
+        destination.deleteRecursively()
+        usrDir.mkdirs()
+
+        source.walkTopDown().forEach { sourceFile ->
+            val target = usrDir.resolve(sourceFile.relativeTo(source).path)
+            if (sourceFile.isDirectory) {
+                target.mkdirs()
+            } else {
+                target.parentFile.mkdirs()
+                sourceFile.copyTo(target, overwrite = true)
+                target.setExecutable(sourceFile.canExecute())
+            }
+        }
+
+        destination.resolve("AppRun").apply {
+            writeText(
+                """
+                |#!/bin/sh
+                |SELF="${'$'}(readlink -f "${'$'}0")"
+                |HERE="${'$'}(dirname "${'$'}SELF")"
+                |exec "${'$'}HERE/usr/bin/Nuvio" "${'$'}@"
+                """.trimMargin() + "\n",
+            )
+            setExecutable(true)
+        }
+        destination.resolve("nuvio.desktop").writeText(
+            """
+            |[Desktop Entry]
+            |Type=Application
+            |Name=Nuvio
+            |Exec=Nuvio
+            |Icon=nuvio-app-icon
+            |Categories=AudioVideo;Video;Player;
+            |Terminal=false
+            """.trimMargin(),
+        )
+        iconFile.get().asFile.copyTo(destination.resolve("nuvio-app-icon.png"), overwrite = true)
+
+        val output = outputFile.get().asFile
+        output.parentFile.mkdirs()
+        execOperations.exec {
+            commandLine(appImageTool.get(), destination.absolutePath, output.absolutePath)
+            environment("ARCH", architecture.get())
+            environment("APPIMAGE_EXTRACT_AND_RUN", "1")
+        }
+    }
+}
+
 abstract class GenerateNativeRuntimeIndexTask : DefaultTask() {
+    @get:Optional
     @get:InputDirectory
     abstract val runtimeDir: DirectoryProperty
 
@@ -937,6 +1042,7 @@ abstract class GenerateNativeRuntimeIndexTask : DefaultTask() {
     @TaskAction
     fun generate() {
         val dir = runtimeDir.get().asFile
+        dir.mkdirs()
         val files = dir
             .listFiles { file -> file.isFile && file.name != indexFile.get().asFile.name }
             .orEmpty()
@@ -944,6 +1050,21 @@ abstract class GenerateNativeRuntimeIndexTask : DefaultTask() {
             .sorted()
         indexFile.get().asFile.writeText(files.joinToString(separator = "\n", postfix = "\n"))
     }
+}
+
+val prepareLinuxPlayerRuntime = tasks.register<PrepareLinuxPlayerRuntimeTask>("prepareLinuxPlayerRuntime") {
+    enabled = isLinuxHost
+    if (linuxPlayerRuntimeSource.asFile.isDirectory) {
+        sourceDir.set(linuxPlayerRuntimeSource)
+    }
+    outputDir.set(linuxPlayerRuntimeOutput)
+}
+
+val generateLinuxPlayerRuntimeIndex = tasks.register<GenerateNativeRuntimeIndexTask>("generateLinuxPlayerRuntimeIndex") {
+    enabled = isLinuxHost
+    dependsOn(prepareLinuxPlayerRuntime)
+    runtimeDir.set(linuxPlayerRuntimeOutput)
+    indexFile.set(linuxPlayerRuntimeOutput.map { it.file("runtime-files.txt") })
 }
 
 val prepareMacosPlayerRuntime = tasks.register<Sync>("prepareMacosPlayerRuntime") {
@@ -981,8 +1102,11 @@ tasks.withType<Jar>().configureEach {
         }
     }
     if (isLinuxHost && name == "desktopJar") {
-        dependsOn(buildLinuxPlayerBridge)
+        dependsOn(buildLinuxPlayerBridge, prepareLinuxPlayerRuntime, generateLinuxPlayerRuntimeIndex)
         from(linuxPlayerBridgeOutput) {
+            into("native/linux")
+        }
+        from(linuxPlayerRuntimeOutput) {
             into("native/linux")
         }
     }
@@ -1040,12 +1164,36 @@ if (isLinuxHost) {
         "createRuntimeImage",
         "package",
         "packageDistributionForCurrentOS",
+        "packageAppImage",
+        "packageDeb",
         "packageUberJarForCurrentOS",
         "packageReleaseDistributionForCurrentOS",
+        "packageReleaseAppImage",
+        "packageReleaseDeb",
         "packageReleaseUberJarForCurrentOS",
     )
     tasks.matching { it.name in desktopNativePlayerTasks }.configureEach {
-        dependsOn(buildLinuxPlayerBridge)
+        dependsOn(buildLinuxPlayerBridge, prepareLinuxPlayerRuntime, generateLinuxPlayerRuntimeIndex)
+    }
+
+    val linuxAppImageTool = providers.gradleProperty("nuvio.appimagetool.path").orNull
+        ?: System.getenv("APPIMAGETOOL")
+        ?: "appimagetool"
+    val linuxAppImageArch = when (System.getProperty("os.arch").lowercase()) {
+        "amd64", "x86_64" -> "x86_64"
+        "aarch64", "arm64" -> "aarch64"
+        else -> System.getProperty("os.arch").lowercase()
+    }
+    tasks.register<PackageLinuxAppImageTask>("packageReleasePortableAppImage") {
+        group = "distribution"
+        description = "Packages the release Compose app image as a portable .AppImage using appimagetool."
+        dependsOn("packageReleaseAppImage")
+        composeAppDir.set(layout.buildDirectory.dir("compose/binaries/main-release/app/Nuvio"))
+        iconFile.set(layout.projectDirectory.file("src/desktopMain/resources/icons/nuvio-app-icon.png"))
+        appDir.set(layout.buildDirectory.dir("compose/appimage/Nuvio.AppDir"))
+        outputFile.set(layout.buildDirectory.file("compose/appimage/Nuvio-$desktopReleaseVersionName-$linuxAppImageArch.AppImage"))
+        appImageTool.set(linuxAppImageTool)
+        architecture.set(linuxAppImageArch)
     }
 }
 
@@ -1217,7 +1365,7 @@ compose.desktop {
         )
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.AppImage)
             packageName = "Nuvio"
             packageVersion = desktopReleasePackageVersion
             vendor = "Nuvio Media"
