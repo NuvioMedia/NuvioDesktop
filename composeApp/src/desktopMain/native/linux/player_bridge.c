@@ -160,6 +160,7 @@ typedef struct {
     GtkWidget *glArea;
     WebKitWebView *webView;
     atomic_int controlsWebReady;
+    atomic_int renderQueued;
 
     pthread_mutex_t controlsMutex;
     char *pendingControlsJson;
@@ -299,6 +300,7 @@ static void *glGetProcAddressWrapper(void *ctx, const char *name) {
 
 static void queueGLAreaRenderTask(void *arg) {
     LinuxPlayer *player = (LinuxPlayer *)arg;
+    atomic_store(&player->renderQueued, 0);
     if (player->glArea && GTK_IS_GL_AREA(player->glArea)) {
         gtk_gl_area_queue_render(GTK_GL_AREA(player->glArea));
     }
@@ -306,7 +308,9 @@ static void queueGLAreaRenderTask(void *arg) {
 
 static void mpvRenderUpdateCallback(void *cbCtx) {
     LinuxPlayer *player = (LinuxPlayer *)cbCtx;
-    runOnGtkThreadAsync(queueGLAreaRenderTask, player);
+    if (!atomic_exchange(&player->renderQueued, 1)) {
+        runOnGtkThreadAsync(queueGLAreaRenderTask, player);
+    }
 }
 
 static void onGLAreaRealize(GtkWidget *widget, gpointer userData) {
@@ -322,9 +326,11 @@ static void onGLAreaRealize(GtkWidget *widget, gpointer userData) {
         .get_proc_address_ctx = NULL,
     };
     int advanced = 1;
+    Display *x11Display = gdk_x11_display_get_xdisplay(gdk_display_get_default());
     mpv_render_param params[] = {
         {MPV_RENDER_PARAM_API_TYPE, (void *)MPV_RENDER_API_TYPE_OPENGL},
         {MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &glInit},
+        {MPV_RENDER_PARAM_X11_DISPLAY, x11Display},
         {MPV_RENDER_PARAM_ADVANCED_CONTROL, &advanced},
         {0}
     };
@@ -366,6 +372,7 @@ static gboolean onGLAreaRender(GtkGLArea *area, GdkGLContext *context, gpointer 
         {0}
     };
     mpv_render_context_render(player->renderCtx, params);
+    mpv_render_context_report_swap(player->renderCtx);
     return TRUE;
 }
 
@@ -574,6 +581,7 @@ JNIEXPORT jlong JNICALL Java_com_nuvio_app_features_player_desktop_NativePlayerB
         (*env)->GetJavaVM(env, &player->jvm);
         pthread_mutex_init(&player->controlsMutex, NULL);
         atomic_store(&player->alive, 1);
+        atomic_store(&player->renderQueued, 0);
     }
 
     player->hostXid = (Window)(uintptr_t)hostViewPtr;
