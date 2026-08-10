@@ -38,6 +38,8 @@ const episodesLabel = document.getElementById("episodesLabel");
 const submitIntroButton = document.getElementById("submitIntroButton");
 const videoSettingsButton = document.getElementById("videoSettingsButton");
 const backButton = document.getElementById("backButton");
+const vlcOsd = document.getElementById("vlcOsd");
+let vlcOsdTimer = null;
 const openingOverlay = document.getElementById("openingOverlay");
 const openingArtwork = document.getElementById("openingArtwork");
 const openingBackButton = document.getElementById("openingBackButton");
@@ -485,6 +487,18 @@ const nextVolumeToastLabel = delta => {
     return `Volume ${Math.round(nextLevel * 100)}%`;
   }
   return volumeToastLabel(delta);
+};
+
+const showVlcOsd = text => {
+  if (!vlcOsd) return;
+  vlcOsd.textContent = text;
+  vlcOsd.classList.add("visible");
+  if (vlcOsdTimer) {
+    window.clearTimeout(vlcOsdTimer);
+  }
+  vlcOsdTimer = window.setTimeout(() => {
+    vlcOsd.classList.remove("visible");
+  }, 1600);
 };
 
 const seekToastLabel = command => {
@@ -2668,9 +2682,8 @@ window.playerControls = nextState => {
   if (pendingSettingToastCommand === "resize" && (state.resizeModeLabel || "") !== previousResizeLabel) {
     pendingSettingToastCommand = "";
     showPlayerToast(settingToastLabel("resize"));
-  } else if (pendingSettingToastCommand === "speed" && (state.playbackSpeedLabel || "") !== previousSpeedLabel) {
-    pendingSettingToastCommand = "";
-    showPlayerToast(settingToastLabel("speed"));
+  } else if ((state.playbackSpeedLabel || "") !== previousSpeedLabel && previousSpeedLabel !== "") {
+    showVlcOsd(`Speed ${state.playbackSpeedLabel}`);
   }
   const nextVolumeLevel = typeof state.volumeLevel === "number" ? state.volumeLevel : NaN;
   if (
