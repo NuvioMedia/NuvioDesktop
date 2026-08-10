@@ -1508,6 +1508,31 @@ button:disabled {
   flex: 0 0 auto;
 }
 
+.speed-icon-svg {
+  width: 24px !important;
+  height: 24px !important;
+  overflow: visible;
+}
+
+.speed-icon-svg #speedNeedle {
+  color: var(--theme-control-foreground);
+  transition: transform 0.25s ease, color 0.25s ease;
+}
+
+.speed-icon-svg.redline #speedNeedle {
+  color: #ff355e;
+}
+
+.speed-icon-svg .speed-gauge-frame {
+  stroke: var(--theme-control-foreground);
+  transition: stroke 0.2s ease;
+}
+
+.speed-icon-svg.redline .speed-gauge-frame {
+  stroke: url(#speedRedlineGradient);
+  filter: drop-shadow(0 0 5px rgba(255, 53, 94, 0.7));
+}
+
 .action span {
   min-width: 0;
   overflow: hidden;

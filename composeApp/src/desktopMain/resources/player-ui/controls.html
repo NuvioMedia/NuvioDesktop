@@ -201,7 +201,26 @@
               <svg><use id="toggleIcon" href="#icon-play"></use></svg><span id="toggleLabel">Play</span>
             </button>
             <button class="action" data-command="resize"><svg><use href="#icon-aspect"></use></svg><span id="resizeLabel">Fit</span></button>
-            <button class="action" data-command="speed"><svg><use href="#icon-speed"></use></svg><span id="speedLabel">1x</span></button>
+            <button class="action" data-command="speed" aria-label="Playback Speed">
+              <svg class="speed-icon-svg" id="speedIconSvg" viewBox="0 0 24 24">
+                <defs>
+                  <linearGradient id="speedRedlineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#00e5ff" />
+                    <stop offset="25%" stop-color="#39ff14" />
+                    <stop offset="50%" stop-color="#ffea00" />
+                    <stop offset="75%" stop-color="#ff7300" />
+                    <stop offset="100%" stop-color="#ff355e" />
+                  </linearGradient>
+                </defs>
+                <path class="speed-gauge-frame" fill="none" stroke="#ffffff" stroke-width="2.25" stroke-linecap="round"
+                  d="M 5.5 17.5 A 8.5 8.5 0 1 1 18.5 17.5" />
+                <g id="speedNeedle" style="transform-origin: 12px 12px; transition: transform 0.25s ease;">
+                  <path fill="currentColor" d="M 10.5 12.0 L 11.4 6.2 C 11.7 5.6 12.3 5.6 12.6 6.2 L 13.5 12.0 Z" />
+                  <circle cx="12" cy="12.0" r="2.4" fill="currentColor" />
+                </g>
+              </svg>
+              <span id="speedLabel">1x</span>
+            </button>
             <button class="action" data-command="subtitles"><svg><use href="#icon-subs"></use></svg><span id="subtitlesLabel">Subs</span></button>
             <button class="action" data-command="audio"><svg><use href="#icon-audio"></use></svg><span id="audioLabel">Audio</span></button>
             <button class="action optional" id="sourcesButton" data-command="sources"><svg><use href="#icon-swap"></use></svg><span id="sourcesLabel">Sources</span></button>

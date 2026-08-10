@@ -31,6 +31,8 @@ const streamTitle = document.getElementById("streamTitle");
 const providerName = document.getElementById("providerName");
 const resizeLabel = document.getElementById("resizeLabel");
 const speedLabel = document.getElementById("speedLabel");
+const speedIconSvg = document.getElementById("speedIconSvg");
+const speedNeedle = document.getElementById("speedNeedle");
 const subtitlesLabel = document.getElementById("subtitlesLabel");
 const audioLabel = document.getElementById("audioLabel");
 const sourcesLabel = document.getElementById("sourcesLabel");
@@ -2065,6 +2067,24 @@ const renderChrome = () => {
   setText(providerName, state.providerName);
   resizeLabel.textContent = state.resizeModeLabel || "Fit";
   speedLabel.textContent = state.playbackSpeedLabel || "1x";
+  const speedVal = parseFloat(String(state.playbackSpeedLabel || "1x").replace("x", "")) || 1.0;
+  const is2xRedline = Math.abs(speedVal - 2.0) < 0.05;
+  if (speedIconSvg) {
+    speedIconSvg.classList.toggle("redline", is2xRedline);
+  }
+  if (speedNeedle) {
+    let rotationDeg = 0;
+    if (speedVal <= 0.25) rotationDeg = -105;
+    else if (speedVal <= 0.5) rotationDeg = -70;
+    else if (speedVal <= 0.75) rotationDeg = -35;
+    else if (speedVal <= 1.0) rotationDeg = 0;
+    else if (speedVal <= 1.25) rotationDeg = 35;
+    else if (speedVal <= 1.5) rotationDeg = 70;
+    else if (speedVal <= 1.75) rotationDeg = 90;
+    else rotationDeg = 105;
+
+    speedNeedle.style.transform = `rotate(${rotationDeg}deg)`;
+  }
   subtitlesLabel.textContent = state.subtitlesLabel || "Subs";
   audioLabel.textContent = state.audioLabel || "Audio";
   sourcesLabel.textContent = state.sourcesLabel || "Sources";
@@ -2683,7 +2703,7 @@ window.playerControls = nextState => {
     pendingSettingToastCommand = "";
     showPlayerToast(settingToastLabel("resize"));
   } else if ((state.playbackSpeedLabel || "") !== previousSpeedLabel && previousSpeedLabel !== "") {
-    showVlcOsd(`Speed ${state.playbackSpeedLabel}`);
+    showVlcOsd(`${state.playbackSpeedLabel} Speed`);
   }
   const nextVolumeLevel = typeof state.volumeLevel === "number" ? state.volumeLevel : NaN;
   if (
