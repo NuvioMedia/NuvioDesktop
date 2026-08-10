@@ -69,6 +69,9 @@ const sourcesButton = document.getElementById("sourcesButton");
 const episodesButton = document.getElementById("episodesButton");
 const audioModal = document.getElementById("audioModal");
 const subtitleModal = document.getElementById("subtitleModal");
+const speedModal = document.getElementById("speedModal");
+const speedOptionList = document.getElementById("speedOptionList");
+const speedPanelTitle = document.getElementById("speedPanelTitle");
 const audioPanelTitle = document.getElementById("audioPanelTitle");
 const audioTrackList = document.getElementById("audioTrackList");
 const subtitleTrackList = document.getElementById("subtitleTrackList");
@@ -822,6 +825,7 @@ const rangePositionMs = () => {
 const modalByName = {
   audio: audioModal,
   subtitles: subtitleModal,
+  speed: speedModal,
   sources: sourceModal,
   episodes: episodesModal,
   submitIntro: submitIntroModal,
@@ -926,6 +930,46 @@ const appendEmptyTrackState = (container, label) => {
   empty.className = "track-empty";
   empty.textContent = label;
   container.appendChild(empty);
+};
+
+const speedOptions = [
+  { value: 0.25, label: "0.25x" },
+  { value: 0.5, label: "0.5x" },
+  { value: 0.75, label: "0.75x" },
+  { value: 1.0, label: "1x (Normal)" },
+  { value: 1.25, label: "1.25x" },
+  { value: 1.5, label: "1.5x" },
+  { value: 1.75, label: "1.75x" },
+  { value: 2.0, label: "2x" },
+];
+
+const renderSpeedOptionList = () => {
+  if (!speedOptionList) return;
+  speedOptionList.textContent = "";
+  if (speedPanelTitle) {
+    speedPanelTitle.textContent = state.speedPanelTitle || "Playback Speed";
+  }
+
+  const currentSpeedStr = String(state.playbackSpeedLabel || "1x");
+  const currentSpeedNum = parseFloat(currentSpeedStr.replace("x", "")) || 1.0;
+
+  speedOptions.forEach(opt => {
+    const isSelected = Math.abs(currentSpeedNum - opt.value) < 0.05;
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `track-row${isSelected ? " selected" : ""}`;
+    row.addEventListener("click", event => {
+      event.stopPropagation();
+      send("setPlaybackSpeed", opt.value);
+      window.setTimeout(closePlayerModal, 120);
+    });
+    const labelElement = document.createElement("span");
+    labelElement.className = "track-label";
+    labelElement.textContent = opt.label;
+    row.appendChild(labelElement);
+    row.appendChild(buildCheckIcon());
+    speedOptionList.appendChild(row);
+  });
 };
 
 const renderAudioTrackList = () => {
@@ -1670,6 +1714,7 @@ const renderP2pConsentModal = () => {
 const renderActiveModal = () => {
   if (activeModal === "audio") renderAudioTrackList();
   if (activeModal === "subtitles") renderSubtitleModal();
+  if (activeModal === "speed") renderSpeedOptionList();
   if (activeModal === "sources") renderSourceModal();
   if (activeModal === "episodes") renderEpisodesModal();
   if (activeModal === "submitIntro") renderSubmitIntroModal();
@@ -2292,6 +2337,10 @@ document.querySelectorAll("[data-command]").forEach(button => {
     }
     if (command === "subtitles") {
       openPlayerModal("subtitles");
+      return;
+    }
+    if (command === "speed") {
+      openPlayerModal("speed");
       return;
     }
     if (command === "sources") {

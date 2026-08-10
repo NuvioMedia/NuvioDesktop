@@ -287,6 +287,10 @@ internal class NativePlayerController(
                 onDesktopFullscreenChanged()
             }
             "volumeChange" -> setFallbackVolume(value.toFloat())
+            "setPlaybackSpeed" -> {
+                log.d { "handleControlEvent setPlaybackSpeed speed=${value.toFloat()} handle=$handle" }
+                setPlaybackSpeed(value.toFloat())
+            }
             else -> {
                 val eventHandled = onEvent(type, value)
                 if (type.shouldLogNativeControlEvent()) {
