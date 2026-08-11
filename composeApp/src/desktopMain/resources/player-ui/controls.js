@@ -2700,7 +2700,7 @@ window.playerControls = nextState => {
     pendingSettingToastCommand = "";
     showPlayerToast(settingToastLabel("resize"));
   } else if ((state.playbackSpeedLabel || "") !== previousSpeedLabel && previousSpeedLabel !== "") {
-    showVlcOsd(`${state.playbackSpeedLabel} Speed`);
+    showVlcOsd(`Speed: ${state.playbackSpeedLabel}`);
   }
   const nextVolumeLevel = typeof state.volumeLevel === "number" ? state.volumeLevel : NaN;
   if (
