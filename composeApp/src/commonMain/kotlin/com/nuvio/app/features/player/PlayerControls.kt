@@ -1,8 +1,19 @@
 package com.nuvio.app.features.player
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.nuvio.app.core.ui.nuvio
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -548,9 +559,19 @@ private fun ProgressControls(
                         painter = aspectRatioPainter,
                         onClick = onResizeModeClick,
                     )
+                    val isSpeedActive = kotlin.math.abs(playbackSnapshot.playbackSpeed - 1.0f) > 0.05f
+                    val speedActiveColor = if (isSpeedActive) MaterialTheme.nuvio.colors.accent else Color.White
+
                     PlayerActionPillButton(
                         label = formatPlaybackSpeedLabel(playbackSnapshot.playbackSpeed),
-                        icon = Icons.Rounded.Speed,
+                        customIcon = {
+                            SpeedometerGaugeIcon(
+                                speed = playbackSnapshot.playbackSpeed,
+                                modifier = Modifier.size(18.dp),
+                                tint = speedActiveColor,
+                            )
+                        },
+                        labelColor = speedActiveColor,
                         onClick = onSpeedClick,
                     )
                     PlayerActionPillButton(
@@ -707,11 +728,114 @@ private fun TimePill(
 }
 
 @Composable
+private fun SpeedometerGaugeIcon(
+    speed: Float,
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+) {
+    val rotationDeg = when {
+        speed <= 0.25f -> -80f
+        speed <= 0.50f -> -55f
+        speed <= 0.75f -> -28f
+        speed <= 1.00f -> 0f
+        speed <= 1.25f -> 28f
+        speed <= 1.50f -> 55f
+        speed <= 1.75f -> 72f
+        else -> 85f
+    }
+    val animatedRotation by animateFloatAsState(
+        targetValue = rotationDeg,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+    )
+
+    Canvas(modifier = modifier) {
+        val strokeWidth = 1.5.dp.toPx()
+        val padding = strokeWidth / 2f + 1.25.dp.toPx()
+
+        val w = size.width - padding * 2
+        val h = size.height - padding * 2
+
+        val baselineY = padding + h * 0.88f
+        val center = Offset(size.width / 2f, baselineY)
+
+        val radius = minOf(w, h) / 2f
+        val arcTopLeft = Offset(center.x - radius, center.y - radius)
+        val arcSize = Size(radius * 2, radius * 2)
+
+        val startArcAngle = 160f
+        val totalSweepAngle = 220f
+        val endArcAngle = startArcAngle + totalSweepAngle
+        val needleAngle = 270f + animatedRotation
+        val gapHalfDeg = 14f
+
+        val seg1Sweep = (needleAngle - gapHalfDeg) - startArcAngle
+        if (seg1Sweep > 0f) {
+            drawArc(
+                color = tint,
+                startAngle = startArcAngle,
+                sweepAngle = minOf(seg1Sweep, totalSweepAngle),
+                useCenter = false,
+                topLeft = arcTopLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            )
+        }
+
+        val seg2Start = needleAngle + gapHalfDeg
+        val seg2Sweep = endArcAngle - seg2Start
+        if (seg2Sweep > 0f) {
+            drawArc(
+                color = tint,
+                startAngle = seg2Start,
+                sweepAngle = seg2Sweep,
+                useCenter = false,
+                topLeft = arcTopLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            )
+        }
+
+        val leftX = center.x + radius * cos(startArcAngle * (PI.toFloat() / 180f))
+        val rightX = center.x + radius * cos(endArcAngle * (PI.toFloat() / 180f))
+        drawLine(
+            color = tint,
+            start = Offset(leftX, baselineY),
+            end = Offset(rightX, baselineY),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round,
+        )
+
+        drawCircle(
+            color = tint,
+            radius = strokeWidth * 1.1f,
+            center = center,
+        )
+
+        val rad = needleAngle * (PI.toFloat() / 180f)
+        val needleLength = radius * 1.14f
+        val needleEnd = Offset(
+            x = center.x + needleLength * cos(rad),
+            y = center.y + needleLength * sin(rad),
+        )
+
+        drawLine(
+            color = tint,
+            start = center,
+            end = needleEnd,
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round,
+        )
+    }
+}
+
+@Composable
 private fun PlayerActionPillButton(
     label: String,
     onClick: () -> Unit,
     icon: ImageVector? = null,
     painter: Painter? = null,
+    customIcon: (@Composable () -> Unit)? = null,
+    labelColor: Color = Color.White,
 ) {
     Row(
         modifier = Modifier
@@ -722,24 +846,26 @@ private fun PlayerActionPillButton(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         when {
+            customIcon != null -> customIcon()
+
             painter != null -> Icon(
                 painter = painter,
                 contentDescription = label,
-                tint = Color.White,
+                tint = labelColor,
                 modifier = Modifier.size(18.dp),
             )
 
             icon != null -> Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = Color.White,
+                tint = labelColor,
                 modifier = Modifier.size(18.dp),
             )
         }
         Text(
             text = label,
             style = MaterialTheme.nuvioTypeScale.labelSm,
-            color = Color.White,
+            color = labelColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             softWrap = false,

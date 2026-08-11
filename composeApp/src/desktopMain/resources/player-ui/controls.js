@@ -33,6 +33,7 @@ const resizeLabel = document.getElementById("resizeLabel");
 const speedLabel = document.getElementById("speedLabel");
 const speedIconSvg = document.getElementById("speedIconSvg");
 const speedNeedle = document.getElementById("speedNeedle");
+const speedMaskNeedle = document.getElementById("speedMaskNeedle");
 const subtitlesLabel = document.getElementById("subtitlesLabel");
 const audioLabel = document.getElementById("audioLabel");
 const sourcesLabel = document.getElementById("sourcesLabel");
@@ -2066,24 +2067,20 @@ const renderChrome = () => {
   setText(streamTitle, state.streamTitle);
   setText(providerName, state.providerName);
   resizeLabel.textContent = state.resizeModeLabel || "Fit";
-  speedLabel.textContent = state.playbackSpeedLabel || "1x";
   const speedVal = parseFloat(String(state.playbackSpeedLabel || "1x").replace("x", "")) || 1.0;
-  const is2xRedline = Math.abs(speedVal - 2.0) < 0.05;
-  if (speedIconSvg) {
-    speedIconSvg.classList.toggle("redline", is2xRedline);
-  }
   if (speedNeedle) {
     let rotationDeg = 0;
-    if (speedVal <= 0.25) rotationDeg = -105;
-    else if (speedVal <= 0.5) rotationDeg = -70;
-    else if (speedVal <= 0.75) rotationDeg = -35;
+    if (speedVal <= 0.25) rotationDeg = -102;
+    else if (speedVal <= 0.5) rotationDeg = -68;
+    else if (speedVal <= 0.75) rotationDeg = -34;
     else if (speedVal <= 1.0) rotationDeg = 0;
-    else if (speedVal <= 1.25) rotationDeg = 35;
-    else if (speedVal <= 1.5) rotationDeg = 70;
-    else if (speedVal <= 1.75) rotationDeg = 90;
-    else rotationDeg = 105;
+    else if (speedVal <= 1.25) rotationDeg = 34;
+    else if (speedVal <= 1.5) rotationDeg = 68;
+    else if (speedVal <= 1.75) rotationDeg = 85;
+    else rotationDeg = 102;
 
-    speedNeedle.style.transform = `rotate(${rotationDeg}deg)`;
+    if (speedNeedle) speedNeedle.style.transform = `rotate(${rotationDeg}deg)`;
+    if (speedMaskNeedle) speedMaskNeedle.style.transform = `rotate(${rotationDeg}deg)`;
   }
   subtitlesLabel.textContent = state.subtitlesLabel || "Subs";
   audioLabel.textContent = state.audioLabel || "Audio";

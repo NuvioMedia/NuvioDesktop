@@ -3079,3 +3079,12 @@ svg {
   fill: currentColor;
   stroke: none;
 }
+
+.speed-icon-svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+}
