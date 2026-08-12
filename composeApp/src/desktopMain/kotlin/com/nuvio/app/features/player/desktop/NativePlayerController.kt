@@ -67,6 +67,10 @@ internal class NativePlayerController(
         }
     }
 
+    init {
+        DesktopPlayerMediaKeyDispatcher.register(this)
+    }
+
     fun attach(
         sourceUrl: String,
         sourceHeaders: Map<String, String>,
@@ -331,6 +335,7 @@ internal class NativePlayerController(
             PlayerControlsAction.KeyboardSeekForward -> fallbackSeekBy(10_000L)
             PlayerControlsAction.KeyboardVolumeDown -> adjustFallbackVolume(-5f)
             PlayerControlsAction.KeyboardVolumeUp -> adjustFallbackVolume(5f)
+            PlayerControlsAction.PictureInPicture -> togglePictureInPictureFromShortcut()
             PlayerControlsAction.Speed -> cycleFallbackSpeed()
             else -> Unit
         }
@@ -401,6 +406,7 @@ internal class NativePlayerController(
 
     fun dispose() {
         host.resetCursorVisibility()
+        DesktopPlayerMediaKeyDispatcher.unregister(this)
         disposePlayerHandle()
     }
 
@@ -438,6 +444,42 @@ internal class NativePlayerController(
     override fun seekBy(offsetMs: Long) {
         log.d { "seekBy offsetMs=$offsetMs handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.seekBy(it, offsetMs) }
+    }
+
+    fun seekByShortcut(offsetMs: Long) {
+        seekBy(offsetMs)
+    }
+
+    fun togglePlaybackFromShortcut() {
+        val current = handle.takeIf { it != 0L } ?: return
+        val isEnded = NativePlayerBridge.isEnded(current)
+        val isPaused = NativePlayerBridge.isPaused(current)
+        if (isEnded) {
+            NativePlayerBridge.seekTo(current, 0L)
+            NativePlayerBridge.setPaused(current, false)
+        } else {
+            NativePlayerBridge.setPaused(current, !isPaused)
+        }
+    }
+
+    fun adjustVolumeByShortcut(deltaPercent: Float) {
+        adjustFallbackVolume(deltaPercent)
+    }
+
+    fun toggleMuteFromShortcut() {
+        val current = handle.takeIf { it != 0L } ?: return
+        val currentVolume = NativePlayerBridge.volume(current).coerceIn(0f, 1f)
+        if (currentVolume > 0.01f) {
+            rememberedVolumeLevel = currentVolume
+            setFallbackVolume(0f)
+        } else {
+            val restoreLevel = rememberedVolumeLevel.takeIf { it > 0.01f } ?: 1f
+            setFallbackVolume(restoreLevel)
+        }
+    }
+
+    fun togglePictureInPictureFromShortcut() {
+        DesktopPlayerPictureInPicture.toggle()
     }
 
     override fun retry() {
@@ -697,6 +739,7 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
         "keyboardSeekForward" -> PlayerControlsAction.KeyboardSeekForward
         "keyboardVolumeDown" -> PlayerControlsAction.KeyboardVolumeDown
         "keyboardVolumeUp" -> PlayerControlsAction.KeyboardVolumeUp
+        "pictureInPicture", "pip" -> PlayerControlsAction.PictureInPicture
         "resize" -> PlayerControlsAction.ResizeMode
         "speed" -> PlayerControlsAction.Speed
         "subtitles" -> PlayerControlsAction.Subtitles
