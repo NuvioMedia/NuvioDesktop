@@ -487,7 +487,7 @@ const nextVolumeToastLabel = delta => {
 const seekToastLabel = command => {
   if (command === "seekBack" || command === "keyboardSeekBack") return "-10s";
   if (command === "seekForward" || command === "keyboardSeekForward") return "+10s";
-  if (command === "pictureInPicture" || command === "pip") return "Picture-in-Picture";
+  if (command === "pictureInPicture" || command === "pip") return state.pipLabel || "";
   return "";
 };
 
@@ -1994,6 +1994,7 @@ const renderChrome = () => {
   const positionMs = isScrubbing ? scrubPositionMs : Math.max(0, Number(state.positionMs) || 0);
   const isPlaying = Boolean(state.isPlaying);
   const showError = renderPlaybackError();
+  root.classList.toggle("pip-mode", Boolean(state.isInPip));
   root.classList.toggle("chrome-hidden", Boolean(showError || !state.controlsVisible));
   root.classList.toggle("source-visible", Boolean(!showError && !isPlaying && !state.isLoading && (state.streamTitle || state.providerName)));
   syncHiddenCursor();
@@ -2017,6 +2018,7 @@ const renderChrome = () => {
   setActionButtonLabel("audio", state.audioLabel || "Audio");
   setActionButtonLabel("sources", state.sourcesLabel || "Sources");
   setActionButtonLabel("episodes", state.episodesLabel || "Episodes");
+  setActionButtonLabel("pictureInPicture", state.pipLabel);
   const showBuffering = Boolean(!showError && state.isLoading && !activeModal && !showOpening);
   bufferingStatus.classList.toggle("visible", showBuffering);
   bufferingStatus.setAttribute("aria-hidden", showBuffering ? "false" : "true");
@@ -2642,6 +2644,12 @@ root.addEventListener("click", event => {
   tapTimer = window.setTimeout(() => {
     toggleChrome();
   }, 220);
+});
+
+root.addEventListener("pointerdown", event => {
+  if (!state.isInPip || event.button !== 0) return;
+  if (event.target.closest("button, input, select, textarea")) return;
+  send("dragWindow", 0);
 });
 
 root.addEventListener("dblclick", event => {

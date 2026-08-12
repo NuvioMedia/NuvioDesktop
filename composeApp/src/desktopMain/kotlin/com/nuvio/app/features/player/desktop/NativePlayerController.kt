@@ -29,6 +29,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import javax.swing.SwingUtilities
+import java.awt.Component
 import kotlin.concurrent.Volatile
 
 internal class NativePlayerController(
@@ -181,6 +182,7 @@ internal class NativePlayerController(
                     applyRememberedVolume()
                     updateControls(controlsState)
                     applyPendingSubtitleSettings()
+                    DesktopPlayerMediaKeyDispatcher.register(this)
                 }
             }.onFailure { error ->
                 log.w(error) { "attach failed source=${pending.sourceUrl.toPlaybackLogKey()}" }
@@ -225,6 +227,7 @@ internal class NativePlayerController(
         val structureKey = NativeControlsStructureKey(
             state = stateWithVolume.nativeControlsStructureKey(),
             isFullscreen = isFullscreen,
+            isInPip = DesktopPlayerPictureInPicture.isEnabled,
         )
         if (structureKey == lastSentControlsStructureKey) return
         lastSentControlsStructureKey = structureKey
@@ -241,6 +244,15 @@ internal class NativePlayerController(
         lastSentControlsStructureKey = null
         updateControls(controlsState)
         requestKeyboardFocus()
+    }
+
+    fun reparentSurface(host: Component): Boolean {
+        val current = handle.takeIf { it != 0L } ?: return false
+        if (!host.isDisplayable) return false
+        val pointer = runCatching { AwtNativeViewResolver.resolveNativeViewPointer(host) }
+            .onFailure { error -> log.w(error) { "failed to resolve PiP native host ${host.javaClass.name}" } }
+            .getOrNull() ?: return false
+        return NativePlayerBridge.reparentSurface(current, pointer)
     }
 
     private fun requestKeyboardFocus() {
@@ -271,6 +283,7 @@ internal class NativePlayerController(
             log.d { "event received handle=$handle type=$type value=$value" }
         }
         when (type) {
+            "keyboardStop" -> pause()
             "cursorActivity" -> host.noteCursorActivity()
             "scrubChange" -> {
                 val handled = onScrubChange(value.toLong())
@@ -291,6 +304,8 @@ internal class NativePlayerController(
                 onDesktopFullscreenChanged()
             }
             "volumeChange" -> setFallbackVolume(value.toFloat())
+            "keyboardVolumeMute" -> toggleMuteFromShortcut()
+            "dragWindow" -> NativePlayerBridge.beginWindowDrag(handle)
             else -> {
                 val eventHandled = onEvent(type, value)
                 if (type.shouldLogNativeControlEvent()) {
@@ -339,6 +354,43 @@ internal class NativePlayerController(
             PlayerControlsAction.Speed -> cycleFallbackSpeed()
             else -> Unit
         }
+    }
+
+    fun togglePlaybackFromShortcut() {
+        val current = handle
+        if (current == 0L) return
+        val isEnded = NativePlayerBridge.isEnded(current)
+        val isPaused = NativePlayerBridge.isPaused(current)
+        if (isEnded) {
+            NativePlayerBridge.seekTo(current, 0L)
+            NativePlayerBridge.setPaused(current, false)
+        } else {
+            NativePlayerBridge.setPaused(current, !isPaused)
+        }
+    }
+
+    fun seekByShortcut(offsetMs: Long) {
+        fallbackSeekBy(offsetMs)
+    }
+
+    fun adjustVolumeByShortcut(deltaPercent: Float) {
+        adjustFallbackVolume(deltaPercent)
+    }
+
+    fun toggleMuteFromShortcut() {
+        val current = handle.takeIf { it != 0L } ?: return
+        val currentVolume = NativePlayerBridge.volume(current).coerceIn(0f, 1f)
+        if (currentVolume > 0.01f) {
+            rememberedVolumeLevel = currentVolume
+            setFallbackVolume(0f)
+        } else {
+            val restoreLevel = rememberedVolumeLevel.takeIf { it > 0.01f } ?: 1f
+            setFallbackVolume(restoreLevel)
+        }
+    }
+
+    fun togglePictureInPictureFromShortcut() {
+        DesktopPlayerPictureInPicture.toggle()
     }
 
     private fun adjustFallbackVolume(delta: Float) {
@@ -405,6 +457,7 @@ internal class NativePlayerController(
     }
 
     fun dispose() {
+        DesktopPlayerMediaKeyDispatcher.unregister(this)
         host.resetCursorVisibility()
         DesktopPlayerMediaKeyDispatcher.unregister(this)
         disposePlayerHandle()
@@ -751,6 +804,7 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
 private data class NativeControlsStructureKey(
     val state: PlayerControlsState,
     val isFullscreen: Boolean,
+    val isInPip: Boolean,
 )
 
 private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
@@ -953,6 +1007,10 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("isPlaying", isPlaying)
         append(',')
         appendJsonField("isLoading", isLoading)
+        append(',')
+        appendJsonField("pipLabel", pipLabel)
+        append(',')
+        appendJsonField("isInPip", DesktopPlayerPictureInPicture.isEnabled)
         append(',')
         appendJsonField("controlsVisible", controlsVisible)
         append(',')
