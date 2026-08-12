@@ -37,6 +37,7 @@ enum class PlayerControlsAction {
     KeyboardSeekForward,
     KeyboardVolumeDown,
     KeyboardVolumeUp,
+    PictureInPicture,
     ResizeMode,
     Speed,
     Subtitles,

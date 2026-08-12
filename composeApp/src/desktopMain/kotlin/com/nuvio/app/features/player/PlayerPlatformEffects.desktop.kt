@@ -4,9 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.unit.IntSize
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.NativePlayerBridge
+import com.nuvio.app.features.player.desktop.DesktopPlayerPictureInPicture
 
 @Composable
 actual fun LockPlayerToLandscape() = Unit
@@ -30,10 +32,28 @@ actual fun EnterImmersivePlayerMode(keepScreenAwake: Boolean) {
 actual fun ManagePlayerPictureInPicture(
     isPlaying: Boolean,
     videoSize: IntSize,
-) = Unit
+) {
+    SideEffect {
+        DesktopPlayerPictureInPicture.update(isPlaying = isPlaying, videoSize = videoSize)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            DesktopPlayerPictureInPicture.clear()
+        }
+    }
+}
 
 @Composable
-actual fun rememberIsInPictureInPicture(): Boolean = false
+actual fun rememberIsInPictureInPicture(): Boolean {
+    val version = DesktopPlayerPictureInPicture.changes.collectAsState()
+    version.value
+    return DesktopPlayerPictureInPicture.isEnabled
+}
+
+actual fun togglePlayerPictureInPicture() {
+    DesktopPlayerPictureInPicture.toggle()
+}
 
 @Composable
 actual fun rememberPlayerGestureController(): PlayerGestureController? = null
