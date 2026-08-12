@@ -519,7 +519,9 @@ private fun PlayerScreenRuntime.currentInitialPositionRequestKey(): String? {
 private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, isEpisode: Boolean) {
     val isInPip = rememberIsInPictureInPicture()
     AnimatedVisibility(
-        visible = (controlsVisible || showParentalGuide) && !playerControlsLocked && !isInPip,
+        visible = (controlsVisible || showParentalGuide) &&
+            !playerControlsLocked &&
+            (!isInPip || isDesktop),
         enter = fadeIn(),
         exit = fadeOut(),
     ) {
@@ -555,6 +557,11 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             onAudioClick = {
                 refreshTracks()
                 showAudioModal = true
+            },
+            onPictureInPictureClick = if (isDesktop) {
+                { togglePlayerPictureInPicture() }
+            } else {
+                null
             },
             onVideoSettingsClick = if (isIos) {
                 {
@@ -694,6 +701,9 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
                 showVideoSettingsModal = true
                 controlsVisible = true
             }
+        }
+        PlayerControlsAction.PictureInPicture -> {
+            togglePlayerPictureInPicture()
         }
         PlayerControlsAction.DoubleTapSeekBack -> {
             prepareDoubleTapSeekForNativeFallback(PlayerSeekDirection.Backward)

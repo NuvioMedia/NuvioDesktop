@@ -35,6 +35,9 @@
       <path d="M6 6L18 18" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>
       <path d="M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>
     </symbol>
+    <symbol id="icon-pip" viewBox="0 0 24 24">
+      <path d="M19 11h-8v6h8v-6zm4-8H1c-.55 0-1 .45-1 1v16c0 .55.45 1 1 1h22c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zm-2 16H3V6h18v13z" fill="currentColor"/>
+    </symbol>
     <symbol id="icon-fullscreen" viewBox="0 0 24 24">
       <path d="M8 2H4C2.89543 2 2 2.89543 2 4V8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       <path d="M22 8L22 4C22 2.89543 21.1046 2 20 2H16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -120,6 +123,7 @@
         <nav class="header-actions" aria-label="Player actions">
           <button class="header-button" id="submitIntroButton" data-command="submitIntro" aria-label="Submit intro"><svg><use href="#icon-flag"></use></svg></button>
           <button class="header-button" id="videoSettingsButton" data-command="videoSettings" aria-label="Video settings"><svg><use href="#icon-build"></use></svg></button>
+          <button class="header-button" id="pipButton" data-command="pictureInPicture" aria-label="Picture in Picture"><svg><use href="#icon-pip"></use></svg></button>
           <button class="header-button" id="fullscreenButton" data-command="toggleFullscreen" aria-label="Enter fullscreen"><svg><use id="fullscreenIcon" href="#icon-fullscreen"></use></svg></button>
           <button class="header-button" id="backButton" data-command="back" aria-label="Close player"><svg><use href="#icon-close"></use></svg></button>
         </nav>

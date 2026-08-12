@@ -487,6 +487,7 @@ const nextVolumeToastLabel = delta => {
 const seekToastLabel = command => {
   if (command === "seekBack" || command === "keyboardSeekBack") return "-10s";
   if (command === "seekForward" || command === "keyboardSeekForward") return "+10s";
+  if (command === "pictureInPicture" || command === "pip") return "Picture-in-Picture";
   return "";
 };
 
@@ -2164,7 +2165,7 @@ const actionShortcutCommandForEvent = event => {
     case "KeyE":
       return "episodes";
     case "KeyP":
-      return "keyboardToggle";
+      return "pictureInPicture";
     default:
       return "";
   }

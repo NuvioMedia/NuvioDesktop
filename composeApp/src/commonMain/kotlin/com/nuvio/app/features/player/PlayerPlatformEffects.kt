@@ -27,6 +27,8 @@ expect fun ManagePlayerPictureInPicture(
     videoSize: IntSize,
 )
 
+expect fun togglePlayerPictureInPicture()
+
 @Composable
 expect fun rememberIsInPictureInPicture(): Boolean
 
