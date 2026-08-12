@@ -330,6 +330,11 @@
     <string name="compose_action_on">On</string>
     <string name="compose_action_pause">Pause</string>
     <string name="compose_action_reload">Reload</string>
+    <string name="compose_player_picture_in_picture">Picture in picture</string>
+    <string name="compose_player_pip_placeholder_title">Video playing in Picture-in-Picture</string>
+    <string name="compose_player_pip_restore">Restore to Main Player</string>
+    <string name="compose_player_pip_window_title">Nuvio • Picture-in-Picture</string>
+    <string name="compose_player_pip_close">Close PiP</string>
     <string name="compose_auth_already_have_account">Already have an account? </string>
     <string name="compose_auth_continue_without_account">Continue Without Account</string>
     <string name="compose_auth_create_account">Create Account</string>

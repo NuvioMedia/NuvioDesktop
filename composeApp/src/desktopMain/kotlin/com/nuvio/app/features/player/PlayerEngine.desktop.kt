@@ -1,9 +1,15 @@
 package com.nuvio.app.features.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,6 +29,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.LocalNuvioPlatformDensity
 import com.nuvio.app.features.player.desktop.DesktopHostOs
+import com.nuvio.app.features.player.desktop.DesktopPlayerPictureInPicture
+import com.nuvio.app.features.player.desktop.DesktopPlayerPipLabels
 import com.nuvio.app.features.player.desktop.NativePlayerController
 import com.nuvio.app.features.player.desktop.NativePlayerHost
 import com.nuvio.app.features.player.desktop.desktopFullscreenChanges
@@ -116,9 +124,19 @@ private fun NativePlayerSurface(
     val latestOnPlayerControlsScrubFinished = rememberUpdatedState(onPlayerControlsScrubFinished)
     val latestOnInitialPositionHandled = rememberUpdatedState(onInitialPositionHandled)
     val latestOnError = rememberUpdatedState(onError)
+    val latestPlayerControlsState = rememberUpdatedState(playerControlsState)
     val playerSettings by PlayerSettingsRepository.uiState.collectAsState()
     val decoderPriority = playerSettings.decoderPriority
     val nvidiaRtxSuperResolutionEnabled = playerSettings.nvidiaRtxSuperResolutionEnabled
+
+    // Register host with PiP system and clean up on dispose
+    DisposableEffect(host) {
+        DesktopPlayerPictureInPicture.setHost(host)
+        DesktopPlayerPictureInPicture.setController(controller)
+        onDispose {
+            DesktopPlayerPictureInPicture.release()
+        }
+    }
 
     LaunchedEffect(controller, sourceUrl, playbackHeaders) {
         onControllerReady(controller)
@@ -200,6 +218,19 @@ private fun NativePlayerSurface(
 
     LaunchedEffect(controller, playerControlsState) {
         controller.updateControls(playerControlsState)
+        DesktopPlayerPictureInPicture.setLabels(
+            DesktopPlayerPipLabels(
+                windowTitle = playerControlsState.pipWindowTitle,
+                restoreTooltip = playerControlsState.pipRestoreLabel,
+                closeTooltip = playerControlsState.pipCloseLabel,
+            ),
+        )
+    }
+
+    LaunchedEffect(controller) {
+        DesktopPlayerPictureInPicture.changes.drop(1).collect {
+            controller.updateControls(latestPlayerControlsState.value)
+        }
     }
 
     LaunchedEffect(controller) {
@@ -215,17 +246,26 @@ private fun NativePlayerSurface(
         }
     }
 
+    // Observe PiP state changes
+    val pipChanges by DesktopPlayerPictureInPicture.changes.collectAsState()
+    val isInPip = DesktopPlayerPictureInPicture.isEnabled
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black),
+        contentAlignment = Alignment.Center,
     ) {
+        // SwingPanel keeps the stable AWT host. PiP moves only the native player
+        // surface to the independent window, so Compose never loses its host peer.
         CompositionLocalProvider(LocalDensity provides platformDensity) {
             SwingPanel(
-                factory = {
-                    host
-                },
-                modifier = if (hostFirstPaintComplete.value) {
+                factory = { host },
+                modifier = if (isInPip) {
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .requiredSize(1.dp)
+                } else if (hostFirstPaintComplete.value) {
                     Modifier.fillMaxSize()
                 } else {
                     Modifier
@@ -234,6 +274,34 @@ private fun NativePlayerSurface(
                 },
                 background = Color.Black,
             )
+        }
+
+        // Placeholder overlay shown when video has moved to PiP window
+        if (isInPip) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(24.dp),
+                ) {
+                    Text(
+                        text = playerControlsState.pipPlaceholderTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { DesktopPlayerPictureInPicture.clear() },
+                    ) {
+                        Text(playerControlsState.pipRestoreLabel)
+                    }
+                }
+            }
         }
     }
 }

@@ -811,6 +811,57 @@ button:disabled {
   height: var(--header-icon);
 }
 
+/* PiP keeps only playback, captions/audio, volume and the restore action. */
+.player.pip-mode .header-button:not(#pipButton),
+.player.pip-mode .metadata,
+.player.pip-mode [data-command="resize"],
+.player.pip-mode [data-command="speed"],
+.player.pip-mode [data-command="sources"],
+.player.pip-mode [data-command="episodes"],
+.player.pip-mode .next-episode-card,
+.player.pip-mode .skip-prompt,
+.player.pip-mode .pause-metadata-overlay,
+.player.pip-mode .parental-guide,
+.player.pip-mode .opening-overlay {
+  display: none !important;
+}
+
+.player.pip-mode .header {
+  padding: 10px;
+}
+
+.player.pip-mode .header-actions {
+  margin-left: auto;
+}
+
+.player.pip-mode .action-row {
+  gap: 8px;
+}
+
+.player.pip-mode .action {
+  padding: 8px;
+}
+
+.player.pip-mode .action span {
+  display: none;
+}
+
+.player.pip-mode .action {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  justify-content: center;
+}
+
+.player.pip-mode .playback-status {
+  gap: 8px;
+}
+
+.player.pip-mode .volume-slider {
+  width: 76px;
+}
+
 .center-controls {
   position: absolute;
   left: 50%;

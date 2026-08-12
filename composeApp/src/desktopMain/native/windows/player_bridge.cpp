@@ -985,8 +985,50 @@ public:
         });
     }
 
+    void registerGlobalMediaKeys() {
+        if (!messageHwnd) return;
+        RegisterHotKey(messageHwnd, 1, MOD_NOREPEAT, VK_MEDIA_PLAY_PAUSE);
+        RegisterHotKey(messageHwnd, 2, MOD_NOREPEAT, VK_MEDIA_STOP);
+        RegisterHotKey(messageHwnd, 3, MOD_NOREPEAT, VK_MEDIA_NEXT_TRACK);
+        RegisterHotKey(messageHwnd, 4, MOD_NOREPEAT, VK_MEDIA_PREV_TRACK);
+        RegisterHotKey(messageHwnd, 5, MOD_NOREPEAT, VK_VOLUME_UP);
+        RegisterHotKey(messageHwnd, 6, MOD_NOREPEAT, VK_VOLUME_DOWN);
+        RegisterHotKey(messageHwnd, 7, MOD_NOREPEAT, VK_VOLUME_MUTE);
+    }
+
+    void unregisterGlobalMediaKeys() {
+        if (!messageHwnd) return;
+        for (int id = 1; id <= 7; ++id) UnregisterHotKey(messageHwnd, id);
+    }
+
     void requestFocus() {
         postUiTask([self = shared_from_this()]() {
+            self->focusNativeControls();
+        });
+    }
+
+    void beginWindowDrag() {
+        postUiTask([self = shared_from_this()]() {
+            if (!self->containerHwnd) return;
+            HWND rootWindow = GetAncestor(self->containerHwnd, GA_ROOT);
+            if (!rootWindow || !IsWindow(rootWindow)) return;
+            ReleaseCapture();
+            SendMessageW(rootWindow, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        });
+    }
+
+    void reparentSurface(HWND newHost) {
+        if (!newHost || !IsWindow(newHost)) return;
+        sendUiTask([self = shared_from_this(), newHost]() {
+            if (self->shuttingDown.load() || !IsWindow(newHost) || !self->containerHwnd) return;
+            self->hostHwnd = newHost;
+            SetParent(self->containerHwnd, newHost);
+            LONG_PTR style = GetWindowLongPtrW(self->containerHwnd, GWL_STYLE);
+            style |= WS_CHILD;
+            style &= ~WS_POPUP;
+            SetWindowLongPtrW(self->containerHwnd, GWL_STYLE, style);
+            self->layoutNativeSubviews();
+            ShowWindow(self->containerHwnd, SW_SHOW);
             self->focusNativeControls();
         });
     }
@@ -1291,6 +1333,7 @@ private:
         if (!messageHwnd) {
             throw std::runtime_error("Unable to create Windows player message window.");
         }
+        registerGlobalMediaKeys();
 
         RECT bounds = {};
         GetClientRect(hostHwnd, &bounds);
@@ -1324,6 +1367,7 @@ private:
     }
 
     void cleanupUiResources() {
+        unregisterGlobalMediaKeys();
         if (messageHwnd) {
             KillTimer(messageHwnd, NUVIO_TIMER_ID);
         }
@@ -2072,6 +2116,21 @@ LRESULT CALLBACK messageWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
         case WM_TIMER:
             if (player && wParam == NUVIO_TIMER_ID) player->onTimer();
             return 0;
+        case WM_HOTKEY:
+            if (player) {
+                switch (wParam) {
+                    case 1: player->sendPlayerEvent("keyboardToggle", 0.0); break;
+                    case 2: player->sendPlayerEvent("keyboardStop", 0.0); break;
+                    case 3: player->sendPlayerEvent("keyboardSeekForward", 0.0); break;
+                    case 4: player->sendPlayerEvent("keyboardSeekBack", 0.0); break;
+                    case 5: player->sendPlayerEvent("keyboardVolumeUp", 0.0); break;
+                    case 6: player->sendPlayerEvent("keyboardVolumeDown", 0.0); break;
+                    case 7: player->sendPlayerEvent("keyboardVolumeMute", 0.0); break;
+                    default: break;
+                }
+                return 0;
+            }
+            return DefWindowProcW(hwnd, message, wParam, lParam);
         case WM_NCDESTROY:
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             return 0;
@@ -2095,9 +2154,46 @@ LRESULT CALLBACK containerWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPA
                 return 0;
             }
             return DefWindowProcW(hwnd, message, wParam, lParam);
+        case WM_APPCOMMAND: {
+            if (!player) return DefWindowProcW(hwnd, message, wParam, lParam);
+            switch (GET_APPCOMMAND_LPARAM(lParam)) {
+                case APPCOMMAND_MEDIA_PLAY_PAUSE:
+                    player->sendPlayerEvent("keyboardToggle", 0.0);
+                    return TRUE;
+                case APPCOMMAND_MEDIA_STOP:
+                    player->sendPlayerEvent("keyboardToggle", 1.0);
+                    return TRUE;
+                case APPCOMMAND_MEDIA_NEXTTRACK:
+                    player->sendPlayerEvent("keyboardSeekForward", 0.0);
+                    return TRUE;
+                case APPCOMMAND_MEDIA_PREVIOUSTRACK:
+                    player->sendPlayerEvent("keyboardSeekBack", 0.0);
+                    return TRUE;
+                case APPCOMMAND_VOLUME_UP:
+                    player->sendPlayerEvent("keyboardVolumeUp", 0.0);
+                    return TRUE;
+                case APPCOMMAND_VOLUME_DOWN:
+                    player->sendPlayerEvent("keyboardVolumeDown", 0.0);
+                    return TRUE;
+                case APPCOMMAND_VOLUME_MUTE:
+                    player->sendPlayerEvent("keyboardVolumeMute", 0.0);
+                    return TRUE;
+                default:
+                    return DefWindowProcW(hwnd, message, wParam, lParam);
+            }
+        }
         case WM_LBUTTONDBLCLK:
             if (player) player->sendPlayerEvent("toggleFullscreen", 0.0);
             return 0;
+        case WM_LBUTTONDOWN: {
+            HWND rootWindow = GetAncestor(hwnd, GA_ROOT);
+            if (rootWindow && IsWindow(rootWindow)) {
+                ReleaseCapture();
+                SendMessageW(rootWindow, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+                return 0;
+            }
+            return DefWindowProcW(hwnd, message, wParam, lParam);
+        }
         case WM_SIZE:
             return 0;
         case WM_ERASEBKGND: {
@@ -2227,6 +2323,39 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_requestFocus(JNIEnv *, jobject, jlong handle) {
     auto player = playerFromHandle(handle);
     if (player) player->requestFocus();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_beginWindowDrag(JNIEnv *, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    if (player) player->beginWindowDrag();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowResizable(
+    JNIEnv *, jobject, jlong windowHwnd, jboolean enabled
+) {
+    HWND window = (HWND)(intptr_t)windowHwnd;
+    if (!window || !IsWindow(window)) return;
+    LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
+    if (enabled == JNI_TRUE) {
+        style |= WS_THICKFRAME;
+        style &= ~(WS_CAPTION | WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX);
+    } else {
+        style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX);
+    }
+    SetWindowLongPtrW(window, GWL_STYLE, style);
+    COLORREF black = RGB(0, 0, 0);
+    DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &black, sizeof(black));
+    DwmSetWindowAttribute(window, DWMWA_CAPTION_COLOR, &black, sizeof(black));
+    SetWindowPos(window, nullptr, 0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_reparentSurfaceNative(JNIEnv *, jobject, jlong handle, jlong hostViewPtr) {
+    auto player = playerFromHandle(handle);
+    if (player) player->reparentSurface((HWND)(intptr_t)hostViewPtr);
 }
 
 extern "C" JNIEXPORT void JNICALL
