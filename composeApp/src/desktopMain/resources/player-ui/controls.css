@@ -31,7 +31,8 @@
   --theme-selected-surface-hover: #2d4565;
   --theme-selected-ring: rgba(47, 111, 237, .35);
   --theme-timeline-fill: #fff;
-  --theme-timeline-track: rgba(255, 255, 255, .28);
+  --theme-timeline-buffered: rgba(255, 255, 255, .55);
+  --theme-timeline-track: rgba(255, 255, 255, .22);
   --theme-buffering: #fff;
   --theme-buffering-track: rgba(255, 255, 255, .28);
   --theme-control-foreground: #fff;
@@ -1343,7 +1344,12 @@ button:disabled {
   height: 10px;
   border-radius: 999px;
   background:
-    linear-gradient(to right, var(--theme-timeline-fill) 0 var(--progress, 0%), var(--theme-timeline-track) var(--progress, 0%) 100%);
+    linear-gradient(
+      to right,
+      var(--theme-timeline-fill) 0 var(--progress, 0%),
+      var(--theme-timeline-buffered, rgba(255, 255, 255, .55)) var(--progress, 0%) var(--buffered, var(--progress, 0%)),
+      var(--theme-timeline-track) var(--buffered, var(--progress, 0%)) 100%
+    );
 }
 
 .scrub::-webkit-slider-thumb {

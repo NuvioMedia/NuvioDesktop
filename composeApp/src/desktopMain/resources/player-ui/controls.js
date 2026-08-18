@@ -290,6 +290,7 @@ let state = {
   showExternalPlayer: false,
   durationMs: 0,
   positionMs: 0,
+  bufferedMs: 0,
   audioTracks: [],
   subtitleTracks: [],
   sourceIsLoading: false,
@@ -694,10 +695,14 @@ const formatTime = milliseconds => {
     : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 };
 
-const setProgress = (positionMs, durationMs) => {
+const setProgress = (positionMs, durationMs, bufferedMs = state.bufferedMs) => {
   const percent = durationMs > 0 ? Math.max(0, Math.min(100, positionMs / durationMs * 100)) : 0;
+  const bufferedPercent = durationMs > 0
+    ? Math.max(percent, Math.min(100, (Number(bufferedMs) || 0) / durationMs * 100))
+    : 0;
   seek.value = Math.round(percent * 10);
   seek.style.setProperty("--progress", `${percent}%`);
+  seek.style.setProperty("--buffered", `${bufferedPercent}%`);
   positionLabel.textContent = formatTime(positionMs);
   durationLabel.textContent = formatTime(durationMs);
   if (timeLabel) {
@@ -2733,6 +2738,9 @@ volumeSlider.addEventListener("input", () => {
 window.playerUpdate = update => {
   const durationMs = Math.round((Number(update.duration) || 0) * 1000);
   const positionMs = Math.round((Number(update.position) || 0) * 1000);
+  const bufferedMs = update.buffered != null
+    ? Math.round((Number(update.buffered) || 0) * 1000)
+    : Math.max(positionMs, Number(state.bufferedMs) || 0);
   const audioTracks = normalizeTracks(update.audioTracks);
   const subtitleTracks = normalizeTracks(update.subtitleTracks);
   const audioTracksChanged = trackListSignature(audioTracks) !== trackListSignature(state.audioTracks);
@@ -2748,6 +2756,7 @@ window.playerUpdate = update => {
     ...state,
     durationMs,
     positionMs,
+    bufferedMs,
     isPlaying: pendingIsPlaying === null ? nativeIsPlaying : pendingIsPlaying,
     isLoading: Boolean(update.loading || update.isLoading),
     audioTracks,
