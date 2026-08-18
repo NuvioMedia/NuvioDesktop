@@ -2787,7 +2787,15 @@ window.playerControls = nextState => {
   const currentPlaybackState = pendingIsPlaying === null
     ? state.isPlaying
     : pendingIsPlaying;
-  state = { ...state, ...nextState, isPlaying: currentPlaybackState };
+  const mediaChanged = Boolean(
+    (typeof nextState.title === "string" && nextState.title !== state.title) ||
+    (typeof nextState.episodeText === "string" && nextState.episodeText !== state.episodeText) ||
+    (typeof nextState.streamTitle === "string" && nextState.streamTitle !== state.streamTitle)
+  );
+  const bufferedMs = nextState.bufferedMs !== undefined
+    ? Math.max(0, Number(nextState.bufferedMs) || 0)
+    : (mediaChanged ? 0 : (Number(state.bufferedMs) || 0));
+  state = { ...state, ...nextState, bufferedMs, isPlaying: currentPlaybackState };
   hasReceivedPlayerControls = true;
   const closeToken = Number(state.closeModalsToken) || 0;
   if (closeToken !== previousCloseToken) {
