@@ -12,7 +12,7 @@ internal actual object AppIconPlatform {
 
     actual fun currentIconName(): String? = store.getString(selectedIconKey)
 
-    actual fun currentBlackBackground(): Boolean = store.getString(blackBackgroundKey)?.toBooleanStrictOrNull() ?: true
+    actual fun currentBlackBackground(): Boolean = store.getString(blackBackgroundKey)?.toBooleanStrictOrNull() ?: false
 
     actual fun setBlackBackground(enabled: Boolean): Boolean {
         store.putBoolean(blackBackgroundKey, enabled)

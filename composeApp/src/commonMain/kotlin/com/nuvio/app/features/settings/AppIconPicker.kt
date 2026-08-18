@@ -315,7 +315,7 @@ internal fun AppIconThumbnail(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
     cornerRadius: Dp = 18.dp,
-    blackBackground: Boolean = true,
+    blackBackground: Boolean = false,
 ) {
     val tokens = MaterialTheme.nuvio
     Image(
