@@ -2238,6 +2238,8 @@ const shortcutCommandForEvent = event => {
       return "keyboardVolumeUp";
     case "ArrowDown":
       return "keyboardVolumeDown";
+    case "KeyF":
+      return "toggleFullscreen";
     default:
       return "";
   }
@@ -2916,6 +2918,10 @@ document.addEventListener("keydown", event => {
   }
   if (command === "keyboardToggle") {
     requestPlaybackState("setPlaybackStateQuiet", false);
+    return;
+  }
+  if (command === "toggleFullscreen") {
+    togglePlayerFullscreen();
     return;
   }
   showCommandToast(command);
