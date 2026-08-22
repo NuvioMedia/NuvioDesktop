@@ -101,6 +101,11 @@ const fontSizeValue = document.getElementById("fontSizeValue");
 const fontSizePlus = document.getElementById("fontSizePlus");
 const outlineLabel = document.getElementById("outlineLabel");
 const outlineToggle = document.getElementById("outlineToggle");
+const outlineDetails = document.getElementById("outlineDetails");
+const outlineWidthLabel = document.getElementById("outlineWidthLabel");
+const outlineWidthMinus = document.getElementById("outlineWidthMinus");
+const outlineWidthValue = document.getElementById("outlineWidthValue");
+const outlineWidthPlus = document.getElementById("outlineWidthPlus");
 const boldLabel = document.getElementById("boldLabel");
 const boldToggle = document.getElementById("boldToggle");
 const bottomOffsetLabel = document.getElementById("bottomOffsetLabel");
@@ -233,6 +238,7 @@ let state = {
   loadingSubtitleLinesLabel: "Loading subtitle lines...",
   fontSizeLabel: "Font Size",
   outlineLabel: "Outline",
+  outlineWidthLabel: "Outline Width",
   boldLabel: "Bold",
   bottomOffsetLabel: "Bottom Offset",
   colorLabel: "Color",
@@ -330,6 +336,7 @@ let state = {
     textColor: "#FFFFFFFF",
     outlineColor: "#FF000000",
     outlineEnabled: true,
+    outlineWidth: 2,
     bold: false,
     fontSizeSp: 18,
     bottomOffset: 20,
@@ -1245,8 +1252,13 @@ const renderSubtitleStylePanel = () => {
   fontSizeLabel.textContent = state.fontSizeLabel || "Font Size";
   fontSizeValue.textContent = `${Number(style.fontSizeSp) || 18}sp`;
   outlineLabel.textContent = state.outlineLabel || "Outline";
-  outlineToggle.textContent = style.outlineEnabled ? (state.onLabel || "On") : (state.offLabel || "Off");
-  outlineToggle.classList.toggle("primary", Boolean(style.outlineEnabled));
+  const outlineEnabled = Boolean(style.outlineEnabled);
+  outlineToggle.textContent = outlineEnabled ? (state.onLabel || "On") : (state.offLabel || "Off");
+  outlineToggle.classList.toggle("primary", outlineEnabled);
+  outlineToggle.setAttribute("aria-pressed", outlineEnabled ? "true" : "false");
+  if (outlineDetails) outlineDetails.hidden = !outlineEnabled;
+  outlineWidthLabel.textContent = state.outlineWidthLabel || "Outline Width";
+  outlineWidthValue.textContent = String(Number(style.outlineWidth) || 2);
   boldLabel.textContent = state.boldLabel || "Bold";
   boldToggle.textContent = style.bold ? (state.onLabel || "On") : (state.offLabel || "Off");
   boldToggle.classList.toggle("primary", Boolean(style.bold));
@@ -2548,6 +2560,14 @@ fontSizePlus.addEventListener("click", event => {
 outlineToggle.addEventListener("click", event => {
   event.stopPropagation();
   send("subtitleOutlineToggle", 0);
+});
+outlineWidthMinus.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleOutlineWidthDelta", -1);
+});
+outlineWidthPlus.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleOutlineWidthDelta", 1);
 });
 boldToggle.addEventListener("click", event => {
   event.stopPropagation();

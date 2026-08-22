@@ -2074,10 +2074,20 @@ button:disabled {
   font-weight: 500;
 }
 
-#outlineColorLabel {
+#outlineColorLabel,
+#outlineWidthLabel {
   color: var(--theme-text-secondary);
   font-size: 12px;
   line-height: 18px;
+}
+
+#outlineDetails {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
 }
 
 .stepper {
@@ -2962,7 +2972,8 @@ button.action:focus-visible {
     line-height: 22px;
   }
 
-  #outlineColorLabel {
+  #outlineColorLabel,
+  #outlineWidthLabel {
     font-size: 14px;
     line-height: 20px;
   }

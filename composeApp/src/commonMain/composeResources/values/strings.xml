@@ -429,6 +429,7 @@
     <string name="compose_player_none">None</string>
     <string name="compose_player_outline">Outline</string>
     <string name="compose_player_outline_color">Outline Color</string>
+    <string name="compose_player_outline_width">Outline Width</string>
     <string name="compose_player_panel_episodes">Episodes</string>
     <string name="compose_player_panel_sources">Sources</string>
     <string name="compose_player_panel_streams">Streams</string>
@@ -1143,6 +1144,7 @@
     <string name="settings_playback_subtitle_color_transparent">Transparent</string>
     <string name="settings_playback_subtitle_outline">Outline</string>
     <string name="settings_playback_subtitle_outline_color">Outline Color</string>
+    <string name="settings_playback_subtitle_outline_width">Outline Width</string>
     <string name="settings_playback_subtitle_outline_description">Draw a border around subtitle text.</string>
     <string name="settings_playback_subtitle_show_preferred_only">Show Only Preferred Languages</string>
     <string name="settings_playback_subtitle_show_preferred_only_description">Only show subtitles matching your preferred subtitle languages.</string>
