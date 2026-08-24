@@ -86,6 +86,12 @@ internal class NativePlayerHost : Canvas() {
         onPeerReady?.invoke()
     }
 
+    /**
+     * When true, [removeNotify] skips peer destruction so the native HWND
+     * stays alive during PiP reparenting.  Set this to true *before* calling
+     * [java.awt.Container.remove] on this component, then reset to false
+     * *after* adding it to the new container.
+     */
     override fun removeNotify() {
         onDisplayableChanged?.invoke(false)
         firstPaintNotified = false

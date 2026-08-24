@@ -94,6 +94,8 @@
 - (void)shutdown;
 - (void)updateControlsJson:(NSString *)controlsJson;
 - (void)requestFocus;
+- (void)beginWindowDrag;
+- (void)reparentSurfaceToHostView:(NSView *)hostView;
 - (void)setPaused:(BOOL)paused;
 - (BOOL)isPaused;
 - (void)seekToMilliseconds:(long long)positionMs;
@@ -1189,6 +1191,43 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     }
     _didFocusControlsWebView = YES;
     [_webView.window makeFirstResponder:_webView];
+}
+
+- (void)beginWindowDrag {
+    // AppKit requires the original mouse event for performWindowDragWithEvent:;
+    // the native view remains movable through the window manager on macOS.
+}
+
+- (void)reparentSurfaceToHostView:(NSView *)newHostView {
+    if (!newHostView || !newHostView.window) return;
+    NSView *oldHostView = _hostView;
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                      name:NSViewFrameDidChangeNotification
+                                                    object:oldHostView];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                      name:NSViewBoundsDidChangeNotification
+                                                    object:oldHostView];
+    [_videoView removeFromSuperview];
+    [_webView removeFromSuperview];
+    _hostView = newHostView;
+    _hostView.wantsLayer = YES;
+    _hostView.layer.backgroundColor = NSColor.blackColor.CGColor;
+    [_hostView setPostsFrameChangedNotifications:YES];
+    [_hostView setPostsBoundsChangedNotifications:YES];
+    [_hostView addSubview:_videoView];
+    [_hostView addSubview:_webView positioned:NSWindowAbove relativeTo:_videoView];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(hostViewFrameDidChange:)
+                                                 name:NSViewFrameDidChangeNotification
+                                               object:_hostView];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(hostViewBoundsDidChange:)
+                                                 name:NSViewBoundsDidChangeNotification
+                                               object:_hostView];
+    _didFocusControlsWebView = NO;
+    [self layoutNativeSubviews];
+    [_videoView updateMetalLayerLayout];
+    [self requestFocus];
 }
 
 - (void)layoutControlsWebViewToBounds:(NSRect)bounds immediate:(BOOL)immediate {
@@ -2641,6 +2680,31 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_requestFocus(
     MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
     runOnMainAsync(^{
         [player requestFocus];
+    });
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_beginWindowDrag(
+    JNIEnv *, jobject, jlong handle
+) {
+    if (handle == 0) return;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowResizable(
+    JNIEnv *, jobject, jlong, jboolean
+) {
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_reparentSurfaceNative(
+    JNIEnv *, jobject, jlong handle, jlong hostViewPtr
+) {
+    if (handle == 0 || hostViewPtr == 0) return;
+    MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
+    NSView *hostView = (__bridge NSView *)(void *)(intptr_t)hostViewPtr;
+    runOnMainSync(^{
+        [player reparentSurfaceToHostView:hostView];
     });
 }
 

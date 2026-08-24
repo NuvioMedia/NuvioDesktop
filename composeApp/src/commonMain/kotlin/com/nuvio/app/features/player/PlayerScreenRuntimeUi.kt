@@ -242,6 +242,11 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         submitIntroLabel = stringResource(Res.string.submit_intro_action),
         videoSettingsLabel = stringResource(Res.string.player_action_video_settings),
         tapToUnlockLabel = stringResource(Res.string.compose_player_tap_to_unlock),
+        pipLabel = stringResource(Res.string.compose_player_picture_in_picture),
+        pipPlaceholderTitle = stringResource(Res.string.compose_player_pip_placeholder_title),
+        pipRestoreLabel = stringResource(Res.string.compose_player_pip_restore),
+        pipWindowTitle = stringResource(Res.string.compose_player_pip_window_title),
+        pipCloseLabel = stringResource(Res.string.compose_player_pip_close),
         playbackErrorTitle = stringResource(Res.string.compose_player_playback_error),
         playbackErrorMessage = errorMessage.orEmpty(),
         playbackErrorActionLabel = stringResource(Res.string.compose_player_go_back),
@@ -546,7 +551,9 @@ private fun PlayerScreenRuntime.currentInitialPositionRequestKey(): String? {
 private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, isEpisode: Boolean) {
     val isInPip = rememberIsInPictureInPicture()
     AnimatedVisibility(
-        visible = (controlsVisible || showParentalGuide) && !playerControlsLocked && !isInPip,
+        visible = (controlsVisible || showParentalGuide) &&
+            !playerControlsLocked &&
+            (!isInPip || isDesktop),
         enter = fadeIn(),
         exit = fadeOut(),
     ) {
@@ -582,6 +589,11 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             onAudioClick = {
                 refreshTracks()
                 showAudioModal = true
+            },
+            onPictureInPictureClick = if (isDesktop) {
+                { togglePlayerPictureInPicture() }
+            } else {
+                null
             },
             onVideoSettingsClick = if (isIos) {
                 {
@@ -721,6 +733,9 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
                 showVideoSettingsModal = true
                 controlsVisible = true
             }
+        }
+        PlayerControlsAction.PictureInPicture -> {
+            togglePlayerPictureInPicture()
         }
         PlayerControlsAction.DoubleTapSeekBack -> {
             prepareDoubleTapSeekForNativeFallback(PlayerSeekDirection.Backward)
