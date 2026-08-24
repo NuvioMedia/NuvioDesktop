@@ -76,6 +76,59 @@ Platform-specific packaging:
 ./gradlew :composeApp:packageReleaseDeb
 ```
 
+### Linux development and diagnostics
+
+Ubuntu 24.04 build dependencies for the native libmpv and GStreamer bridges:
+
+```bash
+sudo apt-get update
+sudo apt-get install --no-install-recommends \
+  build-essential cmake pkg-config xauth xvfb \
+  libmpv-dev libwebkit2gtk-4.1-dev libgtk-3-dev \
+  libx11-dev libxcomposite-dev libxext-dev \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+```
+
+Run the same Linux validation used in CI:
+
+```bash
+xvfb-run --auto-servernum ./gradlew \
+  :composeApp:buildLinuxPlayerBridge \
+  :composeApp:desktopTest \
+  :composeMediaPlayer:jvmTest \
+  --no-daemon --stacktrace
+
+./scripts/test-linux-deb-tools.sh
+```
+
+The generated DEB declares the runtime libraries and GStreamer components it
+needs. To install the equivalent runtime stack when running from source:
+
+```bash
+sudo apt-get install \
+  libmpv2 libwebkit2gtk-4.1-0 libxcomposite1 libxext6 \
+  gstreamer1.0-plugins-good gstreamer1.0-libav glib-networking
+```
+
+For playback failures, launch from a terminal and capture both application and
+GStreamer output:
+
+```bash
+GST_DEBUG=2 ./gradlew :composeApp:run 2>&1 | tee nuvio-linux.log
+```
+
+Useful dependency checks:
+
+```bash
+pkg-config --modversion mpv webkit2gtk-4.1 gstreamer-1.0
+ldd composeApp/build/native/linux/libplayer_bridge.so
+```
+
+Include the Nuvio commit/version, distribution and desktop session, GPU and
+driver, install method, reproduction steps, and the captured terminal output in
+Linux bug reports. Do not include account tokens, extension credentials, or
+private stream URLs in logs.
+
 ## Project Structure
 
 - `composeApp/` contains the app code.

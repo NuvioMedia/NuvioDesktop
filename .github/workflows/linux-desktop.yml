@@ -1,0 +1,69 @@
+name: Linux desktop validation
+
+on:
+  pull_request:
+    branches:
+      - Dev
+      - linux-desktop-support
+  push:
+    branches:
+      - Dev
+      - linux-desktop-support
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build native bridges and run desktop tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            build-essential \
+            cmake \
+            dpkg-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libgstreamer1.0-dev \
+            libgtk-3-dev \
+            libmpv-dev \
+            libwebkit2gtk-4.1-dev \
+            libx11-dev \
+            libxcomposite-dev \
+            libxext-dev \
+            pkg-config \
+            xauth \
+            xvfb
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build Linux bridges and run JVM tests
+        run: |
+          xvfb-run --auto-servernum ./gradlew \
+            :composeApp:buildLinuxPlayerBridge \
+            :composeApp:desktopTest \
+            :composeMediaPlayer:jvmTest \
+            --no-daemon \
+            --stacktrace
+
+      - name: Test Linux DEB tooling
+        run: ./scripts/test-linux-deb-tools.sh

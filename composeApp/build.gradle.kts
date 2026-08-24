@@ -558,10 +558,10 @@ val androidDistributionSourceDir = if (androidDistribution == "full") {
 } else {
     "src/androidPlaystore/kotlin"
 }
+val runtimeLocalPropertiesFile = rootProject.file("local.properties")
 val runtimeLocalProperties = Properties().apply {
-    val file = rootProject.file("local.properties")
-    if (file.exists()) {
-        file.inputStream().use(::load)
+    if (runtimeLocalPropertiesFile.exists()) {
+        runtimeLocalPropertiesFile.inputStream().use(::load)
     }
 }
 
@@ -579,7 +579,9 @@ fun runtimeConfigBoolean(key: String, default: Boolean): Boolean =
 
 val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generateRuntimeConfigs") {
     outputDir.set(generatedRuntimeConfigDir)
-    localPropertiesFile.set(rootProject.layout.projectDirectory.file("local.properties"))
+    if (runtimeLocalPropertiesFile.exists()) {
+        localPropertiesFile.set(runtimeLocalPropertiesFile)
+    }
     appVersionName.set(releaseAppVersionName)
     appVersionCode.set(releaseAppVersionCode)
     desktopAppVersionName.set(desktopReleaseVersionName)
