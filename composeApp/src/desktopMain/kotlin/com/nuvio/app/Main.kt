@@ -18,6 +18,7 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.core.diagnostics.SentryInitializer
+import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.features.discordrpc.DiscordPresenceManager
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.plugins.configureDesktopQuickJsLibrary
@@ -26,6 +27,7 @@ import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopWindowGeometry
 import com.nuvio.app.features.player.desktop.DesktopWindowModeStorage
+import com.nuvio.app.features.player.desktop.NativePlayerBridge
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
 import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcuts
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
@@ -43,6 +45,11 @@ private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 
 fun main(args: Array<String>) {
+    // On Linux, initialize GTK BEFORE AWT/Compose/Skia to prevent GdkDisplayManager
+    // type registration conflict (Skiko partially loads GDK without full GTK init).
+    if (System.getProperty("os.name", "").lowercase().contains("linux")) {
+        runCatching { NativePlayerBridge.initGtkEarly() }
+    }
     applyDesktopRendererPreference()
     SentryInitializer.start()
     configureDesktopQuickJsLibrary()
@@ -198,13 +205,17 @@ fun main(args: Array<String>) {
             if (smokePlayerUrl == null) {
                 App()
             } else {
-                PlatformPlayerSurface(
-                    sourceUrl = smokePlayerUrl,
-                    modifier = Modifier.fillMaxSize(),
-                    onControllerReady = {},
-                    onSnapshot = {},
-                    onError = {},
-                )
+                // The player surface reads LocalNuvioPlatformDensity, which only
+                // NuvioTheme provides — the bare smoke harness must supply it too.
+                NuvioTheme {
+                    PlatformPlayerSurface(
+                        sourceUrl = smokePlayerUrl,
+                        modifier = Modifier.fillMaxSize(),
+                        onControllerReady = {},
+                        onSnapshot = {},
+                        onError = {},
+                    )
+                }
             }
         }
     }

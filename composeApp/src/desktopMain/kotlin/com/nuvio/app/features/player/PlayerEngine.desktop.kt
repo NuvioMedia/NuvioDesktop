@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -53,10 +54,15 @@ actual fun PlatformPlayerSurface(
     onControllerReady: (PlayerEngineController) -> Unit,
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
+    sourceAvailable: Boolean,
 ) {
-    if (DesktopHostOs.current == DesktopHostOs.MACOS || DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+    if (DesktopHostOs.current == DesktopHostOs.MACOS ||
+        DesktopHostOs.current == DesktopHostOs.WINDOWS ||
+        DesktopHostOs.current == DesktopHostOs.LINUX
+    ) {
         NativePlayerSurface(
             sourceUrl = sourceUrl,
+            sourceAvailable = sourceAvailable,
             sourceHeaders = sourceHeaders,
             modifier = modifier,
             playWhenReady = playWhenReady,
@@ -88,6 +94,7 @@ actual fun PlatformPlayerSurface(
 @Composable
 private fun NativePlayerSurface(
     sourceUrl: String,
+    sourceAvailable: Boolean,
     sourceHeaders: Map<String, String>,
     modifier: Modifier,
     playWhenReady: Boolean,
@@ -122,7 +129,7 @@ private fun NativePlayerSurface(
     val windowsHdmiPassthroughEnabled =
         DesktopHostOs.current == DesktopHostOs.WINDOWS && playerSettings.windowsHdmiPassthroughEnabled
 
-    LaunchedEffect(controller, sourceUrl, playbackHeaders) {
+    SideEffect {
         onControllerReady(controller)
     }
 
@@ -155,12 +162,30 @@ private fun NativePlayerSurface(
         )
     }
 
-    DisposableEffect(controller, sourceUrl, playbackHeaders) {
+    DisposableEffect(controller, sourceAvailable, sourceUrl, playbackHeaders) {
         onDispose { controller.dispose() }
+    }
+
+    // Linux: the bridge grants the controls overlay real X input focus (the
+    // position WKWebView/WebView2 hold natively on macOS/Windows), so the page's
+    // own keydown handler drives every shortcut — no Kotlin key map. When the AWT
+    // window regains focus (alt-tab back, a click the WM answers by focusing the
+    // toplevel) the X server has taken the keyboard back — hand it to the overlay
+    // again while the player is attached.
+    if (DesktopHostOs.current == DesktopHostOs.LINUX) {
+        DisposableEffect(controller, hostFirstFullSizePaintComplete.value) {
+            val uninstall = if (hostFirstFullSizePaintComplete.value) {
+                controller.installWindowFocusForwarding()
+            } else {
+                null
+            }
+            onDispose { uninstall?.invoke() }
+        }
     }
 
     LaunchedEffect(
         controller,
+        sourceAvailable,
         sourceUrl,
         playbackHeaders,
         decoderPriority,
@@ -170,7 +195,7 @@ private fun NativePlayerSurface(
         initialPositionMs,
         initialPositionRequestKey,
     ) {
-        if (!hostFirstFullSizePaintComplete.value) {
+        if (!sourceAvailable || !hostFirstFullSizePaintComplete.value) {
             return@LaunchedEffect
         }
         delay(16L)
@@ -190,7 +215,8 @@ private fun NativePlayerSurface(
         onControllerReady(controller)
     }
 
-    LaunchedEffect(controller, playWhenReady) {
+    LaunchedEffect(controller, sourceAvailable, playWhenReady) {
+        if (!sourceAvailable) return@LaunchedEffect
         if (playWhenReady) {
             controller.play()
         } else {

@@ -1403,6 +1403,37 @@ button:disabled {
   filter: drop-shadow(0 2px 10px rgba(0, 0, 0, .65));
 }
 
+.volume-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  padding-right: 2px;
+  border: none;
+  background: transparent;
+  width: 42px;
+  height: 42px;
+  margin: -6px;
+  border-radius: 999px;
+  color: var(--theme-control-foreground);
+  transform-origin: center;
+  transform: translateZ(0);
+  transition:
+    transform var(--motion-fast) var(--ease-out),
+    background-color var(--motion-standard) ease;
+  will-change: transform;
+}
+
+.volume-button:hover {
+  background: var(--theme-selected-surface-hover);
+  transform: translateZ(0) scale(1.04);
+}
+
+.volume-button:active,
+.volume-button.is-pressed {
+  transform: scale(.94);
+}
+
 .volume-slider {
   width: 144px;
   height: 24px;
@@ -1515,6 +1546,12 @@ button:disabled {
   .volume-control svg {
     width: 34px;
     height: 34px;
+  }
+
+  .volume-button {
+    width: 48px;
+    height: 48px;
+    margin: -7px;
   }
 
   .volume-slider {

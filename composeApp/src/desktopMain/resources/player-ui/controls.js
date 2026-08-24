@@ -4,6 +4,7 @@ const positionLabel = document.getElementById("position");
 const durationLabel = document.getElementById("duration");
 const timeLabel = document.getElementById("timeLabel");
 const volumeControl = document.getElementById("volumeControl");
+const volumeButton = document.getElementById("volumeButton");
 const volumeIcon = document.getElementById("volumeIcon");
 const volumeSlider = document.getElementById("volumeSlider");
 const bufferingStatus = document.getElementById("bufferingStatus");
@@ -486,6 +487,11 @@ const syncVolumeControl = () => {
   volumeSlider.setAttribute("aria-label", label);
   volumeSlider.setAttribute("title", label);
   volumeIcon.setAttribute("href", percent === 0 ? "#icon-volume-muted" : "#icon-volume");
+  if (volumeButton) {
+    const btnLabel = percent === 0 ? "Unmute" : "Mute";
+    volumeButton.setAttribute("aria-label", btnLabel);
+    volumeButton.setAttribute("title", btnLabel);
+  }
 };
 
 const nextVolumeToastLabel = delta => {
@@ -2154,6 +2160,7 @@ const renderChrome = () => {
     nextEpisodeButton.hidden = !state.nextEpisodePlayable;
     const nextLabel = state.nextEpisodeHeaderLabel || "Next episode";
     nextEpisodeButton.setAttribute("aria-label", nextLabel);
+    nextEpisodeButton.setAttribute("title", nextLabel);
     if (nextEpisodeButtonLabel) nextEpisodeButtonLabel.textContent = nextLabel;
   }
   syncFullscreenButtons();
@@ -2366,6 +2373,15 @@ const clearPressedButton = () => {
 };
 
 document.addEventListener("pointerdown", event => {
+  if (event.button === 3) {
+    showCommandToast("seekBack");
+    send("seekBack", 0);
+    return;
+  } else if (event.button === 4) {
+    showCommandToast("seekForward");
+    send("seekForward", 0);
+    return;
+  }
   const interactingWithChrome = isChromeInteractionTarget(event.target);
   if (interactingWithChrome) {
     isChromePointerDown = true;
@@ -2726,9 +2742,28 @@ volumeSlider.addEventListener("input", () => {
   const percent = Math.max(0, Math.min(100, Number(volumeSlider.value) || 0));
   const nextLevel = percent / 100;
   state.volumeLevel = nextLevel;
+  if (nextLevel > 0) {
+    preMuteVolumeLevel = nextLevel;
+  }
   syncVolumeControl();
   send("volumeChange", nextLevel);
 });
+
+let preMuteVolumeLevel = 1.0;
+
+if (volumeButton) {
+  volumeButton.addEventListener("click", () => {
+    noteChromeActivity();
+    if (state.volumeLevel > 0) {
+      preMuteVolumeLevel = state.volumeLevel;
+      state.volumeLevel = 0;
+    } else {
+      state.volumeLevel = preMuteVolumeLevel > 0 ? preMuteVolumeLevel : 1.0;
+    }
+    syncVolumeControl();
+    send("volumeChangeTemporary", state.volumeLevel);
+  });
+}
 
 window.playerUpdate = update => {
   const durationMs = Math.round((Number(update.duration) || 0) * 1000);
@@ -2779,6 +2814,9 @@ window.playerControls = nextState => {
     ? state.isPlaying
     : pendingIsPlaying;
   state = { ...state, ...nextState, isPlaying: currentPlaybackState };
+  if (typeof state.volumeLevel === "number" && state.volumeLevel > 0) {
+    preMuteVolumeLevel = state.volumeLevel;
+  }
   hasReceivedPlayerControls = true;
   const closeToken = Number(state.closeModalsToken) || 0;
   if (closeToken !== previousCloseToken) {
@@ -2833,6 +2871,15 @@ root.addEventListener("dblclick", event => {
   window.clearTimeout(tapTimer);
   togglePlayerFullscreen();
 });
+
+root.addEventListener("wheel", event => {
+  if (activeModal) return;
+  event.preventDefault();
+  const delta = Math.sign(event.deltaY) * -1;
+  if (delta !== 0) {
+    sendKeyboardVolume(delta);
+  }
+}, { passive: false });
 
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && activeModal) {

@@ -141,6 +141,18 @@ static void process_bus_message(VideoPlayer* p, GstMessage* msg) {
 // Lifecycle
 // ---------------------------------------------------------------------------
 
+// CDNs (googlevideo among them) reject soup's default user agent with 403,
+// which surfaces as typefind "not enough data". Present a browser UA on any
+// source that takes one.
+static void on_source_setup(GstElement* pipeline, GstElement* source, gpointer user_data) {
+    (void)pipeline; (void)user_data;
+    if (g_object_class_find_property(G_OBJECT_GET_CLASS(source), "user-agent")) {
+        g_object_set(source, "user-agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36", NULL);
+    }
+}
+
 VideoPlayer* nvp_create(void) {
     pthread_once(&gst_init_once, gst_init_func);
 
@@ -160,6 +172,7 @@ VideoPlayer* nvp_create(void) {
         free(p);
         return NULL;
     }
+    g_signal_connect(p->pipeline, "source-setup", G_CALLBACK(on_source_setup), NULL);
 
     // Create appsink for video frames
     p->video_sink = gst_element_factory_make("appsink", NULL);

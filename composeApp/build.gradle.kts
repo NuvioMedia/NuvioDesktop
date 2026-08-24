@@ -14,8 +14,10 @@ import org.gradle.jvm.tasks.Jar
 import org.gradle.language.jvm.tasks.ProcessResources
 import org.gradle.process.ExecOperations
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.Properties
 import javax.inject.Inject
@@ -712,6 +714,36 @@ val buildMacosPlayerBridge = tasks.register<Exec>("buildMacosPlayerBridge") {
     commandLine(macosPlayerBridgeCommand)
 }
 
+// ---- Linux player bridge (system libmpv, X11 "wid" embedding) ----
+// Compiles a single JNI .so against the system libmpv + JDK JNI headers.
+// Requires a C++ toolchain, pkg-config, and libmpv development files on the
+// build host (all provided by the Nix dev shell).
+val isLinuxHost = System.getProperty("os.name").contains("linux", ignoreCase = true)
+val linuxPlayerBridgeSource = layout.projectDirectory.file("src/desktopMain/native/linux/player_bridge.cpp")
+val linuxPlayerBridgeOutput = layout.buildDirectory.file("native/linux/libplayer_bridge.so")
+val linuxPlayerBridgeJavaHome = providers.systemProperty("java.home").get()
+val linuxPlayerBridgeSourceFile = linuxPlayerBridgeSource.asFile
+val linuxPlayerBridgeOutputFile = linuxPlayerBridgeOutput.get().asFile
+val buildLinuxPlayerBridge = tasks.register<Exec>("buildLinuxPlayerBridge") {
+    notCompatibleWithConfigurationCache("Builds a host-local player bridge against system libmpv.")
+    enabled = isLinuxHost
+    inputs.file(linuxPlayerBridgeSourceFile)
+    outputs.file(linuxPlayerBridgeOutputFile)
+    val src = linuxPlayerBridgeSourceFile.absolutePath
+    val out = linuxPlayerBridgeOutputFile.absolutePath
+    val outParent = linuxPlayerBridgeOutputFile.parentFile
+    val jni = "$linuxPlayerBridgeJavaHome/include"
+    doFirst { outParent.mkdirs() }
+    commandLine(
+        "bash", "-c",
+        "c++ -std=c++17 -shared -fPIC -O2 " +
+            "-I'$jni' -I'$jni/linux' " +
+            "$(pkg-config --cflags mpv webkit2gtk-4.1 gtk+-3.0 x11 xcomposite xext) " +
+            "'$src' -o '$out' " +
+            "$(pkg-config --libs mpv webkit2gtk-4.1 gtk+-3.0 x11 xcomposite xext) -lpthread",
+    )
+}
+
 val windowsPlayerBridgeArch = when (System.getProperty("os.arch").lowercase()) {
     "aarch64", "arm64" -> "arm64"
     "x86" -> "x86"
@@ -959,6 +991,19 @@ tasks.withType<Jar>().configureEach {
         }
         from(windowsPlayerRuntimeOutput) {
             into("native/windows")
+        }
+    }
+    if (isLinuxHost && name == "desktopJar") {
+        dependsOn(buildLinuxPlayerBridge)
+        from(linuxPlayerBridgeOutput) {
+            into("native/linux")
+        }
+        // TorrServer ships as a classpath resource so P2P streaming works from
+        // any working directory and in packaged builds (macOS does the same via
+        // prepareMacosTorrServerResources; Linux needs no signing pass).
+        from(layout.projectDirectory.dir("src/desktopMain/torrserver")) {
+            include("linux-amd64/**")
+            into("torrserver")
         }
     }
 }
@@ -1221,10 +1266,14 @@ compose.desktop {
             ?: System.getenv("NUVIO_DESKTOP_SMOKE_PLAYER_URL")
         jvmArgs += listOfNotNull(
             "-Dapple.awt.application.appearance=NSAppearanceNameDarkAqua",
+            // Keep AWT from loading its own GTK (Swing L&F/file dialogs): the
+            // bridge owns the process's GTK via initGtkEarly (skoruppa's fix).
+            "-Djdk.gtk.version=0",
             "--add-opens=java.desktop/java.awt=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.lwawt=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.lwawt.macosx=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.awt.windows=ALL-UNNAMED",
+            "--add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED",
             smokePlayerUrl?.takeIf { it.isNotBlank() }?.let { "-Dnuvio.desktop.smokePlayerUrl=$it" },
         )
 
@@ -1289,6 +1338,7 @@ compose.desktop {
             }
             linux {
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon-transparent.png"))
+                debMaintainer = "contact@nuvio.tv"
             }
         }
 
@@ -1406,6 +1456,43 @@ tasks.matching { it.name == "packageReleaseMsi" }.configureEach {
     doLast {
         publishWindowsMsiOutput(release = true)
     }
+}
+
+if (isLinuxHost) {
+    val linuxDebPatchScript = rootProject.layout.projectDirectory.file("scripts/patch-linux-deb.sh")
+    val linuxDebVerifyScript = rootProject.layout.projectDirectory.file("scripts/verify-linux-deb.sh")
+
+    tasks.withType<AbstractJPackageTask>()
+        .matching { it.name == "packageDeb" || it.name == "packageReleaseDeb" }
+        .configureEach {
+            doLast {
+                val effectiveLinuxPackageName = linuxPackageName.orNull ?: packageName.get().lowercase()
+                val effectiveLinuxAppRelease = linuxAppRelease.orNull ?: "1"
+                val artifactPrefix =
+                    "${effectiveLinuxPackageName}_${packageVersion.get()}-${effectiveLinuxAppRelease}_"
+                val debs = destinationDir.get().asFile
+                    .listFiles { file ->
+                        file.isFile && file.name.startsWith(artifactPrefix) && file.extension == "deb"
+                    }
+                    ?.sortedBy { it.name }
+                    .orEmpty()
+                require(debs.size == 1) {
+                    "Expected exactly one current Linux DEB matching $artifactPrefix in " +
+                        "${destinationDir.get().asFile.absolutePath}, found ${debs.size}."
+                }
+                val deb = debs.single()
+                listOf(linuxDebPatchScript, linuxDebVerifyScript).forEach { script ->
+                    val command = listOf("bash", script.asFile.absolutePath, deb.absolutePath)
+                    val exitCode = ProcessBuilder(command)
+                        .inheritIO()
+                        .start()
+                        .waitFor()
+                    check(exitCode == 0) {
+                        "Linux DEB command failed with exit code $exitCode: ${command.joinToString(" ")}"
+                    }
+                }
+            }
+        }
 }
 
 if (isMacHost) {

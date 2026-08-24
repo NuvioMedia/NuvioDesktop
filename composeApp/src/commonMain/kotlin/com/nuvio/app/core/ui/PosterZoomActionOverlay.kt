@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -158,6 +159,7 @@ fun NuvioPosterZoomActionOverlay(
     title: String,
     subtitle: String?,
     isWatched: Boolean = false,
+    blurred: Boolean = false,
     depthSurface: NuvioCardDepthSurface = NuvioCardDepthSurface.Posters,
     anchor: PosterZoomAnchor?,
     actions: List<PosterZoomOverlayAction>,
@@ -434,7 +436,9 @@ fun NuvioPosterZoomActionOverlay(
                         AsyncImage(
                             model = imageUrl,
                             contentDescription = title,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(if (blurred) Modifier.blur(NuvioTokens.Space.s18) else Modifier),
                             contentScale = ContentScale.Crop,
                         )
                     } else {

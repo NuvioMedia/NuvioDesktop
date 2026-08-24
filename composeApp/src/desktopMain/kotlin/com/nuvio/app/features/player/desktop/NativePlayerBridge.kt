@@ -26,6 +26,14 @@ internal object NativePlayerBridge {
         loadNativeLibrary()
     }
 
+    /**
+     * Linux only: initialize GTK before any AWT/Compose/Skia code runs, so GDK's
+     * types are registered once and canonically (prevents a GdkDisplayManager
+     * GType conflict with Skiko on some JDK builds). Must be the first thing
+     * main() calls. Approach from skoruppa's linux-webkitgtk branch.
+     */
+    external fun initGtkEarly(): Boolean
+
     external fun create(
         hostViewPtr: Long,
         sourceUrl: String,
@@ -107,7 +115,11 @@ internal object NativePlayerBridge {
             val controlsPage = runCatching { controlsPageAssets }
                 .getOrNull()
                 ?: return@Thread
-            if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+            // Linux warms the WebKitGTK engine through the same entry point
+            // (the bridge maps warmupWebView2 to a hidden WebKitGTK view).
+            if (DesktopHostOs.current == DesktopHostOs.WINDOWS ||
+                DesktopHostOs.current == DesktopHostOs.LINUX
+            ) {
                 runCatching { warmupWebView2(controlsPage.url) }
             }
         }.apply {
@@ -115,7 +127,9 @@ internal object NativePlayerBridge {
             isDaemon = true
             start()
         }
-        if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+        if (DesktopHostOs.current == DesktopHostOs.WINDOWS ||
+            DesktopHostOs.current == DesktopHostOs.LINUX
+        ) {
             Runtime.getRuntime().addShutdownHook(
                 Thread {
                     runCatching { shutdownWebView2Warmup() }
@@ -128,7 +142,11 @@ internal object NativePlayerBridge {
 
     private fun loadNativeLibrary() {
         val platform = DesktopHostOs.current
-        require(platform == DesktopHostOs.MACOS || platform == DesktopHostOs.WINDOWS) {
+        require(
+            platform == DesktopHostOs.MACOS ||
+                platform == DesktopHostOs.WINDOWS ||
+                platform == DesktopHostOs.LINUX
+        ) {
             "Native desktop playback is not implemented for $platform yet."
         }
 
@@ -314,7 +332,10 @@ internal object NativePlayerBridge {
 }
 
 internal fun preloadNativePlayerBridgeAsync() {
-    if (DesktopHostOs.current == DesktopHostOs.MACOS || DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+    if (DesktopHostOs.current == DesktopHostOs.MACOS ||
+        DesktopHostOs.current == DesktopHostOs.WINDOWS ||
+        DesktopHostOs.current == DesktopHostOs.LINUX
+    ) {
         runCatching {
             NativePlayerBridge.preloadAsync()
         }

@@ -9,6 +9,7 @@ import java.awt.KeyboardFocusManager
 import java.awt.Window
 import java.awt.event.KeyEvent
 import javax.swing.SwingUtilities
+import javax.swing.Timer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -81,7 +82,32 @@ internal class DesktopAppFullscreenController {
             toggleWindowsFullscreen(window)
         } else {
             toggleComposeFullscreen(window, windowState)
+            if (DesktopHostOs.current == DesktopHostOs.LINUX) {
+                enforceLinuxFullscreen(window, windowState)
+            }
         }
+    }
+
+    /**
+     * Compose applies [WindowState.placement] through updaters memoized on the
+     * last value it applied, with a write-back listener that re-reads window
+     * state on AWT window events. Some window managers (mutter) emit extra
+     * state events that convince Compose the window is already windowed while
+     * the X11 window still carries _NET_WM_STATE_FULLSCREEN — the exit write is
+     * then skipped and the window stays fullscreen. Verify the AWT device state
+     * against the intended placement and correct it; a no-op when Compose
+     * applied the change itself.
+     */
+    private fun enforceLinuxFullscreen(window: Window, windowState: WindowState) {
+        fun enforce(stage: String) {
+            val device = window.graphicsConfiguration?.device ?: return
+            val wantFullscreen = windowState.placement == WindowPlacement.Fullscreen
+            val awtFullscreen = device.fullScreenWindow === window
+            if (wantFullscreen == awtFullscreen) return
+            device.fullScreenWindow = if (wantFullscreen) window else null
+        }
+        SwingUtilities.invokeLater { enforce("immediate") }
+        Timer(250) { enforce("delayed") }.apply { isRepeats = false }.start()
     }
 
     fun dispose(window: Window) {

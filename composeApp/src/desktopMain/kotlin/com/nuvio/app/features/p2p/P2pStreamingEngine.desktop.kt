@@ -26,6 +26,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.put
 import java.io.File
 import java.net.URI
@@ -686,7 +687,9 @@ private fun JsonObject.intOrDefault(key: String, default: Int): Int =
     this[key]?.jsonPrimitive?.intOrNull ?: default
 
 private fun JsonObject.longOrDefault(key: String, default: Long): Long =
-    this[key]?.jsonPrimitive?.longOrNull ?: default
+    // TorrServer reports rate fields (download_speed/upload_speed) as floats, so
+    // longOrNull returns null for them; fall back to the double value truncated.
+    this[key]?.jsonPrimitive?.let { it.longOrNull ?: it.doubleOrNull?.toLong() } ?: default
 
 private fun JsonObject.arrayOrEmpty(key: String): JsonArray =
     this[key]?.jsonArray ?: JsonArray(emptyList())

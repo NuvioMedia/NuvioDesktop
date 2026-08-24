@@ -71,6 +71,8 @@ class LinuxVideoPlayerState : VideoPlayerState {
     private var lastFrameUpdateTime: Long = 0
     private var seekInProgress = false
     private var targetSeekTime: Double? = null
+    private val playbackCompletion = LinuxPlaybackCompletion()
+    private val playbackResumeCoordinator = LinuxPlaybackResumeCoordinator(playbackCompletion)
 
     // Frame rate from native layer
     private var captureFrameRate: Float = 0.0f
@@ -231,6 +233,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
         }
 
         ioScope.launch {
+            playbackResumeCoordinator.reset()
             withContext(Dispatchers.Main) {
                 isLoading = true
                 error = null
@@ -424,13 +427,14 @@ class LinuxVideoPlayerState : VideoPlayerState {
 
     private fun startFrameUpdates() {
         stopFrameUpdates()
+        val playbackGeneration = playbackCompletion.captureGeneration()
         frameUpdateJob =
             ioScope.launch {
                 while (isActive) {
                     ensureActive()
                     updateFrameAsync()
                     if (!userDragging) {
-                        updatePositionAsync()
+                        updatePositionAsync(playbackGeneration)
                     }
                     delay(updateInterval)
                 }
@@ -536,7 +540,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
         }
     }
 
-    private suspend fun updatePositionAsync() {
+    private suspend fun updatePositionAsync(playbackGeneration: Long) {
         if (!hasMedia || userDragging) return
         try {
             val duration = getDurationSafely()
@@ -560,7 +564,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
                 withContext(Dispatchers.Main) { sliderPos = newSliderPos }
             }
 
-            checkLoopingAsync(current, duration)
+            checkLoopingAsync(current, duration, playbackGeneration)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             linuxLogger.e { "Error in updatePositionAsync: ${e.message}" }
@@ -570,17 +574,42 @@ class LinuxVideoPlayerState : VideoPlayerState {
     private suspend fun checkLoopingAsync(
         current: Double,
         duration: Double,
+        playbackGeneration: Long,
     ) {
-        val ptr = playerPtr
-        val ended = ptr != 0L && LinuxNativeBridge.nConsumeDidPlayToEnd(ptr)
-        if (!ended && (duration <= 0 || current < duration - 0.5)) return
-
+        // Preserve the existing looping path. Durable completion ownership is only
+        // needed for non-looping replay after the one-shot native EOS signal.
         if (loop) {
+            val ptr = playerPtr
+            val ended = ptr != 0L && LinuxNativeBridge.nConsumeDidPlayToEnd(ptr)
+            if (!ended && (duration <= 0 || current < duration - 0.5)) return
             seekToAsync(0f)
             onRestart?.invoke()
-        } else {
-            withContext(Dispatchers.Main) { isPlaying = false }
-            pauseInBackground()
+            return
+        }
+
+        val reachedEnd =
+            playbackResumeCoordinator.markEndedIfConsumed(playbackGeneration) {
+                val ptr = playerPtr
+                ptr != 0L && LinuxNativeBridge.nConsumeDidPlayToEnd(ptr)
+            }
+        if (!reachedEnd) return
+
+        val pausedCurrentPlayback =
+            playbackResumeCoordinator.runIfCurrent(playbackGeneration) {
+                val ptr = playerPtr
+                if (ptr != 0L) LinuxNativeBridge.nPause(ptr)
+            }
+        if (!pausedCurrentPlayback) return
+
+        withContext(Dispatchers.Main) {
+            if (playbackCompletion.isCurrent(playbackGeneration)) {
+                isPlaying = false
+                isLoading = false
+            }
+        }
+        playbackResumeCoordinator.runIfCurrent(playbackGeneration) {
+            stopFrameUpdates()
+            stopBufferingCheck()
             onPlaybackEnded?.invoke()
         }
     }
@@ -606,7 +635,10 @@ class LinuxVideoPlayerState : VideoPlayerState {
         val ptr = playerPtr
         if (ptr == 0L) return
         try {
-            LinuxNativeBridge.nPlay(ptr)
+            playbackResumeCoordinator.resume(
+                seekToStart = { LinuxNativeBridge.nSeekTo(ptr, 0.0) },
+                play = { LinuxNativeBridge.nPlay(ptr) },
+            )
             withContext(Dispatchers.Main) { isPlaying = true }
             startFrameUpdates()
             startBufferingCheck()
@@ -625,7 +657,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
         val ptr = playerPtr
         if (ptr == 0L) return
         try {
-            LinuxNativeBridge.nPause(ptr)
+            playbackResumeCoordinator.runCommand { LinuxNativeBridge.nPause(ptr) }
             withContext(Dispatchers.Main) {
                 isPlaying = false
                 isLoading = false
@@ -643,11 +675,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
         ioScope.launch {
             pauseInBackground()
             if (hasMedia) seekToAsync(0f)
-            withContext(Dispatchers.Main) {
-                hasMedia = false
-                isLoading = false
-                resetState()
-            }
+            resetState()
         }
     }
 
@@ -680,10 +708,15 @@ class LinuxVideoPlayerState : VideoPlayerState {
 
             val ptr = playerPtr
             if (ptr == 0L) return
-            LinuxNativeBridge.nSeekTo(ptr, seekTime.toDouble())
+            playbackResumeCoordinator.resetAndRun {
+                LinuxNativeBridge.nSeekTo(ptr, seekTime.toDouble())
+                if (isPlaying) {
+                    LinuxNativeBridge.nPlay(ptr)
+                }
+            }
 
             if (isPlaying) {
-                LinuxNativeBridge.nPlay(ptr)
+                startFrameUpdates()
                 delay(10)
                 updateFrameAsync()
                 ioScope.launch {
@@ -713,8 +746,11 @@ class LinuxVideoPlayerState : VideoPlayerState {
     }
 
     override fun clearError() {
+        // Main.immediate: when already on the main thread (Compose effects call
+        // this from it) run inline instead of dispatching onto the thread that
+        // runBlocking just parked - plain Dispatchers.Main deadlocks the EDT.
         runBlocking {
-            withContext(Dispatchers.Main) { error = null }
+            withContext(Dispatchers.Main.immediate) { error = null }
         }
     }
 
@@ -831,6 +867,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
     // --- Internal helpers ---
 
     private suspend fun resetState() {
+        playbackResumeCoordinator.reset()
         withContext(Dispatchers.Main) {
             hasMedia = false
             isPlaying = false

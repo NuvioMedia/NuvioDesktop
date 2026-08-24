@@ -109,7 +109,6 @@ fun ProfileSwitcherTab(
     val avatars by AvatarRepository.avatars.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
-        AvatarRepository.fetchAvatars()
         AvatarRepository.refreshAvatars()
     }
 
@@ -768,7 +767,6 @@ fun NativeProfileSwitcherPopup(
     var pinProfile by remember { mutableStateOf<NuvioProfile?>(null) }
 
     LaunchedEffect(Unit) {
-        AvatarRepository.fetchAvatars()
         AvatarRepository.refreshAvatars()
     }
 

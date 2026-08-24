@@ -45,6 +45,11 @@ internal class NuvioNavigator(
         onExternalNavigate?.invoke(route, resolvedOptions.launchSingleTop) ?: backStack.add(route)
     }
 
+    fun canPopBackStack(expectedRoute: AppRoute? = null): Boolean {
+        if (expectedRoute != null && currentRoute != expectedRoute) return false
+        return backStack.size > 1 || onExternalBack != null
+    }
+
     fun popBackStack(expectedRoute: AppRoute? = null): Boolean {
         if (expectedRoute != null && currentRoute != expectedRoute) return false
         if (backStack.size > 1) {
