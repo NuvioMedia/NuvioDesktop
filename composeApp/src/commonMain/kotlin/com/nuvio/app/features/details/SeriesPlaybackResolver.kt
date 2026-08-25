@@ -220,11 +220,13 @@ internal fun latestCompletedSeriesEpisode(
     parentMetaType: String,
     progressEntries: List<WatchProgressEntry>,
     watchedItems: List<WatchedItem>,
+    preferFurthestEpisode: Boolean = true,
 ): CompletedSeriesEpisode? =
     latestCompletedSeriesEpisode(
         content = WatchingContentRef(type = parentMetaType, id = parentMetaId),
         progressRecords = progressEntries.map(WatchProgressEntry::toDomainProgressRecord),
         watchedRecords = watchedItems.map(WatchedItem::toDomainWatchedRecord),
+        preferFurthestEpisode = preferFurthestEpisode,
     )?.toLegacyCompletedEpisode()
 
 private fun MetaVideo.toDomainReleasedEpisode(): WatchingReleasedEpisode =
