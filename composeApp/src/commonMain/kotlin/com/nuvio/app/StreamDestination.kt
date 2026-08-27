@@ -62,9 +62,7 @@ internal fun StreamDestination(
     openExternalStreamUrl: (String) -> Boolean,
 ) {
     val onBack = rememberGuardedPopBackStack(navController, route)
-    val launch = remember(route.launchId) {
-        StreamLaunchStore.get(route.launchId)
-    }
+    val launch = StreamLaunchStore.get(route.launchId)
     if (launch == null) {
         LaunchedEffect(route.launchId) {
             onBack()
@@ -195,6 +193,7 @@ internal fun StreamDestination(
             torrentTrackers = stream.p2pTrackers,
             initialPositionMs = resolvedResumePositionMs ?: 0L,
             initialProgressFraction = resolvedResumeProgressFraction,
+            streamLaunchId = route.launchId.takeUnless { replaceStreamRoute },
         )
 
         val launchId = PlayerLaunchStore.put(playerLaunch)
@@ -584,6 +583,7 @@ internal fun StreamDestination(
             parentMetaType = launch.parentMetaType ?: launch.type,
             initialPositionMs = resolvedResumePositionMs ?: 0L,
             initialProgressFraction = resolvedResumeProgressFraction,
+            streamLaunchId = route.launchId,
         )
 
         if (!forceInternal && externalPlayerSupported && (forceExternal || playerSettings.externalPlayerEnabled)) {
@@ -625,6 +625,7 @@ internal fun StreamDestination(
             resumeProgressFraction = launch.resumeProgressFraction,
             manualSelection = launch.manualSelection,
             startFromBeginning = launch.startFromBeginning,
+            initialStreamsSnapshot = launch.streamsSnapshot,
             onStreamSelected = { stream, resolvedResumePositionMs, resolvedResumeProgressFraction ->
                 openSelectedStream(
                     stream = stream,
