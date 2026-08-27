@@ -1859,6 +1859,9 @@
     <string name="library_sort_provider_order">Tracker order</string>
     <string name="library_source_cloud">Cloud</string>
     <string name="library_source_saved">Saved</string>
+    <string name="library_source_watchlist">Watchlist</string>
+    <string name="library_watchlist_empty_message">Titles you save stay here until you finish watching them.</string>
+    <string name="library_watchlist_empty_title">Nothing left to watch</string>
     <string name="library_title">Library</string>
     <string name="library_trakt_empty_message">Connect Trakt and save titles to your watchlist or personal lists.</string>
     <string name="library_trakt_empty_title">Your Trakt library is empty</string>

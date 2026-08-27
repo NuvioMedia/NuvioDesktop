@@ -129,7 +129,14 @@ fun LibraryScreen(
     }.collectAsStateWithLifecycle()
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
     var observedOfflineState by remember { mutableStateOf(false) }
-    var sourceModeName by rememberSaveable { mutableStateOf(LibraryViewMode.Saved.name) }
+    var sourceModeName by rememberSaveable {
+        val initialMode = if (displaySettings.watchlistSelected) {
+            LibraryViewMode.Watchlist
+        } else {
+            LibraryViewMode.Saved
+        }
+        mutableStateOf(initialMode.name)
+    }
     val sourceMode = remember(sourceModeName) {
         runCatching { LibraryViewMode.valueOf(sourceModeName) }.getOrDefault(LibraryViewMode.Saved)
     }
@@ -149,22 +156,39 @@ fun LibraryScreen(
         selected = displaySettings.sortOption,
         sourceMode = uiState.sourceMode,
     )
-    val sortedSections = remember(uiState.sections, displaySettings.sortOption, uiState.sourceMode) {
+    val watchlistOnly = sourceMode == LibraryViewMode.Watchlist
+    val visibleSections = remember(
+        uiState.sections,
+        watchlistOnly,
+        watchedUiState.watchedKeys,
+        fullyWatchedSeriesKeys,
+    ) {
+        if (watchlistOnly) {
+            filterLibrarySectionsToUnwatched(
+                sections = uiState.sections,
+                watchedKeys = watchedUiState.watchedKeys,
+                fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
+            )
+        } else {
+            uiState.sections
+        }
+    }
+    val sortedSections = remember(visibleSections, displaySettings.sortOption, uiState.sourceMode) {
         sortLibrarySections(
-            sections = uiState.sections,
+            sections = visibleSections,
             selected = displaySettings.sortOption,
             sourceMode = uiState.sourceMode,
         )
     }
     val verticalProjection = remember(
-        uiState.sections,
+        visibleSections,
         uiState.sourceMode,
         selectedLibrarySectionKey,
         selectedLibraryType,
         displaySettings.sortOption,
     ) {
         buildLibraryVerticalProjection(
-            sections = uiState.sections,
+            sections = visibleSections,
             sourceMode = uiState.sourceMode,
             selectedSectionKey = selectedLibrarySectionKey,
             selectedType = selectedLibraryType,
@@ -269,7 +293,7 @@ fun LibraryScreen(
                             modifier = Modifier.padding(horizontal = 16.dp),
                             topPadding = topChromePadding,
                             actions = {
-                                if (sourceMode == LibraryViewMode.Saved) {
+                                if (sourceMode != LibraryViewMode.Cloud) {
                                     val targetLayout = if (displaySettings.layoutMode == LibraryLayoutMode.HORIZONTAL) {
                                         LibraryLayoutMode.VERTICAL
                                     } else {
@@ -307,6 +331,11 @@ fun LibraryScreen(
                             selectedMode = sourceMode,
                             onModeSelected = { mode ->
                                 sourceModeName = mode.name
+                                if (mode != LibraryViewMode.Cloud) {
+                                    LibraryDisplaySettingsRepository.setWatchlistSelected(
+                                        mode == LibraryViewMode.Watchlist,
+                                    )
+                                }
                             },
                             modifier = Modifier.padding(horizontal = 16.dp),
                         )
@@ -385,7 +414,7 @@ fun LibraryScreen(
                         }
                     }
 
-                    uiState.sections.isEmpty() -> {
+                    visibleSections.isEmpty() -> {
                         item {
                             if (networkStatusUiState.isOfflineLike && isRemoteSource) {
                                 NuvioNetworkOfflineCard(
@@ -396,15 +425,23 @@ fun LibraryScreen(
                             } else {
                                 HomeEmptyStateCard(
                                     modifier = Modifier.padding(horizontal = 16.dp),
-                                    title = when (uiState.sourceMode) {
-                                        LibrarySourceMode.LOCAL -> stringResource(Res.string.library_empty_title)
-                                        LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_empty_title)
-                                        LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_empty_title)
+                                    title = if (watchlistOnly) {
+                                        stringResource(Res.string.library_watchlist_empty_title)
+                                    } else {
+                                        when (uiState.sourceMode) {
+                                            LibrarySourceMode.LOCAL -> stringResource(Res.string.library_empty_title)
+                                            LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_empty_title)
+                                            LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_empty_title)
+                                        }
                                     },
-                                    message = when (uiState.sourceMode) {
-                                        LibrarySourceMode.LOCAL -> stringResource(Res.string.library_empty_message)
-                                        LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_empty_message)
-                                        LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_empty_message)
+                                    message = if (watchlistOnly) {
+                                        stringResource(Res.string.library_watchlist_empty_message)
+                                    } else {
+                                        when (uiState.sourceMode) {
+                                            LibrarySourceMode.LOCAL -> stringResource(Res.string.library_empty_message)
+                                            LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_empty_message)
+                                            LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_empty_message)
+                                        }
                                     },
                                 )
                             }
@@ -655,6 +692,11 @@ private fun LibrarySourceSwitch(
             label = stringResource(Res.string.library_source_saved),
             selected = selectedMode == LibraryViewMode.Saved,
             onClick = { onModeSelected(LibraryViewMode.Saved) },
+        )
+        LibraryChip(
+            label = stringResource(Res.string.library_source_watchlist),
+            selected = selectedMode == LibraryViewMode.Watchlist,
+            onClick = { onModeSelected(LibraryViewMode.Watchlist) },
         )
         LibraryChip(
             label = stringResource(Res.string.library_source_cloud),
@@ -1180,6 +1222,7 @@ private fun CloudSkeletonBlock(
 
 private enum class LibraryViewMode {
     Saved,
+    Watchlist,
     Cloud,
 }
 

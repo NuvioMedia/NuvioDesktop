@@ -1,5 +1,6 @@
 package com.nuvio.app.features.library
 
+import com.nuvio.app.features.watching.application.WatchingState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +26,7 @@ enum class LibrarySortOption {
 data class LibraryDisplaySettingsUiState(
     val layoutMode: LibraryLayoutMode = LibraryLayoutMode.HORIZONTAL,
     val sortOption: LibrarySortOption = LibrarySortOption.DEFAULT,
+    val watchlistSelected: Boolean = false,
 )
 
 object LibraryDisplaySettingsRepository {
@@ -58,6 +60,17 @@ object LibraryDisplaySettingsRepository {
         ensureLoaded()
         if (_uiState.value.sortOption == sortOption) return
         _uiState.value = _uiState.value.copy(sortOption = sortOption)
+        persist()
+    }
+
+    /**
+     * Remembers whether the library opens on Saved or on Watchlist. The Cloud
+     * view is deliberately not remembered here: it stays a per-session choice.
+     */
+    fun setWatchlistSelected(selected: Boolean) {
+        ensureLoaded()
+        if (_uiState.value.watchlistSelected == selected) return
+        _uiState.value = _uiState.value.copy(watchlistSelected = selected)
         persist()
     }
 
@@ -142,6 +155,30 @@ internal fun sortLibrarySections(
         section.copy(items = sortLibraryItems(section.items, selected, sourceMode))
     }
 
+/**
+ * Watchlist view: keeps only the saved items that do not carry a watched badge.
+ * Uses the same predicate the poster badges use, so the two can never disagree —
+ * watched movies and fully watched series drop out, partially watched series stay.
+ * Sections left with nothing in them are dropped rather than rendered empty.
+ */
+internal fun filterLibrarySectionsToUnwatched(
+    sections: List<LibrarySection>,
+    watchedKeys: Set<String>,
+    fullyWatchedSeriesKeys: Set<String>,
+): List<LibrarySection> {
+    if (watchedKeys.isEmpty() && fullyWatchedSeriesKeys.isEmpty()) return sections
+    return sections.mapNotNull { section ->
+        val unwatchedItems = section.items.filterNot { item ->
+            WatchingState.isPosterWatched(
+                watchedKeys = watchedKeys,
+                item = item.toMetaPreview(),
+                fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
+            )
+        }
+        if (unwatchedItems.isEmpty()) null else section.copy(items = unwatchedItems)
+    }
+}
+
 internal fun buildLibraryVerticalProjection(
     sections: List<LibrarySection>,
     sourceMode: LibrarySourceMode,
@@ -201,6 +238,7 @@ internal fun encodeLibraryDisplaySettings(state: LibraryDisplaySettingsUiState):
         StoredLibraryDisplaySettings(
             layoutMode = state.layoutMode.name,
             sortOption = state.sortOption.name,
+            watchlistSelected = state.watchlistSelected,
         ),
     )
 
@@ -219,6 +257,7 @@ internal fun decodeLibraryDisplaySettings(payload: String?): LibraryDisplaySetti
         sortOption = stored?.sortOption
             ?.let { value -> LibrarySortOption.entries.firstOrNull { it.name == value } }
             ?: LibrarySortOption.DEFAULT,
+        watchlistSelected = stored?.watchlistSelected ?: false,
     )
 }
 
@@ -251,4 +290,5 @@ internal val LibrarySourceMode.isRemoteTrackingSource: Boolean
 private data class StoredLibraryDisplaySettings(
     @SerialName("layout_mode") val layoutMode: String = LibraryLayoutMode.HORIZONTAL.name,
     @SerialName("sort_option") val sortOption: String = LibrarySortOption.DEFAULT.name,
+    @SerialName("watchlist_selected") val watchlistSelected: Boolean = false,
 )
