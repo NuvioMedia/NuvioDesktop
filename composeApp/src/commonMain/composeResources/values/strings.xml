@@ -824,6 +824,7 @@
     <string name="settings_continue_watching_up_next_title">Next Up From Furthest Episode</string>
     <string name="settings_continue_watching_use_episode_thumbnails_description">Prefer episode thumbnails when available.</string>
     <string name="settings_continue_watching_use_episode_thumbnails_title">Prefer Episode Thumbnails in Continue Watching</string>
+    <string name="settings_content_discovery_section_discover">DISCOVER</string>
     <string name="settings_content_discovery_section_home">HOME</string>
     <string name="settings_content_discovery_section_sources">SOURCES</string>
     <string name="settings_content_discovery_addons_description">Install, remove, refresh, and sort your content sources.</string>
@@ -1501,6 +1502,8 @@
     <string name="discover_empty_no_results_message">The selected catalog and filters did not return any items.</string>
     <string name="discover_empty_no_results_title">No titles found</string>
     <string name="discover_empty_no_active_addons_message">Install and validate at least one addon before browsing discover catalogs.</string>
+    <string name="discover_hide_watched">Hide Watched Content</string>
+    <string name="discover_hide_watched_sub">Hide watched movies and finished shows from the Discover feed. Search results are never filtered.</string>
     <string name="discover_select_catalog">Select Catalog</string>
     <string name="discover_select_genre">Select Genre</string>
     <string name="discover_select_type">Select Type</string>

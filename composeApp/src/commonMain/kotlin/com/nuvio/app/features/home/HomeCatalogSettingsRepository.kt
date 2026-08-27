@@ -17,6 +17,12 @@ import kotlinx.serialization.json.Json
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
+/**
+ * Default for the Discover watched filter. Off, so existing installs keep the
+ * current Discover behaviour until the user turns the setting on.
+ */
+const val DEFAULT_HIDE_WATCHED_IN_DISCOVER = false
+
 data class HomeCatalogSettingsItem(
     val key: String,
     val defaultTitle: String,
@@ -37,6 +43,7 @@ data class HomeCatalogSettingsUiState(
     val heroEnabled: Boolean = true,
     val showCatalogType: Boolean = true,
     val hideUnreleasedContent: Boolean = false,
+    val hideWatchedInDiscover: Boolean = DEFAULT_HIDE_WATCHED_IN_DISCOVER,
     val items: List<HomeCatalogSettingsItem> = emptyList(),
 ) {
     val signature: String
@@ -46,6 +53,8 @@ data class HomeCatalogSettingsUiState(
             append(showCatalogType)
             append('|')
             append(hideUnreleasedContent)
+            append('|')
+            append(hideWatchedInDiscover)
             append('|')
             append(
                 items.joinToString(separator = "|") { item ->
@@ -66,6 +75,7 @@ internal data class HomeCatalogSettingsSnapshot(
     val heroEnabled: Boolean,
     val showCatalogType: Boolean,
     val hideUnreleasedContent: Boolean,
+    val hideWatchedInDiscover: Boolean,
     val preferences: Map<String, HomeCatalogPreference>,
 )
 
@@ -83,6 +93,7 @@ private data class StoredHomeCatalogSettingsPayload(
     val heroEnabled: Boolean = true,
     val showCatalogType: Boolean = true,
     val hideUnreleasedContent: Boolean = false,
+    val hideWatchedInDiscover: Boolean = DEFAULT_HIDE_WATCHED_IN_DISCOVER,
     val items: List<StoredHomeCatalogPreference> = emptyList(),
 )
 
@@ -109,6 +120,7 @@ object HomeCatalogSettingsRepository {
     private var heroEnabled = true
     private var showCatalogType = true
     private var hideUnreleasedContent = false
+    private var hideWatchedInDiscover = DEFAULT_HIDE_WATCHED_IN_DISCOVER
 
     fun onProfileChanged() {
         hasLoaded = false
@@ -116,6 +128,7 @@ object HomeCatalogSettingsRepository {
         heroEnabled = true
         showCatalogType = true
         hideUnreleasedContent = false
+        hideWatchedInDiscover = DEFAULT_HIDE_WATCHED_IN_DISCOVER
         definitions = emptyList()
         collectionDefinitions = emptyList()
         _uiState.value = HomeCatalogSettingsUiState()
@@ -129,6 +142,7 @@ object HomeCatalogSettingsRepository {
         heroEnabled = true
         showCatalogType = true
         hideUnreleasedContent = false
+        hideWatchedInDiscover = DEFAULT_HIDE_WATCHED_IN_DISCOVER
         _uiState.value = HomeCatalogSettingsUiState()
     }
 
@@ -168,6 +182,7 @@ object HomeCatalogSettingsRepository {
             heroEnabled = heroEnabled,
             showCatalogType = showCatalogType,
             hideUnreleasedContent = hideUnreleasedContent,
+            hideWatchedInDiscover = hideWatchedInDiscover,
             preferences = preferences.mapValues { (_, value) ->
                 HomeCatalogPreference(
                     customTitle = value.customTitle,
@@ -207,6 +222,17 @@ object HomeCatalogSettingsRepository {
         HomeCatalogSettingsSyncService.triggerPush()
     }
 
+    fun setHideWatchedInDiscover(enabled: Boolean) {
+        ensureLoaded()
+        if (hideWatchedInDiscover == enabled) return
+        hideWatchedInDiscover = enabled
+        publish()
+        persist()
+        // Discover-only: the home catalogs never consult this flag, so there is
+        // nothing to recompute there.
+        HomeCatalogSettingsSyncService.triggerPush()
+    }
+
     fun setHeroSourceEnabled(key: String, enabled: Boolean) {
         updatePreference(key, pushRemote = false) { preference ->
             if (!enabled) {
@@ -236,6 +262,7 @@ object HomeCatalogSettingsRepository {
         heroEnabled = true
         showCatalogType = true
         hideUnreleasedContent = false
+        hideWatchedInDiscover = DEFAULT_HIDE_WATCHED_IN_DISCOVER
         preferences = emptyMap()
         normalizePreferences()
         publish()
@@ -287,6 +314,7 @@ object HomeCatalogSettingsRepository {
             heroEnabled = parsedPayload.heroEnabled
             showCatalogType = parsedPayload.showCatalogType
             hideUnreleasedContent = parsedPayload.hideUnreleasedContent
+            hideWatchedInDiscover = parsedPayload.hideWatchedInDiscover
             preferences = parsedPayload.items.associateBy { it.key }
             publish()
             return
@@ -387,6 +415,7 @@ object HomeCatalogSettingsRepository {
             heroEnabled = heroEnabled,
             showCatalogType = showCatalogType,
             hideUnreleasedContent = hideUnreleasedContent,
+            hideWatchedInDiscover = hideWatchedInDiscover,
             items = items,
         )
     }
@@ -398,6 +427,7 @@ object HomeCatalogSettingsRepository {
                     heroEnabled = heroEnabled,
                     showCatalogType = showCatalogType,
                     hideUnreleasedContent = hideUnreleasedContent,
+                    hideWatchedInDiscover = hideWatchedInDiscover,
                     items = preferences.values.sortedBy { it.order },
                 ),
             ),
@@ -496,6 +526,7 @@ object HomeCatalogSettingsRepository {
         return SyncHomeCatalogPayload(
             showCatalogType = showCatalogType,
             hideUnreleasedContent = hideUnreleasedContent,
+            hideWatchedInDiscover = hideWatchedInDiscover,
             items = items,
         )
     }
@@ -504,6 +535,7 @@ object HomeCatalogSettingsRepository {
         ensureLoaded()
         showCatalogType = payload.showCatalogType
         hideUnreleasedContent = payload.hideUnreleasedContent
+        hideWatchedInDiscover = payload.hideWatchedInDiscover
         if (payload.items.isNotEmpty()) {
             val existingHeroState = preferences.mapValues { it.value.heroSourceEnabled }
             val remotePreferences = payload.items.associate { item ->

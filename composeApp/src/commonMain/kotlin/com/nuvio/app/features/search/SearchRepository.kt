@@ -18,6 +18,8 @@ import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.home.filterReleasedItems
+import com.nuvio.app.features.watched.WatchedRepository
+import com.nuvio.app.features.watching.application.WatchingState
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +53,7 @@ internal fun resolveDiscoverCatalog(
 private data class DiscoverRequestKey(
     val sources: List<DiscoverCatalogOption>,
     val hideUnreleasedContent: Boolean,
+    val hideWatchedInDiscover: Boolean,
 )
 
 object SearchRepository {
@@ -218,10 +221,11 @@ object SearchRepository {
 
         val sources = buildDiscoverSources(activeAddons)
         val current = _discoverUiState.value
-        val hideUnreleasedContent = HomeCatalogSettingsRepository.snapshot().hideUnreleasedContent
+        val settingsSnapshot = HomeCatalogSettingsRepository.snapshot()
         val requestKey = DiscoverRequestKey(
             sources = sources,
-            hideUnreleasedContent = hideUnreleasedContent,
+            hideUnreleasedContent = settingsSnapshot.hideUnreleasedContent,
+            hideWatchedInDiscover = settingsSnapshot.hideWatchedInDiscover,
         )
         if (canReuseRequestState(forceRefresh, requestKey, lastDiscoverRequestKey)) {
             log.d {
@@ -486,7 +490,7 @@ object SearchRepository {
                     genre = current.selectedGenre,
                     skip = requestedSkip.takeIf { it > 0 },
                     forceRefresh = forceRefresh,
-                ).withUnreleasedFilter()
+                ).withUnreleasedFilter().withWatchedFilter()
             }.fold(
                 onSuccess = { page ->
                     val latest = _discoverUiState.value
@@ -566,6 +570,38 @@ private fun CatalogPage.withUnreleasedFilter(): CatalogPage {
     if (!HomeCatalogSettingsRepository.snapshot().hideUnreleasedContent) return this
     val filteredItems = items.filterReleasedItems(CurrentDateProvider.todayIsoDate())
     return if (filteredItems.size == items.size) this else copy(items = filteredItems)
+}
+
+/**
+ * Drops items the user has already finished from the discover feed. Uses the
+ * same predicate that decides whether a poster shows the watched badge, so the
+ * feed can never disagree with the badges: watched movies and fully watched
+ * series are hidden, partially watched series are kept.
+ *
+ * `rawItemCount` and `nextSkip` are deliberately left untouched so pagination
+ * keeps advancing through the catalog exactly as it would unfiltered.
+ */
+private fun CatalogPage.withWatchedFilter(): CatalogPage {
+    if (!HomeCatalogSettingsRepository.snapshot().hideWatchedInDiscover) return this
+    val filteredItems = items.filterUnwatchedPosters(
+        watchedKeys = WatchedRepository.uiState.value.watchedKeys,
+        fullyWatchedSeriesKeys = WatchedRepository.fullyWatchedSeriesKeys.value,
+    )
+    return if (filteredItems.size == items.size) this else copy(items = filteredItems)
+}
+
+internal fun List<MetaPreview>.filterUnwatchedPosters(
+    watchedKeys: Set<String>,
+    fullyWatchedSeriesKeys: Set<String>,
+): List<MetaPreview> {
+    if (watchedKeys.isEmpty() && fullyWatchedSeriesKeys.isEmpty()) return this
+    return filterNot { item ->
+        WatchingState.isPosterWatched(
+            watchedKeys = watchedKeys,
+            item = item,
+            fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
+        )
+    }
 }
 
 private data class SearchCatalogRequest(
