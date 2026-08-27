@@ -1657,6 +1657,38 @@ if (isLinuxHost) {
         }
 }
 
+if (isLinuxHost) {
+    // Workaround for JDK-8380085: the jpackage Linux launcher transfers the
+    // serialized launcher config (including every classpath entry) over a pipe
+    // with a single read/write. With many jars the buffer exceeds the pipe
+    // capacity, the read truncates, and the launcher crashes in
+    // jvmLauncherStartJvm (observed as a SIGSEGV in setenv). Collapsing the
+    // per-jar classpath entries into one directory wildcard keeps the buffer
+    // small; the JVM expands the wildcard at startup.
+    val appImageBinariesDir = layout.buildDirectory.dir("compose/binaries").get().asFile
+    tasks.matching { it.name == "createDistributable" || it.name == "createReleaseDistributable" }
+        .configureEach {
+            doLast {
+                val distributionName = if ("Release" in name) "main-release" else "main"
+                val appImageDir = File(appImageBinariesDir, "$distributionName/app")
+                appImageDir.walkTopDown()
+                    .filter { it.isFile && it.extension == "cfg" }
+                    .forEach { cfg ->
+                        val lines = cfg.readLines()
+                        val firstClasspathIndex = lines.indexOfFirst { it.startsWith("app.classpath=") }
+                        if (firstClasspathIndex >= 0) {
+                            val rewritten = lines
+                                .filterNot { it.startsWith("app.classpath=") }
+                                .toMutableList()
+                            rewritten.add(firstClasspathIndex, "app.classpath=\$APPDIR/*")
+                            cfg.writeText(rewritten.joinToString(separator = "\n", postfix = "\n"))
+                            logger.lifecycle("Flattened jpackage classpath in ${cfg.absolutePath}")
+                        }
+                    }
+            }
+        }
+}
+
 if (isMacHost) {
     tasks.register<NotarizeMacosDmgWithKeychainTask>("notarizeReleaseDmgWithKeychain") {
         group = "distribution"
