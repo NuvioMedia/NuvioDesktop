@@ -1336,6 +1336,18 @@ gboolean createWebviewOnGtk(gpointer data) {
     }
     gtk_widget_show_all(win);
     gdk_window_raise(gdkWin);
+    if (overlayToplevelMode()) {
+        // Keep the overlay out of KWin's task switcher: a managed transient
+        // would otherwise appear as its own alt-tab entry next to the app
+        // window. _KDE_NET_WM_STATE_SKIP_SWITCHER is a KDE-specific state;
+        // appended post-map (EWMH client-initiated state change) so GDK's
+        // initial _NET_WM_STATE write cannot drop it, and ignored harmlessly
+        // by compositors that do not know the atom.
+        Atom skipSwitcher = XInternAtom(dpy, "_KDE_NET_WM_STATE_SKIP_SWITCHER", False);
+        XChangeProperty(dpy, gtkXid, XInternAtom(dpy, "_NET_WM_STATE", False),
+                        XA_ATOM, 32, PropModeAppend,
+                        (unsigned char *)&skipSwitcher, 1);
+    }
 
     // FEASIBILITY TEST: redirect the overlay window offscreen via the Composite
     // extension. If this hides it from the screen (revealing the video below)
