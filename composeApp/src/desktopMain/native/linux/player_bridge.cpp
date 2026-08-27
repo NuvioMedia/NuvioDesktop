@@ -18,6 +18,7 @@
 #include <gdk/gdkx.h>
 #include <webkit2/webkit2.h>
 #include <X11/Xlib.h>
+#include <X11/Xatom.h>
 #include <X11/extensions/Xcomposite.h>
 
 #include <atomic>
@@ -60,8 +61,9 @@ struct Player {
     GtkWidget *gtkWindow = nullptr;
     WebKitWebView *webview = nullptr;
     Window hostXid = 0;
-    Window overlayXid = 0;   // controls window, composite-redirected offscreen
-                             // (invisible on screen but still receives input)
+    Window overlayXid = 0;   // controls window: managed transient toplevel, or
+                             // composite-redirected child in snapshot mode
+                             // (NUVIO_OVERLAY_SNAPSHOT=1)
     guint updateTimer = 0;    // 200ms: state push + input raise
     guint compositeTimer = 0; // fast: snapshot controls page -> mpv overlay
     bool overlayActive = true;   // controls currently visible/interacting
@@ -90,6 +92,9 @@ struct Player {
     GCancellable *snapCancel = nullptr;  // cancels the in-flight snapshot, owned
     int snapCooldownTicks = 0;  // watchdog backoff before the next request
     int snapResets = 0;         // consecutive watchdog resets without a snapshot
+    int snapThrottleTicks = 0;  // rate limiter: ticks to skip between requests
+    int snapBoostTicks = 0;     // fast-pace window after activity/while animating
+    uint64_t lastPushedHash = 0;  // sample hash of the overlay mpv currently has
     // Controls-state payload buffering (macOS/Windows parity): the first
     // updateControls arrives before the page defines window.playerControls, so a
     // fire-and-forget eval loses it and the loading screen shows a bare spinner
@@ -449,6 +454,15 @@ void onPlayerMessage(WebKitUserContentManager *, WebKitJavascriptResult *js, gpo
     // it is up. cursorActivity also arrives while hidden (mouse woke the UI) and
     // must re-activate compositing so the fade-in is actually shown.
     if (type) {
+        // Diagnostic: prove the page is alive and receiving input.
+        // cursorActivity fires on every pointermove — log a decimated sample.
+        static int sMsgSample = 0;
+        if (strcmp(type, "cursorActivity") != 0 || (++sMsgSample % 100) == 1) {
+            NUVIO_LOG("page msg %s v=%.1f", type, value);
+        }
+        // Any page activity means visible change: pace snapshots fast for ~1s
+        // so fades/button feedback stay fluid (see compositeOverlay).
+        player->snapBoostTicks = 30;
         if (strcmp(type, "setPlaybackState") == 0 ||
             strcmp(type, "setPlaybackStateQuiet") == 0) {
             bool shouldPlay = value >= 0.5;
@@ -515,6 +529,71 @@ void releaseSnapshots(Player *player) {
     player->snapSurf = player->snapSurfPrev = nullptr;
 }
 
+// HiDPI: GDK may hand the overlay window an integer scale factor (e.g. 2 on a
+// 250% display). GTK-side geometry calls (gdk_window_resize, gtk_window_resize,
+// gtk_widget_size_allocate) take scaled window coordinates, while
+// XGetWindowAttributes and WebKit snapshots are in device pixels. Mixing the
+// two pins the overlay at scale× the host size: the resize-sync then "fixes"
+// it every 33ms tick (overlay removed -> flicker) and input maps to the wrong
+// CSS coordinates (clicks land off the controls). All GTK-side size math must
+// go through this factor; X-side comparisons allow a one-scale-step tolerance
+// because device sizes are only reachable in multiples of the scale.
+int overlayScale(Player *player) {
+    if (!player->gtkWindow) return 1;
+    int s = gtk_widget_get_scale_factor(player->gtkWindow);
+    return s < 1 ? 1 : s;
+}
+
+// Sample-hash a snapshot surface: a full 100MB-class compare per push is too
+// slow, but the controls page is static most of the time, so a cheap equality
+// signal lets us skip re-uploading identical frames to mpv. 4k sampled bytes
+// plus geometry; a collision would only delay one visual update by one
+// throttle window.
+uint64_t snapshotHash(cairo_surface_t *surf) {
+    const unsigned char *data = cairo_image_surface_get_data(surf);
+    const int w = cairo_image_surface_get_width(surf);
+    const int h = cairo_image_surface_get_height(surf);
+    const int stride = cairo_image_surface_get_stride(surf);
+    if (!data || w <= 0 || h <= 0) return 0;
+    const size_t total = (size_t)stride * (size_t)h;
+    const size_t step = total / 4096 + 1;
+    uint64_t hash = 1469598103934665603ULL;  // FNV-1a
+    auto mix = [&hash](uint64_t v) { hash = (hash ^ v) * 1099511628211ULL; };
+    mix((uint64_t)w);
+    mix((uint64_t)h);
+    mix((uint64_t)stride);
+    for (size_t i = 0; i < total; i += step) mix(data[i]);
+    return hash;
+}
+
+// Present the controls as a separate managed borderless toplevel window,
+// transient for the app window and tracking the host canvas, instead of a
+// composite-redirected child snapshotted into mpv. XWayland does NOT
+// alpha-blend child windows into their parent (children paint over), but a
+// separate ARGB toplevel gets its own Wayland surface which the compositor
+// blends with real alpha — native-speed controls with zero snapshot cost.
+// Being WM-managed (not override-redirect) is what makes stacking honest:
+// the compositor itself covers it with other apps' windows, minimizes it
+// with the app, and never floats it over unrelated windows. Default on
+// Linux; NUVIO_OVERLAY_SNAPSHOT=1 restores the snapshot pipeline (used on
+// stacks where the toplevel misbehaves).
+bool overlayToplevelMode() {
+    static const bool on = std::getenv("NUVIO_OVERLAY_SNAPSHOT") == nullptr;
+    return on;
+}
+
+// The app toplevel: the host canvas's root-child ancestor (the AWT frame).
+Window appToplevelFor(Display *dpy, Window w) {
+    Window top = w, root0 = 0, parent0 = 0, *kids = nullptr;
+    unsigned int nkids = 0;
+    while (XQueryTree(dpy, top, &root0, &parent0, &kids, &nkids)) {
+        if (kids) XFree(kids);
+        if (parent0 == 0 || parent0 == root0 || parent0 == top) break;
+        top = parent0;
+    }
+    return top;
+}
+
 // Ties a snapshot request to the generation it was issued under, so callbacks
 // from abandoned (watchdog-reset / torn-down) requests can be told apart from
 // the live one and dropped without touching any player state.
@@ -533,7 +612,10 @@ void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
     GError *err = nullptr;
     cairo_surface_t *surf =
         webkit_web_view_get_snapshot_finish(WEBKIT_WEB_VIEW(src), res, &err);
-    if (err) g_error_free(err);
+    if (err) {
+        NUVIO_LOG("snapshot error: %s", err->message);
+        g_error_free(err);
+    }
     if (!playerAlive(player)) {
         if (surf) cairo_surface_destroy(surf);
         return;
@@ -549,13 +631,22 @@ void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
     }
     player->snapInFlight = false;
     player->snapResets = 0;
-    if (!surf) return;
+    if (!surf) {
+        NUVIO_LOG("snapshot returned NULL without error");
+        return;
+    }
     if (cairo_image_surface_get_format(surf) != CAIRO_FORMAT_ARGB32 ||
         cairo_image_surface_get_width(surf) <= 0 ||
         cairo_image_surface_get_height(surf) <= 0 || !player->mpv) {
+        NUVIO_LOG("snapshot unusable: fmt=%d size=%dx%d mpv=%p",
+                  cairo_image_surface_get_format(surf),
+                  cairo_image_surface_get_width(surf),
+                  cairo_image_surface_get_height(surf), (void *)player->mpv);
         cairo_surface_destroy(surf);
         return;
     }
+    static int sSnapOk = 0;
+    if ((++sSnapOk % 90) == 1) NUVIO_LOG("snapshot ok #%d", sSnapOk);
     // Drop snapshots taken at a stale size (requested mid-resize): pushing one
     // would paint mis-scaled controls over the video. The overlay was already
     // removed when the mismatch was detected; the next tick requests a fresh
@@ -565,13 +656,24 @@ void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
         XWindowAttributes wa;
         if (ovGw && player->overlayXid &&
             XGetWindowAttributes(GDK_WINDOW_XDISPLAY(ovGw), player->overlayXid, &wa) &&
-            (cairo_image_surface_get_width(surf) != wa.width ||
-             cairo_image_surface_get_height(surf) != wa.height)) {
+            (abs(cairo_image_surface_get_width(surf) - wa.width) > overlayScale(player) ||
+             abs(cairo_image_surface_get_height(surf) - wa.height) > overlayScale(player))) {
+            NUVIO_LOG("stale-size snapshot dropped (surf %dx%d vs window %dx%d)",
+                      cairo_image_surface_get_width(surf),
+                      cairo_image_surface_get_height(surf), wa.width, wa.height);
             cairo_surface_destroy(surf);
             return;
         }
     }
     cairo_surface_flush(surf);
+    // Skip re-uploading a frame identical to what mpv already has: the chrome
+    // is static most of the time and each push is a 100MB-class texture upload
+    // at HiDPI sizes.
+    const uint64_t hash = snapshotHash(surf);
+    if (player->overlayPushed && hash == player->lastPushedHash) {
+        cairo_surface_destroy(surf);
+        return;
+    }
     char addr[32], sw[16], sh[16], sstride[16];
     snprintf(addr, sizeof addr, "&%zu",
              (size_t)(uintptr_t)cairo_image_surface_get_data(surf));
@@ -580,8 +682,10 @@ void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
     snprintf(sstride, sizeof sstride, "%d", cairo_image_surface_get_stride(surf));
     const char *cmd[] = {"overlay-add", "0", "0", "0", addr, "0",
                          "bgra", sw, sh, sstride, nullptr};
+    if (!player->overlayPushed) NUVIO_LOG("overlay push (%sx%s)", sw, sh);
     mpv_command(player->mpv, cmd);
     player->overlayPushed = true;
+    player->lastPushedHash = hash;
     if (player->snapSurfPrev) cairo_surface_destroy(player->snapSurfPrev);
     player->snapSurfPrev = player->snapSurf;
     player->snapSurf = surf;
@@ -612,6 +716,38 @@ void compositeOverlay(Player *player) {
     bool active = loading || paused || player->overlayActive || player->fadeTicks > 0 ||
                   player->toastTicks > 0 || player->skipPromptShown ||
                   player->nextEpisodeShown;
+    // Toplevel mode: the compositor presents the overlay window directly — only
+    // geometry-sync is needed here, the whole snapshot pipeline is dead weight.
+    if (overlayToplevelMode()) {
+        XWindowAttributes hostWa;
+        Window child0 = 0;
+        int hx = 0, hy = 0;
+        if (XGetWindowAttributes(dpy, player->hostXid, &hostWa) &&
+            hostWa.width > 0 && hostWa.height > 0 &&
+            XTranslateCoordinates(dpy, player->hostXid, DefaultRootWindow(dpy),
+                                  0, 0, &hx, &hy, &child0)) {
+            XWindowAttributes ovWa;
+            const int scale = overlayScale(player);
+            if (XGetWindowAttributes(dpy, player->overlayXid, &ovWa) &&
+                (ovWa.x != hx || ovWa.y != hy ||
+                 abs(ovWa.width - hostWa.width) > scale ||
+                 abs(ovWa.height - hostWa.height) > scale)) {
+                NUVIO_LOG("geometry-sync: host %d,%d %dx%d overlay %d,%d %dx%d scale %d",
+                          hx, hy, hostWa.width, hostWa.height,
+                          ovWa.x, ovWa.y, ovWa.width, ovWa.height, scale);
+                const int lw = (hostWa.width + scale / 2) / scale;
+                const int lh = (hostWa.height + scale / 2) / scale;
+                // Raw X for geometry (device pixels); GDK catches up from
+                // ConfigureNotify, and the allocation sets the page viewport.
+                XMoveResizeWindow(dpy, player->overlayXid, hx, hy,
+                                  hostWa.width, hostWa.height);
+                gtk_window_resize(GTK_WINDOW(player->gtkWindow), lw, lh);
+                GtkAllocation alloc = {0, 0, lw, lh};
+                gtk_widget_size_allocate(player->gtkWindow, &alloc);
+            }
+        }
+        return;
+    }
     // Track the host (video) size BEFORE the activity gate: on resize/fullscreen
     // the host canvas changes size but the overlay does not, so the controls +
     // their click hit-area drift out of alignment. This must also run while the
@@ -623,8 +759,12 @@ void compositeOverlay(Player *player) {
     if (XGetWindowAttributes(dpy, player->hostXid, &hostWa) && hostWa.width > 0 &&
         hostWa.height > 0) {
         XWindowAttributes ovWa0;
+        const int scale = overlayScale(player);
         if (XGetWindowAttributes(dpy, player->overlayXid, &ovWa0) &&
-            (ovWa0.width != hostWa.width || ovWa0.height != hostWa.height)) {
+            (abs(ovWa0.width - hostWa.width) > scale ||
+             abs(ovWa0.height - hostWa.height) > scale)) {
+            NUVIO_LOG("resize-sync: host %dx%d overlay %dx%d scale %d",
+                      hostWa.width, hostWa.height, ovWa0.width, ovWa0.height, scale);
             // gtk_window_resize alone never lands here: GTK applies it in the
             // frame-clock layout phase, and the redirected overlay's clock is
             // stalled (the same stall the forcing below works around) — on
@@ -633,13 +773,16 @@ void compositeOverlay(Player *player) {
             // resize so the widget allocation follows on the forced clock tick.
             // No early return: a transiently mis-sized snapshot beats a frozen
             // overlay, and returning here would skip the clock forcing.
-            gdk_window_resize(gw, hostWa.width, hostWa.height);
-            gtk_window_resize(GTK_WINDOW(player->gtkWindow), hostWa.width, hostWa.height);
+            // GTK-side calls take scaled coordinates; X reports device pixels.
+            const int lw = (hostWa.width + scale / 2) / scale;
+            const int lh = (hostWa.height + scale / 2) / scale;
+            gdk_window_resize(gw, lw, lh);
+            gtk_window_resize(GTK_WINDOW(player->gtkWindow), lw, lh);
             // The X window now resizes, but the WebKit view renders at the GTK
             // widget *allocation* size, and allocations are applied in the same
             // stalled layout phase — the page would stay at the old size
             // indefinitely. Allocate synchronously so the viewport follows now.
-            GtkAllocation alloc = {0, 0, hostWa.width, hostWa.height};
+            GtkAllocation alloc = {0, 0, lw, lh};
             gtk_widget_size_allocate(player->gtkWindow, &alloc);
             // Take the old-size overlay down while the sizes disagree: painting
             // it 1:1 over a differently-sized window garbles the controls. The
@@ -652,6 +795,7 @@ void compositeOverlay(Player *player) {
             }
         }
     }
+    // Toplevel mode already returned above (only geometry-sync runs there).
     if (!active) {
         if (player->overlayPushed) {
             const char *rm[] = {"overlay-remove", "0", nullptr};
@@ -666,7 +810,19 @@ void compositeOverlay(Player *player) {
             // Backing off after a watchdog reset: a stalled web process gets no
             // relief from being asked again immediately.
             player->snapCooldownTicks--;
+        } else if (player->snapThrottleTicks > 0) {
+            player->snapThrottleTicks--;
         } else {
+            // Burst pace (~15Hz) while the UI is animating (loading spinner,
+            // fades) or the user is interacting (snapBoostTicks), plus
+            // skip-unchanged on the push side; idle heartbeat (~1Hz) — the
+            // only page change then is the once-per-second position label.
+            // Full-rate 33ms software readbacks drown the machine at HiDPI
+            // sizes for zero visual gain.
+            const bool fast = player->snapBoostTicks > 0 || loading;
+            player->snapThrottleTicks = fast ? 2 : 30;
+            static int sSnapReqs = 0;
+            if ((++sSnapReqs % 90) == 1) NUVIO_LOG("snapshot request #%d", sSnapReqs);
             player->snapInFlight = true;
             player->snapWaitTicks = 0;
             if (!player->snapCancel) player->snapCancel = g_cancellable_new();
@@ -712,6 +868,7 @@ void compositeOverlay(Player *player) {
     }
     if (!player->overlayActive && player->fadeTicks > 0) player->fadeTicks--;
     if (player->toastTicks > 0) player->toastTicks--;
+    if (player->snapBoostTicks > 0) player->snapBoostTicks--;
 }
 
 // Fast timer: composite the controls over the video (cheap while hidden).
@@ -830,14 +987,17 @@ gboolean pushPlayerUpdate(gpointer data) {
     auto *player = static_cast<Player *>(data);
     if (!playerAlive(player)) return G_SOURCE_REMOVE;
     if (!player->webview || !player->mpv) return G_SOURCE_CONTINUE;
-    // Keep the (redirected, invisible) overlay window topmost so pointer/click
-    // events reach it instead of mpv's video window below. Redirection keeps it
-    // hidden from the screen regardless of stacking; raising only affects input.
-    // Only restack when NOT already topmost: an unconditional XRaiseWindow makes
-    // some servers (mutter's XWayland) emit pointer crossing events every tick,
-    // which the controls page reads as endless cursor activity — chrome never
-    // auto-hides and hover/cursor state thrashes.
-    if (player->gtkWindow) {
+    // Snapshot mode only: keep the (redirected, invisible) overlay window
+    // topmost among the host canvas's children so pointer/click events reach
+    // it instead of mpv's video window below. Redirection keeps it hidden
+    // from the screen regardless of stacking; raising only affects input.
+    // Only restack when NOT already topmost: an unconditional XRaiseWindow
+    // makes some servers (mutter's XWayland) emit pointer crossing events
+    // every tick, which the controls page reads as endless cursor activity —
+    // chrome never auto-hides and hover/cursor state thrashes.
+    // Toplevel mode needs none of this: the overlay is a WM-managed transient
+    // of the app window, so stacking, minimize and cover behave natively.
+    if (player->gtkWindow && !overlayToplevelMode()) {
         GdkWindow *ov = gtk_widget_get_window(player->gtkWindow);
         if (ov) {
             Display *dpy = GDK_WINDOW_XDISPLAY(ov);
@@ -849,7 +1009,10 @@ gboolean pushPlayerUpdate(gpointer data) {
                 onTop = nkids > 0 && kids[nkids - 1] == player->overlayXid;
                 XFree(kids);
             }
-            if (!onTop) XRaiseWindow(dpy, player->overlayXid);
+            if (!onTop) {
+                NUVIO_LOG("restack: overlay not topmost (%u host children), raising", nkids);
+                XRaiseWindow(dpy, player->overlayXid);
+            }
         }
     }
     double duration = mpvGetDouble(player->mpv, "duration");
@@ -1000,20 +1163,25 @@ gboolean createWebviewOnGtk(gpointer data) {
         g_signal_connect(ucm, "script-message-received::player",
                          G_CALLBACK(onPlayerMessage), player);
 
-        // WebKit's DMABUF renderer yields controls snapshots with degraded alpha —
-        // the semi-transparent chrome scrim reads back near-opaque (NVIDIA: stale or
-        // fully opaque via GBM failures; Mesa: no fully-transparent pixels at all),
-        // which mpv then blends as a dark wall over the video. The software path
-        // snapshots with correct alpha everywhere, and the controls page is cheap to
-        // render, so disable DMABUF before WebKit's processes spawn. overwrite=0
-        // keeps an explicit user setting authoritative.
-        setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1", 0);
-        // The persistent cached context (sharedControlsContext) brings WebKit's
-        // accelerated compositing up on some stacks (observed on virtio/GNOME)
-        // where the DMABUF opt-out alone no longer guarantees alpha-correct
-        // snapshots — same dark-wall-over-video failure as above. Force the
-        // full software path; the controls page is cheap to render.
-        setenv("WEBKIT_DISABLE_COMPOSITING_MODE", "1", 0);
+        // WebKit's DMABUF renderer breaks the controls in both overlay modes:
+        // the snapshot pipeline reads back degraded alpha (the semi-transparent
+        // chrome scrim comes back near-opaque — NVIDIA: stale or fully opaque
+        // via GBM failures; Mesa: no fully-transparent pixels at all), and in
+        // the toplevel overlay it paints a few frames and then goes blank
+        // (observed on Mesa/amdgpu under XWayland). The software path renders
+        // correctly everywhere, and the controls page is cheap to render, so
+        // disable DMABUF before WebKit's processes spawn. overwrite=0 keeps an
+        // explicit user setting authoritative. NUVIO_WEBKIT_ALLOW_GPU opts out
+        // entirely (GPU compositing is much faster on stacks where it works).
+        if (!std::getenv("NUVIO_WEBKIT_ALLOW_GPU")) {
+            setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1", 0);
+            // The persistent cached context (sharedControlsContext) brings WebKit's
+            // accelerated compositing up on some stacks (observed on virtio/GNOME)
+            // where the DMABUF opt-out alone no longer guarantees alpha-correct
+            // snapshots — same dark-wall-over-video failure as above. Force the
+            // full software path; the controls page is cheap to render.
+            setenv("WEBKIT_DISABLE_COMPOSITING_MODE", "1", 0);
+        }
 
         // Shared immortal cached context — see sharedControlsContext() for why
         // this replaced the per-player ephemeral context (artwork re-fetch on
@@ -1123,19 +1291,48 @@ gboolean createWebviewOnGtk(gpointer data) {
     // size to the host window
     XWindowAttributes attrs;
     if (XGetWindowAttributes(dpy, s->hostXid, &attrs)) {
-        gtk_window_resize(GTK_WINDOW(win), attrs.width, attrs.height);
+        // gtk_window_resize takes scaled window coordinates (see overlayScale);
+        // the host attributes are device pixels.
+        const int scale = gtk_widget_get_scale_factor(win);
+        const int sc = scale < 1 ? 1 : scale;
+        gtk_window_resize(GTK_WINDOW(win), attrs.width / sc, attrs.height / sc);
     }
 
-    // Reparent THROUGH GDK (not raw XReparentWindow): GDK must know the window is
-    // now a child of the host, otherwise it never dispatches pointer events to it
-    // and the controls page receives no mousemove -> chrome never shows.
     GdkDisplay *gdkDisplay = gdk_window_get_display(gdkWin);
-    GdkWindow *hostGdk = gdk_x11_window_foreign_new_for_display(gdkDisplay, s->hostXid);
-    if (hostGdk) {
-        gdk_window_reparent(gdkWin, hostGdk, 0, 0);
+    if (overlayToplevelMode()) {
+        // Managed borderless toplevel, transient for the app window: the WM
+        // stacks it with the app, minimizes it with the app, and lets other
+        // applications' windows cover it — normal window management, no manual
+        // visibility heuristics. skip_taskbar/skip_pager keep it out of the
+        // taskbar and pager; the transient hint also keeps it above its parent.
+        gtk_window_set_skip_taskbar_hint(GTK_WINDOW(win), TRUE);
+        gtk_window_set_skip_pager_hint(GTK_WINDOW(win), TRUE);
+        XSetTransientForHint(dpy, gtkXid, appToplevelFor(dpy, s->hostXid));
+        // Place it exactly over the host canvas (root coords, device pixels).
+        // The WM re-places a first map by its own policy; the geometry-sync
+        // tick pulls it onto the canvas within a frame.
+        Window child0 = 0;
+        int hx = 0, hy = 0;
+        if (XTranslateCoordinates(dpy, s->hostXid, DefaultRootWindow(dpy),
+                                  0, 0, &hx, &hy, &child0)) {
+            XWindowAttributes hwa;
+            if (XGetWindowAttributes(dpy, s->hostXid, &hwa)) {
+                XMoveResizeWindow(dpy, gtkXid, hx, hy, hwa.width, hwa.height);
+            } else {
+                XMoveWindow(dpy, gtkXid, hx, hy);
+            }
+        }
     } else {
-        NUVIO_ERR("foreign host GdkWindow wrap failed; falling back to XReparentWindow");
-        XReparentWindow(dpy, gtkXid, s->hostXid, 0, 0);
+        // Reparent THROUGH GDK (not raw XReparentWindow): GDK must know the window is
+        // now a child of the host, otherwise it never dispatches pointer events to it
+        // and the controls page receives no mousemove -> chrome never shows.
+        GdkWindow *hostGdk = gdk_x11_window_foreign_new_for_display(gdkDisplay, s->hostXid);
+        if (hostGdk) {
+            gdk_window_reparent(gdkWin, hostGdk, 0, 0);
+        } else {
+            NUVIO_ERR("foreign host GdkWindow wrap failed; falling back to XReparentWindow");
+            XReparentWindow(dpy, gtkXid, s->hostXid, 0, 0);
+        }
     }
     gtk_widget_show_all(win);
     gdk_window_raise(gdkWin);
@@ -1145,7 +1342,12 @@ gboolean createWebviewOnGtk(gpointer data) {
     // while it keeps rendering + receiving input, we can read its pixmap and
     // blend it over the video via mpv overlay-add (no window-stacking blend).
     int compEventBase = 0, compErrorBase = 0;
-    if (XCompositeQueryExtension(dpy, &compEventBase, &compErrorBase)) {
+    if (overlayToplevelMode()) {
+        // Managed transient toplevel (see overlayToplevelMode): the WM owns
+        // stacking and visibility; geometry-sync still tracks the canvas.
+        player->overlayXid = gtkXid;
+        NUVIO_LOG("overlay toplevel mode: managed transient, no reparent, no redirect");
+    } else if (XCompositeQueryExtension(dpy, &compEventBase, &compErrorBase)) {
         int major = 0, minor = 0;
         XCompositeQueryVersion(dpy, &major, &minor);
         XCompositeRedirectWindow(dpy, gtkXid, CompositeRedirectManual);
@@ -1368,9 +1570,12 @@ gboolean destroyWebviewOnGtk(gpointer data) {
 gboolean warmupOnGtk(gpointer data) {
     auto *url = static_cast<std::string *>(data);
     // The warm-up spawns WebKit's processes first — the DMABUF and compositing
-    // opt-outs must already be in place (see createWebviewOnGtk for why).
-    setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1", 0);
-    setenv("WEBKIT_DISABLE_COMPOSITING_MODE", "1", 0);
+    // opt-outs must already be in place (see createWebviewOnGtk for why the GPU
+    // path breaks the controls in both overlay modes).
+    if (!std::getenv("NUVIO_WEBKIT_ALLOW_GPU")) {
+        setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1", 0);
+        setenv("WEBKIT_DISABLE_COMPOSITING_MODE", "1", 0);
+    }
     // Built exactly like the player overlay window (createWebviewOnGtk), never
     // shown: WebKit loads and lays the page out unmapped, and adoption picks
     // the whole structure up mid-flight.
