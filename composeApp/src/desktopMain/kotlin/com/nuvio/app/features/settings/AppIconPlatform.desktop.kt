@@ -5,6 +5,8 @@ import com.nuvio.app.features.player.desktop.DesktopHostOs
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.system.exitProcess
 
 internal actual object AppIconPlatform {
@@ -17,21 +19,30 @@ internal actual object AppIconPlatform {
     actual fun currentIconName(): String? = store.getString(selectedIconKey)
 
     actual suspend fun activateIcon(name: String?): Boolean {
-        store.putString(selectedIconKey, name)
-        when (DesktopHostOs.current) {
+        val icon = AppIconOption.fromPlatformName(name)
+        return when (DesktopHostOs.current) {
             DesktopHostOs.WINDOWS -> {
-                WindowsAppShortcutIconUpdater.updateAsync(AppIconOption.fromPlatformName(name)) {
+                store.putString(selectedIconKey, name)
+                WindowsAppShortcutIconUpdater.updateAsync(icon) {
                     restartWindowsApp()
                 }
+                true
             }
             DesktopHostOs.MACOS -> {
-                MacAppIconUpdater.updateAsync(AppIconOption.fromPlatformName(name)) {
+                val changed = withContext(Dispatchers.IO) {
+                    MacAppIconUpdater.update(icon)
+                }
+                if (changed) {
+                    store.putString(selectedIconKey, name)
                     MacAppIconUpdater.restartAsync()
                 }
+                changed
             }
-            else -> Unit
+            else -> {
+                store.putString(selectedIconKey, name)
+                true
+            }
         }
-        return true
     }
 
     private fun restartWindowsApp() {

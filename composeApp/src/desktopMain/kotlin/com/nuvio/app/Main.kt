@@ -34,6 +34,7 @@ import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
 import com.nuvio.app.features.player.desktop.registerDesktopAppFullscreenToggle
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.settings.AppIconRepository
+import com.nuvio.app.features.settings.applyDesktopRuntimeIcon
 import com.nuvio.app.features.settings.applyDesktopRendererPreference
 import com.nuvio.app.features.settings.transparentPreviewResource
 import java.awt.Desktop
@@ -136,7 +137,11 @@ fun main(args: Array<String>) {
                 val iconPath = "icons/app-icon-${appIconState.selected.key}$backgroundSuffix.png"
                 Thread.currentThread().contextClassLoader.getResourceAsStream(iconPath)?.use { stream ->
                     ImageIO.read(stream)?.let { image ->
-                        window.iconImages = listOf(image)
+                        applyDesktopRuntimeIcon(
+                            hostOs = DesktopHostOs.current,
+                            image = image,
+                            setWindowIconImages = { window.iconImages = it },
+                        )
                     }
                 }
             }
