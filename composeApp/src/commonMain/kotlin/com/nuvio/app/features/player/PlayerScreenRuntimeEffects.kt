@@ -250,6 +250,12 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         fetchAddonSubtitlesForActiveItem()
     }
 
+    LaunchedEffect(externalSubtitles, activeSourceUrl) {
+        if (externalSubtitles.isNotEmpty()) {
+            SubtitleRepository.appendStreamSubtitles(externalSubtitles, activeSourceName)
+        }
+    }
+
     LaunchedEffect(playbackSnapshot.isLoading, playerController) {
         if (!playbackSnapshot.isLoading && playerController != null) {
             refreshTracks()
