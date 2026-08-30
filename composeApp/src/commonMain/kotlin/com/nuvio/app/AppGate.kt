@@ -459,20 +459,25 @@ internal fun AppGate(
             targetState = gateScreen,
             label = "app_gate",
             transitionSpec = {
-                (fadeIn(tween(400)) + scaleIn(tween(400), initialScale = 0.94f))
-                    .togetherWith(fadeOut(tween(250)))
+                if (
+                    (initialState == AppGateScreen.Loading.name && targetState == AppGateScreen.Main.name) ||
+                    (initialState == AppGateScreen.Main.name && targetState == AppGateScreen.Loading.name)
+                ) {
+                    androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+                } else {
+                    (fadeIn(tween(400)) + scaleIn(tween(400), initialScale = 0.94f))
+                        .togetherWith(fadeOut(tween(250)))
+                }
             },
         ) { currentGate ->
             when (currentGate) {
                 AppGateScreen.Loading.name -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.nuvio.colors.background),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        NuvioLoadingIndicator(color = MaterialTheme.nuvio.colors.accent)
-                    }
+                    AppLaunchOverlay(
+                        profile = switchingProfile
+                            ?: profileState.activeProfile
+                            ?: profileState.profiles.firstOrNull(),
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
                 AppGateScreen.Auth.name -> {
                     AuthScreen(modifier = Modifier.fillMaxSize())
