@@ -1956,6 +1956,10 @@
     <string name="player_ios_preset_custom_label">Custom</string>
     <string name="player_ios_preset_custom_desc">Use your advanced values below.</string>
     <string name="player_ios_hardware_decoder_off">Off</string>
+    <!-- Playback settings Windows audio -->
+    <string name="settings_playback_windows_audio_section">Windows audio</string>
+    <string name="settings_playback_hdmi_passthrough">HDMI audio passthrough</string>
+    <string name="settings_playback_hdmi_passthrough_desc">Send Dolby Digital, Dolby Digital Plus/Atmos, TrueHD/Atmos, DTS, DTS-HD, and DTS:X unchanged to the Windows default HDMI receiver. The receiver controls volume; unsupported audio plays as decoded PCM.</string>
     <!-- Playback settings Windows NVIDIA RTX Video -->
     <string name="settings_playback_nvidia_rtx_video_section">NVIDIA RTX Video</string>
     <string name="settings_playback_nvidia_rtx_super_resolution">RTX Video Super Resolution</string>
