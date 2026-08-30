@@ -43,6 +43,7 @@ internal object NativePlayerBridge {
         controlsPageUrl: String,
         decoderPriority: Int,
         nvidiaRtxSuperResolutionEnabled: Boolean,
+        libmpvHrSeekEnabled: Boolean,
         eventSink: NativePlayerEventSink,
     ): Long
 

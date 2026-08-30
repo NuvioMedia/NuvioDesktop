@@ -1143,6 +1143,11 @@
     <string name="settings_playback_libmpv_hardware_decoding_description">Use mpv hardware decoding when available.</string>
     <string name="settings_playback_libmpv_yuv420p">libmpv YUV420P Compatibility</string>
     <string name="settings_playback_libmpv_yuv420p_description">Force YUV420P output for devices with renderer or color issues.</string>
+    <string name="settings_playback_libmpv_hr_seek">libmpv Player Seeking</string>
+    <string name="settings_playback_libmpv_hr_seek_fast">Use mpv keyframe seeking</string>
+    <string name="settings_playback_libmpv_hr_seek_fast_desc">Imprecise, but it's instantaneous</string>
+    <string name="settings_playback_libmpv_hr_seek_slow">Use mpv exact seeking</string>
+    <string name="settings_playback_libmpv_hr_seek_slow_desc">Precise, but it can be slower</string>
     <string name="settings_playback_section_next_episode">NEXT EPISODE</string>
     <string name="settings_playback_section_player">PLAYER</string>
     <string name="settings_playback_section_skip_segments">SKIP SEGMENTS</string>

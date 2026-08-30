@@ -1509,7 +1509,8 @@ JNIEXPORT jlong JNICALL NP(create)(
     JNIEnv *env, jobject /*thiz*/, jlong hostViewPtr, jstring sourceUrl,
     jobjectArray headerLines, jboolean playWhenReady, jlong initialPositionMs,
     jstring controlsPageUrl, jint decoderPriority,
-    jboolean /*nvidiaRtxSuperResolutionEnabled*/, jobject eventSink) {
+    jboolean /*nvidiaRtxSuperResolutionEnabled*/, jboolean libmpvHrSeekEnabled,
+    jobject eventSink) {
 
     // libmpv requires LC_NUMERIC=C (e.g. non-"C" locales with comma
     // decimals make mpv_create fail); the JVM uses java.util.Locale, so
@@ -1601,6 +1602,12 @@ JNIEXPORT jlong JNICALL NP(create)(
         mpv_set_option_string(m, "vd-lavc-threads", "0");
         mpv_set_option_string(m, "target-colorspace-hint", "yes");
         mpv_set_option_string(m, "target-colorspace-hint-mode", "source");
+
+        if (libmpvHrSeekEnabled) {
+            mpv_set_option_string(m, "hr-seek", "yes");
+        } else {
+            mpv_set_option_string(m, "hr-seek", "no");
+        }
 
         if (!headerFields.empty()) {
             mpv_set_option_string(m, "http-header-fields", headerFields.c_str());

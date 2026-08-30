@@ -89,6 +89,7 @@ internal actual object PlayerSettingsStorage {
     private const val iosSaturationKey = "ios_saturation"
     private const val iosGammaKey = "ios_gamma"
     private const val nvidiaRtxSuperResolutionEnabledKey = "nvidia_rtx_super_resolution_enabled"
+    private const val libmpvHrSeekEnabledKey = "libmpv_hr_seek_enabled"
     private val syncKeys = listOf(
         showLoadingOverlayKey,
         showParentalGuideKey,
@@ -160,6 +161,7 @@ internal actual object PlayerSettingsStorage {
         iosContrastKey,
         iosSaturationKey,
         iosGammaKey,
+        libmpvHrSeekEnabledKey,
     )
     private val store = DesktopStorage.store("nuvio_player_settings")
 
@@ -312,6 +314,8 @@ internal actual object PlayerSettingsStorage {
 
     actual fun loadNvidiaRtxSuperResolutionEnabled(): Boolean? = loadBoolean(nvidiaRtxSuperResolutionEnabledKey)
     actual fun saveNvidiaRtxSuperResolutionEnabled(enabled: Boolean) = saveBoolean(nvidiaRtxSuperResolutionEnabledKey, enabled)
+    actual fun loadLibmpvHrSeekEnabled(): Boolean? = loadBoolean(libmpvHrSeekEnabledKey)
+    actual fun saveLibmpvHrSeekEnabled(enabled: Boolean) = saveBoolean(libmpvHrSeekEnabledKey, enabled)
 
     private fun scoped(key: String): String = ProfileScopedKey.of(key)
     private fun loadString(key: String): String? = store.getString(scoped(key))
@@ -401,6 +405,7 @@ internal actual object PlayerSettingsStorage {
         loadIosSaturation()?.let { put(iosSaturationKey, encodeSyncInt(it)) }
         loadIosGamma()?.let { put(iosGammaKey, encodeSyncInt(it)) }
         loadNvidiaRtxSuperResolutionEnabled()?.let { put(nvidiaRtxSuperResolutionEnabledKey, encodeSyncBoolean(it)) }
+        loadLibmpvHrSeekEnabled()?.let {put(libmpvHrSeekEnabledKey, encodeSyncBoolean(it))}
     }
 
     actual fun replaceFromSyncPayload(payload: JsonObject) {
@@ -479,5 +484,6 @@ internal actual object PlayerSettingsStorage {
         payload.decodeSyncInt(iosSaturationKey)?.let(::saveIosSaturation)
         payload.decodeSyncInt(iosGammaKey)?.let(::saveIosGamma)
         payload.decodeSyncBoolean(nvidiaRtxSuperResolutionEnabledKey)?.let(::saveNvidiaRtxSuperResolutionEnabled)
+        payload.decodeSyncBoolean(libmpvHrSeekEnabledKey)?.let(::saveLibmpvHrSeekEnabled)
     }
 }
