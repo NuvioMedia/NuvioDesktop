@@ -784,16 +784,25 @@ fun HomeScreen(
     val showHeroSkeleton = showHeroSlot &&
         homeUiState.heroItems.isEmpty() &&
         isResolvingHeroSources
-    var firstCatalogReported by remember { mutableStateOf(false) }
-
-    LaunchedEffect(homeUiState.sections.firstOrNull()?.key, onFirstCatalogRendered) {
-        if (firstCatalogReported || homeUiState.sections.isEmpty()) return@LaunchedEffect
-        firstCatalogReported = true
-        onFirstCatalogRendered?.invoke()
-    }
-
     val visibleCollections = remember(collections) {
         collections.filter { it.folders.isNotEmpty() }
+    }
+    var firstCatalogReported by remember { mutableStateOf(false) }
+
+    LaunchedEffect(
+        homeUiState.sections.firstOrNull()?.key,
+        homeUiState.heroItems.firstOrNull()?.id,
+        visibleCollections.isNotEmpty(),
+        onFirstCatalogRendered,
+    ) {
+        if (firstCatalogReported) return@LaunchedEffect
+        val hasAnyVisibleContent = homeUiState.sections.isNotEmpty() ||
+            homeUiState.heroItems.isNotEmpty() ||
+            visibleCollections.isNotEmpty()
+        if (hasAnyVisibleContent) {
+            firstCatalogReported = true
+            onFirstCatalogRendered?.invoke()
+        }
     }
     val collectionsMap = remember(visibleCollections) {
         visibleCollections.associateBy { "collection_${it.id}" }
