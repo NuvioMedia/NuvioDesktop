@@ -228,8 +228,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     }
     val nextEpisodeStatus = when {
         nextEpisodeForControls == null -> ""
-        !nextEpisodeForControls.hasAired && !nextEpisodeForControls.unairedMessage.isNullOrBlank() ->
-            nextEpisodeForControls.unairedMessage.orEmpty()
+        !nextEpisodeForControls.hasAired ->
+            nextEpisodeForControls.unairedMessage?.takeIf { it.isNotBlank() }
+                ?: stringResource(Res.string.player_next_episode_unaired)
         nextEpisodeAutoPlaySearching -> stringResource(Res.string.player_next_episode_finding_source)
         !nextEpisodeAutoPlaySourceName.isNullOrBlank() && nextEpisodeAutoPlayCountdown != null ->
             stringResource(
