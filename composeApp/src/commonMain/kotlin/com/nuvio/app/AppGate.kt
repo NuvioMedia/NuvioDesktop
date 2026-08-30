@@ -182,7 +182,29 @@ internal fun AppGate(
         )
     }
 
-    var gateScreen by rememberSaveable { mutableStateOf(AppGateScreen.Loading.name) }
+    val initialGateScreen = remember {
+        val currentProfiles = ProfileRepository.state.value.profiles
+        val currentProfileState = ProfileRepository.state.value
+        val remembered = if (
+            currentProfileState.rememberLastProfileEnabled &&
+            currentProfileState.hasEverSelectedProfile
+        ) {
+            currentProfiles.find { it.profileIndex == ProfileRepository.activeProfileId }?.takeUnless { it.pinEnabled }
+        } else if (currentProfiles.size == 1 && !currentProfiles.first().pinEnabled) {
+            currentProfiles.first()
+        } else {
+            null
+        }
+
+        if (remembered != null) {
+            AppGateScreen.Main.name
+        } else if (currentProfiles.isNotEmpty()) {
+            AppGateScreen.ProfileSelection.name
+        } else {
+            AppGateScreen.Loading.name
+        }
+    }
+    var gateScreen by rememberSaveable { mutableStateOf(initialGateScreen) }
     var editingProfile by remember { mutableStateOf<NuvioProfile?>(null) }
     var autoSkipProfileSelection by rememberSaveable { mutableStateOf(false) }
     var profileSelectionLoading by rememberSaveable { mutableStateOf(false) }
@@ -210,7 +232,9 @@ internal fun AppGate(
         }
         switchingProfile = profile
         try {
-            ProfileRepository.switchToProfile(profile.profileIndex)
+            if (ProfileRepository.activeProfileId != profile.profileIndex) {
+                ProfileRepository.switchToProfile(profile.profileIndex)
+            }
             warmProfileBoundRepositories()
             if (sync) {
                 SyncManager.pullAllForProfile(profile.profileIndex)
@@ -316,7 +340,11 @@ internal fun AppGate(
         }
 
         rememberedStartupProfile(profiles)?.let { profile ->
-            selectProfile(profile, sync = syncOnEnter)
+            if (ProfileRepository.activeProfileId != profile.profileIndex) {
+                selectProfile(profile, sync = syncOnEnter)
+            } else if (syncOnEnter) {
+                SyncManager.pullAllForProfile(profile.profileIndex)
+            }
             gateScreen = AppGateScreen.Main.name
             autoSkipProfileSelection = false
             return
@@ -329,7 +357,11 @@ internal fun AppGate(
                 gateScreen = AppGateScreen.ProfileSelection.name
                 return
             }
-            selectProfile(onlyProfile, sync = syncOnEnter)
+            if (ProfileRepository.activeProfileId != onlyProfile.profileIndex) {
+                selectProfile(onlyProfile, sync = syncOnEnter)
+            } else if (syncOnEnter) {
+                SyncManager.pullAllForProfile(onlyProfile.profileIndex)
+            }
             gateScreen = AppGateScreen.Main.name
             autoSkipProfileSelection = false
         } else {
@@ -381,6 +413,9 @@ internal fun AppGate(
         val authenticatedState = authState as? AuthState.Authenticated ?: return@LaunchedEffect
         ProfileRepository.ensureLoaded(authenticatedState.userId)
         ProfileRepository.pullProfiles()
+        ProfileRepository.state.value.activeProfile?.let { active ->
+            SyncManager.pullAllForProfile(active.profileIndex)
+        }
     }
 
     LaunchedEffect(
