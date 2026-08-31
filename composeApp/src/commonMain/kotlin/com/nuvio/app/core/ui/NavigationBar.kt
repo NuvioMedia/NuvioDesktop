@@ -234,11 +234,13 @@ private class NuvioNavigationBarScopeImpl(
         )
 
         with(rowScope) {
+            val navItemShape = RoundedCornerShape(NuvioTokens.Radius.full)
             Column(
                 modifier = modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(NuvioTokens.Radius.full))
+                    .clip(navItemShape)
                     .background(selectedBgColor)
+                    .nuvioFocusBorder(navItemShape)
                     .selectable(
                         selected = selected,
                         enabled = true,
@@ -283,11 +285,13 @@ private class NuvioNavigationBarScopeImpl(
         )
 
         with(rowScope) {
+            val navItemShape = RoundedCornerShape(NuvioTokens.Radius.full)
             Column(
                 modifier = modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(NuvioTokens.Radius.full))
+                    .clip(navItemShape)
                     .background(selectedBgColor)
+                    .nuvioFocusBorder(navItemShape)
                     .selectable(
                         selected = selected,
                         enabled = true,
@@ -330,11 +334,13 @@ private class NuvioNavigationBarScopeImpl(
         )
 
         with(rowScope) {
+            val navItemShape = RoundedCornerShape(NuvioTokens.Radius.full)
             Column(
                 modifier = modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(NuvioTokens.Radius.full))
+                    .clip(navItemShape)
                     .background(selectedBgColor)
+                    .nuvioFocusBorder(navItemShape)
                     .selectable(
                         selected = selected,
                         enabled = true,
