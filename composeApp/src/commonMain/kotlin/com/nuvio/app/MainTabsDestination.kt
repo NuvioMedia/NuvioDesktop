@@ -61,11 +61,16 @@ internal fun MainTabsDestination(
     state: AppTabState,
     actions: (isTabletLayout: Boolean) -> AppTabActions,
     onBack: () -> Unit,
+    onHistoryBack: () -> Unit,
     onTabSelected: (AppScreenTab) -> Unit,
     onProfileSelected: (NuvioProfile) -> Unit,
     onAddProfileRequested: () -> Unit,
 ) {
-    PlatformBackHandler(enabled = true, onBack = onBack)
+    PlatformBackHandler(
+        enabled = true,
+        onBack = onBack,
+        onHistoryBack = onHistoryBack,
+    )
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isTabletLayout = useTabletFloatingTabBar || maxWidth >= 768.dp

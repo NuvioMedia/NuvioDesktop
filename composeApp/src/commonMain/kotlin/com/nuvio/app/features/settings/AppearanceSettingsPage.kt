@@ -71,6 +71,8 @@ import nuvio.composeapp.generated.resources.settings_appearance_amoled_descripti
 import nuvio.composeapp.generated.resources.settings_appearance_continue_watching_description
 import nuvio.composeapp.generated.resources.settings_appearance_desktop_navigation
 import nuvio.composeapp.generated.resources.settings_appearance_desktop_navigation_sheet_title
+import nuvio.composeapp.generated.resources.settings_appearance_escape_exits_fullscreen
+import nuvio.composeapp.generated.resources.settings_appearance_escape_exits_fullscreen_description
 import nuvio.composeapp.generated.resources.settings_appearance_hover_preview_description
 import nuvio.composeapp.generated.resources.settings_appearance_liquid_glass
 import nuvio.composeapp.generated.resources.settings_appearance_liquid_glass_description
@@ -175,6 +177,9 @@ internal fun LazyListScope.appearanceSettingsContent(
             ThemeSettingsRepository.ensureLoaded()
             ThemeSettingsRepository.desktopNavigationLayout
         }.collectAsStateWithLifecycle()
+        val escapeExitsFullscreen by remember {
+            DesktopWindowSettings.escapeExitsFullscreen
+        }.collectAsStateWithLifecycle()
         var showNavBarStyleSheet by remember { mutableStateOf(false) }
         var showAppIconPicker by remember { mutableStateOf(false) }
         SettingsSection(
@@ -206,6 +211,16 @@ internal fun LazyListScope.appearanceSettingsContent(
                         description = stringResource(desktopNavigationLayout.labelRes),
                         isTablet = isTablet,
                         onClick = { showDesktopNavigationSheet = true },
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_appearance_escape_exits_fullscreen),
+                        description = stringResource(
+                            Res.string.settings_appearance_escape_exits_fullscreen_description,
+                        ),
+                        checked = escapeExitsFullscreen,
+                        isTablet = isTablet,
+                        onCheckedChange = DesktopWindowSettings::setEscapeExitsFullscreen,
                     )
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(

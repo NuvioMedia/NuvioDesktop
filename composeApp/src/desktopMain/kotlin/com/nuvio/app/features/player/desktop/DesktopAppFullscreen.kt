@@ -3,6 +3,7 @@ package com.nuvio.app.features.player.desktop
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
+import com.nuvio.app.features.settings.DesktopWindowSettings
 import java.awt.GraphicsEnvironment
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
@@ -245,7 +246,17 @@ internal fun applyMacosComposeFullscreenExit(
 
 internal fun installDesktopAppFullscreenShortcuts(window: Window): () -> Unit {
     val dispatcher = KeyEventDispatcher { event ->
-        if (!event.isDesktopAppFullscreenShortcut()) return@KeyEventDispatcher false
+        if (
+            !shouldHandleDesktopFullscreenKey(
+                eventId = event.id,
+                keyCode = event.keyCode,
+                modifiersEx = event.modifiersEx,
+                isFullscreen = DesktopAppFullscreen.isFullscreen(window),
+                escapeExitsFullscreen = DesktopWindowSettings.escapeExitsFullscreen.value,
+            )
+        ) {
+            return@KeyEventDispatcher false
+        }
         toggleDesktopAppFullscreen(window)
         true
     }
@@ -255,14 +266,28 @@ internal fun installDesktopAppFullscreenShortcuts(window: Window): () -> Unit {
     }
 }
 
-private fun KeyEvent.isDesktopAppFullscreenShortcut(): Boolean {
-    if (id != KeyEvent.KEY_PRESSED) return false
+internal fun shouldHandleDesktopFullscreenKey(
+    eventId: Int,
+    keyCode: Int,
+    modifiersEx: Int,
+    isFullscreen: Boolean = false,
+    escapeExitsFullscreen: Boolean = false,
+): Boolean {
+    if (eventId != KeyEvent.KEY_PRESSED) return false
     if (keyCode == KeyEvent.VK_F11) return true
+    if (keyCode == KeyEvent.VK_ESCAPE) {
+        val keyboardModifierMask = KeyEvent.SHIFT_DOWN_MASK or
+            KeyEvent.CTRL_DOWN_MASK or
+            KeyEvent.META_DOWN_MASK or
+            KeyEvent.ALT_DOWN_MASK
+        return modifiersEx and keyboardModifierMask == 0 &&
+            isFullscreen &&
+            escapeExitsFullscreen
+    }
     if (keyCode != KeyEvent.VK_F) return false
-    val modifiers = modifiersEx
     val hasMacFullscreenModifiers =
-        modifiers and KeyEvent.META_DOWN_MASK != 0 &&
-            modifiers and KeyEvent.CTRL_DOWN_MASK != 0 &&
-            modifiers and KeyEvent.ALT_DOWN_MASK == 0
+        modifiersEx and KeyEvent.META_DOWN_MASK != 0 &&
+            modifiersEx and KeyEvent.CTRL_DOWN_MASK != 0 &&
+            modifiersEx and KeyEvent.ALT_DOWN_MASK == 0
     return hasMacFullscreenModifiers
 }

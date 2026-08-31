@@ -25,6 +25,7 @@ import com.nuvio.app.features.player.SubtitleStyleState
 import com.nuvio.app.features.player.SubtitleTrack
 import com.nuvio.app.features.player.inferForcedSubtitleTrack
 import com.nuvio.app.features.player.toStorageHexString
+import com.nuvio.app.features.settings.DesktopWindowSettings
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -427,9 +428,11 @@ internal class NativePlayerController(
         currentVolumeLevel = stateWithVolume.volumeLevel ?: currentVolumeLevel
         controlsState = stateWithVolume
         val isFullscreen = isDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
+        val escapeExitsFullscreen = DesktopWindowSettings.escapeExitsFullscreen.value
         val structureKey = NativeControlsStructureKey(
             state = stateWithVolume.nativeControlsStructureKey(),
             isFullscreen = isFullscreen,
+            escapeExitsFullscreen = escapeExitsFullscreen,
         )
         if (structureKey == lastSentControlsStructureKey) return
         lastSentControlsStructureKey = structureKey
@@ -439,7 +442,13 @@ internal class NativePlayerController(
                 "speed=${stateWithVolume.playbackSpeedLabel} audioLabel=${stateWithVolume.audioLabel} " +
                 "subsLabel=${stateWithVolume.subtitlesLabel} fullscreen=$isFullscreen"
         }
-        NativePlayerBridge.updateControls(current, stateWithVolume.toControlsJson(isFullscreen))
+        NativePlayerBridge.updateControls(
+            current,
+            stateWithVolume.toControlsJson(
+                isFullscreen = isFullscreen,
+                escapeExitsFullscreen = escapeExitsFullscreen,
+            ),
+        )
     }
 
     fun onDesktopFullscreenChanged() {
@@ -1171,9 +1180,13 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
 private data class NativeControlsStructureKey(
     val state: PlayerControlsState,
     val isFullscreen: Boolean,
+    val escapeExitsFullscreen: Boolean,
 )
 
-private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
+private fun PlayerControlsState.toControlsJson(
+    isFullscreen: Boolean,
+    escapeExitsFullscreen: Boolean,
+): String =
     buildString {
         append('{')
         appendJsonField("title", title)
@@ -1199,6 +1212,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("playbackSpeedLabel", playbackSpeedLabel)
         append(',')
         appendJsonField("isFullscreen", isFullscreen)
+        append(',')
+        appendJsonField("escapeExitsFullscreen", escapeExitsFullscreen)
         append(',')
         appendJsonField("volumeLevel", volumeLevel)
         append(',')

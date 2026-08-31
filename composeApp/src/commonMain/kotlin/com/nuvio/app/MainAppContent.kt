@@ -68,6 +68,7 @@ import com.nuvio.app.core.ui.NuvioPosterZoomActionOverlay
 import com.nuvio.app.core.ui.NuvioStatusModal
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.NuvioToastHost
+import com.nuvio.app.core.ui.PlatformBackHandler
 import com.nuvio.app.core.ui.PosterZoomAnchor
 import com.nuvio.app.core.ui.PosterZoomAnchorHolder
 import com.nuvio.app.core.ui.PosterZoomOverlayAction
@@ -217,6 +218,7 @@ internal fun MainAppContent(
         val uriHandler = LocalUriHandler.current
         val coroutineScope = rememberCoroutineScope()
         var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
+        val tabNavigationHistory = remember(initialTab) { AppTabNavigationHistory() }
         var searchFocusRequestCount by remember { mutableStateOf(0) }
         val homeScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val searchScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
@@ -231,6 +233,18 @@ internal fun MainAppContent(
         val currentRoute = navBackStack.lastOrNull() as? AppRoute
         var registeredPlayerSystemBack by remember {
             mutableStateOf<Pair<PlayerRoute, () -> Unit>?>(null)
+        }
+        if (isDesktop) {
+            PlatformBackHandler(enabled = currentRoute !is TabsRoute) {
+                val routeAtRequest = navController.currentRoute
+                dispatchNavigationBack(
+                    isPlayerRoute = routeAtRequest is PlayerRoute,
+                    playerBack = registeredPlayerSystemBack
+                        ?.takeIf { (route, _) -> route == routeAtRequest }
+                        ?.second,
+                    pop = { navController.popBackStack() },
+                )
+            }
         }
         val liquidGlassNativeTabBarEnabled by remember {
             ThemeSettingsRepository.liquidGlassNativeTabBarEnabled
@@ -339,7 +353,10 @@ internal fun MainAppContent(
     var lastNetworkToastCondition by rememberSaveable { mutableStateOf(NetworkCondition.Unknown.name) }
     var watchSourceReconnectPending by remember { mutableStateOf(false) }
 
-    fun activateTab(tab: AppScreenTab) {
+    fun activateTab(tab: AppScreenTab, recordInHistory: Boolean = true) {
+        if (isDesktop && recordInHistory && selectedTab != tab) {
+            tabNavigationHistory.recordTransition(from = selectedTab, to = tab)
+        }
         if (useNativeNavigation && onActivate != null) {
             onActivate(tab)
         } else {
@@ -1433,9 +1450,15 @@ internal fun MainAppContent(
                         },
                         onBack = {
                             if (selectedTab != AppScreenTab.Home) {
-                                activateTab(AppScreenTab.Home)
+                                tabNavigationHistory.clear()
+                                activateTab(AppScreenTab.Home, recordInHistory = false)
                             } else {
                                 showExitConfirmation = !showExitConfirmation
+                            }
+                        },
+                        onHistoryBack = {
+                            tabNavigationHistory.popPrevious(selectedTab)?.let { previousTab ->
+                                activateTab(previousTab, recordInHistory = false)
                             }
                         },
                         onTabSelected = ::handleRootTabClick,

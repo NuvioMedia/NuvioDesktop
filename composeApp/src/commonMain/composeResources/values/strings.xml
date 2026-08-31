@@ -687,6 +687,8 @@
     <string name="settings_appearance_desktop_navigation_sheet_title">Choose Desktop Navigation</string>
     <string name="settings_appearance_desktop_navigation_sidebar">Sidebar</string>
     <string name="settings_appearance_desktop_navigation_top_bar">Top Bar</string>
+    <string name="settings_appearance_escape_exits_fullscreen">Escape key exits fullscreen</string>
+    <string name="settings_appearance_escape_exits_fullscreen_description">Exit fullscreen before using Escape as Back. Backspace always navigates back.</string>
     <string name="settings_appearance_hover_preview_description">Configure poster hover cards and their opening delay.</string>
     <string name="settings_appearance_liquid_glass">Liquid Glass</string>
     <string name="settings_appearance_liquid_glass_description">Use the native iPhone tab bar on iOS 26 and later.</string>

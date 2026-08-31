@@ -180,6 +180,7 @@ let state = {
   resizeModeLabel: "Fit",
   playbackSpeedLabel: "1x",
   isFullscreen: false,
+  escapeExitsFullscreen: true,
   volumeLevel: null,
   subtitlesLabel: "Subs",
   audioLabel: "Audio",
@@ -3227,7 +3228,11 @@ document.addEventListener("keyup", event => {
 });
 
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape" && activeModal) {
+  const isEscape = event.key === "Escape";
+  const isBackspace = event.key === "Backspace";
+  const isUnmodifiedBackspace = isBackspace &&
+    !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
+  if ((isEscape || (isUnmodifiedBackspace && !isTextEntryTarget(event.target))) && activeModal) {
     if (spaceHoldTimer) {
       window.clearTimeout(spaceHoldTimer);
       spaceHoldTimer = null;
@@ -3241,7 +3246,7 @@ document.addEventListener("keydown", event => {
     focusShortcutRoot();
     return;
   }
-  if (event.key === "Escape") {
+  if (isEscape || (isUnmodifiedBackspace && !isTextEntryTarget(event.target))) {
     if (spaceHoldTimer) {
       window.clearTimeout(spaceHoldTimer);
       spaceHoldTimer = null;
@@ -3251,7 +3256,7 @@ document.addEventListener("keydown", event => {
       stopSpeedBoost();
     }
     event.preventDefault();
-    if (state.isFullscreen) {
+    if (isEscape && state.isFullscreen && state.escapeExitsFullscreen !== false) {
       togglePlayerFullscreen();
     } else {
       send("back", 0);

@@ -388,6 +388,19 @@ internal fun settingsSearchEntries(
         section = stringResource(Res.string.settings_appearance_section_display),
         icon = Icons.Rounded.Palette,
     )
+    if (DesktopWindowSettings.isSupported) {
+        addRow(
+            page = SettingsPage.Appearance,
+            key = "escape-exits-fullscreen",
+            title = stringResource(Res.string.settings_appearance_escape_exits_fullscreen),
+            description = stringResource(
+                Res.string.settings_appearance_escape_exits_fullscreen_description,
+            ),
+            pageLabel = layoutPage,
+            section = stringResource(Res.string.settings_appearance_section_display),
+            icon = Icons.Rounded.Palette,
+        )
+    }
     if (liquidGlassNativeTabBarSupported) {
         addRow(
             page = SettingsPage.Appearance,
