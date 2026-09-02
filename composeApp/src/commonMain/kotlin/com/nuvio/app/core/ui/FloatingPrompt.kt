@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.isDesktop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.Res
@@ -120,6 +122,13 @@ fun NuvioFloatingPrompt(
     ) {
         Box(
             modifier = Modifier
+                .then(
+                    if (isDesktop) {
+                        Modifier.widthIn(max = tokens.components.sheetMaxWidth)
+                    } else {
+                        Modifier
+                    },
+                )
                 .fillMaxWidth()
                 .padding(bottom = navBarBottom + NuvioTokens.Space.s72)
                 .padding(horizontal = tokens.spacing.screenHorizontal)

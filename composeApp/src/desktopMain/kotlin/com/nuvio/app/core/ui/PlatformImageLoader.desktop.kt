@@ -2,4 +2,8 @@ package com.nuvio.app.core.ui
 
 import coil3.ImageLoader
 
-internal actual fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoader.Builder = this
+internal actual fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoader.Builder {
+    return components {
+        add(SkiaGifDecoder.Factory())
+    }
+}

@@ -1,27 +1,48 @@
 package com.nuvio.app
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -30,10 +51,20 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.DisintegrationRequest
+import com.nuvio.app.core.ui.LocalNuvioNavBarScrollState
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
+import com.nuvio.app.core.ui.NuvioNavBarScrollState
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.cloud.CloudLibraryContentType
@@ -46,15 +77,28 @@ import com.nuvio.app.features.library.LibraryItem
 import com.nuvio.app.features.library.LibraryScreen
 import com.nuvio.app.features.library.LibrarySection
 import com.nuvio.app.features.library.LibrarySortOption
+import com.nuvio.app.features.player.PlayerBackReleaseGuard
+import com.nuvio.app.features.player.PlayerBackRequest
+import com.nuvio.app.features.profiles.ActiveProfileMiniAvatar
+import com.nuvio.app.features.profiles.AvatarCatalogItem
+import com.nuvio.app.features.profiles.AvatarRepository
+import com.nuvio.app.features.profiles.MAX_PROFILES
 import com.nuvio.app.features.profiles.NuvioProfile
 import com.nuvio.app.features.profiles.ProfileBackgroundBackdrop
+import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.profiles.ProfileSwitcherTab
+import com.nuvio.app.features.profiles.SidebarProfileSwitcherStack
 import com.nuvio.app.features.search.SearchScreen
 import com.nuvio.app.features.settings.AppBrandWordmark
+import com.nuvio.app.features.settings.NavBarStyle
 import com.nuvio.app.features.settings.SettingsScreen
+import com.nuvio.app.features.settings.ThemeSettingsRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingItem
+import com.nuvio.app.isDesktop
 import com.nuvio.app.navigation.AppRoute
 import com.nuvio.app.navigation.NuvioNavigator
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.flow.Flow
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.app_brand_name
@@ -62,45 +106,20 @@ import nuvio.composeapp.generated.resources.compose_nav_home
 import nuvio.composeapp.generated.resources.compose_nav_library
 import nuvio.composeapp.generated.resources.compose_nav_profile
 import nuvio.composeapp.generated.resources.compose_nav_search
+import nuvio.composeapp.generated.resources.compose_nav_settings
+import nuvio.composeapp.generated.resources.compose_settings_page_root
 import nuvio.composeapp.generated.resources.sidebar_library
 import nuvio.composeapp.generated.resources.sidebar_search
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.runtime.State
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.nuvio.app.features.profiles.ActiveProfileMiniAvatar
-import com.nuvio.app.features.profiles.AvatarCatalogItem
-import com.nuvio.app.features.profiles.AvatarRepository
-import com.nuvio.app.features.profiles.MAX_PROFILES
-import com.nuvio.app.features.profiles.ProfileRepository
-import com.nuvio.app.features.profiles.SidebarProfileSwitcherStack
-import com.nuvio.app.isDesktop
-import nuvio.composeapp.generated.resources.compose_settings_page_root
-import com.nuvio.app.features.player.PlayerBackRequest
-import com.nuvio.app.features.player.PlayerBackReleaseGuard
 
-internal val DesktopSidebarCollapsedWidth = 84.dp
-private val DesktopSidebarExpandedWidth = 208.dp
-private val DesktopSidebarExpandedContentWidth = 168.dp
-private val DesktopSidebarItemHeight = 58.dp
-private val DesktopSidebarIconSlotSize = 42.dp
+internal val DesktopSidebarCollapsedWidth = 68.dp
+internal val DesktopSidebarExpandedWidth = 192.dp
+private val DesktopSidebarExpandedContentWidth = 156.dp
+private val DesktopSidebarItemHeight = 56.dp
+private val DesktopSidebarIconSlotSize = 38.dp
 private val DesktopSidebarIconSize = NuvioTokens.Icon.lg
-private val DesktopSidebarProfileStackRowHeight = 40.dp
+private val DesktopSidebarProfileStackRowHeight = 44.dp
 private val DesktopSidebarProfileStackRowGap = 4.dp
 private val DesktopSidebarProfileStackTopGap = 6.dp
 private val DesktopSidebarProfileStackNavGap = 12.dp
@@ -217,6 +236,7 @@ internal fun AppTabHost(
                         .fillMaxSize()
                         .zIndex(if (isHomeSelected) 1f else 0f)
                         .alpha(if (isHomeSelected) 1f else 0f),
+                    topChromePadding = state.topChromePadding,
                     animateCollectionGifs = state.tabsRouteActiveState.value && isHomeSelected,
                     scrollToTopRequests = requests.homeScrollToTopRequests,
                     onCatalogClick = actions.onCatalogClick,
@@ -270,6 +290,7 @@ internal fun AppTabHost(
                         AppScreenTab.Settings -> {
                             SettingsScreen(
                                 modifier = Modifier.fillMaxSize(),
+                                topChromePadding = state.topChromePadding,
                                 rootActionRequests = requests.settingsRootActionRequests,
                                 requestedPageName = state.requestedSettingsPageName,
                                 onRequestedPageConsumed = actions.onRequestedSettingsPageConsumed,
@@ -302,109 +323,286 @@ internal fun TabletFloatingTopBar(
     onTabSelected: (AppScreenTab) -> Unit,
     onProfileSelected: (NuvioProfile) -> Unit,
     onAddProfileRequested: () -> Unit,
+    navBarStyleSetting: NavBarStyle = NavBarStyle.ADAPTIVE,
+    isHeroEnabled: Boolean = true,
+    hazeState: HazeState? = null,
+    scrollState: NuvioNavBarScrollState? = null,
+    windowWidth: Dp? = null,
     modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    var isProfileSwitcherOpen by remember { mutableStateOf(false) }
+
+    val isNarrowWindow = windowWidth != null && windowWidth < 800.dp
+    val isLargeWindow = windowWidth != null && windowWidth > 1600.dp
+
+    val hasSettingsDrawer = selectedTab == AppScreenTab.Settings && (windowWidth == null || windowWidth >= 960.dp)
+    val supportsScrollFrostedHaze = selectedTab == AppScreenTab.Home || hasSettingsDrawer
+    val scrollThreshold = if (selectedTab == AppScreenTab.Settings) 70f else 35f
+    val isScrolledAwayFromTop = scrollState != null && scrollState.totalScrollOffset > scrollThreshold
+    val isScrolled = supportsScrollFrostedHaze && isScrolledAwayFromTop
+    val isFrosted = isScrolled || isHovered || isProfileSwitcherOpen
+
+    val surfaceColor by animateColorAsState(
+        targetValue = if (isFrosted) {
+            Color(0xFF1C1C1E).copy(alpha = 0.30f)
+        } else {
+            Color(0xFF0F0F11).copy(alpha = 0.20f)
+        },
+        animationSpec = tween(
+            durationMillis = 320,
+            easing = FastOutSlowInEasing,
+        ),
+        label = "top_bar_surface_color",
+    )
+
+    val isHeroPresentOnHome = selectedTab == AppScreenTab.Home && isHeroEnabled
+
+    val targetLabelFraction = when (navBarStyleSetting) {
+        NavBarStyle.EXPANDED -> 1f
+        NavBarStyle.COMPACT -> 0f
+        else -> { // ADAPTIVE
+            if (isHovered || isProfileSwitcherOpen) {
+                1f
+            } else if (isHeroPresentOnHome) {
+                // Home with hero enabled: compact at top and when scrolled (unless hovered)
+                0f
+            } else if (selectedTab == AppScreenTab.Home) {
+                // Home with hero disabled: expanded at top, collapses to compact when scrolled down
+                if (isScrolledAwayFromTop) 0f else 1f
+            } else {
+                // Library, Search/Discover, Settings: ALWAYS expanded in Adaptive mode
+                1f
+            }
+        }
+    }
+    val labelFraction by animateFloatAsState(
+        targetValue = targetLabelFraction,
+        animationSpec = tween(
+            durationMillis = 320,
+            easing = FastOutSlowInEasing,
+        ),
+        label = "top_bar_label_fraction",
+    )
+
+    val frostedSheenAlpha by animateFloatAsState(
+        targetValue = if (isFrosted) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 320,
+            easing = FastOutSlowInEasing,
+        ),
+        label = "top_bar_sheen_alpha",
+    )
+
+    val pillHeight = when {
+        isNarrowWindow -> 34.dp
+        isLargeWindow -> 42.dp
+        else -> 38.dp
+    }
+    val navIconSize = when {
+        isNarrowWindow -> 16.dp
+        isLargeWindow -> 20.dp
+        else -> NuvioTokens.Space.s18
+    }
+    val avatarSize = when {
+        isNarrowWindow -> 24
+        isLargeWindow -> 30
+        else -> 28
+    }
+    val iconCollapsedPadding = when {
+        isNarrowWindow -> 9.dp
+        isLargeWindow -> 11.dp
+        else -> 10.dp
+    }
+    val avatarCollapsedPadding = when {
+        isNarrowWindow -> 5.dp
+        isLargeWindow -> 6.dp
+        else -> 5.dp
+    }
+    val avatarExpandedStartPadding = when {
+        isNarrowWindow -> 6.dp
+        isLargeWindow -> 10.dp
+        else -> 8.dp
+    }
+    val avatarExpandedEndPadding = when {
+        isNarrowWindow -> 14.dp
+        isLargeWindow -> 18.dp
+        else -> 16.dp
+    }
+    val expandedHorizontalPadding = when {
+        isNarrowWindow -> 10.dp
+        isLargeWindow -> 14.dp
+        else -> 12.dp
+    }
+    val collapsedItemSpacing = when {
+        isNarrowWindow -> 4.dp
+        isLargeWindow -> 8.dp
+        else -> 6.dp
+    }
+    val expandedItemSpacing = when {
+        isNarrowWindow -> 4.dp
+        isLargeWindow -> 8.dp
+        else -> tokens.spacing.controlGap
+    }
+    val itemSpacing = collapsedItemSpacing * (1f - labelFraction) + expandedItemSpacing * labelFraction
+    val baseTopPadding = when {
+        isNarrowWindow -> 6.dp
+        isLargeWindow -> 14.dp
+        else -> NuvioTokens.Space.s10
+    }
+
+    val labelTextStyle = when {
+        isNarrowWindow -> MaterialTheme.typography.labelMedium
+        isLargeWindow -> MaterialTheme.typography.titleSmall
+        else -> MaterialTheme.typography.labelLarge
+    }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = statusBarPadding + NuvioTokens.Space.s10, bottom = tokens.spacing.controlGap),
+            .padding(top = statusBarPadding + baseTopPadding, bottom = tokens.spacing.controlGap),
         contentAlignment = Alignment.TopCenter,
     ) {
-        Surface(
-            color = tokens.colors.surface.copy(alpha = tokens.opacity.visible - tokens.opacity.subtle),
-            shape = tokens.shapes.chip,
-            tonalElevation = tokens.elevation.playerControls,
-            shadowElevation = tokens.elevation.overlay,
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = NuvioTokens.Space.s10, vertical = tokens.spacing.controlGap),
-                horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_home),
-                    selected = selectedTab == AppScreenTab.Home,
-                    onClick = { onTabSelected(AppScreenTab.Home) },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Filled.Home,
-                            contentDescription = stringResource(Res.string.compose_nav_home),
-                            modifier = Modifier.size(NuvioTokens.Space.s18),
-                            tint = if (selectedTab == AppScreenTab.Home) {
-                                tokens.colors.textPrimary
-                            } else {
-                                tokens.colors.textMuted
-                            },
-                        )
-                    },
-                )
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_search),
-                    selected = selectedTab == AppScreenTab.Search,
-                    onClick = { onTabSelected(AppScreenTab.Search) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_search),
-                            contentDescription = stringResource(Res.string.compose_nav_search),
-                            modifier = Modifier.size(NuvioTokens.Space.s18),
-                            tint = if (selectedTab == AppScreenTab.Search) {
-                                tokens.colors.textPrimary
-                            } else {
-                                tokens.colors.textMuted
-                            },
-                        )
-                    },
-                )
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_library),
-                    selected = selectedTab == AppScreenTab.Library,
-                    onClick = { onTabSelected(AppScreenTab.Library) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_library),
-                            contentDescription = stringResource(Res.string.compose_nav_library),
-                            modifier = Modifier.size(NuvioTokens.Space.s18),
-                            tint = if (selectedTab == AppScreenTab.Library) {
-                                tokens.colors.textPrimary
-                            } else {
-                                tokens.colors.textMuted
-                            },
-                        )
-                    },
-                )
-                Surface(
-                    color = if (selectedTab == AppScreenTab.Settings) {
-                        tokens.colors.overlaySelected
-                    } else {
-                        tokens.colors.surface
-                    },
-                    shape = tokens.shapes.chip,
-                    modifier = Modifier.clickable { onTabSelected(AppScreenTab.Settings) },
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = tokens.spacing.listGap, vertical = tokens.spacing.controlGap),
-                        horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        ProfileSwitcherTab(
-                            selected = selectedTab == AppScreenTab.Settings,
-                            onClick = { onTabSelected(AppScreenTab.Settings) },
-                            onProfileSelected = onProfileSelected,
-                            onAddProfileRequested = onAddProfileRequested,
-                        )
-                        Text(
-                            text = stringResource(Res.string.compose_nav_profile),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = if (selectedTab == AppScreenTab.Settings) {
-                                tokens.colors.textPrimary
-                            } else {
-                                tokens.colors.textMuted
-                            },
-                        )
+        val chipShape = tokens.shapes.chip
+        val pillModifier = Modifier
+            .clip(chipShape)
+            .then(
+                if (isFrosted && hazeState != null) {
+                    Modifier.hazeEffect(state = hazeState) {
+                        blurRadius = 14.dp
                     }
+                } else {
+                    Modifier
+                },
+            )
+            .hoverable(interactionSource)
+
+        Surface(
+            color = surfaceColor,
+            shape = chipShape,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            modifier = pillModifier,
+        ) {
+            Box {
+                if (frostedSheenAlpha > 0.01f) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clip(chipShape)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.14f * frostedSheenAlpha),
+                                        Color.White.copy(alpha = 0.03f * frostedSheenAlpha),
+                                        Color.Transparent,
+                                    ),
+                                ),
+                            ),
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.padding(
+                        horizontal = if (isNarrowWindow) 8.dp else if (isLargeWindow) 12.dp else NuvioTokens.Space.s10,
+                        vertical = if (isNarrowWindow) 4.dp else tokens.spacing.controlGap,
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_nav_home),
+                        selected = selectedTab == AppScreenTab.Home,
+                        onClick = { onTabSelected(AppScreenTab.Home) },
+                        labelFraction = labelFraction,
+                        pillHeight = pillHeight,
+                        expandedHorizontalPadding = expandedHorizontalPadding,
+                        collapsedHorizontalPadding = iconCollapsedPadding,
+                        textStyle = labelTextStyle,
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Filled.Home,
+                                contentDescription = stringResource(Res.string.compose_nav_home),
+                                modifier = Modifier.size(navIconSize),
+                                tint = if (selectedTab == AppScreenTab.Home) {
+                                    tokens.colors.textPrimary
+                                } else {
+                                    Color.White.copy(alpha = 0.70f)
+                                },
+                            )
+                        },
+                    )
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_nav_search),
+                        selected = selectedTab == AppScreenTab.Search,
+                        onClick = { onTabSelected(AppScreenTab.Search) },
+                        labelFraction = labelFraction,
+                        pillHeight = pillHeight,
+                        expandedHorizontalPadding = expandedHorizontalPadding,
+                        collapsedHorizontalPadding = iconCollapsedPadding,
+                        textStyle = labelTextStyle,
+                        icon = {
+                            Icon(
+                                painter = painterResource(Res.drawable.sidebar_search),
+                                contentDescription = stringResource(Res.string.compose_nav_search),
+                                modifier = Modifier.size(navIconSize),
+                                tint = if (selectedTab == AppScreenTab.Search) {
+                                    tokens.colors.textPrimary
+                                } else {
+                                    Color.White.copy(alpha = 0.70f)
+                                },
+                            )
+                        },
+                    )
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_nav_library),
+                        selected = selectedTab == AppScreenTab.Library,
+                        onClick = { onTabSelected(AppScreenTab.Library) },
+                        labelFraction = labelFraction,
+                        pillHeight = pillHeight,
+                        expandedHorizontalPadding = expandedHorizontalPadding,
+                        collapsedHorizontalPadding = iconCollapsedPadding,
+                        textStyle = labelTextStyle,
+                        icon = {
+                            Icon(
+                                painter = painterResource(Res.drawable.sidebar_library),
+                                contentDescription = stringResource(Res.string.compose_nav_library),
+                                modifier = Modifier.size(navIconSize),
+                                tint = if (selectedTab == AppScreenTab.Library) {
+                                    tokens.colors.textPrimary
+                                } else {
+                                    Color.White.copy(alpha = 0.70f)
+                                },
+                            )
+                        },
+                    )
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_nav_settings),
+                        selected = selectedTab == AppScreenTab.Settings,
+                        onClick = { onTabSelected(AppScreenTab.Settings) },
+                        labelFraction = labelFraction,
+                        pillHeight = pillHeight,
+                        expandedHorizontalPadding = expandedHorizontalPadding,
+                        collapsedHorizontalPadding = avatarCollapsedPadding,
+                        expandedStartPadding = avatarExpandedStartPadding,
+                        expandedEndPadding = avatarExpandedEndPadding,
+                        textStyle = labelTextStyle,
+                        icon = {
+                            ProfileSwitcherTab(
+                                selected = selectedTab == AppScreenTab.Settings,
+                                onClick = { onTabSelected(AppScreenTab.Settings) },
+                                onProfileSelected = onProfileSelected,
+                                onAddProfileRequested = onAddProfileRequested,
+                                onPopupStateChanged = { isProfileSwitcherOpen = it },
+                                avatarSize = avatarSize,
+                                hazeState = hazeState,
+                                popupAlignment = Alignment.TopCenter,
+                            )
+                        },
+                    )
                 }
             }
         }
@@ -419,30 +617,66 @@ private fun TabletTopPillItem(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    labelFraction: Float = 1f,
+    pillHeight: Dp = 38.dp,
+    expandedHorizontalPadding: Dp = 12.dp,
+    collapsedHorizontalPadding: Dp = 10.dp,
+    expandedStartPadding: Dp = expandedHorizontalPadding,
+    expandedEndPadding: Dp = expandedHorizontalPadding,
+    textStyle: TextStyle = MaterialTheme.typography.labelLarge,
     icon: @Composable () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    val selectedBgColor by animateColorAsState(
+        targetValue = if (selected) tokens.colors.accent.copy(alpha = 0.18f) else Color.Transparent,
+        label = "pill_bg_color",
+    )
+    val itemShape = tokens.shapes.chip
+
+    val startPadding = if (labelFraction > 0.05f) expandedStartPadding else collapsedHorizontalPadding
+    val endPadding = if (labelFraction > 0.05f) expandedEndPadding else collapsedHorizontalPadding
+
     Surface(
-        color = if (selected) tokens.colors.overlaySelected else tokens.colors.surface,
-        shape = tokens.shapes.chip,
+        onClick = onClick,
+        color = selectedBgColor,
+        shape = itemShape,
         tonalElevation = if (selected) tokens.elevation.raised else tokens.elevation.flat,
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier
+            .height(pillHeight)
+            .clip(itemShape),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = tokens.components.chipHorizontalPadding, vertical = NuvioTokens.Space.s10),
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(start = startPadding, end = endPadding),
             horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             icon()
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = if (selected) {
-                    tokens.colors.textPrimary
-                } else {
-                    tokens.colors.textMuted
-                },
-            )
+            AnimatedVisibility(
+                visible = labelFraction > 0.05f,
+                enter = expandHorizontally(
+                    animationSpec = tween(320, easing = FastOutSlowInEasing),
+                    expandFrom = Alignment.Start,
+                ) + fadeIn(tween(250)),
+                exit = shrinkHorizontally(
+                    animationSpec = tween(320, easing = FastOutSlowInEasing),
+                    shrinkTowards = Alignment.Start,
+                ) + fadeOut(tween(200)),
+            ) {
+                Text(
+                    text = label,
+                    style = textStyle,
+                    color = if (selected) {
+                        tokens.colors.textPrimary
+                    } else {
+                        Color.White.copy(alpha = 0.75f)
+                    },
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Clip,
+                )
+            }
         }
     }
 }
@@ -493,6 +727,11 @@ internal fun DesktopHoverSidebar(
     onTabSelected: (AppScreenTab) -> Unit,
     onProfileSelected: (NuvioProfile) -> Unit,
     onAddProfileRequested: () -> Unit,
+    sidebarExpanded: Boolean = false,
+    sidebarWidth: Dp = DesktopSidebarCollapsedWidth,
+    hoverSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    profileStackVisible: Boolean = false,
+    onProfileStackVisibleChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
@@ -502,20 +741,11 @@ internal fun DesktopHoverSidebar(
     val activeProfile = profileState.activeProfile
     val profiles = profileState.profiles
     val activeProfileName = activeProfile?.name ?: stringResource(Res.string.compose_nav_profile)
-    val hoverSource = remember { MutableInteractionSource() }
-    val hovered by hoverSource.collectIsHoveredAsState()
-    var profileStackVisible by remember { mutableStateOf(false) }
-    val sidebarExpanded = hovered || profileStackVisible
     val profileTopPadding = statusBarPadding + 18.dp
     fun selectTab(tab: AppScreenTab) {
-        profileStackVisible = false
+        onProfileStackVisibleChange(false)
         onTabSelected(tab)
     }
-    val sidebarWidth by animateDpAsState(
-        targetValue = if (sidebarExpanded) DesktopSidebarExpandedWidth else DesktopSidebarCollapsedWidth,
-        animationSpec = tween(durationMillis = 180),
-        label = "desktop_sidebar_width",
-    )
 
     Surface(
         modifier = modifier
@@ -549,7 +779,7 @@ internal fun DesktopHoverSidebar(
                 .coerceIn(0.dp, availableNavOffset)
             val animatedNavColumnOffset by animateDpAsState(
                 targetValue = navColumnOffset,
-                animationSpec = tween(durationMillis = 180),
+                animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
                 label = "desktop_sidebar_nav_offset",
             )
 
@@ -559,11 +789,11 @@ internal fun DesktopHoverSidebar(
                     .padding(top = profileTopPadding)
                     .fillMaxWidth()
                     .height(DesktopSidebarItemHeight)
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { profileStackVisible = !profileStackVisible },
+                        onClick = { onProfileStackVisibleChange(!profileStackVisible) },
                     ),
                 contentAlignment = Alignment.Center,
             ) {
@@ -579,7 +809,7 @@ internal fun DesktopHoverSidebar(
                 SidebarProfileSwitcherStack(
                     onProfileSelected = onProfileSelected,
                     onAddProfileRequested = onAddProfileRequested,
-                    onDismissRequest = { profileStackVisible = false },
+                    onDismissRequest = { onProfileStackVisibleChange(false) },
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = profileStackTop)
@@ -669,36 +899,42 @@ private fun DesktopSidebarProfileTrigger(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.Start,
+                .padding(start = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.width(
-                    if (expanded) DesktopSidebarExpandedContentWidth else DesktopSidebarIconSlotSize,
-                ),
-                verticalAlignment = Alignment.CenterVertically,
+            Box(
+                modifier = Modifier.size(DesktopSidebarIconSlotSize),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier.size(DesktopSidebarIconSlotSize),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    ActiveProfileMiniAvatar(
-                        profile = profile,
-                        avatars = avatars,
-                        selected = false,
-                        size = 32,
-                    )
-                }
-                if (expanded) {
-                    Spacer(modifier = Modifier.width(12.dp))
+                ActiveProfileMiniAvatar(
+                    profile = profile,
+                    avatars = avatars,
+                    selected = false,
+                    size = 32,
+                )
+            }
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn(animationSpec = tween(160)) + expandHorizontally(
+                    expandFrom = Alignment.Start,
+                    animationSpec = tween(200, easing = FastOutSlowInEasing),
+                ),
+                exit = shrinkHorizontally(
+                    shrinkTowards = Alignment.Start,
+                    animationSpec = tween(200, easing = FastOutSlowInEasing),
+                ) + fadeOut(
+                    animationSpec = tween(80, delayMillis = 120),
+                ),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = label,
-                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleMedium,
                         color = tokens.colors.textPrimary,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                     )
                 }
             }
@@ -719,48 +955,54 @@ private fun DesktopSidebarItem(
     val iconColor = if (selected) tokens.colors.onAccent else contentColor
 
     Surface(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .height(DesktopSidebarItemHeight)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-            .clickable(onClick = onClick),
+            .padding(horizontal = 6.dp, vertical = 4.dp),
         color = Color.Transparent,
         shape = RoundedCornerShape(16.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.Start,
+                .padding(start = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.width(
-                    if (expanded) DesktopSidebarExpandedContentWidth else DesktopSidebarIconSlotSize,
-                ),
-                verticalAlignment = Alignment.CenterVertically,
+            Surface(
+                modifier = Modifier.size(DesktopSidebarIconSlotSize),
+                color = if (selected) tokens.colors.accent else Color.Transparent,
+                shape = RoundedCornerShape(14.dp),
             ) {
-                Surface(
-                    modifier = Modifier.size(DesktopSidebarIconSlotSize),
-                    color = if (selected) tokens.colors.accent else Color.Transparent,
-                    shape = RoundedCornerShape(14.dp),
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        icon(iconColor)
-                    }
+                    icon(iconColor)
                 }
-                if (expanded) {
-                    Spacer(modifier = Modifier.width(12.dp))
+            }
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn(animationSpec = tween(160)) + expandHorizontally(
+                    expandFrom = Alignment.Start,
+                    animationSpec = tween(200, easing = FastOutSlowInEasing),
+                ),
+                exit = shrinkHorizontally(
+                    shrinkTowards = Alignment.Start,
+                    animationSpec = tween(200, easing = FastOutSlowInEasing),
+                ) + fadeOut(
+                    animationSpec = tween(80, delayMillis = 120),
+                ),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = label,
-                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleMedium,
                         color = contentColor,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                     )
                 }
             }

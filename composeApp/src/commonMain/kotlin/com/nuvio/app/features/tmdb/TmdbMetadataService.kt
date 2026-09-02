@@ -1,5 +1,7 @@
 package com.nuvio.app.features.tmdb
 
+import com.nuvio.app.isDesktop
+
 import co.touchlab.kermit.Logger
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.details.MetaCompany
@@ -616,7 +618,7 @@ object TmdbMetadataService {
             type = if (mediaType == TmdbEntityMediaType.TV) "series" else "movie",
             name = title,
             poster = poster,
-            banner = buildImageUrl(result.backdropPath, "w780"),
+            banner = buildImageUrl(result.backdropPath, if (isDesktop) "w1280" else "w780"),
             logo = null,
             description = result.overview?.takeIf { it.isNotBlank() },
             releaseInfo = releaseInfo,
@@ -1479,7 +1481,7 @@ internal fun englishDiscoverTitlesById(results: List<TmdbDiscoverResult>): Map<I
             ?: result.name?.trim()?.takeIf { it.isNotBlank() }
             ?: return@forEach
         if (!containsCjkOrHangul(text)) {
-            titles.putIfAbsent(result.id, text)
+            titles.getOrPut(result.id) { text }
         }
     }
     return titles
@@ -1499,7 +1501,7 @@ private fun englishCreditTitlesById(credits: TmdbPersonCombinedCreditsResponse?)
             ?: name?.trim()?.takeIf { it.isNotBlank() }
             ?: return
         if (!containsCjkOrHangul(text)) {
-            titles.putIfAbsent(id, text)
+            titles.getOrPut(id) { text }
         }
     }
     credits.cast.forEach { putTitle(it.id, it.title, it.name) }

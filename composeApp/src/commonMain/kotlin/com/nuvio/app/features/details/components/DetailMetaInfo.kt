@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaExternalRating
 import com.nuvio.app.features.details.formatRuntimeForDisplay
@@ -233,20 +234,28 @@ private fun ImdbRatingSourceLabel(
     storeTextColor: Color,
 ) {
     if (AppFeaturePolicy.imdbRatingLogoEnabled) {
-        Surface(
-            shape = RoundedCornerShape(4.dp),
-            color = ImdbYellow,
-        ) {
-            Text(
-                text = stringResource(Res.string.source_imdb),
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 0.sp,
-                ),
-                color = ImdbBlack,
+        if (isDesktop) {
+            Image(
+                painter = painterResource(Res.drawable.rating_imdb),
+                contentDescription = stringResource(Res.string.source_imdb),
+                modifier = Modifier.size(width = 30.dp, height = 16.dp),
             )
+        } else {
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = ImdbYellow,
+            ) {
+                Text(
+                    text = stringResource(Res.string.source_imdb),
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.sp,
+                    ),
+                    color = ImdbBlack,
+                )
+            }
         }
     } else {
         Text(

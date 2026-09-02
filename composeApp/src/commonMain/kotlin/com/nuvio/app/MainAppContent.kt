@@ -79,6 +79,8 @@ import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.platformExitApp
 import com.nuvio.app.features.addons.AddAddonResult
 import com.nuvio.app.features.addons.AddonRepository
+import com.nuvio.app.features.addons.enabledAddons
+import com.nuvio.app.features.addons.isWaitingForFirstEnabledManifest
 import com.nuvio.app.features.catalog.CatalogTarget
 import com.nuvio.app.features.cloud.CloudLibraryContentType
 import com.nuvio.app.features.cloud.CloudLibraryFile
@@ -95,6 +97,9 @@ import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.downloads.DownloadItem
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.home.HomeCatalogSection
+import com.nuvio.app.features.home.HomeCatalogSettingsRepository
+import com.nuvio.app.features.home.HomeRepository
+import com.nuvio.app.features.home.buildAddonCatalogRefreshSignature
 import com.nuvio.app.features.home.components.shouldBlurContinueWatchingArtwork
 import com.nuvio.app.features.library.LibraryItem
 import com.nuvio.app.features.library.LibraryRepository
@@ -162,9 +167,12 @@ import com.nuvio.app.features.watchprogress.toContinueWatchingItem
 import com.nuvio.app.navigation.*
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
@@ -174,7 +182,6 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import com.nuvio.app.core.ui.AppPresenceState
 import com.nuvio.app.core.ui.PresenceSnapshot
-import kotlinx.coroutines.delay
 import androidx.compose.ui.ExperimentalComposeUiApi
 import com.nuvio.app.features.player.dispatchNavigationBack
 
@@ -338,6 +345,17 @@ internal fun MainAppContent(
     var networkToastBaselineReady by rememberSaveable { mutableStateOf(false) }
     var lastNetworkToastCondition by rememberSaveable { mutableStateOf(NetworkCondition.Unknown.name) }
     var watchSourceReconnectPending by remember { mutableStateOf(false) }
+    val homeCatalogRefreshKey = remember(addonsUiState.addons) {
+        buildAddonCatalogRefreshSignature(addonsUiState.addons)
+    }
+
+    LaunchedEffect(appContentGeneration, homeCatalogRefreshKey) {
+        if (!ownsAppRuntime) return@LaunchedEffect
+        val enabledAddons = addonsUiState.addons.enabledAddons()
+        if (enabledAddons.isWaitingForFirstEnabledManifest()) return@LaunchedEffect
+        HomeCatalogSettingsRepository.syncCatalogs(enabledAddons)
+        HomeRepository.refresh(enabledAddons)
+    }
 
     fun activateTab(tab: AppScreenTab) {
         if (useNativeNavigation && onActivate != null) {
@@ -605,7 +623,11 @@ internal fun MainAppContent(
         val syncProfileId = activeProfileId?.takeIf {
             authenticatedState != null && !authenticatedState.isAnonymous
         }
-        syncProfileId?.let(SyncManager::pullAllForProfile)
+        if (syncProfileId != null) {
+            withContext(Dispatchers.Default) {
+                SyncManager.pullAllForProfile(syncProfileId)
+            }
+        }
         try {
             AppForegroundMonitor.events().collect { visibility ->
                 when (visibility) {
@@ -804,6 +826,7 @@ internal fun MainAppContent(
                 request = baseRequest,
                 type = launch.contentType ?: launch.parentMetaType,
                 videoId = launch.videoId ?: launch.parentMetaId,
+                contentId = launch.parentMetaId,
                 forwardSubtitles = playerSettingsUiState.externalPlayerForwardSubtitles,
                 sendSkipSegments = shouldSendSkipSegments,
                 preferredLanguage = playerSettingsUiState.preferredSubtitleLanguage,
@@ -1447,7 +1470,9 @@ internal fun MainAppContent(
                                 try {
                                     ProfileRepository.switchToProfile(profile.profileIndex)
                                     warmProfileBoundRepositories()
-                                    SyncManager.pullAllForProfile(profile.profileIndex)
+                                    withContext(Dispatchers.Default) {
+                                        SyncManager.pullAllForProfile(profile.profileIndex)
+                                    }
                                     delay(300)
                                 } finally {
                                     profileSwitchLoading = false
@@ -1478,7 +1503,19 @@ internal fun MainAppContent(
                 entry<EntityBrowseRoute> { route ->
                     EntityDestination(route = route, navController = navController)
                 }
-                entry<StreamRoute> { route ->
+                entry<StreamRoute>(
+                    metadata = if (isDesktop) {
+                        NavDisplay.transitionSpec {
+                            fadeIn(animationSpec = tween(160)) togetherWith
+                                fadeOut(animationSpec = tween(160))
+                        } + NavDisplay.popTransitionSpec {
+                            fadeIn(animationSpec = tween(160)) togetherWith
+                                fadeOut(animationSpec = tween(160))
+                        }
+                    } else {
+                        emptyMap()
+                    },
+                ) { route ->
                     StreamDestination(
                         route = route,
                         navController = navController,

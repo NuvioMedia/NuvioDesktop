@@ -155,6 +155,7 @@ jobs:
           - runner: macos-15-intel
             arch: x86_64
     env:
+      MACOS_NOTARIZATION_ENABLED: 'false'
       LOCAL_PROPERTIES_BASE64: ${{ secrets.NUVIO_DESKTOP_LOCAL_PROPERTIES_BASE64 }}
       MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -189,17 +190,21 @@ jobs:
         run: |
           required_values=(
             LOCAL_PROPERTIES_BASE64
-            MACOS_CERTIFICATE_P12_BASE64
-            MACOS_CERTIFICATE_PASSWORD
-            MACOS_CERTIFICATE_SHA256
-            MACOS_NOTARY_APPLE_ID
-            MACOS_NOTARY_APP_PASSWORD
-            MACOS_NOTARY_TEAM_ID
-            NUVIO_MACOS_NOTARY_KEYCHAIN_PROFILE
-            NUVIO_MACOS_SIGNING_IDENTITY
             SENTRY_AUTH_TOKEN
             SENTRY_DESKTOP_DSN
           )
+          if [[ "${MACOS_NOTARIZATION_ENABLED}" == "true" ]]; then
+            required_values+=(
+              MACOS_CERTIFICATE_P12_BASE64
+              MACOS_CERTIFICATE_PASSWORD
+              MACOS_CERTIFICATE_SHA256
+              MACOS_NOTARY_APPLE_ID
+              MACOS_NOTARY_APP_PASSWORD
+              MACOS_NOTARY_TEAM_ID
+              NUVIO_MACOS_NOTARY_KEYCHAIN_PROFILE
+              NUVIO_MACOS_SIGNING_IDENTITY
+            )
+          fi
           missing=()
           for value_name in "${required_values[@]}"; do
             if [[ -z "${!value_name}" ]]; then
@@ -228,6 +233,7 @@ jobs:
           done
 
       - name: Configure Apple signing and notarization
+        if: env.MACOS_NOTARIZATION_ENABLED == 'true'
         run: |
           certificate_path="${RUNNER_TEMP}/nuvio-release.p12"
           keychain_path="${RUNNER_TEMP}/nuvio-release.keychain-db"
@@ -283,6 +289,7 @@ jobs:
           echo "NUVIO_MACOS_NOTARY_KEYCHAIN_PATH=${keychain_path}" >> "${GITHUB_ENV}"
 
       - name: Build, sign, and notarize DMG
+        if: env.MACOS_NOTARIZATION_ENABLED == 'true'
         env:
           MACOS_ARCH: ${{ matrix.arch }}
         run: |
@@ -295,7 +302,24 @@ jobs:
             --no-daemon \
             --stacktrace
 
+      - name: Build unsigned DMG
+        if: env.MACOS_NOTARIZATION_ENABLED != 'true'
+        env:
+          MACOS_ARCH: ${{ matrix.arch }}
+          NUVIO_MACOS_NOTARY_KEYCHAIN_PROFILE: ''
+          NUVIO_MACOS_SIGNING_IDENTITY: ''
+        run: |
+          ./gradlew \
+            :composeApp:packageReleaseDmg \
+            :desktopSentry:sentryUploadSourceBundleJava \
+            "-Pnuvio.macos.arch=${MACOS_ARCH}" \
+            -Pcompose.desktop.packaging.checkJdkVendor=false \
+            --no-configuration-cache \
+            --no-daemon \
+            --stacktrace
+
       - name: Verify notarized DMG
+        if: env.MACOS_NOTARIZATION_ENABLED == 'true'
         env:
           MACOS_ARCH: ${{ matrix.arch }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
@@ -309,6 +333,22 @@ jobs:
           codesign --verify --strict --verbose=2 "${dmg_path}"
           spctl --assess --type open --context context:primary-signature --verbose=2 "${dmg_path}"
 
+      - name: Verify unsigned DMG
+        if: env.MACOS_NOTARIZATION_ENABLED != 'true'
+        env:
+          MACOS_ARCH: ${{ matrix.arch }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          dmg_path="composeApp/build/compose/release-dmgs/Nuvio-macOS-${MACOS_ARCH}-${RELEASE_VERSION}.dmg"
+          if [[ ! -f "${dmg_path}" ]]; then
+            echo "Expected DMG was not produced: ${dmg_path}" >&2
+            exit 1
+          fi
+          if codesign --display "${dmg_path}" >/dev/null 2>&1; then
+            echo "Expected unsigned DMG, but a code signature was found: ${dmg_path}" >&2
+            exit 1
+          fi
+
       - name: Upload DMG
         uses: actions/upload-artifact@v7
         with:
@@ -318,7 +358,7 @@ jobs:
           retention-days: 14
 
       - name: Remove temporary signing material
-        if: always()
+        if: always() && env.MACOS_NOTARIZATION_ENABLED == 'true'
         run: |
           keychain_path="${RUNNER_TEMP}/nuvio-release.keychain-db"
           if [[ -f "${keychain_path}" ]]; then
@@ -648,7 +688,12 @@ jobs:
 
           mkdir -p flatpak
           cp ./scripts/linux/nuvio-launcher.sh flatpak/nuvio-launcher.sh
+          cp ./scripts/linux/linux-shortcut-definition.sh flatpak/linux-shortcut-definition.sh
+          cp ./scripts/linux/com.nuvio.media.desktop.metainfo.xml flatpak/com.nuvio.media.desktop.metainfo.xml
           chmod +x flatpak/nuvio-launcher.sh
+          release_date="$(date -u +%F)"
+          sed -i "s|version=\"0.0.0\"|version=\"${RELEASE_VERSION}\"|" flatpak/com.nuvio.media.desktop.metainfo.xml
+          sed -i "s|date=\"1970-01-01\"|date=\"${release_date}\"|" flatpak/com.nuvio.media.desktop.metainfo.xml
           
           cp ./scripts/linux/nuvio-flatpak.yml flatpak/nuvio-flatpak.yml
           sed -i "s|\${app_root}|${app_root}|g" flatpak/nuvio-flatpak.yml

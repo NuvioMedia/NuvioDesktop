@@ -97,6 +97,8 @@ internal class NativePlayerController(
     private var releaseTimedOut: Boolean = false
     private var terminalReleaseFailure: String? = null
     private var controlsState = PlayerControlsState()
+    @Volatile
+    private var currentVolumeLevel = rememberedVolumeLevel.coerceDesktopPlayerVolumeLevel()
     private var pendingSubtitleDelayMs: Int? = null
     private var pendingSubtitleStyle: SubtitleStyleState? = null
     private var pendingUseLibass: Boolean = false
@@ -411,6 +413,7 @@ internal class NativePlayerController(
         return { window.removeWindowFocusListener(listener) }
     }
 
+    @Synchronized
     fun updateControls(state: PlayerControlsState) {
         host.setControlsVisible(state.controlsVisible)
         val currentHandle = handle
@@ -418,11 +421,14 @@ internal class NativePlayerController(
             controlsState = state
             return
         }
-        val stateWithVolume = if (state.volumeLevel == null) {
-            state.copy(volumeLevel = NativePlayerBridge.volume(current).coerceIn(0f, 1f))
-        } else {
-            state
-        }
+        val stateWithVolume = state.copy(
+            volumeLevel = resolveDesktopPlayerVolumeLevel(
+                requestedLevel = state.volumeLevel,
+                currentLevel = currentVolumeLevel,
+                rememberedLevel = rememberedVolumeLevel,
+            ),
+        )
+        currentVolumeLevel = stateWithVolume.volumeLevel ?: currentVolumeLevel
         controlsState = stateWithVolume
         val isFullscreen = isDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
         val structureKey = NativeControlsStructureKey(
@@ -496,6 +502,10 @@ internal class NativePlayerController(
             }
             "volumeChange" -> setFallbackVolume(value.toFloat())
             "volumeChangeTemporary" -> setTemporaryVolume(value.toFloat())
+            "setPlaybackSpeed" -> {
+                val speed = value.toFloat()
+                setPlaybackSpeed(speed)
+            }
             else -> {
                 val eventHandled = onEvent(type, value)
                 if (type.shouldLogNativeControlEvent()) {
@@ -513,6 +523,7 @@ internal class NativePlayerController(
         }
     }
 
+    @Synchronized
     private fun updateLocalProgress(positionMs: Long) {
         controlsState = controlsState.copy(positionMs = positionMs)
         updateControls(controlsState)
@@ -538,27 +549,34 @@ internal class NativePlayerController(
             PlayerControlsAction.KeyboardSeekBack -> fallbackSeekBy(-10_000L)
             PlayerControlsAction.SeekForward,
             PlayerControlsAction.KeyboardSeekForward -> fallbackSeekBy(10_000L)
-            PlayerControlsAction.KeyboardVolumeDown -> adjustFallbackVolume(-5f)
-            PlayerControlsAction.KeyboardVolumeUp -> adjustFallbackVolume(5f)
+            PlayerControlsAction.KeyboardVolumeDown -> adjustFallbackVolume(-10f)
+            PlayerControlsAction.KeyboardVolumeUp -> adjustFallbackVolume(10f)
             PlayerControlsAction.Speed -> cycleFallbackSpeed()
             else -> Unit
         }
     }
 
+    @Synchronized
     private fun adjustFallbackVolume(delta: Float) {
         val current = handle
         if (current != 0L) {
-            val currentLevel = controlsState.volumeLevel ?: NativePlayerBridge.volume(current).coerceIn(0f, 1f)
-            val nextLevel = (currentLevel + (delta / 100f)).coerceIn(0f, 1f)
+            val currentLevel = resolveDesktopPlayerVolumeLevel(
+                requestedLevel = null,
+                currentLevel = currentVolumeLevel,
+                rememberedLevel = rememberedVolumeLevel,
+            )
+            val nextLevel = (currentLevel + (delta / 100f)).coerceDesktopPlayerVolumeLevel()
             setFallbackVolume(nextLevel)
         }
     }
 
+    @Synchronized
     private fun setFallbackVolume(level: Float) {
         val current = handle
         if (current != 0L) {
-            val nextLevel = level.coerceIn(0f, 1f)
+            val nextLevel = level.coerceDesktopPlayerVolumeLevel()
             rememberedVolumeLevel = nextLevel
+            currentVolumeLevel = nextLevel
             DesktopPlayerVolumeStorage.saveVolumeLevel(nextLevel)
             NativePlayerBridge.setVolume(current, nextLevel)
             controlsState = controlsState.copy(volumeLevel = nextLevel)
@@ -566,20 +584,24 @@ internal class NativePlayerController(
         }
     }
 
+    @Synchronized
     private fun setTemporaryVolume(level: Float) {
         val current = handle
         if (current != 0L) {
-            val nextLevel = level.coerceIn(0f, 1f)
+            val nextLevel = level.coerceDesktopPlayerVolumeLevel()
+            currentVolumeLevel = nextLevel
             NativePlayerBridge.setVolume(current, nextLevel)
             controlsState = controlsState.copy(volumeLevel = nextLevel)
             updateControls(controlsState)
         }
     }
 
+    @Synchronized
     private fun applyRememberedVolume() {
         val current = handle
         if (current == 0L) return
-        val level = rememberedVolumeLevel.coerceIn(0f, 1f)
+        val level = rememberedVolumeLevel.coerceDesktopPlayerVolumeLevel()
+        currentVolumeLevel = level
         NativePlayerBridge.setVolume(current, level)
         controlsState = controlsState.copy(volumeLevel = level)
         log.d { "applied remembered volume level=$level handle=$current" }
@@ -1259,6 +1281,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("p2pConsentEnableLabel", p2pConsentEnableLabel)
         append(',')
         appendJsonField("p2pConsentCancelLabel", p2pConsentCancelLabel)
+        append(',')
+        appendJsonField("speedPanelTitle", speedPanelTitle)
         append(',')
         appendJsonField("audioTracksPanelTitle", audioTracksPanelTitle)
         append(',')

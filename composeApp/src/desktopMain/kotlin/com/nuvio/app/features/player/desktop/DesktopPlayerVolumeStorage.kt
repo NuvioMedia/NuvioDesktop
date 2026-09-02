@@ -21,10 +21,10 @@ internal object DesktopPlayerVolumeStorage {
     }
 
     fun loadVolumeLevel(): Float? =
-        store.getFloat(VolumeLevelKey)?.coerceIn(0f, 1f)
+        store.getFloat(VolumeLevelKey)?.coerceDesktopPlayerVolumeLevel()
 
     fun saveVolumeLevel(level: Float) {
-        pendingVolumeLevel = level.coerceIn(0f, 1f)
+        pendingVolumeLevel = level.coerceDesktopPlayerVolumeLevel()
         persistTimer.restart()
     }
 }

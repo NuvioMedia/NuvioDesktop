@@ -2,7 +2,7 @@ app-id: com.nuvio.media.desktop
 runtime: org.gnome.Platform
 runtime-version: '50'
 sdk: org.gnome.Sdk
-command: nuvio-launcher
+command: nuvio
 add-extensions:
   org.freedesktop.Platform.codecs-extra:
     version: "25.08-extra"
@@ -138,19 +138,28 @@ modules:
       - mkdir -p /app/lib/intel-vaapi-driver 
       - mkdir -p /app/lib/nvidia-vaapi-driver
       - cp -a /run/build/nuvio/. /app/opt/Nuvio/
-      - install -Dm755 /run/build/nuvio/nuvio-launcher.sh /app/bin/nuvio-launcher
+      - install -Dm755 /run/build/nuvio/nuvio-launcher.sh /app/bin/nuvio
+      - install -Dm644 /run/build/nuvio/com.nuvio.media.desktop.metainfo.xml /app/share/metainfo/com.nuvio.media.desktop.metainfo.xml
+      - install -Dm644 /run/build/nuvio/lib/Nuvio.png /app/share/icons/hicolor/512x512/apps/com.nuvio.media.desktop.png
       - |
-        set -e
-        # Set RPATH on the bundled executable and native libs when patchelf is available
-        if command -v patchelf >/dev/null 2>&1; then
-          if [ -f /app/opt/Nuvio/bin/Nuvio ]; then
-            patchelf --set-rpath /app/lib /app/opt/Nuvio/bin/Nuvio || true
-          fi
-          find /app/opt/Nuvio -type f -name '*.so*' -print0 | xargs -0 -r -n1 sh -c 'patchelf --set-rpath /app/lib "$0" || true'
-        fi
+        bash -euo pipefail -c '
+          mkdir -p /app/share/applications
+          source /run/build/nuvio/linux-shortcut-definition.sh
+          nuvio_linux_write_desktop_entry_file \
+            "/app/share/applications/com.nuvio.media.desktop.desktop" \
+            "nuvio %u" \
+            "com.nuvio.media.desktop"
+        '
+      - desktop-file-validate /app/share/applications/com.nuvio.media.desktop.desktop
     sources:
       - type: file
         path: nuvio-launcher.sh
         dest-filename: nuvio-launcher.sh
+      - type: file
+        path: linux-shortcut-definition.sh
+        dest-filename: linux-shortcut-definition.sh
+      - type: file
+        path: com.nuvio.media.desktop.metainfo.xml
+        dest-filename: com.nuvio.media.desktop.metainfo.xml
       - type: dir
         path: ${app_root}

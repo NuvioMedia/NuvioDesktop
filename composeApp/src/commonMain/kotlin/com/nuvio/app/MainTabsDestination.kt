@@ -1,23 +1,38 @@
 package com.nuvio.app
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.LocalNuvioNavBarScrollState
@@ -25,8 +40,10 @@ import com.nuvio.app.core.ui.NuvioClassicNavigationBar
 import com.nuvio.app.core.ui.NuvioNavigationBar
 import com.nuvio.app.core.ui.PlatformBackHandler
 import com.nuvio.app.core.ui.rememberNuvioNavBarScrollState
+import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.profiles.NuvioProfile
 import com.nuvio.app.features.profiles.ProfileSwitcherTab
+import com.nuvio.app.features.settings.DesktopNavigationLayout
 import com.nuvio.app.features.settings.NavBarStyle
 import com.nuvio.app.features.settings.ThemeSettingsRepository
 import dev.chrisbanes.haze.hazeSource
@@ -34,18 +51,11 @@ import dev.chrisbanes.haze.rememberHazeState
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_nav_home
 import nuvio.composeapp.generated.resources.compose_nav_library
-import nuvio.composeapp.generated.resources.compose_nav_profile
 import nuvio.composeapp.generated.resources.compose_nav_search
+import nuvio.composeapp.generated.resources.compose_nav_settings
 import nuvio.composeapp.generated.resources.sidebar_library
 import nuvio.composeapp.generated.resources.sidebar_search
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.unit.max
-import com.nuvio.app.features.settings.DesktopNavigationLayout
-import com.nuvio.app.isDesktop
-
 @Composable
 internal fun MainTabsDestination(
     selectedTab: AppScreenTab,
@@ -68,7 +78,8 @@ internal fun MainTabsDestination(
     PlatformBackHandler(enabled = true, onBack = onBack)
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val isTabletLayout = useTabletFloatingTabBar || maxWidth >= 768.dp
+        val screenWidth = maxWidth
+        val isTabletLayout = useTabletFloatingTabBar || screenWidth >= 768.dp
         val useNativeBottomTabs = if (useNativeNavigation) {
             useNativeTabBar
         } else {
@@ -87,8 +98,35 @@ internal fun MainTabsDestination(
         }
         val tabsRouteActiveState = rememberUpdatedState(rootRouteActive)
         val navBarScrollState = rememberNuvioNavBarScrollState()
+        LaunchedEffect(selectedTab) {
+            navBarScrollState.switchToTab(selectedTab)
+        }
         val navBarHazeState = rememberHazeState()
         val navBarStyleSetting by remember { ThemeSettingsRepository.navBarStyle }.collectAsStateWithLifecycle()
+        val homeCatalogSettingsUiState by remember { HomeCatalogSettingsRepository.uiState }.collectAsStateWithLifecycle()
+
+        val sidebarHoverSource = remember { MutableInteractionSource() }
+        val isSidebarHovered by sidebarHoverSource.collectIsHoveredAsState()
+        var isProfileStackVisible by remember { mutableStateOf(false) }
+
+        val isSidebarExpanded = when (navBarStyleSetting) {
+            NavBarStyle.EXPANDED -> true
+            NavBarStyle.COMPACT -> isProfileStackVisible
+            else -> isSidebarHovered || isProfileStackVisible // ADAPTIVE
+        }
+
+        val animatedSidebarWidth by animateDpAsState(
+            targetValue = if (isSidebarExpanded) DesktopSidebarExpandedWidth else DesktopSidebarCollapsedWidth,
+            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+            label = "desktop_sidebar_width",
+        )
+
+        val isSidebarAlwaysExpanded = useDesktopSidebar && navBarStyleSetting == NavBarStyle.EXPANDED
+        val contentStartPadding = if (useDesktopSidebar) {
+            if (isSidebarAlwaysExpanded) DesktopSidebarExpandedWidth else DesktopSidebarCollapsedWidth
+        } else {
+            0.dp
+        }
 
         Scaffold(
             modifier = Modifier
@@ -133,6 +171,16 @@ internal fun MainTabsDestination(
             },
         ) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize()) {
+                val requiresNavBarHaze = if (isTabletLayout) {
+                    useFloatingTopBar
+                } else {
+                    !useNativeBottomTabs && navBarStyleSetting != NavBarStyle.CLASSIC
+                }
+                val shouldAttachNestedScroll = if (isTabletLayout) {
+                    true
+                } else {
+                    navBarStyleSetting == NavBarStyle.ADAPTIVE
+                }
                 CompositionLocalProvider(
                     LocalNuvioBottomNavigationOverlayPadding provides if (useNativeBottomTabs) 49.dp else if (!isTabletLayout && navBarStyleSetting != NavBarStyle.CLASSIC) 72.dp else 0.dp,
                     LocalNuvioNavBarScrollState provides navBarScrollState,
@@ -147,10 +195,10 @@ internal fun MainTabsDestination(
                         actions = actions(isTabletLayout),
                         modifier = Modifier
                             .fillMaxSize()
-                            .then(if (navBarStyleSetting != NavBarStyle.CLASSIC) Modifier.hazeSource(state = navBarHazeState) else Modifier)
-                            .then(if (navBarStyleSetting == NavBarStyle.ADAPTIVE) Modifier.nestedScroll(navBarScrollState.nestedScrollConnection) else Modifier)
+                            .then(if (requiresNavBarHaze) Modifier.hazeSource(state = navBarHazeState) else Modifier)
+                            .then(if (shouldAttachNestedScroll) Modifier.nestedScroll(navBarScrollState.nestedScrollConnection) else Modifier)
                             .padding(innerPadding)
-                            .padding(start = if (useDesktopSidebar) DesktopSidebarCollapsedWidth else 0.dp),
+                            .padding(start = contentStartPadding),
                     )
                 }
 
@@ -160,6 +208,11 @@ internal fun MainTabsDestination(
                         onTabSelected = onTabSelected,
                         onProfileSelected = onProfileSelected,
                         onAddProfileRequested = onAddProfileRequested,
+                        sidebarExpanded = isSidebarExpanded,
+                        sidebarWidth = animatedSidebarWidth,
+                        hoverSource = sidebarHoverSource,
+                        profileStackVisible = isProfileStackVisible,
+                        onProfileStackVisibleChange = { isProfileStackVisible = it },
                         modifier = Modifier.align(Alignment.CenterStart),
                     )
                 }
@@ -170,19 +223,20 @@ internal fun MainTabsDestination(
                         onTabSelected = onTabSelected,
                         onProfileSelected = onProfileSelected,
                         onAddProfileRequested = onAddProfileRequested,
+                        navBarStyleSetting = navBarStyleSetting,
+                        isHeroEnabled = homeCatalogSettingsUiState.heroEnabled,
+                        hazeState = navBarHazeState,
+                        scrollState = navBarScrollState,
+                        windowWidth = screenWidth,
                     )
                 }
 
                 if (!isTabletLayout && !useNativeBottomTabs && navBarStyleSetting != NavBarStyle.CLASSIC) {
-                    when (navBarStyleSetting) {
-                        NavBarStyle.EXPANDED -> navBarScrollState.expand()
-                        NavBarStyle.COMPACT -> navBarScrollState.collapse()
-                        else -> {}
-                    }
                     NuvioNavigationBar(
                         modifier = Modifier.align(Alignment.BottomCenter),
                         scrollState = navBarScrollState,
                         hazeState = navBarHazeState,
+                        navBarStyle = navBarStyleSetting,
                     ) {
                         NavItem(
                             selected = selectedTab == AppScreenTab.Home,
@@ -208,13 +262,14 @@ internal fun MainTabsDestination(
                         NavItem(
                             selected = selectedTab == AppScreenTab.Settings,
                             onClick = { onTabSelected(AppScreenTab.Settings) },
-                            label = stringResource(Res.string.compose_nav_profile),
+                            label = stringResource(Res.string.compose_nav_settings),
                         ) {
                             ProfileSwitcherTab(
                                 selected = selectedTab == AppScreenTab.Settings,
                                 onClick = { onTabSelected(AppScreenTab.Settings) },
                                 onProfileSelected = onProfileSelected,
                                 onAddProfileRequested = onAddProfileRequested,
+                                hazeState = navBarHazeState,
                             )
                         }
                     }

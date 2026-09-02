@@ -73,6 +73,7 @@ import org.jetbrains.compose.resources.stringResource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.nuvio.app.isDesktop
 import com.nuvio.app.navigation.LocalNativeNavigationBarHidden
 import com.nuvio.app.navigation.LocalUseNativeNavigation
 
@@ -149,6 +150,7 @@ fun NuvioSurfaceCard(
 fun NuvioScreenHeader(
     title: String,
     modifier: Modifier = Modifier,
+    backgroundColor: Color = MaterialTheme.nuvio.colors.background,
     includeStatusBarPadding: Boolean = true,
     topPadding: Dp? = null,
     onBack: (() -> Unit)? = null,
@@ -177,7 +179,7 @@ fun NuvioScreenHeader(
         Row(
             modifier = Modifier
                 .matchParentSize()
-                .background(tokens.colors.background)
+                .background(backgroundColor)
                 .nuvioConsumePointerEvents(),
         ) {}
         Row(
@@ -292,18 +294,20 @@ fun NuvioBackButton(
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.nuvio.shapes.avatar,
     containerColor: Color = MaterialTheme.nuvio.colors.surface,
+    showContainerOnDesktop: Boolean = false,
     contentColor: Color = MaterialTheme.nuvio.colors.textPrimary,
     buttonSize: Dp = NuvioTokens.Space.s40,
     iconSize: Dp = NuvioTokens.Icon.md,
     contentDescription: String = stringResource(Res.string.action_back),
 ) {
     if (LocalUseNativeNavigation.current && !LocalNativeNavigationBarHidden.current) return
+    val effectiveContainerColor = if (isDesktop && !showContainerOnDesktop) Color.Transparent else containerColor
 
     Box(
         modifier = modifier
             .size(buttonSize)
             .clip(shape)
-            .background(containerColor)
+            .background(effectiveContainerColor)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.updates_download_failed
 import nuvio.composeapp.generated.resources.updates_download_failed_http
 import nuvio.composeapp.generated.resources.updates_downloaded_file_missing
 import nuvio.composeapp.generated.resources.updates_empty_download_body
@@ -62,15 +63,13 @@ actual object AppUpdaterPlatform {
         onProgress: (downloadedBytes: Long, totalBytes: Long?) -> Unit,
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
+            clearDir(updatesDir())
             val safeName = assetName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
             val destination = File(updatesDir(), safeName)
             val tempFile = File(updatesDir(), "$safeName.part")
-            if (destination.exists()) destination.delete()
-            if (tempFile.exists()) tempFile.delete()
 
             val request = HttpRequest.newBuilder()
                 .uri(URI(assetUrl))
-                .timeout(Duration.ofSeconds(60))
                 .GET()
                 .build()
             val response = desktopUpdaterHttpClient.send(request, HttpResponse.BodyHandlers.ofInputStream())
@@ -82,25 +81,34 @@ actual object AppUpdaterPlatform {
                 ?.toLongOrNull()
                 ?.takeIf { it > 0L }
             var downloadedBytes = 0L
-            response.body()?.use { input ->
-                FileOutputStream(tempFile).use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    while (true) {
-                        val read = input.read(buffer)
-                        if (read <= 0) break
-                        output.write(buffer, 0, read)
-                        downloadedBytes += read.toLong()
-                        onProgress(downloadedBytes, totalBytes)
+            try {
+                response.body()?.use { input ->
+                    FileOutputStream(tempFile).use { output ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read <= 0) break
+                            output.write(buffer, 0, read)
+                            downloadedBytes += read.toLong()
+                            onProgress(downloadedBytes, totalBytes)
+                        }
+                        output.flush()
                     }
-                    output.flush()
-                }
-            } ?: error(runBlocking { getString(Res.string.updates_empty_download_body) })
+                } ?: error(runBlocking { getString(Res.string.updates_empty_download_body) })
 
-            if (!tempFile.renameTo(destination)) {
-                tempFile.copyTo(destination, overwrite = true)
-                tempFile.delete()
+                if (totalBytes != null && downloadedBytes != totalBytes) {
+                    error(runBlocking { getString(Res.string.updates_download_failed) })
+                }
+
+                if (!tempFile.renameTo(destination)) {
+                    tempFile.copyTo(destination, overwrite = true)
+                    tempFile.delete()
+                }
+                destination.absolutePath
+            } catch (t: Throwable) {
+                if (tempFile.exists()) tempFile.delete()
+                throw t
             }
-            destination.absolutePath
         }
     }
 
@@ -118,6 +126,14 @@ actual object AppUpdaterPlatform {
 
     private fun updatesDir(): File =
         File(DesktopStorage.rootDir.resolve("updates").also { it.createDirectories() }.toUri())
+
+    private fun clearDir(dirPath: File) {
+        if (dirPath.exists() and dirPath.isDirectory) {
+            dirPath.listFiles()?.forEach { file ->
+                file.deleteRecursively()
+            }
+        }
+    }
 
     private fun launchInstaller(updateFile: File) {
         val command = when (currentOs) {

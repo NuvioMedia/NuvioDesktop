@@ -14,6 +14,7 @@ import com.nuvio.app.features.watched.toWatchedItem
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import com.nuvio.app.features.watchprogress.WatchProgressEntry
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
+import com.nuvio.app.features.watching.domain.isSeriesLikeWatchingContentType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,7 +24,7 @@ object WatchingActions {
     private val actionScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     suspend fun togglePosterWatched(preview: MetaPreview) {
-        if (!preview.type.isSeriesLikeType()) {
+        if (!preview.type.isSeriesLikeWatchingContentType()) {
             WatchedRepository.toggleWatched(preview.toWatchedItem(markedAtEpochMs = 0L))
             return
         }
@@ -138,7 +139,7 @@ object WatchingActions {
         meta: MetaDetails,
         todayIsoDate: String = CurrentDateProvider.todayIsoDate(),
     ) {
-        if (!meta.type.isSeriesLikeType()) return
+        if (!meta.type.isSeriesLikeWatchingContentType()) return
 
         WatchedRepository.reconcileSeriesWatchedState(
             meta = meta,
@@ -204,6 +205,3 @@ object WatchingActions {
         reconcileSeriesWatchedState(meta)
     }
 }
-
-private fun String.isSeriesLikeType(): Boolean =
-    trim().lowercase() in setOf("series", "show", "tv", "tvshow")

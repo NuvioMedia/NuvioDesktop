@@ -37,6 +37,7 @@ import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.PlatformBackHandler
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.addons.AddonRepository
+import com.nuvio.app.features.addons.enabledAddons
 import com.nuvio.app.features.auth.AuthScreen
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.collection.CollectionSyncService
@@ -57,6 +58,7 @@ import com.nuvio.app.features.trakt.TraktAuthRepository
 import com.nuvio.app.features.trakt.TraktSettingsRepository
 import com.nuvio.app.features.watched.WatchedRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
+import com.nuvio.app.features.watchprogress.ContinueWatchingEnrichmentCache
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.navigation.AppRoute
 import kotlinx.coroutines.Dispatchers
@@ -67,10 +69,11 @@ internal suspend fun warmProfileBoundRepositories() {
     withContext(Dispatchers.Default) {
         AddonRepository.initialize()
         CollectionRepository.initialize()
+        val enabledAddons = AddonRepository.uiState.value.addons.enabledAddons()
         ContinueWatchingPreferencesRepository.ensureLoaded()
         DownloadsRepository.ensureLoaded()
         EpisodeReleaseNotificationsRepository.ensureLoaded()
-        HomeCatalogSettingsRepository.snapshot()
+        HomeCatalogSettingsRepository.syncCatalogs(enabledAddons)
         LibraryRepository.ensureLoaded()
         P2pSettingsRepository.ensureLoaded()
         PlayerSettingsRepository.ensureLoaded()
@@ -78,6 +81,7 @@ internal suspend fun warmProfileBoundRepositories() {
         TraktSettingsRepository.ensureLoaded()
         WatchedRepository.ensureLoaded()
         WatchProgressRepository.ensureLoaded()
+        ContinueWatchingEnrichmentCache.warm(ProfileRepository.activeProfileId)
         CollectionSyncService.startObserving()
         ProfileSettingsSync.startObserving()
     }
@@ -213,7 +217,9 @@ internal fun AppGate(
             ProfileRepository.switchToProfile(profile.profileIndex)
             warmProfileBoundRepositories()
             if (sync) {
-                SyncManager.pullAllForProfile(profile.profileIndex)
+                withContext(Dispatchers.Default) {
+                    SyncManager.pullAllForProfile(profile.profileIndex)
+                }
             }
         } finally {
             switchingProfile = null

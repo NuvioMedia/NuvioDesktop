@@ -28,20 +28,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.nuvio.app.core.ui.secondaryClickAt
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.features.debrid.DebridProviders
+import com.nuvio.app.isDesktop
 
 @Composable
 internal fun StreamCard(
@@ -53,6 +61,7 @@ internal fun StreamCard(
     badgePlacement: StreamBadgePlacement,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    onSecondaryClick: ((Offset) -> Unit)? = null,
     modifier: Modifier = Modifier,
     isCurrent: Boolean = false,
     currentLabel: String? = null,
@@ -60,6 +69,7 @@ internal fun StreamCard(
     val cardShape = RoundedCornerShape(12.dp)
     val badgeImages = stream.badges.filter { it.imageURL.isNotBlank() }
     val hasBadges = badgeImages.isNotEmpty() || (showFileSizeBadges && stream.behaviorHints.videoSize != null)
+    var cardPositionInRoot by remember { mutableStateOf(Offset.Zero) }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -89,10 +99,26 @@ internal fun StreamCard(
                     Modifier
                 },
             )
+            .then(
+                if (isDesktop) {
+                    Modifier.onGloballyPositioned { coordinates ->
+                        cardPositionInRoot = coordinates.positionInRoot()
+                    }
+                } else {
+                    Modifier
+                },
+            )
             .combinedClickable(
                 enabled = enabled,
                 onClick = onClick,
-                onLongClick = onLongClick,
+                onLongClick = if (isDesktop) null else onLongClick,
+            )
+            .secondaryClickAt(
+                if (isDesktop && enabled && onSecondaryClick != null) {
+                    { localPosition -> onSecondaryClick(cardPositionInRoot + localPosition) }
+                } else {
+                    null
+                },
             )
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -3,10 +3,13 @@ package com.nuvio.app.features.details.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.formatRuntimeForDisplay
+import com.nuvio.app.isDesktop
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
@@ -55,12 +59,16 @@ fun DetailAdditionalInfoSection(
         modifier = modifier,
         showHeader = showHeader,
     ) {
-        rows.forEachIndexed { index, (label, value) ->
-            DetailInfoRow(
-                label = label,
-                value = value,
-                showDivider = index < rows.lastIndex,
-            )
+        Column(
+            modifier = if (isDesktop) Modifier.widthIn(max = 720.dp) else Modifier,
+        ) {
+            rows.forEachIndexed { index, (label, value) ->
+                DetailInfoRow(
+                    label = label,
+                    value = value,
+                    showDivider = index < rows.lastIndex,
+                )
+            }
         }
     }
 }
@@ -71,7 +79,7 @@ private fun DetailInfoRow(
     value: String,
     showDivider: Boolean,
 ) {
-    androidx.compose.foundation.layout.Column(
+    Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
@@ -79,11 +87,16 @@ private fun DetailInfoRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = if (isDesktop) {
+                Arrangement.Start
+            } else {
+                Arrangement.SpaceBetween
+            },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = label,
+                modifier = if (isDesktop) Modifier.width(176.dp) else Modifier,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                 fontWeight = FontWeight.SemiBold,
@@ -96,7 +109,7 @@ private fun DetailInfoRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.End,
+                textAlign = if (isDesktop) TextAlign.Start else TextAlign.End,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )

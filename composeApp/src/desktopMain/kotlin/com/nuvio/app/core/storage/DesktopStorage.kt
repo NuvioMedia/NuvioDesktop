@@ -91,12 +91,12 @@ internal object DesktopStorage {
 
         fun putString(key: String, value: String?) = synchronized(lock) {
             ensureLoaded()
-            if (value == null) {
-                properties.remove(key)
+            val changed = if (value == null) {
+                properties.remove(key) != null
             } else {
-                properties.setProperty(key, value)
+                properties.setProperty(key, value) != value
             }
-            persist()
+            if (changed) persist()
         }
 
         fun getBoolean(key: String): Boolean? =
@@ -131,14 +131,16 @@ internal object DesktopStorage {
 
         fun remove(key: String) = synchronized(lock) {
             ensureLoaded()
-            properties.remove(key)
-            persist()
+            if (properties.remove(key) != null) persist()
         }
 
         fun removeAll(keys: Iterable<String>) = synchronized(lock) {
             ensureLoaded()
-            keys.forEach(properties::remove)
-            persist()
+            var changed = false
+            keys.forEach { key ->
+                if (properties.remove(key) != null) changed = true
+            }
+            if (changed) persist()
         }
 
         fun clearInMemory() = synchronized(lock) {

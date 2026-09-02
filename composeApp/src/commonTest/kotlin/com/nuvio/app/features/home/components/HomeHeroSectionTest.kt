@@ -27,6 +27,41 @@ class HomeHeroSectionTest {
         assertEquals(true, layout.isTablet)
         assertEquals(386.4f, layout.heroHeight.value, 0.001f)
     }
+
+    @Test
+    fun `desktop hero keeps the existing full bleed layout at sixteen by nine`() {
+        val layout = homeHeroLayout(
+            maxWidthDp = 2560f,
+            viewportHeightDp = 1440f,
+            preferDesktopLayout = true,
+        )
+
+        assertEquals(660f, layout.heroHeight.value, 0.001f)
+        assertEquals(2560f, layout.contentContainerMaxWidth.value, 0.001f)
+        assertEquals(32f, layout.contentHorizontalPadding.value, 0.001f)
+        assertEquals(40f, layout.contentVerticalPadding.value, 0.001f)
+        assertEquals(160f, layout.topFadeHeight.value, 0.001f)
+        assertEquals(300f, layout.bottomFadeHeight.value, 0.001f)
+        assertEquals(1f, layout.backgroundMotionStrength, 0.001f)
+    }
+
+    @Test
+    fun `desktop hero becomes full bleed and full height at thirty two by nine`() {
+        val layout = homeHeroLayout(
+            maxWidthDp = 3840f,
+            viewportHeightDp = 1080f,
+            preferDesktopLayout = true,
+        )
+
+        assertEquals(1080f, layout.heroHeight.value, 0.001f)
+        assertEquals(3840f, layout.contentContainerMaxWidth.value, 0.001f)
+        assertEquals(120f, layout.contentHorizontalPadding.value, 0.001f)
+        assertEquals(192f, layout.contentVerticalPadding.value, 0.001f)
+        assertEquals(160f, layout.topFadeHeight.value, 0.001f)
+        assertEquals(300f, layout.bottomFadeHeight.value, 0.001f)
+        assertEquals(0f, layout.backgroundMotionStrength, 0.001f)
+    }
+
     @Test
     fun `mobile hero height leaves room for continue watching card section`() {
         val viewportHeight = 844f

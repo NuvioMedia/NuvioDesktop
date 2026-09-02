@@ -672,7 +672,12 @@ actual object P2pStreamingEngine {
                 .build()
             val response = client.send(request, HttpResponse.BodyHandlers.ofString())
             if (response.statusCode() !in 200..299) return null
-            return json.parseToJsonElement(response.body().orEmpty()).jsonObject
+            // TorrServer answers some actions -- "drop" among them -- with 2xx and an
+            // empty body, which is not a JSON document. Parsing it threw on every
+            // dropTorrent call. No body means no object to return.
+            val raw = response.body().orEmpty()
+            if (raw.isBlank()) return null
+            return json.parseToJsonElement(raw).jsonObject
         }
     }
 

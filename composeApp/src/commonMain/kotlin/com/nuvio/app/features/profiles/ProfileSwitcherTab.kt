@@ -57,6 +57,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.Key
@@ -80,6 +81,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
@@ -100,6 +103,10 @@ fun ProfileSwitcherTab(
     onAddProfileRequested: () -> Unit,
     triggerContent: (@Composable (selected: Boolean) -> Unit)? = null,
     openPopupOnClick: Boolean = false,
+    onPopupStateChanged: ((Boolean) -> Unit)? = null,
+    avatarSize: Int = 28,
+    hazeState: HazeState? = null,
+    popupAlignment: Alignment = Alignment.BottomCenter,
     modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
@@ -173,6 +180,7 @@ fun ProfileSwitcherTab(
     val popupTranslateY = remember { Animatable(40f) }
 
     LaunchedEffect(showPopup) {
+        onPopupStateChanged?.invoke(showPopup)
         if (showPopup) {
             popupVisible = true
             launch { popupAlpha.animateTo(1f, tween(220, easing = FastOutSlowInEasing)) }
@@ -256,15 +264,21 @@ fun ProfileSwitcherTab(
                 profile = activeProfile,
                 avatars = avatars,
                 selected = selected,
-                size = 28,
+                size = avatarSize,
             )
         }
 
         // Floating profile popup (stays composed during exit animation)
         if (popupVisible && profiles.isNotEmpty()) {
+            val popupOffset = if (popupAlignment == Alignment.TopCenter) {
+                IntOffset(0, with(density) { 52.dp.roundToPx() })
+            } else {
+                IntOffset(0, with(density) { -NuvioTokens.Space.s64.roundToPx() })
+            }
+            val hasHaze = hazeState != null
             Popup(
-                alignment = Alignment.BottomCenter,
-                offset = IntOffset(0, with(density) { -NuvioTokens.Space.s64.roundToPx() }),
+                alignment = popupAlignment,
+                offset = popupOffset,
                 properties = PopupProperties(focusable = true),
                 onDismissRequest = { showPopup = false },
             ) {
@@ -277,10 +291,25 @@ fun ProfileSwitcherTab(
                             scaleY = popupScale.value
                             translationY = popupTranslateY.value
                         }
-                        .shadow(tokens.elevation.overlay, tokens.shapes.sheet)
-                        .background(
-                            tokens.colors.surfaceSheet,
-                            tokens.shapes.sheet,
+                        .then(
+                            if (hasHaze) {
+                                Modifier
+                                    .clip(tokens.shapes.sheet)
+                                    .hazeEffect(state = hazeState) {
+                                        blurRadius = 24.dp
+                                    }
+                                    .background(
+                                        color = Color(0xFF1C1C1E).copy(alpha = 0.55f),
+                                        shape = tokens.shapes.sheet,
+                                    )
+                            } else {
+                                Modifier
+                                    .shadow(tokens.elevation.overlay, tokens.shapes.sheet)
+                                    .background(
+                                        tokens.colors.surfaceSheet,
+                                        tokens.shapes.sheet,
+                                    )
+                            }
                         )
                         .padding(tokens.spacing.sheetPadding),
                 ) {

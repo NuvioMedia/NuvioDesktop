@@ -124,6 +124,7 @@ data class PlayerControlsState(
     val p2pConsentBody: String = "",
     val p2pConsentEnableLabel: String = "Enable P2P",
     val p2pConsentCancelLabel: String = "Cancel",
+    val speedPanelTitle: String = "Playback Speed",
     val audioTracksPanelTitle: String = "Audio Tracks",
     val noAudioTracksLabel: String = "No audio tracks available",
     val subtitlesPanelTitle: String = "Subtitles",

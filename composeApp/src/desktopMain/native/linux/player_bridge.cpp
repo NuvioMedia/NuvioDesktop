@@ -20,6 +20,7 @@
 #include <X11/Xlib.h>
 #include <X11/extensions/Xcomposite.h>
 
+#include <algorithm>
 #include <atomic>
 #include <clocale>
 #include <condition_variable>
@@ -48,6 +49,7 @@ static bool nuvioDebug() {
 namespace {
 
 JavaVM *gVm = nullptr;
+constexpr double kMaxVolumePercent = 200.0;
 
 struct Player {
     mpv_handle *mpv = nullptr;
@@ -854,14 +856,16 @@ gboolean pushPlayerUpdate(gpointer data) {
     }
     double duration = mpvGetDouble(player->mpv, "duration");
     double position = mpvGetDouble(player->mpv, "time-pos");
+    double volumeLevel = mpvGetDouble(player->mpv, "volume") / 100.0;
+    volumeLevel = std::max(0.0, std::min(kMaxVolumePercent / 100.0, volumeLevel));
     bool paused = mpvGetFlag(player->mpv, "pause");
     bool loading = playerLoading(player);
     std::string audioTracks = buildTracksJson(player->mpv, "audio");
     std::string subtitleTracks = buildTracksJson(player->mpv, "sub");
-    char head[192];
+    char head[224];
     snprintf(head, sizeof(head),
-             "window.playerUpdate&&window.playerUpdate({duration:%0.3f,position:%0.3f,paused:%s,loading:%s,audioTracks:",
-             duration, position, paused ? "true" : "false", loading ? "true" : "false");
+             "window.playerUpdate&&window.playerUpdate({duration:%0.3f,position:%0.3f,volumeLevel:%0.3f,paused:%s,loading:%s,audioTracks:",
+             duration, position, volumeLevel, paused ? "true" : "false", loading ? "true" : "false");
     std::string js = std::string(head) + audioTracks +
                      ",subtitleTracks:" + subtitleTracks + "})";
     evalJs(player->webview, js);
@@ -1561,6 +1565,7 @@ JNIEXPORT jlong JNICALL NP(create)(
         mpv_set_option_string(m, "input-cursor", "no");
         mpv_set_option_string(m, "cursor-autohide", "no");
         mpv_set_option_string(m, "keep-open", "yes");
+        mpv_set_option_string(m, "volume-max", "200");
         mpv_set_option_string(m, "idle", "yes");
         mpv_set_option_string(m, "vo", "gpu");
         // Bring the VO/OSD up immediately (before the first decoded frame) so the
@@ -1761,7 +1766,11 @@ JNIEXPORT void JNICALL NP(setSpeed)(JNIEnv *, jobject, jlong handle, jfloat spee
 
 JNIEXPORT void JNICALL NP(setVolume)(JNIEnv *, jobject, jlong handle, jfloat level) {
     Player *p = asPlayer(handle);
-    if (p) mpvSetDouble(p->mpv, "volume", level * 100.0); // Kotlin 0..1 -> mpv 0..100
+    if (!p) return;
+    double next = level * 100.0;
+    if (next < 0) next = 0;
+    if (next > kMaxVolumePercent) next = kMaxVolumePercent;
+    mpvSetDouble(p->mpv, "volume", next);
 }
 
 JNIEXPORT void JNICALL NP(adjustVolume)(JNIEnv *, jobject, jlong handle, jfloat delta) {
@@ -1770,7 +1779,7 @@ JNIEXPORT void JNICALL NP(adjustVolume)(JNIEnv *, jobject, jlong handle, jfloat 
     double current = mpvGetDouble(p->mpv, "volume");
     double next = current + delta * 100.0;
     if (next < 0) next = 0;
-    if (next > 100) next = 100;
+    if (next > kMaxVolumePercent) next = kMaxVolumePercent;
     mpvSetDouble(p->mpv, "volume", next);
 }
 

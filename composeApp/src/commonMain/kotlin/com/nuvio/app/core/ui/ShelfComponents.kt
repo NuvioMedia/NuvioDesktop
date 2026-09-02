@@ -86,6 +86,7 @@ fun <T> NuvioShelfSection(
     rowContentPadding: PaddingValues = PaddingValues(0.dp),
     itemSpacing: Dp = 10.dp,
     onViewAllClick: (() -> Unit)? = null,
+    onTitleClick: (() -> Unit)? = null,
     viewAllPillSize: NuvioViewAllPillSize = NuvioViewAllPillSize.Default,
     key: ((T) -> Any)? = null,
     animatePlacement: Boolean = false,
@@ -106,6 +107,7 @@ fun <T> NuvioShelfSection(
                 title = title,
                 modifier = Modifier.padding(horizontal = headerHorizontalPadding),
                 onViewAllClick = onViewAllClick,
+                onTitleClick = onTitleClick,
                 viewAllPillSize = viewAllPillSize,
             )
         }
@@ -356,6 +358,7 @@ private fun NuvioShelfSectionHeader(
     title: String,
     modifier: Modifier = Modifier,
     onViewAllClick: (() -> Unit)? = null,
+    onTitleClick: (() -> Unit)? = null,
     viewAllPillSize: NuvioViewAllPillSize = NuvioViewAllPillSize.Default,
 ) {
     val tokens = MaterialTheme.nuvio
@@ -369,7 +372,9 @@ private fun NuvioShelfSectionHeader(
         ) {
             Text(
                 text = title,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .then(if (onTitleClick != null) Modifier.clickable(onClick = onTitleClick) else Modifier),
                 style = MaterialTheme.typography.titleLarge,
                 color = tokens.colors.textPrimary,
                 maxLines = 1,
