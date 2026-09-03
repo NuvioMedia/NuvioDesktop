@@ -3286,6 +3286,24 @@ document.addEventListener("keydown", event => {
   if (activeModal || isTextEntryTarget(event.target)) {
     return;
   }
+  // Plain F toggles fullscreen (YouTube-style). Placed after the modal /
+  // text-entry guard so typing "f" in inputs is unaffected. Shift is excluded
+  // for parity with the Compose window-level binding. Existing
+  // F11 and Cmd+Ctrl+F bindings above are retained.
+  if (event.code === "KeyF" && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.repeat) {
+    if (spaceHoldTimer) {
+      window.clearTimeout(spaceHoldTimer);
+      spaceHoldTimer = null;
+    }
+    if (isSpaceBoosting || isSpeedBoosting) {
+      isSpaceBoosting = false;
+      stopSpeedBoost();
+    }
+    event.preventDefault();
+    focusShortcutRoot();
+    togglePlayerFullscreen();
+    return;
+  }
   if (event.code === "Space") {
     event.preventDefault();
     if (event.repeat) {

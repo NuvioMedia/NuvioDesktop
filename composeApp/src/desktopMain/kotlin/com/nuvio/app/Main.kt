@@ -6,8 +6,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.window.Window
@@ -45,6 +57,10 @@ import javax.swing.JComponent
 private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 
+// Belt-and-suspenders: only the `decoration:` Window overload is experimental in CMP 1.11.1,
+// so this opt-in is currently unused — kept so a dependency upgrade can't turn this call
+// site into a compile error. Safe to drop if the compiler ever flags it as unnecessary.
+@OptIn(ExperimentalComposeUiApi::class)
 fun main(args: Array<String>) {
     // On Linux, initialize GTK BEFORE AWT/Compose/Skia to prevent GdkDisplayManager
     // type registration conflict (Skiko partially loads GDK without full GTK init).
@@ -114,6 +130,10 @@ fun main(args: Array<String>) {
             placement = initialPlacement,
         )
         val fullscreenController = remember { DesktopAppFullscreenController() }
+        var lastPlainFToggleNs by remember { mutableLongStateOf(0L) }
+        // AWT host window stash: Window's onKeyEvent lambda runs in the caller's scope,
+        // where the FrameWindowScope `window` isn't visible, so content keeps it updated.
+        val hostWindow = remember { mutableStateOf<java.awt.Window?>(null) }
 
         Window(
             onCloseRequest = {
@@ -122,11 +142,34 @@ fun main(args: Array<String>) {
                 SentryInitializer.close()
                 exitApplication()
             },
+            // Plain-F fullscreen toggle (YouTube-style). Window-scope onKeyEvent fires only
+            // for events the content didn't consume, so typing "f" in a focused search box
+            // still types and never reaches here. Unlike a root-modifier handler, this also
+            // fires when no Compose node holds focus. F11 and Cmd+Ctrl+F keep working via
+            // installDesktopAppFullscreenShortcuts.
+            onKeyEvent = { event ->
+                if (event.type != KeyEventType.KeyDown) return@Window false
+                if (event.key != Key.F) return@Window false
+                if (event.isMetaPressed || event.isCtrlPressed || event.isAltPressed || event.isShiftPressed) {
+                    return@Window false
+                }
+                val host = hostWindow.value ?: return@Window false
+                // Guard against key auto-repeat strobing fullscreen on/off.
+                val now = System.nanoTime()
+                if (now - lastPlainFToggleNs < 400_000_000L) return@Window true
+                lastPlainFToggleNs = now
+                fullscreenController.toggle(host, windowState)
+                DesktopWindowModeStorage.saveWasFullscreen(
+                    fullscreenController.isFullscreen(host, windowState),
+                )
+                true
+            },
             title = if (smokePlayerUrl == null) "Nuvio" else "Nuvio Player Smoke",
             state = windowState,
             icon = painterResource(appIconState.selected.transparentPreviewResource),
         ) {
             SideEffect {
+                hostWindow.value = window
                 window.background = NuvioDesktopNativeBackground
                 window.rootPane.background = NuvioDesktopNativeBackground
                 window.contentPane.background = NuvioDesktopNativeBackground
