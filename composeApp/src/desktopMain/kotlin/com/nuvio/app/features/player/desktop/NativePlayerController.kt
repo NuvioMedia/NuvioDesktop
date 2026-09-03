@@ -115,6 +115,7 @@ internal class NativePlayerController(
     fun attach(
         sourceUrl: String,
         sourceHeaders: Map<String, String>,
+        externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> = emptyList(),
         playWhenReady: Boolean,
         initialPositionMs: Long,
         decoderPriority: Int,
@@ -124,6 +125,7 @@ internal class NativePlayerController(
         val pending = PendingSource(
             sourceUrl = sourceUrl,
             headerLines = sourceHeaders.toHeaderLines(),
+            externalSubtitles = externalSubtitles,
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs.coerceAtLeast(0L),
             decoderPriority = decoderPriority,
@@ -1119,6 +1121,7 @@ private fun Int.toHexByte(): String {
 private data class PendingSource(
     val sourceUrl: String,
     val headerLines: List<String>,
+    val externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> = emptyList(),
     val playWhenReady: Boolean,
     val initialPositionMs: Long,
     val decoderPriority: Int,
