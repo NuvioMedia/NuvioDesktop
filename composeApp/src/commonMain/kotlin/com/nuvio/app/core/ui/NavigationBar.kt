@@ -47,18 +47,44 @@ import org.jetbrains.compose.resources.painterResource
  * Scroll-aware state for the floating navigation bar.
  * Tracks scroll direction and exposes a label visibility fraction (1 = fully visible, 0 = hidden).
  */
+import com.nuvio.app.AppScreenTab
+import com.nuvio.app.features.settings.NavBarStyle
+
 @Stable
 class NuvioNavBarScrollState {
     /** 1f = labels fully visible (expanded), 0f = labels hidden (collapsed, icons only) */
     var labelVisibility by mutableFloatStateOf(1f)
         private set
 
+    /** Accumulated scroll distance from top of page for current active tab */
+    var totalScrollOffset by mutableFloatStateOf(0f)
+        private set
+
+    private var currentTab: AppScreenTab = AppScreenTab.Home
+    private val tabScrollOffsets = mutableMapOf<AppScreenTab, Float>()
     private var accumulatedDelta = 0f
+
+    /** Call when user switches tabs to restore that tab's scroll offset */
+    fun switchToTab(tab: AppScreenTab) {
+        currentTab = tab
+        labelVisibility = 1f
+        accumulatedDelta = 0f
+        totalScrollOffset = tabScrollOffsets[tab] ?: 0f
+    }
 
     /** Call to expand (show labels) – e.g. when user scrolls back to top */
     fun expand() {
         labelVisibility = 1f
         accumulatedDelta = 0f
+    }
+
+    /** Synchronize current scroll offset for a specific tab from child LazyColumn/scroll containers */
+    fun updateScrollOffset(tab: AppScreenTab, offset: Float) {
+        val newOffset = offset.coerceAtLeast(0f)
+        tabScrollOffsets[tab] = newOffset
+        if (tab == currentTab) {
+            totalScrollOffset = newOffset
+        }
     }
 
     /** Call to collapse (hide labels) */
@@ -113,10 +139,16 @@ fun NuvioNavigationBar(
     modifier: Modifier = Modifier,
     scrollState: NuvioNavBarScrollState? = null,
     hazeState: HazeState? = null,
+    navBarStyle: NavBarStyle = NavBarStyle.ADAPTIVE,
     content: @Composable NuvioNavigationBarScope.() -> Unit,
 ) {
+    val targetLabelFraction = when (navBarStyle) {
+        NavBarStyle.EXPANDED -> 1f
+        NavBarStyle.COMPACT -> 0f
+        else -> scrollState?.labelVisibility ?: 1f
+    }
     val labelFraction by animateFloatAsState(
-        targetValue = scrollState?.labelVisibility ?: 1f,
+        targetValue = targetLabelFraction,
         animationSpec = tween(
             durationMillis = NuvioTokens.Motion.sheetEnterMillis,
             easing = NuvioTokens.Motion.standard,

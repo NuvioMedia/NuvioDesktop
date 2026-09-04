@@ -48,7 +48,6 @@ data class PlayerSettingsUiState(
     val preferredSubtitleLanguage: String = SubtitleLanguageOption.NONE,
     val secondaryPreferredSubtitleLanguage: String? = null,
     val subtitleStyle: SubtitleStyleState = SubtitleStyleState.DEFAULT,
-    val addonSubtitleStartupMode: AddonSubtitleStartupMode = AddonSubtitleStartupMode.ALL_SUBTITLES,
     val streamReuseLastLinkEnabled: Boolean = false,
     val streamReuseLastLinkCacheHours: Int = 24,
     val androidPlaybackEngine: AndroidPlaybackEngine = AndroidPlaybackEngine.Auto,
@@ -117,7 +116,6 @@ object PlayerSettingsRepository {
     private var preferredSubtitleLanguage = SubtitleLanguageOption.NONE
     private var secondaryPreferredSubtitleLanguage: String? = null
     private var subtitleStyle = SubtitleStyleState.DEFAULT
-    private var addonSubtitleStartupMode = AddonSubtitleStartupMode.ALL_SUBTITLES
     private var streamReuseLastLinkEnabled = false
     private var streamReuseLastLinkCacheHours = 24
     private var androidPlaybackEngine = AndroidPlaybackEngine.Auto
@@ -191,7 +189,6 @@ object PlayerSettingsRepository {
         preferredSubtitleLanguage = SubtitleLanguageOption.NONE
         secondaryPreferredSubtitleLanguage = null
         subtitleStyle = SubtitleStyleState.DEFAULT
-        addonSubtitleStartupMode = AddonSubtitleStartupMode.ALL_SUBTITLES
         streamReuseLastLinkEnabled = false
         streamReuseLastLinkCacheHours = 24
         androidPlaybackEngine = AndroidPlaybackEngine.Auto
@@ -298,9 +295,6 @@ object PlayerSettingsRepository {
             showOnlyPreferredLanguages = PlayerSettingsStorage.loadSubtitleShowOnlyPreferredLanguages()
                 ?: SubtitleStyleState.DEFAULT.showOnlyPreferredLanguages,
         )
-        addonSubtitleStartupMode = PlayerSettingsStorage.loadAddonSubtitleStartupMode()
-            ?.let { runCatching { AddonSubtitleStartupMode.valueOf(it) }.getOrNull() }
-            ?: AddonSubtitleStartupMode.ALL_SUBTITLES
         streamReuseLastLinkEnabled = PlayerSettingsStorage.loadStreamReuseLastLinkEnabled() ?: false
         streamReuseLastLinkCacheHours = PlayerSettingsStorage.loadStreamReuseLastLinkCacheHours() ?: 24
         androidPlaybackEngine = PlayerSettingsStorage.loadAndroidPlaybackEngine()
@@ -541,14 +535,6 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveSubtitleStripSdh(normalized.stripSdh)
         PlayerSettingsStorage.saveSubtitleUseForcedSubtitles(normalized.useForcedSubtitles)
         PlayerSettingsStorage.saveSubtitleShowOnlyPreferredLanguages(normalized.showOnlyPreferredLanguages)
-    }
-
-    fun setAddonSubtitleStartupMode(mode: AddonSubtitleStartupMode) {
-        ensureLoaded()
-        if (addonSubtitleStartupMode == mode) return
-        addonSubtitleStartupMode = mode
-        publish()
-        PlayerSettingsStorage.saveAddonSubtitleStartupMode(mode.name)
     }
 
     fun setStreamReuseLastLinkEnabled(enabled: Boolean) {
@@ -984,7 +970,6 @@ object PlayerSettingsRepository {
             preferredSubtitleLanguage = preferredSubtitleLanguage,
             secondaryPreferredSubtitleLanguage = secondaryPreferredSubtitleLanguage,
             subtitleStyle = subtitleStyle,
-            addonSubtitleStartupMode = addonSubtitleStartupMode,
             streamReuseLastLinkEnabled = streamReuseLastLinkEnabled,
             streamReuseLastLinkCacheHours = streamReuseLastLinkCacheHours,
             androidPlaybackEngine = androidPlaybackEngine,

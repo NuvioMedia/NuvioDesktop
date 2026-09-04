@@ -65,9 +65,14 @@ val buildNativeWindows by tasks.registering(Exec::class) {
     commandLine("cmd", "/c", nativeDir.file("build.bat").asFile.absolutePath)
 }
 
+val cleanLegacyLinuxNativeResource by tasks.registering(Delete::class) {
+    delete(layout.projectDirectory.dir("src/jvmMain/resources/composemediaplayer/native/linux-x86-64"))
+}
+
 val buildNativeLinux by tasks.registering(Exec::class) {
     val nativeDir = layout.projectDirectory.dir("src/jvmMain/native/linux")
     enabled = Os.isFamily(Os.FAMILY_UNIX) && !Os.isFamily(Os.FAMILY_MAC)
+    dependsOn(cleanLegacyLinuxNativeResource)
     inputs.dir(nativeDir)
     outputs.dir(generatedNativeLibraryDir)
     workingDir(nativeDir)
@@ -75,6 +80,12 @@ val buildNativeLinux by tasks.registering(Exec::class) {
     commandLine("bash", "build.sh")
 }
 
+val nativeBuildTasks = listOf(buildNativeMacOs, buildNativeWindows, buildNativeLinux)
+
+tasks.named("assembleJvmMainResources") {
+    dependsOn(nativeBuildTasks)
+}
+
 tasks.named("jvmProcessResources") {
-    dependsOn(buildNativeMacOs, buildNativeWindows, buildNativeLinux)
+    dependsOn(nativeBuildTasks)
 }

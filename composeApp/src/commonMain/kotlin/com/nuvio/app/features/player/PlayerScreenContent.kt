@@ -9,6 +9,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntSize
@@ -39,6 +44,7 @@ import nuvio.composeapp.generated.resources.parental_violence
 import nuvio.composeapp.generated.resources.compose_player_tba
 import org.jetbrains.compose.resources.stringResource
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun PlayerScreenContent(args: PlayerScreenArgs) {
     LockPlayerToLandscape()
@@ -77,7 +83,21 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
     BoxWithConstraints(
         modifier = args.modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(Color.Black)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        if (event.type == PointerEventType.Press) {
+                            if (event.button == PointerButton.Back) {
+                                event.changes.forEach { it.consume() }
+                            } else if (event.button == PointerButton.Forward) {
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                }
+            },
     ) {
         val density = LocalDensity.current
         val horizontalSafePadding = playerHorizontalSafePadding()

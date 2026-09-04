@@ -2,8 +2,10 @@ package com.nuvio.app.features.watching.domain
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SeriesContinuityTest {
     private val show = WatchingContentRef(type = "series", id = "show")
@@ -12,6 +14,13 @@ class SeriesContinuityTest {
         WatchingReleasedEpisode(videoId = "ep2", seasonNumber = 1, episodeNumber = 2, title = "Episode 2", releasedDate = "2026-03-08"),
         WatchingReleasedEpisode(videoId = "ep3", seasonNumber = 1, episodeNumber = 3, title = "Episode 3", releasedDate = "2026-03-15"),
     )
+
+    @Test
+    fun seriesLikeContentType_supports_anime_only_when_requested() {
+        assertTrue(" TvShow ".isSeriesLikeWatchingContentType())
+        assertFalse("anime".isSeriesLikeWatchingContentType())
+        assertTrue(" ANIME ".isSeriesLikeWatchingContentType(includeAnime = true))
+    }
 
     @Test
     fun continueWatchingProgressEntries_drops_older_resume_when_latest_series_progress_is_completed() {

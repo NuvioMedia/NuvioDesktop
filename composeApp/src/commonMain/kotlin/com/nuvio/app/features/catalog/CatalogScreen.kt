@@ -41,8 +41,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.network.NetworkCondition
@@ -54,16 +54,24 @@ import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioPosterWatchedOverlay
-import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.core.ui.PosterLandscapeAspectRatio
+import com.nuvio.app.core.ui.catalogPosterBaseWidthDp
+import com.nuvio.app.core.ui.desktopPageHorizontalPaddingForWidth
+import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
-import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.desktopPosterHoverScale
+import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.core.ui.posterCardClickable
+import com.nuvio.app.core.ui.posterGridColumnCountForViewport
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.PosterShape
+import com.nuvio.app.features.home.components.HomeEmptyStateCard
 import com.nuvio.app.features.home.components.HomePosterHoverPreview
+import com.nuvio.app.features.home.components.HomePosterCard
 import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.watched.WatchedRepository
 import com.nuvio.app.features.watching.application.WatchingState
@@ -167,17 +175,40 @@ fun CatalogScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        val columns = remember(maxWidth) { catalogGridColumnsForWidth(maxWidth) }
+        val pageHorizontalPadding = if (isDesktop) {
+            desktopPageHorizontalPaddingForWidth(maxWidth.value)
+        } else {
+            16.dp
+        }
+        val columns = remember(maxWidth, maxHeight, posterCardStyle.widthDp, isDesktop) {
+            if (isDesktop) {
+                posterGridColumnCountForViewport(maxWidth, maxHeight, posterCardStyle.widthDp)
+            } else {
+                catalogGridColumnsForWidth(maxWidth)
+            }
+        }
+        val basePosterWidthDp = catalogPosterBaseWidthDp(posterCardStyle.widthDp)
+        val gridCells = if (isDesktop) {
+            GridCells.FixedSize(
+                if (posterCardStyle.catalogLandscapeModeEnabled) {
+                    landscapePosterWidth(basePosterWidthDp)
+                } else {
+                    basePosterWidthDp.dp
+                },
+            )
+        } else {
+            GridCells.Fixed(columns)
+        }
 
         Box(modifier = Modifier.fillMaxSize()) {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
+                columns = gridCells,
                 state = gridState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    start = 16.dp,
+                    start = pageHorizontalPadding,
                     top = with(androidx.compose.ui.platform.LocalDensity.current) { headerHeightPx.toDp() } + 12.dp,
-                    end = 16.dp,
+                    end = pageHorizontalPadding,
                     bottom = nuvioSafeBottomPadding(28.dp),
                 ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -185,7 +216,18 @@ fun CatalogScreen(
             ) {
                 if (uiState.items.isEmpty() && uiState.isLoading) {
                     items(columns * 3) {
-                        CatalogSkeletonTile(cornerRadiusDp = posterCardStyle.cornerRadiusDp)
+                        if (isDesktop) {
+                            CatalogSkeletonTile(
+                                cornerRadiusDp = posterCardStyle.cornerRadiusDp,
+                                aspectRatio = if (posterCardStyle.catalogLandscapeModeEnabled) {
+                                    PosterLandscapeAspectRatio
+                                } else {
+                                    0.68f
+                                },
+                            )
+                        } else {
+                            CatalogSkeletonTile(cornerRadiusDp = posterCardStyle.cornerRadiusDp)
+                        }
                     }
                 } else if (uiState.items.isEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
@@ -207,18 +249,29 @@ fun CatalogScreen(
                         key = { item -> item.lazyKey },
                     ) { keyedItem ->
                         val item = keyedItem.value
-                        CatalogPosterTile(
+                        val isWatched = WatchingState.isPosterWatched(
+                            watchedKeys = watchedUiState.watchedKeys,
                             item = item,
-                            cornerRadiusDp = posterCardStyle.cornerRadiusDp,
-                            hideLabels = posterCardStyle.hideLabelsEnabled,
-                            isWatched = WatchingState.isPosterWatched(
-                                watchedKeys = watchedUiState.watchedKeys,
-                                item = item,
-                                fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
-                            ),
-                            onClick = onPosterClick?.let { { it(item) } },
-                            onLongClick = onPosterLongClick?.let { { it(item) } },
+                            fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                         )
+                        if (isDesktop) {
+                            HomePosterCard(
+                                item = item,
+                                useLandscapeBackdropMode = posterCardStyle.catalogLandscapeModeEnabled,
+                                isWatched = isWatched,
+                                onClick = onPosterClick?.let { { it(item) } },
+                                onLongClick = onPosterLongClick?.let { { it(item) } },
+                            )
+                        } else {
+                            CatalogPosterTile(
+                                item = item,
+                                cornerRadiusDp = posterCardStyle.cornerRadiusDp,
+                                hideLabels = posterCardStyle.hideLabelsEnabled,
+                                isWatched = isWatched,
+                                onClick = onPosterClick?.let { { it(item) } },
+                                onLongClick = onPosterLongClick?.let { { it(item) } },
+                            )
+                        }
                     }
                     if (uiState.isLoading) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -238,6 +291,7 @@ fun CatalogScreen(
             CatalogHeader(
                 title = title,
                 subtitle = subtitle,
+                pageHorizontalPadding = pageHorizontalPadding,
                 modifier = Modifier.onSizeChanged { headerHeightPx = it.height },
                 onBack = onBack,
             )
@@ -249,6 +303,7 @@ fun CatalogScreen(
 private fun CatalogHeader(
     title: String,
     subtitle: String,
+    pageHorizontalPadding: Dp,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -266,13 +321,12 @@ private fun CatalogHeader(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp)
-            .padding(top = 52.dp, bottom = 12.dp),
+            .padding(horizontal = pageHorizontalPadding)
+            .padding(top = if (isDesktop) 32.dp else 52.dp, bottom = 12.dp),
     ) {
         NuvioBackButton(
             onClick = onBack,
-            modifier = Modifier
-                .size(40.dp),
+            modifier = Modifier.size(if (isDesktop) 48.dp else 40.dp),
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
             iconSize = 24.dp,
@@ -376,14 +430,38 @@ private fun CatalogPosterTile(
 
 @Composable
 private fun CatalogSkeletonTile(cornerRadiusDp: Int) {
+    CatalogSkeletonTile(cornerRadiusDp = cornerRadiusDp, aspectRatio = 0.68f)
+}
+
+@Composable
+private fun CatalogSkeletonTile(
+    cornerRadiusDp: Int,
+    aspectRatio: Float,
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(0.68f)
+            .aspectRatio(aspectRatio)
             .clip(RoundedCornerShape(cornerRadiusDp.dp))
             .background(MaterialTheme.colorScheme.surface),
     )
 }
+
+private fun PosterShape.catalogAspectRatio(): Float =
+    when (this) {
+        PosterShape.Poster -> 0.68f
+        PosterShape.Square -> 1f
+        PosterShape.Landscape -> 1.78f
+    }
+
+private fun catalogGridColumnsForWidth(screenWidth: Dp): Int =
+    when {
+        screenWidth >= 1400.dp -> 7
+        screenWidth >= 1200.dp -> 6
+        screenWidth >= 1000.dp -> 5
+        screenWidth >= 840.dp -> 4
+        else -> 3
+    }
 
 @Composable
 private fun CatalogEmptyState(
@@ -391,7 +469,10 @@ private fun CatalogEmptyState(
     networkCondition: NetworkCondition,
     onRetry: (() -> Unit)? = null,
 ) {
-    if (networkCondition == NetworkCondition.NoInternet || networkCondition == NetworkCondition.ServersUnreachable) {
+    if (
+        !errorMessage.isNullOrBlank() &&
+        (networkCondition == NetworkCondition.NoInternet || networkCondition == NetworkCondition.ServersUnreachable)
+    ) {
         NuvioNetworkOfflineCard(
             condition = networkCondition,
             onRetry = onRetry,
@@ -399,24 +480,15 @@ private fun CatalogEmptyState(
         return
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(
-            text = stringResource(Res.string.catalog_empty_title),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Text(
-            text = errorMessage ?: stringResource(Res.string.catalog_empty_message),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    val loadFailed = !errorMessage.isNullOrBlank()
+    HomeEmptyStateCard(
+        title = stringResource(
+            if (loadFailed) Res.string.catalog_load_failed_title else Res.string.catalog_empty_title,
+        ),
+        message = errorMessage ?: stringResource(Res.string.catalog_empty_message),
+        actionLabel = if (loadFailed) stringResource(Res.string.action_retry) else null,
+        onActionClick = if (loadFailed) onRetry else null,
+    )
 }
 
 @Composable
@@ -433,19 +505,3 @@ private fun CatalogLoadingFooter() {
         )
     }
 }
-
-private fun PosterShape.catalogAspectRatio(): Float =
-    when (this) {
-        PosterShape.Poster -> 0.68f
-        PosterShape.Square -> 1f
-        PosterShape.Landscape -> 1.2f
-    }
-
-private fun catalogGridColumnsForWidth(screenWidth: Dp): Int =
-    when {
-        screenWidth >= 1400.dp -> 7
-        screenWidth >= 1200.dp -> 6
-        screenWidth >= 1000.dp -> 5
-        screenWidth >= 840.dp -> 4
-        else -> 3
-    }

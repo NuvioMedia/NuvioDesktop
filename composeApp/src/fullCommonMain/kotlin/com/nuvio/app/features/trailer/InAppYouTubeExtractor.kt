@@ -46,6 +46,10 @@ internal data class StreamCandidate(
     val height: Int,
     val fps: Int,
     val ext: String,
+    // Only meaningful for audio candidates: false means this format is an
+    // alternate-language dub track, not the video's original/default audio.
+    // Always true for video/progressive candidates, so it never affects them.
+    val isDefaultAudioTrack: Boolean = true,
 )
 
 private data class ManifestBestVariant(
@@ -94,26 +98,6 @@ private val CLIENTS = listOf(
         priority = 0,
     ),
     YouTubeClient(
-        key = "android_vr",
-        id = "28",
-        version = "1.56.21",
-        userAgent = "com.google.android.apps.youtube.vr.oculus/1.56.21 " +
-            "(Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1) gzip",
-        context = jsonObjectOf(
-            "clientName" to "ANDROID_VR",
-            "clientVersion" to "1.56.21",
-            "deviceMake" to "Oculus",
-            "deviceModel" to "Quest 3",
-            "osName" to "Android",
-            "osVersion" to "12",
-            "platform" to "MOBILE",
-            "androidSdkVersion" to 32,
-            "hl" to "en",
-            "gl" to "US",
-        ),
-        priority = 1,
-    ),
-    YouTubeClient(
         key = "android",
         id = "3",
         version = "20.10.35",
@@ -128,7 +112,7 @@ private val CLIENTS = listOf(
             "hl" to "en",
             "gl" to "US",
         ),
-        priority = 2,
+        priority = 1,
     ),
     YouTubeClient(
         key = "ios",
@@ -145,7 +129,7 @@ private val CLIENTS = listOf(
             "hl" to "en",
             "gl" to "US",
         ),
-        priority = 3,
+        priority = 2,
     ),
 )
 
@@ -285,6 +269,12 @@ class InAppYouTubeExtractor {
                             ?: format.numberValue("averageBitrate")
                             ?: 0.0
                         val audioSampleRate = format.numberValue("audioSampleRate") ?: 0.0
+                        // Multi-language uploads (common for major-studio trailers)
+                        // expose each dub as a separate adaptiveFormats entry with an
+                        // audioTrack.audioIsDefault flag. Formats with no audioTrack
+                        // are the only audio for that video, so treat them as default.
+                        val isDefaultAudioTrack = format.objectValue("audioTrack")
+                            ?.booleanValue("audioIsDefault") ?: true
 
                         adaptiveAudio += StreamCandidate(
                             client = client.key,
@@ -297,6 +287,7 @@ class InAppYouTubeExtractor {
                             height = 0,
                             fps = 0,
                             ext = if (mimeType.contains("webm")) "webm" else "m4a",
+                            isDefaultAudioTrack = isDefaultAudioTrack,
                         )
                     }
                 }
@@ -582,9 +573,10 @@ class InAppYouTubeExtractor {
         return bitrate * 1_000_000.0 + audioSampleRate
     }
 
-    private fun sortCandidates(items: List<StreamCandidate>): List<StreamCandidate> {
+    internal fun sortCandidates(items: List<StreamCandidate>): List<StreamCandidate> {
         return items.sortedWith(
-            compareByDescending<StreamCandidate> { it.score }
+            compareBy<StreamCandidate> { if (it.isDefaultAudioTrack) 0 else 1 }
+                .thenByDescending { it.score }
                 .thenBy { if (it.hasN) 1 else 0 }
                 .thenBy { containerPreference(it.ext) }
                 .thenBy { it.priority },
@@ -693,6 +685,11 @@ private fun JsonObject.stringValue(key: String): String? {
 private fun JsonObject.numberValue(key: String): Double? {
     val primitive = this[key] as? JsonPrimitive ?: return null
     return primitive.toString().trim('"').toDoubleOrNull()
+}
+
+private fun JsonObject.booleanValue(key: String): Boolean? {
+    val primitive = this[key] as? JsonPrimitive ?: return null
+    return primitive.content.toBooleanStrictOrNull()
 }
 
 private fun jsonObjectOf(vararg pairs: Pair<String, Any?>): JsonObject {

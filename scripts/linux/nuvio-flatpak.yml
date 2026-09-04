@@ -1,0 +1,165 @@
+app-id: com.nuvio.media.desktop
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: nuvio
+add-extensions:
+  org.freedesktop.Platform.codecs-extra:
+    version: "25.08-extra"
+    directory: lib/codecs-extra
+    add-ld-path: "."
+  org.freedesktop.Platform.VAAPI.Intel:
+    version: "25.08"
+    directory: lib/intel-vaapi-driver
+    add-ld-path: "."
+    download-if: have-intel-gpu
+    enable-if: have-intel-gpu
+  org.freedesktop.Platform.VAAPI.Nvidia:
+    version: "25.08"
+    directory: lib/nvidia-vaapi-driver
+    add-ld-path: "."
+    download-if: have-kernel-module-nvidia
+    enable-if: have-kernel-module-nvidia
+build-options:
+  append-pkg-config-path: /app/lib/pkgconfig:/app/lib64/pkgconfig
+
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=all
+  - --filesystem=xdg-download
+  - --filesystem=xdg-run/pipewire-0:ro
+  - --filesystem=xdg-run/discord-ipc-0
+  - --filesystem=xdg-run/app/com.discordapp.Discord:create
+  - --env=LD_LIBRARY_PATH=/app/lib:/app/lib64:/app/opt/Nuvio/lib
+  - --env=XDG_DATA_DIRS=/app/share:/usr/share
+  
+modules:
+  - name: nuvio
+    buildsystem: simple
+    modules:
+      - name: libmpv
+        cleanup:
+          - /include
+          - /lib/pkgconfig
+        buildsystem: meson
+        config-opts:
+          - -Dbuild-date=false
+          - -Dcplayer=false
+          - -Dlibmpv=true
+          - -Dmanpage-build=disabled
+          - -Dwayland=enabled
+          - -Dx11=enabled
+          - -Dvulkan=enabled
+          - -Dgl=enabled
+          - -Degl=enabled
+          - -Degl-wayland=enabled
+          - -Degl-x11=enabled
+          - -Dvaapi=enabled
+          - -Dvaapi-wayland=enabled
+          - -Dvaapi-x11=enabled
+          - -Dcuda-hwaccel=enabled
+          - -Dcuda-interop=enabled
+          - -Dvdpau=enabled
+          - -Dvdpau-gl-x11=enabled
+        sources:
+          - type: archive
+            url: https://github.com/mpv-player/mpv/archive/refs/tags/v0.41.0.tar.gz
+            sha256: ee21092a5ee427353392360929dc64645c54479aefdb5babc5cfbb5fad626209
+            x-checker-data:
+              type: anitya
+              project-id: 5348
+              stable-only: true
+              url-template: https://github.com/mpv-player/mpv/archive/refs/tags/v$version.tar.gz
+        modules:
+          - name: libXpresent
+            buildsystem: autotools
+            sources:
+              - type: archive
+                url: https://xorg.freedesktop.org/archive/individual/lib/libXpresent-1.0.2.tar.xz
+                sha256: 4e5b21b4812206a4b223013606ae31170502c1043038777a1ef8f70c09d37602
+                x-checker-data:
+                  type: anitya
+                  project-id: 17166
+                  stable-only: true
+                  url-template: https://xorg.freedesktop.org/archive/individual/lib/libXpresent-$version.tar.xz
+
+          - name: libass
+            config-opts:
+              - --disable-static
+            sources:
+              - type: archive
+                url: https://github.com/libass/libass/releases/download/0.17.5/libass-0.17.5.tar.gz
+                sha256: caab4b993dd7be6187c55623b789ed75dddefea6e65938af134637c732fe094a
+                x-checker-data:
+                  type: anitya
+                  project-id: 1560
+                  stable-only: true
+                  url-template: https://github.com/libass/libass/releases/download/$version/libass-$version.tar.gz
+
+          - name: uchardet
+            buildsystem: cmake-ninja
+            config-opts:
+              - -DCMAKE_BUILD_TYPE=Release
+              - -DBUILD_STATIC=0
+              - -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+            cleanup:
+              - /bin
+            sources:
+              - type: archive
+                url: https://www.freedesktop.org/software/uchardet/releases/uchardet-0.0.8.tar.xz
+                sha256: e97a60cfc00a1c147a674b097bb1422abd9fa78a2d9ce3f3fdcc2e78a34ac5f0
+                x-checker-data:
+                  type: anitya
+                  project-id: 9265
+                  stable-only: true
+                  url-template: https://www.freedesktop.org/software/uchardet/releases/uchardet-$version.tar.xz
+          - name: libplacebo
+            buildsystem: meson
+            config-opts:
+              - -Dvulkan=enabled
+              - -Ddemos=false
+            cleanup:
+              - /include
+              - /lib/pkgconfig
+            sources:
+              - type: git
+                url: https://github.com/haasn/libplacebo.git
+                tag: v7.360.1
+                x-checker-data:
+                  type: git
+                  tag-pattern: ^v([\d.]+)$
+    build-commands:
+      - install -d /app/lib /app/opt/Nuvio /app/bin
+      - mkdir -p /app/lib/codecs-extra 
+      - mkdir -p /app/lib/intel-vaapi-driver 
+      - mkdir -p /app/lib/nvidia-vaapi-driver
+      - cp -a /run/build/nuvio/. /app/opt/Nuvio/
+      - install -Dm755 /run/build/nuvio/nuvio-launcher.sh /app/bin/nuvio
+      - install -Dm644 /run/build/nuvio/com.nuvio.media.desktop.metainfo.xml /app/share/metainfo/com.nuvio.media.desktop.metainfo.xml
+      - install -Dm644 /run/build/nuvio/lib/Nuvio.png /app/share/icons/hicolor/512x512/apps/com.nuvio.media.desktop.png
+      - |
+        bash -euo pipefail -c '
+          mkdir -p /app/share/applications
+          source /run/build/nuvio/linux-shortcut-definition.sh
+          nuvio_linux_write_desktop_entry_file \
+            "/app/share/applications/com.nuvio.media.desktop.desktop" \
+            "nuvio %u" \
+            "com.nuvio.media.desktop"
+        '
+      - desktop-file-validate /app/share/applications/com.nuvio.media.desktop.desktop
+    sources:
+      - type: file
+        path: nuvio-launcher.sh
+        dest-filename: nuvio-launcher.sh
+      - type: file
+        path: linux-shortcut-definition.sh
+        dest-filename: linux-shortcut-definition.sh
+      - type: file
+        path: com.nuvio.media.desktop.metainfo.xml
+        dest-filename: com.nuvio.media.desktop.metainfo.xml
+      - type: dir
+        path: ${app_root}

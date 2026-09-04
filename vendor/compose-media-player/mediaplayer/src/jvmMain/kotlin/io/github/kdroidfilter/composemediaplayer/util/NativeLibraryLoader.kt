@@ -1,15 +1,17 @@
 package io.github.kdroidfilter.composemediaplayer.util
 
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
 
 /**
  * Loads native libraries following a two-stage strategy:
  * 1. Try [System.loadLibrary] (works for packaged apps / GraalVM native-image
  *    where the lib sits on `java.library.path`).
  * 2. Fallback: extract from the classpath (`composemediaplayer/native/<platform>/`)
- *    into a persistent cache and load from there.
+ *    into a content-addressed persistent cache and load from there.
  */
 internal object NativeLibraryLoader {
     private const val RESOURCE_PREFIX = "composemediaplayer/native"
@@ -20,18 +22,17 @@ internal object NativeLibraryLoader {
         libraryName: String,
         callerClass: Class<*>,
     ): Boolean {
+        validateNativePathSegment(libraryName)
         if (libraryName in loadedLibraries) return true
 
-        // 1. Try system library path (packaged app / GraalVM native-image)
         try {
             System.loadLibrary(libraryName)
             loadedLibraries += libraryName
             return true
         } catch (_: UnsatisfiedLinkError) {
-            // Not on java.library.path, try classpath extraction
+            // Not on java.library.path, try classpath extraction.
         }
 
-        // 2. Extract from classpath to persistent cache
         val file = extractToCache(libraryName, callerClass) ?: return false
         System.load(file.absolutePath)
         loadedLibraries += libraryName
@@ -43,28 +44,35 @@ internal object NativeLibraryLoader {
         callerClass: Class<*>,
     ): File? {
         val platform = detectPlatform()
-        val fileName = mapLibraryName(libraryName)
+        val fileName = validateNativePathSegment(mapLibraryName(libraryName))
         val resourcePath = "$RESOURCE_PREFIX/$platform/$fileName"
-
         val resourceUrl = callerClass.classLoader?.getResource(resourcePath) ?: return null
+        val resourceBytes = resourceUrl.openStream().use { it.readBytes() }
 
         val cacheDir = resolveCacheDir(platform)
         cacheDir.mkdirs()
-        val cachedFile = File(cacheDir, fileName)
-
-        // Validate cache: re-extract if size differs or file is missing
-        val resourceSize = resourceUrl.openConnection().contentLengthLong
-        if (cachedFile.exists() && cachedFile.length() == resourceSize) {
+        val cachedFile = File(cacheDir, contentAddressedNativeFileName(fileName, resourceBytes))
+        if (cachedFile.exists() && cachedFile.readBytes().contentEquals(resourceBytes)) {
             return cachedFile
         }
 
-        // Atomic extract: write to temp then move
-        val tmpFile = File(cacheDir, "$fileName.tmp")
+        val tmpFile = Files.createTempFile(cacheDir.toPath(), "$fileName.", ".tmp").toFile()
         try {
-            resourceUrl.openStream().use { input ->
-                Files.copy(input, tmpFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            Files.write(tmpFile.toPath(), resourceBytes)
+            try {
+                Files.move(
+                    tmpFile.toPath(),
+                    cachedFile.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(
+                    tmpFile.toPath(),
+                    cachedFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
             }
-            Files.move(tmpFile.toPath(), cachedFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
             cachedFile.setExecutable(true)
         } finally {
             tmpFile.delete()
@@ -107,4 +115,25 @@ internal object NativeLibraryLoader {
             else -> "lib$name.so"
         }
     }
+}
+
+internal fun contentAddressedNativeFileName(
+    fileName: String,
+    bytes: ByteArray,
+): String {
+    validateNativePathSegment(fileName)
+    val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+    val extensionIndex = fileName.lastIndexOf('.')
+    val stem = if (extensionIndex > 0) fileName.substring(0, extensionIndex) else fileName
+    val extension = if (extensionIndex > 0) fileName.substring(extensionIndex) else ""
+    return "$stem-$digest$extension"
+}
+
+internal fun validateNativePathSegment(value: String): String {
+    require(value.isNotBlank()) { "Native library name must not be blank" }
+    require(value != "." && value != "..") { "Native library name must not be a dot segment" }
+    require(value.all { it.isLetterOrDigit() || it == '.' || it == '_' || it == '-' }) {
+        "Native library name must be a single safe path segment"
+    }
+    return value
 }

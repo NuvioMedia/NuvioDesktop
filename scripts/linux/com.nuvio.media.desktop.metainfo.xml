@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.nuvio.media.desktop</id>
+  <name>Nuvio</name>
+  <summary>Discover movies and shows, save favorites and Watch from your own library</summary>
+  <icon type="stock">com.nuvio.media.desktop</icon>
+  <developer id="com.nuvio.media">
+    <name>Nuvio Media</name>
+  </developer>
+  <developer_name>Nuvio Media</developer_name>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <launchable type="desktop-id">com.nuvio.media.desktop.desktop</launchable>
+  <categories>
+    <category>AudioVideo</category>
+  </categories>
+  <url type="homepage">https://github.com/NuvioMedia/NuvioDesktop</url>
+  <releases>
+    <release version="0.0.0" date="1970-01-01" />
+  </releases>
+  <description>
+    <p>Discover movies and shows, save favorites and Watch from your own library</p>
+    <p>Nuvio is a modern media organizer for movies and TV shows.</p>
+    <p>Discover titles, build your own library, track progress, and keep your watch history in sync with Trakt in a clean interface designed for large screens.</p>
+  </description>
+</component>

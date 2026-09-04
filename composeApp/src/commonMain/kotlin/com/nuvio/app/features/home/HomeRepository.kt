@@ -4,7 +4,9 @@ import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.enabledAddons
 import com.nuvio.app.features.catalog.CatalogTarget
+import com.nuvio.app.features.catalog.CatalogPage
 import com.nuvio.app.features.catalog.fetchCatalogPage
+import com.nuvio.app.features.catalog.mergeCatalogItems
 import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.collection.CollectionSource
@@ -13,6 +15,7 @@ import com.nuvio.app.features.collection.catalogRouteKey
 import com.nuvio.app.features.collection.findCollectionCatalog
 import com.nuvio.app.features.trakt.TraktPublicListSourceResolver
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
+import com.nuvio.app.isDesktop
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -211,22 +214,27 @@ object HomeRepository {
             emptyList()
         }
 
-        _uiState.value = HomeUiState(
+        val nextState = HomeUiState(
             isLoading = isLoading,
             heroItems = heroItems,
             sections = sections,
             errorMessage = if (sections.isEmpty()) lastErrorMessage else null,
         )
+        if (_uiState.value != nextState) _uiState.value = nextState
     }
 
     private suspend fun HomeCatalogDefinition.toSection(forceRefresh: Boolean): HomeCatalogSection {
-        val page = fetchCatalogPage(
-            manifestUrl = manifestUrl,
-            type = type,
-            catalogId = catalogId,
-            maxItems = HOME_CATALOG_PREVIEW_FETCH_LIMIT,
-            forceRefresh = forceRefresh,
-        )
+        val page = if (isDesktop) {
+            fetchDesktopHomePreview(forceRefresh)
+        } else {
+            fetchCatalogPage(
+                manifestUrl = manifestUrl,
+                type = type,
+                catalogId = catalogId,
+                maxItems = HOME_CATALOG_PREVIEW_FETCH_LIMIT,
+                forceRefresh = forceRefresh,
+            )
+        }
         val items = page.items
         if (items.isEmpty()) {
             return HomeCatalogSection(
@@ -260,6 +268,35 @@ object HomeRepository {
             items = items,
             availableItemCount = page.rawItemCount,
             hasMore = supportsPagination && page.nextSkip != null,
+        )
+    }
+
+    private suspend fun HomeCatalogDefinition.fetchDesktopHomePreview(forceRefresh: Boolean): CatalogPage {
+        var items = emptyList<MetaPreview>()
+        var rawItemCount = 0
+        var nextSkip: Int? = null
+        var pagesFetched = 0
+        do {
+            val page = fetchCatalogPage(
+                manifestUrl = manifestUrl,
+                type = type,
+                catalogId = catalogId,
+                skip = nextSkip,
+                maxItems = DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT - items.size,
+                forceRefresh = forceRefresh,
+            )
+            items = mergeCatalogItems(items, page.items)
+            rawItemCount += page.rawItemCount
+            nextSkip = page.nextSkip
+            pagesFetched++
+        } while (
+            supportsPagination && nextSkip != null && items.size < DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT &&
+            pagesFetched < DESKTOP_HOME_CATALOG_PREVIEW_MAX_PAGES
+        )
+        return CatalogPage(
+            items = items.take(DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT),
+            rawItemCount = rawItemCount,
+            nextSkip = nextSkip,
         )
     }
 
@@ -429,6 +466,8 @@ private const val HOME_COLLECTION_HERO_SOURCE_LIMIT = 6
 private const val HOME_COLLECTION_HERO_SOURCE_ITEM_LIMIT = 8
 private const val HOME_CATALOG_FETCH_BATCH_SIZE = 4
 private const val HOME_CATALOG_PREVIEW_FETCH_LIMIT = 18
+private const val DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT = 64
+private const val DESKTOP_HOME_CATALOG_PREVIEW_MAX_PAGES = 4
 private const val HOME_CATALOG_PUBLISH_INTERVAL = 2
 
 private fun prioritizeDefinitions(

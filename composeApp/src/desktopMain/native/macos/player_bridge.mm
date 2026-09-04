@@ -42,6 +42,8 @@
 #define NX_KEYTYPE_REWIND 20
 #endif
 
+static constexpr double kMaxVolumePercent = 200.0;
+
 @class PlayerMetalView;
 @class MpvWebPlayer;
 @class NuvioPlayerOpenGLLayer;
@@ -1427,6 +1429,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     setMpvOptionString(_mpv, "input-default-bindings", "yes");
     setMpvOptionString(_mpv, "input-vo-keyboard", "no");
     setMpvOptionString(_mpv, "keep-open", "yes");
+    setMpvOptionString(_mpv, "volume-max", "200");
     setMpvOptionString(_mpv, "vo", "libmpv");
     setMpvOptionString(_mpv, "ao", "avfoundation,coreaudio,");
     setMpvOptionString(_mpv, "audio-channels", "auto");
@@ -1517,6 +1520,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
             double duration = [self doubleProperty:"duration" fallback:0.0];
             double position = [self doubleProperty:"time-pos" fallback:0.0];
+            double volumeLevel = [self volume];
             double cacheAhead = [self cacheAheadSecondsForPosition:position];
             BOOL paused = [self rawIsPaused];
             BOOL ended = [self rawIsEnded];
@@ -1541,9 +1545,10 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                 }
                 [self applyHdrForPolledGamma:gamma primaries:primaries reason:@"sync" force:NO];
                 NSString *script = [NSString stringWithFormat:
-                    @"window.playerUpdate({duration:%0.3f,position:%0.3f,paused:%@,loading:%@,audioTracks:%@,subtitleTracks:%@})",
+                    @"window.playerUpdate({duration:%0.3f,position:%0.3f,volumeLevel:%0.3f,paused:%@,loading:%@,audioTracks:%@,subtitleTracks:%@})",
                     duration,
                     position,
+                    volumeLevel,
                     paused ? @"true" : @"false",
                     loading ? @"true" : @"false",
                     audioTracks,
@@ -1843,18 +1848,19 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 - (void)adjustVolume:(double)delta {
     if (!_mpv) return;
     double current = [self doubleProperty:"volume" fallback:100.0];
-    double next = fmax(0.0, fmin(100.0, current + delta));
+    double next = fmax(0.0, fmin(kMaxVolumePercent, current + delta));
     mpv_set_property(_mpv, "volume", MPV_FORMAT_DOUBLE, &next);
 }
 
 - (void)setVolume:(double)level {
     if (!_mpv) return;
-    double next = fmax(0.0, fmin(100.0, level * 100.0));
+    double next = fmax(0.0, fmin(kMaxVolumePercent, level * 100.0));
     mpv_set_property(_mpv, "volume", MPV_FORMAT_DOUBLE, &next);
 }
 
 - (double)volume {
-    return [self doubleProperty:"volume" fallback:100.0] / 100.0;
+    double level = [self doubleProperty:"volume" fallback:100.0];
+    return fmax(0.0, fmin(kMaxVolumePercent, level)) / 100.0;
 }
 
 - (void)setResizeMode:(int)mode {

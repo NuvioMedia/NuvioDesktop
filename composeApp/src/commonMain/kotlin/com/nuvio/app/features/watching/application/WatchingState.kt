@@ -12,6 +12,7 @@ import com.nuvio.app.features.watching.domain.WatchingCompletedEpisode
 import com.nuvio.app.features.watching.domain.WatchingContentRef
 import com.nuvio.app.features.watching.domain.WatchingProgressRecord
 import com.nuvio.app.features.watching.domain.WatchingWatchedRecord
+import com.nuvio.app.features.watching.domain.isSeriesLikeWatchingContentType
 import com.nuvio.app.features.watching.domain.latestCompletedSeriesEpisode
 
 object WatchingState {
@@ -22,7 +23,8 @@ object WatchingState {
     ): Boolean {
         val posterKeys = watchedItemKeys(type = item.type, id = item.id)
         if (posterKeys.any(watchedKeys::contains)) return true
-        return item.type.isSeriesLikePosterType() && posterKeys.any(fullyWatchedSeriesKeys::contains)
+        return item.type.isSeriesLikeWatchingContentType(includeAnime = true) &&
+            posterKeys.any(fullyWatchedSeriesKeys::contains)
     }
 
     fun isEpisodeWatched(
@@ -97,9 +99,6 @@ object WatchingState {
         latestCompletedBySeries: Map<WatchingContentRef, WatchingCompletedEpisode>,
     ): List<WatchProgressEntry> = progressEntries.continueWatchingEntries()
 }
-
-private fun String.isSeriesLikePosterType(): Boolean =
-    trim().lowercase() in setOf("series", "show", "tv", "tvshow", "anime")
 
 private fun WatchProgressEntry.toDomainProgressRecord(): WatchingProgressRecord =
     normalizedCompletion().let { entry ->

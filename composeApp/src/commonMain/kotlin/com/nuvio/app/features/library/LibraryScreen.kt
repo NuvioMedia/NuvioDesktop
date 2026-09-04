@@ -77,6 +77,10 @@ import com.nuvio.app.core.ui.NuvioViewAllPillSize
 import com.nuvio.app.core.ui.NuvioShelfSection
 import com.nuvio.app.core.ui.ScopedDisintegrationTracker
 import com.nuvio.app.core.ui.nuvioConsumePointerEvents
+import com.nuvio.app.core.ui.posterGridColumnCountForViewport
+import com.nuvio.app.features.home.components.posterGridColumnCountForWidth
+import com.nuvio.app.isDesktop
+import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.cloud.CloudLibraryFile
 import com.nuvio.app.features.cloud.CloudLibraryItem
 import com.nuvio.app.features.cloud.CloudLibraryItemType
@@ -86,7 +90,6 @@ import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.home.components.HomeEmptyStateCard
 import com.nuvio.app.features.home.components.HomePosterCard
 import com.nuvio.app.features.home.components.HomeSkeletonRow
-import com.nuvio.app.features.home.components.posterGridColumnCountForWidth
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.tracking.TrackingRefreshIntent
 import com.nuvio.app.features.watched.WatchedRepository
@@ -237,7 +240,14 @@ fun LibraryScreen(
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val gridColumns = remember(maxWidth) { posterGridColumnCountForWidth(maxWidth) }
+        val posterCardStyle = rememberPosterCardStyleUiState()
+        val gridColumns = remember(maxWidth, maxHeight, posterCardStyle.widthDp, isDesktop) {
+            if (isDesktop) {
+                posterGridColumnCountForViewport(maxWidth, maxHeight, posterCardStyle.widthDp)
+            } else {
+                posterGridColumnCountForWidth(maxWidth)
+            }
+        }
 
         NuvioScreen(
             modifier = Modifier.fillMaxSize(),
@@ -387,27 +397,19 @@ fun LibraryScreen(
 
                     uiState.sections.isEmpty() -> {
                         item {
-                            if (networkStatusUiState.isOfflineLike && isRemoteSource) {
-                                NuvioNetworkOfflineCard(
-                                    condition = networkStatusUiState.condition,
-                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                    onRetry = retryLibraryLoad,
-                                )
-                            } else {
-                                HomeEmptyStateCard(
-                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                    title = when (uiState.sourceMode) {
-                                        LibrarySourceMode.LOCAL -> stringResource(Res.string.library_empty_title)
-                                        LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_empty_title)
-                                        LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_empty_title)
-                                    },
-                                    message = when (uiState.sourceMode) {
-                                        LibrarySourceMode.LOCAL -> stringResource(Res.string.library_empty_message)
-                                        LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_empty_message)
-                                        LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_empty_message)
-                                    },
-                                )
-                            }
+                            HomeEmptyStateCard(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                title = when (uiState.sourceMode) {
+                                    LibrarySourceMode.LOCAL -> stringResource(Res.string.library_empty_title)
+                                    LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_empty_title)
+                                    LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_empty_title)
+                                },
+                                message = when (uiState.sourceMode) {
+                                    LibrarySourceMode.LOCAL -> stringResource(Res.string.library_empty_message)
+                                    LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_empty_message)
+                                    LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_empty_message)
+                                },
+                            )
                         }
                     }
 
@@ -515,6 +517,7 @@ private fun LazyListScope.cloudLibraryContent(
             // Local filter over the already-loaded library. Matches the item name or any of its
             // file names, since the useful identifier is often in the filename, not the title.
             val trimmedQuery = searchQuery.trim()
+            val hasActiveFilter = selectedProviderId != null || effectiveSelectedType != null || trimmedQuery.isNotEmpty()
             val filteredItems = if (trimmedQuery.isEmpty()) {
                 typeFilteredItems
             } else {
@@ -555,31 +558,46 @@ private fun LazyListScope.cloudLibraryContent(
                     )
                 }
 
-                uiState.providers
-                    .filter { providerState -> selectedProviderId == null || providerState.providerId == selectedProviderId }
-                    .filter { providerState -> !providerState.errorMessage.isNullOrBlank() && providerState.items.isEmpty() }
-                    .forEach { providerState ->
-                        item(key = "cloud-error-${providerState.providerId}") {
-                            HomeEmptyStateCard(
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                                title = stringResource(Res.string.cloud_library_load_failed, providerState.providerName),
-                                message = providerState.errorMessage.orEmpty(),
-                                actionLabel = stringResource(Res.string.action_retry),
-                                onActionClick = onRefresh,
-                            )
-                        }
+                val visibleProviderStates = uiState.providers.filter { providerState ->
+                    selectedProviderId == null || providerState.providerId == selectedProviderId
+                }
+                val failedProviderStates = visibleProviderStates.filter { providerState ->
+                    !providerState.errorMessage.isNullOrBlank() && providerState.items.isEmpty()
+                }
+                failedProviderStates.forEach { providerState ->
+                    item(key = "cloud-error-${providerState.providerId}") {
+                        HomeEmptyStateCard(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            title = stringResource(Res.string.cloud_library_load_failed, providerState.providerName),
+                            message = providerState.errorMessage.orEmpty(),
+                            actionLabel = stringResource(Res.string.action_retry),
+                            onActionClick = onRefresh,
+                        )
                     }
+                }
 
                 if (uiState.isRefreshing && filteredItems.isEmpty()) {
                     cloudLibrarySkeletonItems()
-                } else if (filteredItems.isEmpty()) {
+                } else if (filteredItems.isEmpty() && failedProviderStates.isEmpty()) {
                     item {
                         HomeEmptyStateCard(
                             modifier = Modifier.padding(horizontal = 16.dp),
-                            title = stringResource(Res.string.cloud_library_empty_title),
-                            message = stringResource(Res.string.cloud_library_empty_message),
-                            actionLabel = stringResource(Res.string.action_retry),
-                            onActionClick = onRefresh,
+                            title = stringResource(
+                                if (hasActiveFilter) {
+                                    Res.string.cloud_library_no_matches_title
+                                } else {
+                                    Res.string.cloud_library_empty_title
+                                },
+                            ),
+                            message = stringResource(
+                                if (hasActiveFilter) {
+                                    Res.string.cloud_library_no_matches_message
+                                } else {
+                                    Res.string.cloud_library_empty_message
+                                },
+                            ),
+                            actionLabel = if (hasActiveFilter) null else stringResource(Res.string.action_retry),
+                            onActionClick = if (hasActiveFilter) null else onRefresh,
                         )
                     }
                 } else {

@@ -8,6 +8,12 @@ import java.nio.ByteBuffer
  * Handles are opaque Long values (native pointer cast to jlong, 0 = null).
  */
 internal object LinuxNativeBridge {
+    const val FRAME_COPY_INVALID = -1
+    const val FRAME_COPY_DEST_TOO_SMALL = -2
+    const val FRAME_COPY_SIZE_CHANGED = -3
+    const val FRAME_COPY_NOT_READY = 0
+    const val FRAME_COPY_OK = 1
+
     init {
         NativeLibraryLoader.load("NativeVideoPlayer", LinuxNativeBridge::class.java)
     }
@@ -46,7 +52,14 @@ internal object LinuxNativeBridge {
     @JvmStatic external fun nGetPlaybackSpeed(handle: Long): Float
 
     // Frame access
-    @JvmStatic external fun nGetLatestFrameAddress(handle: Long): Long
+    @JvmStatic external fun nCopyLatestFrame(
+        handle: Long,
+        destination: ByteBuffer,
+        expectedWidth: Int,
+        expectedHeight: Int,
+        destinationStride: Int,
+        outInfo: IntArray,
+    ): Int
 
     @JvmStatic external fun nWrapPointer(
         address: Long,

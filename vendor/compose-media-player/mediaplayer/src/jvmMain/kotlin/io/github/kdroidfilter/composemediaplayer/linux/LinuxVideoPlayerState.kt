@@ -24,6 +24,7 @@ import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.ImageInfo
 import java.io.File
+import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
@@ -52,6 +53,10 @@ class LinuxVideoPlayerState : VideoPlayerState {
     private var skiaBitmapHeight: Int = 0
     private var skiaBitmapA: Bitmap? = null
     private var skiaBitmapB: Bitmap? = null
+    private var skiaBitmapABuffer: ByteBuffer? = null
+    private var skiaBitmapBBuffer: ByteBuffer? = null
+    private val frameCopyInfo = IntArray(3)
+    private val frameResourceGate = LinuxFrameResourceGate()
     private var nextSkiaBitmapA: Boolean = true
 
     // Surface display size (pixels) for output scaling
@@ -71,6 +76,8 @@ class LinuxVideoPlayerState : VideoPlayerState {
     private var lastFrameUpdateTime: Long = 0
     private var seekInProgress = false
     private var targetSeekTime: Double? = null
+    private val playbackCompletion = LinuxPlaybackCompletion()
+    private val playbackResumeCoordinator = LinuxPlaybackResumeCoordinator(playbackCompletion)
 
     // Frame rate from native layer
     private var captureFrameRate: Float = 0.0f
@@ -231,6 +238,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
         }
 
         ioScope.launch {
+            playbackResumeCoordinator.reset()
             withContext(Dispatchers.Main) {
                 isLoading = true
                 error = null
@@ -424,13 +432,14 @@ class LinuxVideoPlayerState : VideoPlayerState {
 
     private fun startFrameUpdates() {
         stopFrameUpdates()
+        val playbackGeneration = playbackCompletion.captureGeneration()
         frameUpdateJob =
             ioScope.launch {
                 while (isActive) {
                     ensureActive()
                     updateFrameAsync()
                     if (!userDragging) {
-                        updatePositionAsync()
+                        updatePositionAsync(playbackGeneration)
                     }
                     delay(updateInterval)
                 }
@@ -468,66 +477,111 @@ class LinuxVideoPlayerState : VideoPlayerState {
         bufferingCheckJob = null
     }
 
+    private fun allocateFrameTargets(
+        width: Int,
+        height: Int,
+    ): Boolean {
+        val imageInfo = ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.OPAQUE)
+        val newBitmapA = Bitmap().apply { allocPixels(imageInfo) }
+        val newBitmapB = Bitmap().apply { allocPixels(imageInfo) }
+        val pixmapA = newBitmapA.peekPixels()
+        val pixmapB = newBitmapB.peekPixels()
+        if (pixmapA == null || pixmapB == null || pixmapA.addr == 0L || pixmapB.addr == 0L) {
+            newBitmapA.close()
+            newBitmapB.close()
+            return false
+        }
+
+        val sizeA = checkedFrameBufferSize(width, height, pixmapA.rowBytes)
+        val sizeB = checkedFrameBufferSize(width, height, pixmapB.rowBytes)
+        if (sizeA == null || sizeB == null) {
+            newBitmapA.close()
+            newBitmapB.close()
+            return false
+        }
+
+        val newBufferA = LinuxNativeBridge.nWrapPointer(pixmapA.addr, sizeA)
+        val newBufferB = LinuxNativeBridge.nWrapPointer(pixmapB.addr, sizeB)
+        if (newBufferA == null || newBufferB == null) {
+            newBitmapA.close()
+            newBitmapB.close()
+            return false
+        }
+
+        skiaBitmapA?.close()
+        skiaBitmapB?.close()
+        skiaBitmapA = newBitmapA
+        skiaBitmapB = newBitmapB
+        skiaBitmapABuffer = newBufferA
+        skiaBitmapBBuffer = newBufferB
+        skiaBitmapWidth = width
+        skiaBitmapHeight = height
+        nextSkiaBitmapA = true
+        return true
+    }
+
     private suspend fun updateFrameAsync() {
         withContext(frameDispatcher) {
             try {
-                val ptr = playerPtr
-                if (ptr == 0L) return@withContext
+                val copied =
+                    frameResourceGate.withResources resources@{
+                        val ptr = playerPtr
+                        if (ptr == 0L) return@resources false
 
-                val width = LinuxNativeBridge.nGetFrameWidth(ptr)
-                val height = LinuxNativeBridge.nGetFrameHeight(ptr)
-                if (width <= 0 || height <= 0) return@withContext
+                        val width = LinuxNativeBridge.nGetFrameWidth(ptr)
+                        val height = LinuxNativeBridge.nGetFrameHeight(ptr)
+                        if (width <= 0 || height <= 0) return@resources false
 
-                val frameAddress = LinuxNativeBridge.nGetLatestFrameAddress(ptr)
-                if (frameAddress == 0L) return@withContext
+                        if (
+                            skiaBitmapA == null ||
+                            skiaBitmapWidth != width ||
+                            skiaBitmapHeight != height
+                        ) {
+                            if (!allocateFrameTargets(width, height)) return@resources false
+                        }
 
-                val pixelCount = width * height
-                val frameSizeBytes = pixelCount.toLong() * 4L
-                var framePublished = false
+                        val useBitmapA = nextSkiaBitmapA
+                        val targetBitmap = if (useBitmapA) skiaBitmapA else skiaBitmapB
+                        val destination = if (useBitmapA) skiaBitmapABuffer else skiaBitmapBBuffer
+                        if (targetBitmap == null || destination == null) return@resources false
+                        val pixmap = targetBitmap.peekPixels() ?: return@resources false
+                        val destinationSize =
+                            checkedFrameBufferSize(width, height, pixmap.rowBytes)
+                                ?: return@resources false
+                        if (destination.capacity().toLong() < destinationSize) return@resources false
 
-                withContext(Dispatchers.Default) {
-                    val srcBuf =
-                        LinuxNativeBridge.nWrapPointer(frameAddress, frameSizeBytes)
-                            ?: return@withContext
+                        val status =
+                            LinuxNativeBridge.nCopyLatestFrame(
+                                handle = ptr,
+                                destination = destination,
+                                expectedWidth = width,
+                                expectedHeight = height,
+                                destinationStride = pixmap.rowBytes,
+                                outInfo = frameCopyInfo,
+                            )
 
-                    // Allocate/reuse double-buffered bitmaps
-                    if (skiaBitmapA == null || skiaBitmapWidth != width || skiaBitmapHeight != height) {
-                        skiaBitmapA?.close()
-                        skiaBitmapB?.close()
+                        if (status != LinuxNativeBridge.FRAME_COPY_OK) {
+                            when (status) {
+                                LinuxNativeBridge.FRAME_COPY_SIZE_CHANGED ->
+                                    linuxLogger.d {
+                                        "Frame size changed during copy to ${frameCopyInfo[0]}x${frameCopyInfo[1]}"
+                                    }
 
-                        val imageInfo = ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.OPAQUE)
-                        skiaBitmapA = Bitmap().apply { allocPixels(imageInfo) }
-                        skiaBitmapB = Bitmap().apply { allocPixels(imageInfo) }
-                        skiaBitmapWidth = width
-                        skiaBitmapHeight = height
-                        nextSkiaBitmapA = true
+                                LinuxNativeBridge.FRAME_COPY_DEST_TOO_SMALL,
+                                LinuxNativeBridge.FRAME_COPY_INVALID,
+                                -> linuxLogger.e { "Native frame copy rejected layout (status=$status)" }
+                            }
+                            return@resources false
+                        }
+
+                        nextSkiaBitmapA = !useBitmapA
+                        _currentFrameState.value = targetBitmap.asComposeImageBitmap()
+                        lastFrameUpdateTime = System.currentTimeMillis()
+                        true
                     }
 
-                    val targetBitmap = if (nextSkiaBitmapA) skiaBitmapA!! else skiaBitmapB!!
-                    nextSkiaBitmapA = !nextSkiaBitmapA
-
-                    val pixmap = targetBitmap.peekPixels() ?: return@withContext
-                    val pixelsAddr = pixmap.addr
-                    if (pixelsAddr == 0L) return@withContext
-
-                    // Native-to-native copy: frame buffer -> Skia bitmap pixels
-                    srcBuf.rewind()
-                    val destRowBytes = pixmap.rowBytes
-                    val destSizeBytes = destRowBytes.toLong() * height.toLong()
-                    val destBuf =
-                        LinuxNativeBridge.nWrapPointer(pixelsAddr, destSizeBytes)
-                            ?: return@withContext
-                    copyBgraFrame(srcBuf, destBuf, width, height, destRowBytes)
-
-                    _currentFrameState.value = targetBitmap.asComposeImageBitmap()
-                    framePublished = true
-                }
-
-                if (framePublished) {
-                    lastFrameUpdateTime = System.currentTimeMillis()
-                    if (isLoading && !seekInProgress) {
-                        withContext(Dispatchers.Main) { isLoading = false }
-                    }
+                if (copied && isLoading && !seekInProgress) {
+                    withContext(Dispatchers.Main) { isLoading = false }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -536,7 +590,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
         }
     }
 
-    private suspend fun updatePositionAsync() {
+    private suspend fun updatePositionAsync(playbackGeneration: Long) {
         if (!hasMedia || userDragging) return
         try {
             val duration = getDurationSafely()
@@ -560,7 +614,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
                 withContext(Dispatchers.Main) { sliderPos = newSliderPos }
             }
 
-            checkLoopingAsync(current, duration)
+            checkLoopingAsync(current, duration, playbackGeneration)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             linuxLogger.e { "Error in updatePositionAsync: ${e.message}" }
@@ -570,17 +624,42 @@ class LinuxVideoPlayerState : VideoPlayerState {
     private suspend fun checkLoopingAsync(
         current: Double,
         duration: Double,
+        playbackGeneration: Long,
     ) {
-        val ptr = playerPtr
-        val ended = ptr != 0L && LinuxNativeBridge.nConsumeDidPlayToEnd(ptr)
-        if (!ended && (duration <= 0 || current < duration - 0.5)) return
-
+        // Preserve the existing looping path. Durable completion ownership is only
+        // needed for non-looping replay after the one-shot native EOS signal.
         if (loop) {
+            val ptr = playerPtr
+            val ended = ptr != 0L && LinuxNativeBridge.nConsumeDidPlayToEnd(ptr)
+            if (!ended && (duration <= 0 || current < duration - 0.5)) return
             seekToAsync(0f)
             onRestart?.invoke()
-        } else {
-            withContext(Dispatchers.Main) { isPlaying = false }
-            pauseInBackground()
+            return
+        }
+
+        val reachedEnd =
+            playbackResumeCoordinator.markEndedIfConsumed(playbackGeneration) {
+                val ptr = playerPtr
+                ptr != 0L && LinuxNativeBridge.nConsumeDidPlayToEnd(ptr)
+            }
+        if (!reachedEnd) return
+
+        val pausedCurrentPlayback =
+            playbackResumeCoordinator.runIfCurrent(playbackGeneration) {
+                val ptr = playerPtr
+                if (ptr != 0L) LinuxNativeBridge.nPause(ptr)
+            }
+        if (!pausedCurrentPlayback) return
+
+        withContext(Dispatchers.Main) {
+            if (playbackCompletion.isCurrent(playbackGeneration)) {
+                isPlaying = false
+                isLoading = false
+            }
+        }
+        playbackResumeCoordinator.runIfCurrent(playbackGeneration) {
+            stopFrameUpdates()
+            stopBufferingCheck()
             onPlaybackEnded?.invoke()
         }
     }
@@ -606,7 +685,10 @@ class LinuxVideoPlayerState : VideoPlayerState {
         val ptr = playerPtr
         if (ptr == 0L) return
         try {
-            LinuxNativeBridge.nPlay(ptr)
+            playbackResumeCoordinator.resume(
+                seekToStart = { LinuxNativeBridge.nSeekTo(ptr, 0.0) },
+                play = { LinuxNativeBridge.nPlay(ptr) },
+            )
             withContext(Dispatchers.Main) { isPlaying = true }
             startFrameUpdates()
             startBufferingCheck()
@@ -625,7 +707,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
         val ptr = playerPtr
         if (ptr == 0L) return
         try {
-            LinuxNativeBridge.nPause(ptr)
+            playbackResumeCoordinator.runCommand { LinuxNativeBridge.nPause(ptr) }
             withContext(Dispatchers.Main) {
                 isPlaying = false
                 isLoading = false
@@ -643,11 +725,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
         ioScope.launch {
             pauseInBackground()
             if (hasMedia) seekToAsync(0f)
-            withContext(Dispatchers.Main) {
-                hasMedia = false
-                isLoading = false
-                resetState()
-            }
+            resetState()
         }
     }
 
@@ -680,10 +758,15 @@ class LinuxVideoPlayerState : VideoPlayerState {
 
             val ptr = playerPtr
             if (ptr == 0L) return
-            LinuxNativeBridge.nSeekTo(ptr, seekTime.toDouble())
+            playbackResumeCoordinator.resetAndRun {
+                LinuxNativeBridge.nSeekTo(ptr, seekTime.toDouble())
+                if (isPlaying) {
+                    LinuxNativeBridge.nPlay(ptr)
+                }
+            }
 
             if (isPlaying) {
-                LinuxNativeBridge.nPlay(ptr)
+                startFrameUpdates()
                 delay(10)
                 updateFrameAsync()
                 ioScope.launch {
@@ -713,8 +796,11 @@ class LinuxVideoPlayerState : VideoPlayerState {
     }
 
     override fun clearError() {
+        // Main.immediate: when already on the main thread (Compose effects call
+        // this from it) run inline instead of dispatching onto the thread that
+        // runBlocking just parked - plain Dispatchers.Main deadlocks the EDT.
         runBlocking {
-            withContext(Dispatchers.Main) { error = null }
+            withContext(Dispatchers.Main.immediate) { error = null }
         }
     }
 
@@ -727,20 +813,29 @@ class LinuxVideoPlayerState : VideoPlayerState {
         stopBufferingCheck()
         uiUpdateJob?.cancel()
         playerScope.cancel()
+        ioScope.cancel()
 
-        // Clear the pointer atomically so no background task can use it
+        // Prevent new copies first, then wait for any copy already writing into a
+        // Skia allocation before detaching the resources that own those pixels.
         val ptrToDispose = playerPtrAtomic.getAndSet(0L)
-
-        // Native cleanup on a background thread to avoid blocking the UI.
-        Thread {
-            try {
-                skiaBitmapA?.close()
-                skiaBitmapB?.close()
+        val bitmapsToClose =
+            frameResourceGate.withResources {
+                val detached = skiaBitmapA to skiaBitmapB
+                skiaBitmapABuffer = null
+                skiaBitmapBBuffer = null
                 skiaBitmapA = null
                 skiaBitmapB = null
                 skiaBitmapWidth = 0
                 skiaBitmapHeight = 0
                 nextSkiaBitmapA = true
+                detached
+            }
+
+        // Native cleanup on a background thread to avoid blocking the UI.
+        Thread {
+            try {
+                bitmapsToClose.first?.close()
+                bitmapsToClose.second?.close()
             } catch (e: Exception) {
                 linuxLogger.e { "Error releasing bitmaps: ${e.message}" }
             }
@@ -754,8 +849,6 @@ class LinuxVideoPlayerState : VideoPlayerState {
                 }
             }
         }.start()
-
-        ioScope.cancel()
     }
 
     // --- Subtitle stubs ---
@@ -831,6 +924,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
     // --- Internal helpers ---
 
     private suspend fun resetState() {
+        playbackResumeCoordinator.reset()
         withContext(Dispatchers.Main) {
             hasMedia = false
             isPlaying = false

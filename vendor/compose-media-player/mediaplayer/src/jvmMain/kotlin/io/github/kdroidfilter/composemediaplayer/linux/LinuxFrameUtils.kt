@@ -2,6 +2,19 @@ package io.github.kdroidfilter.composemediaplayer.linux
 
 import java.nio.ByteBuffer
 
+internal fun checkedFrameBufferSize(
+    width: Int,
+    height: Int,
+    rowBytes: Int,
+): Long? {
+    if (width <= 0 || height <= 0 || rowBytes <= 0) return null
+    val minimumRowBytes = width.toLong() * 4L
+    if (minimumRowBytes > Int.MAX_VALUE || rowBytes.toLong() < minimumRowBytes) return null
+    val totalBytes = rowBytes.toLong() * height.toLong()
+    if (totalBytes > Int.MAX_VALUE) return null
+    return totalBytes
+}
+
 internal fun copyBgraFrame(
     src: ByteBuffer,
     dst: ByteBuffer,

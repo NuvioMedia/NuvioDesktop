@@ -40,6 +40,31 @@ target_compile_options(NativeVideoPlayer PRIVATE
     -fPIC
 )
 
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(frame_copy_test
+        tests/frame_copy_test.c
+        NativeVideoPlayer.c
+    )
+    target_compile_definitions(frame_copy_test PRIVATE NVP_TESTING)
+    target_include_directories(frame_copy_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${GST_INCLUDE_DIRS}
+    )
+    target_link_libraries(frame_copy_test PRIVATE
+        ${GST_LIBRARIES}
+        m
+        pthread
+    )
+    target_compile_options(frame_copy_test PRIVATE
+        ${GST_CFLAGS_OTHER}
+        -Wall -Wextra -Werror
+        -O2
+    )
+    add_test(NAME frame_copy_test COMMAND frame_copy_test)
+    set_tests_properties(frame_copy_test PROPERTIES TIMEOUT 30)
+endif()
+
 # Determine output directory based on architecture
 if(DEFINED ENV{NATIVE_LIBS_OUTPUT_DIR})
     set(BASE_OUTPUT_DIR "$ENV{NATIVE_LIBS_OUTPUT_DIR}")

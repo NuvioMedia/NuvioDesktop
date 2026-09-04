@@ -8,17 +8,19 @@ import com.nuvio.app.core.i18n.localizedByteUnit
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.addons.httpRequestRaw
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
@@ -114,55 +116,57 @@ private object VersionUtils {
 }
 
 private object AppUpdaterRepository {
-    suspend fun getLatestChannelUpdate(): Result<AppUpdate> = runCatching {
-        val source = AppUpdaterPlatform.releaseSource
-        val response = httpRequestRaw(
-            method = "GET",
-            url = "$gitHubApiBase/repos/${source.owner}/${source.repo}/releases?per_page=20",
-            headers = mapOf(
-                "Accept" to "application/vnd.github+json",
-                "User-Agent" to source.userAgent,
-            ),
-            body = "",
-        )
-        if (response.status !in 200..299) {
-            error(getString(Res.string.updates_github_api_error, response.status))
+    suspend fun getLatestChannelUpdate(): Result<AppUpdate> = withContext(Dispatchers.Default) {
+        runCatching {
+            val source = AppUpdaterPlatform.releaseSource
+            val response = httpRequestRaw(
+                method = "GET",
+                url = "$gitHubApiBase/repos/${source.owner}/${source.repo}/releases?per_page=20",
+                headers = mapOf(
+                    "Accept" to "application/vnd.github+json",
+                    "User-Agent" to source.userAgent,
+                ),
+                body = "",
+            )
+            if (response.status !in 200..299) {
+                error(getString(Res.string.updates_github_api_error, response.status))
+            }
+
+            val releases = appUpdaterJson.decodeFromString<List<GitHubReleaseDto>>(response.body)
+            val release = releases.firstOrNull { release ->
+                release.matchesRequestedChannel() &&
+                    !release.draft &&
+                    (source.includePrereleases || !release.prerelease)
+            }
+                ?: throw NoChannelReleaseException()
+
+            val tag = release.tagName?.takeIf { it.isNotBlank() }
+                ?: release.name?.takeIf { it.isNotBlank() }
+                ?: error(getString(Res.string.updates_release_missing_title))
+
+            val asset = selectBestUpdateAsset(
+                assets = release.assets.map { asset ->
+                    AppUpdateAssetCandidate(
+                        name = asset.name,
+                        downloadUrl = asset.browserDownloadUrl,
+                        size = asset.size,
+                        contentType = asset.contentType,
+                    )
+                },
+                selector = AppUpdaterPlatform.assetSelector,
+            )
+                ?: error(getString(Res.string.updates_update_asset_missing))
+
+            AppUpdate(
+                tag = tag,
+                title = release.name?.takeIf { it.isNotBlank() } ?: tag,
+                notes = release.body.orEmpty(),
+                releaseUrl = release.htmlUrl,
+                assetName = asset.name,
+                assetUrl = asset.downloadUrl,
+                assetSizeBytes = asset.size,
+            )
         }
-
-        val releases = appUpdaterJson.decodeFromString<List<GitHubReleaseDto>>(response.body)
-        val release = releases.firstOrNull { release ->
-            release.matchesRequestedChannel() &&
-                !release.draft &&
-                (source.includePrereleases || !release.prerelease)
-        }
-            ?: throw NoChannelReleaseException()
-
-        val tag = release.tagName?.takeIf { it.isNotBlank() }
-            ?: release.name?.takeIf { it.isNotBlank() }
-            ?: error(getString(Res.string.updates_release_missing_title))
-
-        val asset = selectBestUpdateAsset(
-            assets = release.assets.map { asset ->
-                AppUpdateAssetCandidate(
-                    name = asset.name,
-                    downloadUrl = asset.browserDownloadUrl,
-                    size = asset.size,
-                    contentType = asset.contentType,
-                )
-            },
-            selector = AppUpdaterPlatform.assetSelector,
-        )
-            ?: error(getString(Res.string.updates_update_asset_missing))
-
-        AppUpdate(
-            tag = tag,
-            title = release.name?.takeIf { it.isNotBlank() } ?: tag,
-            notes = release.body.orEmpty(),
-            releaseUrl = release.htmlUrl,
-            assetName = asset.name,
-            assetUrl = asset.downloadUrl,
-            assetSizeBytes = asset.size,
-        )
     }
 
     private fun GitHubReleaseDto.matchesRequestedChannel(): Boolean {
@@ -248,7 +252,9 @@ class AppUpdaterController internal constructor(
                 )
             }
 
-            val ignoredTag = AppUpdaterPlatform.getIgnoredTag()
+            val ignoredTag = withContext(Dispatchers.Default) {
+                AppUpdaterPlatform.getIgnoredTag()
+            }
             val result = AppUpdaterRepository.getLatestChannelUpdate()
 
             result.onSuccess { update ->

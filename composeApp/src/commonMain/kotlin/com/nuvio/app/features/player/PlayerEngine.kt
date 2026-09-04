@@ -7,6 +7,10 @@ interface PlayerEngineController {
     fun play()
     fun pause()
     fun seekTo(positionMs: Long)
+    fun trySeekTo(positionMs: Long): Boolean {
+        seekTo(positionMs)
+        return true
+    }
     fun seekBy(offsetMs: Long)
     fun retry()
     fun setPlaybackSpeed(speed: Float)
@@ -19,10 +23,26 @@ interface PlayerEngineController {
     fun clearExternalSubtitle()
     fun clearExternalSubtitleAndSelect(trackIndex: Int)
     fun applySubtitleStyle(style: SubtitleStyleState, useLibass: Boolean = false) {}
+    fun applySubtitlePreferences(
+        preferredLanguage: String,
+        secondaryPreferredLanguage: String? = null,
+        useForcedSubtitles: Boolean,
+        autoSelectionApplied: Boolean,
+        hasActiveSubtitle: Boolean,
+        useCustomSubtitles: Boolean = false,
+    ) {}
     fun setSubtitleDelayMs(delayMs: Int) {}
     fun configureIosVideoOutput(settings: PlayerSettingsUiState) {}
     fun updateNowPlayingMetadata(info: PlayerNowPlayingInfo) {}
     fun clearNowPlayingInfo() {}
+
+    /** Optional barrier for platforms that must release native resources before their route is removed. */
+    fun releaseBeforeNavigation(
+        onReleased: () -> Unit,
+        onReleaseFailed: (String) -> Unit = {},
+    ) {
+        onReleased()
+    }
 }
 
 enum class PlayerControlsAction {
@@ -104,6 +124,7 @@ data class PlayerControlsState(
     val p2pConsentBody: String = "",
     val p2pConsentEnableLabel: String = "Enable P2P",
     val p2pConsentCancelLabel: String = "Cancel",
+    val speedPanelTitle: String = "Playback Speed",
     val audioTracksPanelTitle: String = "Audio Tracks",
     val noAudioTracksLabel: String = "No audio tracks available",
     val subtitlesPanelTitle: String = "Subtitles",
@@ -219,6 +240,10 @@ data class PlayerControlsState(
     val subtitleAutoSyncIsLoading: Boolean = false,
     val subtitleAutoSyncErrorMessage: String = "",
     val closeModalsToken: Long = 0L,
+    val submitIntroContentKey: String = "",
+    val submitIntroSuccessToken: Long = 0L,
+    val notificationMessage: String = "",
+    val notificationToken: Long = 0L,
 )
 
 data class PlayerControlFilterItem(
@@ -360,4 +385,5 @@ expect fun PlatformPlayerSurface(
     onControllerReady: (PlayerEngineController) -> Unit,
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
+    sourceAvailable: Boolean = true,
 )

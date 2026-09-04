@@ -14,6 +14,13 @@ static inline VideoPlayer* toCtx(jlong h) {
     return (VideoPlayer*)(uintptr_t)(uint64_t)h;
 }
 
+static void throwIllegalArgument(JNIEnv* env, const char* message) {
+    jclass type = (*env)->FindClass(env, "java/lang/IllegalArgumentException");
+    if (type) {
+        (*env)->ThrowNew(env, type, message);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // JNI implementations
 // ---------------------------------------------------------------------------
@@ -47,10 +54,76 @@ static jfloat JNICALL jni_GetVolume(JNIEnv* env, jclass cls, jlong handle) {
     return handle ? nvp_get_volume(toCtx(handle)) : 0.0f;
 }
 
-static jlong JNICALL jni_GetLatestFrameAddress(JNIEnv* env, jclass cls, jlong handle) {
-    if (!handle) return 0L;
-    void* ptr = nvp_get_latest_frame_address(toCtx(handle));
-    return ptr ? (jlong)(uintptr_t)ptr : 0L;
+static jint JNICALL jni_CopyLatestFrame(
+    JNIEnv* env,
+    jclass cls,
+    jlong handle,
+    jobject destination,
+    jint expected_width,
+    jint expected_height,
+    jint destination_stride,
+    jintArray out_info
+) {
+    (void)cls;
+    if (!handle) {
+        throwIllegalArgument(env, "handle must be non-zero");
+        return NVP_FRAME_COPY_INVALID;
+    }
+    if (!destination) {
+        throwIllegalArgument(env, "destination must not be null");
+        return NVP_FRAME_COPY_INVALID;
+    }
+    if (!out_info || (*env)->GetArrayLength(env, out_info) < 3) {
+        throwIllegalArgument(env, "outInfo must contain at least three integers");
+        return NVP_FRAME_COPY_INVALID;
+    }
+    if (expected_width <= 0 || expected_height <= 0 || destination_stride <= 0) {
+        throwIllegalArgument(env, "frame dimensions and stride must be positive");
+        return NVP_FRAME_COPY_INVALID;
+    }
+
+    jclass destination_class = (*env)->GetObjectClass(env, destination);
+    if (!destination_class) return NVP_FRAME_COPY_INVALID;
+    jmethodID is_read_only_method =
+        (*env)->GetMethodID(env, destination_class, "isReadOnly", "()Z");
+    if (!is_read_only_method) {
+        (*env)->DeleteLocalRef(env, destination_class);
+        return NVP_FRAME_COPY_INVALID;
+    }
+    const jboolean is_read_only =
+        (*env)->CallBooleanMethod(env, destination, is_read_only_method);
+    (*env)->DeleteLocalRef(env, destination_class);
+    if ((*env)->ExceptionCheck(env)) return NVP_FRAME_COPY_INVALID;
+    if (is_read_only == JNI_TRUE) {
+        throwIllegalArgument(env, "destination must be writable");
+        return NVP_FRAME_COPY_INVALID;
+    }
+
+    void* address = (*env)->GetDirectBufferAddress(env, destination);
+    const jlong capacity = (*env)->GetDirectBufferCapacity(env, destination);
+    if (!address || capacity < 0 || (uint64_t)capacity > (uint64_t)SIZE_MAX) {
+        throwIllegalArgument(env, "destination must be a direct ByteBuffer");
+        return NVP_FRAME_COPY_INVALID;
+    }
+
+    NvpFrameInfo info = {0};
+    const int32_t status = nvp_copy_latest_frame(
+        toCtx(handle),
+        address,
+        (size_t)capacity,
+        (int32_t)expected_width,
+        (int32_t)expected_height,
+        (int32_t)destination_stride,
+        &info
+    );
+    const jint metadata[3] = {
+        (jint)info.width,
+        (jint)info.height,
+        (jint)info.source_stride,
+    };
+    (*env)->SetIntArrayRegion(env, out_info, 0, 3, metadata);
+    if ((*env)->ExceptionCheck(env)) return NVP_FRAME_COPY_INVALID;
+    return (jint)status;
 }
 
 static jobject JNICALL jni_WrapPointer(JNIEnv* env, jclass cls, jlong address, jlong size) {
@@ -143,7 +216,7 @@ static const JNINativeMethod g_methods[] = {
     { "nPause",                  "(J)V",                        (void*)jni_Pause },
     { "nSetVolume",              "(JF)V",                       (void*)jni_SetVolume },
     { "nGetVolume",              "(J)F",                        (void*)jni_GetVolume },
-    { "nGetLatestFrameAddress",  "(J)J",                        (void*)jni_GetLatestFrameAddress },
+    { "nCopyLatestFrame",         "(JLjava/nio/ByteBuffer;III[I)I", (void*)jni_CopyLatestFrame },
     { "nWrapPointer",            "(JJ)Ljava/nio/ByteBuffer;",   (void*)jni_WrapPointer },
     { "nGetFrameWidth",          "(J)I",                        (void*)jni_GetFrameWidth },
     { "nGetFrameHeight",         "(J)I",                        (void*)jni_GetFrameHeight },

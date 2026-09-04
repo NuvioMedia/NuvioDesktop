@@ -92,7 +92,6 @@ fun ProfileEditScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showPinSetup by remember { mutableStateOf(false) }
     var showPinClear by remember { mutableStateOf(false) }
-    val authState by AuthRepository.state.collectAsStateWithLifecycle()
     val memberAccess by remember {
         MemberAccessRepository.ensureStarted()
         MemberAccessRepository.access
@@ -102,7 +101,6 @@ fun ProfileEditScreen(
 
     val avatars by AvatarRepository.avatars.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) {
-        AvatarRepository.fetchAvatars()
         AvatarRepository.refreshAvatars()
     }
     LaunchedEffect(canChooseBackground) {
@@ -390,11 +388,6 @@ fun ProfileEditScreen(
             hasExistingPin = currentProfile.pinEnabled,
             onDone = {
                 showPinSetup = false
-                scope.launch {
-                    if (authState is AuthState.Authenticated) {
-                        ProfileRepository.pullProfiles()
-                    }
-                }
             },
             onDismiss = { showPinSetup = false },
         )

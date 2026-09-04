@@ -13,6 +13,7 @@ import com.nuvio.app.features.tracking.TrackingSettingsRepository
 import com.nuvio.app.features.tracking.WatchProgressSource
 import com.nuvio.app.features.tracking.effectiveWatchProgressSource
 import com.nuvio.app.features.tracking.providerId
+import com.nuvio.app.features.watching.domain.isSeriesLikeWatchingContentType
 import com.nuvio.app.features.watching.sync.SupabaseWatchedSyncAdapter
 import com.nuvio.app.features.watching.sync.WatchedDeltaEvent
 import com.nuvio.app.features.watching.sync.WatchedSyncAdapter
@@ -696,7 +697,7 @@ object WatchedRepository {
 
     private fun watchedDeleteTypesCompatible(remoteType: String, localType: String): Boolean {
         if (remoteType.equals(localType, ignoreCase = true)) return true
-        return remoteType.isSeriesLikeWatchedType() && localType.isSeriesLikeWatchedType()
+        return remoteType.isSeriesLikeWatchingContentType() && localType.isSeriesLikeWatchingContentType()
     }
 
     private fun itemsForSourceSnapshot(source: WatchProgressSource): List<WatchedItem> =
@@ -905,7 +906,7 @@ object WatchedRepository {
         todayIsoDate: String,
         isEpisodeCompleted: (com.nuvio.app.features.details.MetaVideo) -> Boolean = { false },
     ) {
-        if (!meta.type.isSeriesLikeWatchedType()) return
+        if (!meta.type.isSeriesLikeWatchingContentType()) return
 
         ensureLoaded()
         val shouldMarkSeriesWatched = reconcileFullyWatchedSeriesState(
@@ -948,7 +949,7 @@ object WatchedRepository {
         },
         isEpisodeCompleted: (MetaVideo) -> Boolean = { false },
     ): Boolean {
-        if (!meta.type.isSeriesLikeWatchedType()) return false
+        if (!meta.type.isSeriesLikeWatchingContentType()) return false
 
         val shouldMarkSeriesWatched = calculateFullyWatchedSeriesState(
             meta = meta,
@@ -968,7 +969,7 @@ object WatchedRepository {
         isEpisodeWatched: (MetaVideo) -> Boolean,
         isEpisodeCompleted: (MetaVideo) -> Boolean,
     ): Boolean {
-        if (!meta.type.isSeriesLikeWatchedType()) return false
+        if (!meta.type.isSeriesLikeWatchingContentType()) return false
 
         ensureLoaded()
         return meta.hasWatchedAllMainSeasonEpisodes(todayIsoDate) { episode ->
@@ -981,7 +982,7 @@ object WatchedRepository {
         type: String,
         isFullyWatched: Boolean,
     ) {
-        if (!type.isSeriesLikeWatchedType()) return
+        if (!type.isSeriesLikeWatchingContentType()) return
         ensureLoaded()
         updateFullyWatchedSeriesKey(
             key = watchedItemKey(type, id),
@@ -1397,6 +1398,3 @@ internal fun effectiveWatchedSource(
     requestedSource = requestedSource,
     isProviderAuthenticated = { providerId -> providerId in connectedProviderIds },
 )
-
-private fun String.isSeriesLikeWatchedType(): Boolean =
-    trim().lowercase() in setOf("series", "show", "tv", "tvshow")

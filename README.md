@@ -36,7 +36,7 @@ Release packages are provided for supported desktop platforms:
 
 - Windows: MSI installer
 - macOS: DMG installer
-- Linux: DEB package, when available
+- Linux: DEB, RPM, FLATPAK and AppImage available.
 
 ## Development
 

@@ -1,11 +1,13 @@
 package com.nuvio.app.features.streams
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,11 +28,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
@@ -41,8 +45,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.nuvio.app.core.ui.DesktopBackdropVerticalBias
+import com.nuvio.app.core.ui.StandardDesktopViewportAspectRatio
+import com.nuvio.app.core.ui.StreamResultsWideArtworkAspectRatio
+import com.nuvio.app.core.ui.expandingWideArtworkWidthDp
+import com.nuvio.app.core.ui.dominantBackdropBlendColor
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.kmpalette.extensions.painter.rememberPainterDominantColorState
 import com.nuvio.app.isIos
+import com.nuvio.app.isDesktop
 import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -66,8 +77,240 @@ internal fun TabletStreamsLayout(
     appendInstantServiceToDefaultName: Boolean,
     resumePositionMs: Long?,
     resumeProgressFraction: Float?,
+    dominantColorEnabled: Boolean,
     onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
     onStreamLongPress: (StreamItem) -> Unit,
+    onStreamSecondaryClick: (StreamItem, Offset) -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (!isDesktop) {
+        LegacyTabletStreamsLayout(
+            isEpisode = isEpisode,
+            title = title,
+            logo = logo,
+            poster = poster,
+            background = background,
+            episodeThumbnail = episodeThumbnail,
+            seasonNumber = seasonNumber,
+            episodeNumber = episodeNumber,
+            episodeTitle = episodeTitle,
+            uiState = uiState,
+            debridEnabled = debridEnabled,
+            appendInstantServiceToDefaultName = appendInstantServiceToDefaultName,
+            resumePositionMs = resumePositionMs,
+            resumeProgressFraction = resumeProgressFraction,
+            onStreamSelected = onStreamSelected,
+            onStreamLongPress = onStreamLongPress,
+            onStreamSecondaryClick = onStreamSecondaryClick,
+            onRefresh = onRefresh,
+            modifier = modifier,
+        )
+        return
+    }
+
+    val hazeState = rememberHazeState()
+    val opacity = com.nuvio.app.core.ui.NuvioTokens.Opacity
+    val tabletBackdrop = remember(background, poster) {
+        background ?: poster
+    }
+    val colorScheme = MaterialTheme.colorScheme
+    var dominantBackdropPainter by remember(tabletBackdrop) { mutableStateOf<Painter?>(null) }
+    val dominantColorState = rememberPainterDominantColorState(
+        defaultColor = colorScheme.background,
+        defaultOnColor = colorScheme.onBackground,
+    )
+    LaunchedEffect(dominantColorEnabled, dominantBackdropPainter) {
+        dominantBackdropPainter?.takeIf { dominantColorEnabled }?.let { painter ->
+            runCatching { dominantColorState.updateFrom(painter) }
+        }
+    }
+    val wideFadeColor by animateColorAsState(
+        targetValue = if (dominantColorEnabled) {
+            dominantBackdropBlendColor(dominantColorState.color, colorScheme.background)
+        } else {
+            colorScheme.background
+        },
+        animationSpec = tween(durationMillis = 320),
+        label = "stream_dominant_backdrop_color",
+    )
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val aspectRatio = maxWidth.value / maxHeight.value
+        val isWideLayout = aspectRatio >= 2f
+        val useWideArtworkFrame = aspectRatio > StandardDesktopViewportAspectRatio
+        val cropWideArtwork = aspectRatio > StreamResultsWideArtworkAspectRatio
+        val baseArtworkWidth = (maxHeight.value * StandardDesktopViewportAspectRatio).dp.coerceAtMost(maxWidth)
+        val artworkWidth = expandingWideArtworkWidthDp(
+            maxWidth.value,
+            maxHeight.value,
+            StreamResultsWideArtworkAspectRatio,
+        ).dp
+        val resultsWidth = (baseArtworkWidth * 0.6f).coerceAtMost(maxWidth)
+        val artworkModifier = if (useWideArtworkFrame) {
+            Modifier
+                .align(Alignment.CenterStart)
+                .width(artworkWidth)
+                .fillMaxHeight()
+        } else {
+            Modifier.fillMaxSize()
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (useWideArtworkFrame) wideFadeColor else colorScheme.background)
+                .hazeSource(state = hazeState),
+        ) {
+            if (tabletBackdrop != null) {
+                AsyncImage(
+                    model = tabletBackdrop,
+                    contentDescription = null,
+                    modifier = artworkModifier,
+                    alignment = BiasAlignment(0f, DesktopBackdropVerticalBias),
+                    contentScale = if (useWideArtworkFrame && !cropWideArtwork) ContentScale.Fit else ContentScale.Crop,
+                    onSuccess = { state -> dominantBackdropPainter = state.painter },
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                )
+            }
+
+            Box(
+                modifier = (if (useWideArtworkFrame) artworkModifier else Modifier.fillMaxSize())
+                    .background(
+                        if (useWideArtworkFrame) {
+                            Brush.horizontalGradient(
+                                colorStops = arrayOf(
+                                    0.00f to Color.Transparent,
+                                    0.14f to wideFadeColor.copy(alpha = opacity.subtle),
+                                    0.38f to wideFadeColor.copy(alpha = opacity.overlayLight),
+                                    0.66f to wideFadeColor.copy(alpha = opacity.overlayHeavy),
+                                    0.88f to wideFadeColor.copy(alpha = 0.98f),
+                                    1.00f to wideFadeColor,
+                                ),
+                            )
+                        } else {
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.2f),
+                                    Color.Black.copy(alpha = 0.4f),
+                                    Color.Black.copy(alpha = 0.6f),
+                                ),
+                            )
+                        },
+                    ),
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .width(if (isWideLayout) artworkWidth else maxWidth * 0.4f)
+                .fillMaxHeight()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isEpisode && seasonNumber != null && episodeNumber != null) {
+                TabletEpisodeInfoPanel(
+                    logo = logo,
+                    seasonNumber = seasonNumber,
+                    episodeNumber = episodeNumber,
+                    episodeTitle = episodeTitle,
+                    showTitle = title,
+                )
+            } else {
+                TabletMovieInfoPanel(
+                    title = title,
+                    logo = logo,
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .width(if (isWideLayout) resultsWidth else maxWidth * 0.6f)
+                .fillMaxHeight()
+                .padding(
+                    top = if (isIos) 20.dp else 60.dp,
+                    end = 12.dp,
+                    bottom = 12.dp,
+                ),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(24.dp))
+                    .hazeEffect(state = hazeState) {
+                        inputScale = HazeInputScale.Fixed(0.66f)
+                        blurRadius = 56.dp
+                    }
+                    .background(Color.Black.copy(alpha = 0.36f)),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                ) {
+                    if ((resumePositionMs != null && resumePositionMs > 0L) || (resumeProgressFraction != null && resumeProgressFraction > 0f)) {
+                        ResumeBanner(
+                            positionMs = resumePositionMs,
+                            progressFraction = resumeProgressFraction,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
+
+                    ProviderFilterRow(
+                        groups = uiState.groups,
+                        selectedFilter = uiState.selectedFilter,
+                        onFilterSelected = { addonId -> StreamsRepository.selectFilter(addonId) },
+                        onRefresh = onRefresh,
+                    )
+
+                    ActiveScrapersStatusBlock(
+                        groups = uiState.groups,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+
+                    StreamList(
+                        uiState = uiState,
+                        debridEnabled = debridEnabled,
+                        appendInstantServiceToDefaultName = appendInstantServiceToDefaultName,
+                        onStreamSelected = onStreamSelected,
+                        onStreamLongPress = onStreamLongPress,
+                        onStreamSecondaryClick = onStreamSecondaryClick,
+                        resumePositionMs = resumePositionMs,
+                        resumeProgressFraction = resumeProgressFraction,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegacyTabletStreamsLayout(
+    isEpisode: Boolean,
+    title: String,
+    logo: String?,
+    poster: String?,
+    background: String?,
+    episodeThumbnail: String?,
+    seasonNumber: Int?,
+    episodeNumber: Int?,
+    episodeTitle: String?,
+    uiState: StreamsUiState,
+    debridEnabled: Boolean,
+    appendInstantServiceToDefaultName: Boolean,
+    resumePositionMs: Long?,
+    resumeProgressFraction: Float?,
+    onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
+    onStreamLongPress: (StreamItem) -> Unit,
+    onStreamSecondaryClick: (StreamItem, Offset) -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -212,6 +455,7 @@ internal fun TabletStreamsLayout(
                             appendInstantServiceToDefaultName = appendInstantServiceToDefaultName,
                             onStreamSelected = onStreamSelected,
                             onStreamLongPress = onStreamLongPress,
+                            onStreamSecondaryClick = onStreamSecondaryClick,
                             resumePositionMs = resumePositionMs,
                             resumeProgressFraction = resumeProgressFraction,
                             modifier = Modifier.weight(1f),

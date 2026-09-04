@@ -15,6 +15,7 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 cmake "$SCRIPT_DIR" -DCMAKE_BUILD_TYPE=Release
 cmake --build . --parallel
+ctest --output-on-failure --no-tests=error
 
 echo "=== Build completed ==="
 

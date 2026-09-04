@@ -5,6 +5,7 @@ import java.io.File
 
 internal actual object MemberAssetStorage {
     private const val accessPayloadKey = "access_payload"
+    private const val backgroundCatalogPayloadKey = "profile_background_catalog_payload"
 
     private val store = DesktopStorage.store("nuvio_member_access")
     private val backgroundDirectory: File by lazy {
@@ -18,6 +19,12 @@ internal actual object MemberAssetStorage {
 
     actual fun saveAccessPayload(payload: String) {
         store.putString(accessPayloadKey, payload)
+    }
+
+    actual fun loadProfileBackgroundCatalogPayload(): String? = store.getString(backgroundCatalogPayloadKey)
+
+    actual fun saveProfileBackgroundCatalogPayload(payload: String) {
+        store.putString(backgroundCatalogPayloadKey, payload)
     }
 
     actual fun loadProfileBackground(cacheKey: String): ByteArray? =

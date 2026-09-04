@@ -47,8 +47,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.isDesktop
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
+import com.nuvio.app.core.ui.desktopPageHorizontalPaddingForWidth
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import com.nuvio.app.core.ui.landscapePosterHeightForWidth
@@ -130,18 +133,36 @@ fun TmdbEntityBrowseScreen(
         }
 
         if (!LocalUseNativeNavigation.current) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(start = 4.dp, top = 4.dp)
-                    .align(Alignment.TopStart),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = stringResource(Res.string.action_back),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
+            if (isDesktop) {
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    NuvioBackButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .padding(
+                                start = desktopPageHorizontalPaddingForWidth(maxWidth.value),
+                                top = 32.dp,
+                            )
+                            .align(Alignment.TopStart),
+                        containerColor = Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        buttonSize = 48.dp,
+                        iconSize = 24.dp,
+                    )
+                }
+            } else {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .padding(start = 4.dp, top = 4.dp)
+                        .align(Alignment.TopStart),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(Res.string.action_back),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
         }
     }
@@ -344,7 +365,12 @@ private fun EntityIdentitySidebar(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(start = 40.dp, end = 36.dp, top = 40.dp, bottom = 42.dp),
+                .padding(
+                    start = 40.dp,
+                    end = 36.dp,
+                    top = if (isDesktop) 72.dp else 40.dp,
+                    bottom = 42.dp,
+                ),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             Text(

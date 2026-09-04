@@ -181,7 +181,6 @@ fun DetailFloatingHeader(
         }
     }
 }
-
 @Composable
 private fun DetailFloatingHeaderAction(
     isSaved: Boolean,

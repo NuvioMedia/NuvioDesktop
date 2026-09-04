@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -46,16 +47,21 @@ import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.nuvioConsumePointerEvents
+import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.features.addons.AddonRepository
-import com.nuvio.app.features.addons.enabledAddons
+import com.nuvio.app.features.addons.firstEnabledManifestError
+import com.nuvio.app.features.addons.hasPendingEnabledManifests
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.features.home.buildAddonCatalogRefreshSignature
 import com.nuvio.app.features.home.components.HomeCatalogRowSection
 import com.nuvio.app.features.home.components.HomeEmptyStateCard
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
 import com.nuvio.app.features.home.components.HomeSkeletonRow
+import com.nuvio.app.core.ui.posterGridColumnCountForCatalogWidth
 import com.nuvio.app.features.home.components.posterGridColumnCountForWidth
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.watched.WatchedRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -64,6 +70,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.action_retry
 import nuvio.composeapp.generated.resources.compose_nav_search
 import nuvio.composeapp.generated.resources.compose_search_clear
 import nuvio.composeapp.generated.resources.compose_search_discover_title
@@ -84,6 +91,7 @@ import org.jetbrains.compose.resources.stringResource
 fun SearchScreen(
     modifier: Modifier = Modifier,
     topChromePadding: Dp? = null,
+    listState: LazyListState = rememberLazyListState(),
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
     searchFocusRequestCount: Int = 0,
@@ -117,7 +125,6 @@ fun SearchScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var lastRequestedQuery by rememberSaveable { mutableStateOf<String?>(null) }
     var observedOfflineState by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
     val discoverInFocus by remember(query, listState) {
         derivedStateOf {
             query.isBlank() && listState.firstVisibleItemIndex > 0
@@ -131,26 +138,9 @@ fun SearchScreen(
     }
 
     val addonRefreshKey = remember(addonsUiState.addons) {
-        addonsUiState.addons.enabledAddons().mapNotNull { addon ->
-            val manifest = addon.manifest ?: return@mapNotNull null
-            buildString {
-                append(manifest.transportUrl)
-                append(':')
-                append(manifest.catalogs.joinToString(separator = ",") { catalog ->
-                    val extra = catalog.extra.joinToString(separator = "&") { property ->
-                        buildString {
-                            append(property.name)
-                            append(':')
-                            append(property.isRequired)
-                            append(':')
-                            append(property.options.joinToString(separator = "|"))
-                        }
-                    }
-                    "${catalog.type}:${catalog.id}:$extra"
-                })
-            }
-        }
+        buildAddonCatalogRefreshSignature(addonsUiState.addons)
     }
+    val addonManifestsLoading = addonsUiState.addons.hasPendingEnabledManifests()
 
     LaunchedEffect(addonRefreshKey, homeCatalogSettingsUiState.hideUnreleasedContent) {
         SearchRepository.refreshDiscover(addonsUiState.addons)
@@ -230,8 +220,16 @@ fun SearchScreen(
     BoxWithConstraints(
         modifier = modifier.fillMaxSize(),
     ) {
-        val discoverColumns = remember(maxWidth) {
-            posterGridColumnCountForWidth(maxWidth)
+        val posterCardStyle = rememberPosterCardStyleUiState()
+        val discoverColumns = remember(maxWidth, maxHeight, posterCardStyle.widthDp, isDesktop) {
+            if (isDesktop) {
+                posterGridColumnCountForCatalogWidth(
+                    screenWidth = maxWidth,
+                    basePosterWidthDp = posterCardStyle.widthDp,
+                )
+            } else {
+                posterGridColumnCountForWidth(maxWidth)
+            }
         }
         val homeSectionPadding = remember(maxWidth) {
             homeSectionHorizontalPaddingForWidth(maxWidth.value)
@@ -303,6 +301,7 @@ fun SearchScreen(
             }
                 discoverContent(
                     state = discoverUiState,
+                    isSourceLoading = addonManifestsLoading,
                     columns = discoverColumns,
                     networkCondition = networkStatusUiState.condition,
                     onTypeSelected = SearchRepository::selectDiscoverType,
@@ -310,10 +309,14 @@ fun SearchScreen(
                     onGenreSelected = SearchRepository::selectDiscoverGenre,
                     onRetry = {
                         NetworkStatusRepository.requestRefresh(force = true)
-                        SearchRepository.refreshDiscover(
-                            addons = addonsUiState.addons,
-                            forceRefresh = true,
-                        )
+                        if (addonsUiState.addons.firstEnabledManifestError() != null) {
+                            AddonRepository.refreshAll()
+                        } else {
+                            SearchRepository.refreshDiscover(
+                                addons = addonsUiState.addons,
+                                forceRefresh = true,
+                            )
+                        }
                     },
                     watchedKeys = watchedUiState.watchedKeys,
                     fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
@@ -332,7 +335,7 @@ fun SearchScreen(
                         }
                     }
 
-                    uiState.isLoading && uiState.sections.isEmpty() -> {
+                    (uiState.isLoading || addonManifestsLoading) && uiState.sections.isEmpty() -> {
                         items(2) {
                             HomeSkeletonRow(
                                 modifier = Modifier.padding(horizontal = homeSectionPadding),
@@ -349,11 +352,15 @@ fun SearchScreen(
                                 onRetry = {
                                     if (normalizedQuery.isNotBlank()) {
                                         NetworkStatusRepository.requestRefresh(force = true)
-                                        SearchRepository.search(
-                                            query = normalizedQuery,
-                                            addons = addonsUiState.addons,
-                                            forceRefresh = true,
-                                        )
+                                        if (addonsUiState.addons.firstEnabledManifestError() != null) {
+                                            AddonRepository.refreshAll()
+                                        } else {
+                                            SearchRepository.search(
+                                                query = normalizedQuery,
+                                                addons = addonsUiState.addons,
+                                                forceRefresh = true,
+                                            )
+                                        }
                                     }
                                 },
                                 modifier = Modifier.padding(horizontal = homeSectionPadding),
@@ -398,7 +405,10 @@ private fun SearchEmptyStateCard(
     onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    if (networkCondition == NetworkCondition.NoInternet || networkCondition == NetworkCondition.ServersUnreachable) {
+    if (
+        reason == SearchEmptyStateReason.RequestFailed &&
+        (networkCondition == NetworkCondition.NoInternet || networkCondition == NetworkCondition.ServersUnreachable)
+    ) {
         NuvioNetworkOfflineCard(
             condition = networkCondition,
             modifier = modifier,
@@ -436,6 +446,12 @@ private fun SearchEmptyStateCard(
         modifier = modifier,
         title = title,
         message = message,
+        actionLabel = if (reason == SearchEmptyStateReason.RequestFailed) {
+            stringResource(Res.string.action_retry)
+        } else {
+            null
+        },
+        onActionClick = if (reason == SearchEmptyStateReason.RequestFailed) onRetry else null,
     )
 }
 

@@ -6,7 +6,7 @@
 
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
-#include <gst/video/video-info.h>
+#include <gst/video/video.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -27,6 +27,7 @@ struct VideoPlayer {
     uint8_t* frame_buffer;
     int32_t  frame_width;
     int32_t  frame_height;
+    int32_t  frame_stride;
     size_t   frame_size;
 
     // Output scaling
@@ -50,6 +51,17 @@ struct VideoPlayer {
     // Bus polling thread
     pthread_t bus_thread;
     volatile int bus_thread_running;
+
+#ifdef NVP_TESTING
+    pthread_mutex_t test_copy_hook_lock;
+    pthread_cond_t test_copy_hook_condition;
+    int test_pause_next_copy;
+    int test_copy_paused;
+    int test_resume_copy;
+    int test_publish_attempt_armed;
+    int test_publish_attempted;
+    int test_publish_lock_result;
+#endif
 };
 
 // ---------------------------------------------------------------------------
@@ -71,6 +83,36 @@ static pthread_once_t gst_init_once = PTHREAD_ONCE_INIT;
 static void gst_init_func(void) {
     gst_init(NULL, NULL);
 }
+
+#ifdef NVP_TESTING
+static void init_copy_test_hooks(VideoPlayer* p) {
+    pthread_mutex_init(&p->test_copy_hook_lock, NULL);
+    pthread_cond_init(&p->test_copy_hook_condition, NULL);
+}
+
+static void destroy_copy_test_hooks(VideoPlayer* p) {
+    pthread_cond_destroy(&p->test_copy_hook_condition);
+    pthread_mutex_destroy(&p->test_copy_hook_lock);
+}
+
+static void pause_copy_for_test_if_requested(VideoPlayer* p) {
+    pthread_mutex_lock(&p->test_copy_hook_lock);
+    if (p->test_pause_next_copy) {
+        p->test_copy_paused = 1;
+        pthread_cond_broadcast(&p->test_copy_hook_condition);
+        while (!p->test_resume_copy) {
+            pthread_cond_wait(
+                &p->test_copy_hook_condition,
+                &p->test_copy_hook_lock
+            );
+        }
+        p->test_pause_next_copy = 0;
+        p->test_copy_paused = 0;
+        p->test_resume_copy = 0;
+    }
+    pthread_mutex_unlock(&p->test_copy_hook_lock);
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // Bus polling thread
@@ -141,6 +183,18 @@ static void process_bus_message(VideoPlayer* p, GstMessage* msg) {
 // Lifecycle
 // ---------------------------------------------------------------------------
 
+// CDNs (googlevideo among them) reject soup's default user agent with 403,
+// which surfaces as typefind "not enough data". Present a browser UA on any
+// source that takes one.
+static void on_source_setup(GstElement* pipeline, GstElement* source, gpointer user_data) {
+    (void)pipeline; (void)user_data;
+    if (g_object_class_find_property(G_OBJECT_GET_CLASS(source), "user-agent")) {
+        g_object_set(source, "user-agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36", NULL);
+    }
+}
+
 VideoPlayer* nvp_create(void) {
     pthread_once(&gst_init_once, gst_init_func);
 
@@ -149,6 +203,9 @@ VideoPlayer* nvp_create(void) {
 
     pthread_mutex_init(&p->frame_lock, NULL);
     pthread_mutex_init(&p->meta_lock, NULL);
+#ifdef NVP_TESTING
+    init_copy_test_hooks(p);
+#endif
     p->volume = 1.0f;
     p->playback_speed = 1.0f;
 
@@ -157,9 +214,13 @@ VideoPlayer* nvp_create(void) {
     if (!p->pipeline) {
         pthread_mutex_destroy(&p->frame_lock);
         pthread_mutex_destroy(&p->meta_lock);
+#ifdef NVP_TESTING
+        destroy_copy_test_hooks(p);
+#endif
         free(p);
         return NULL;
     }
+    g_signal_connect(p->pipeline, "source-setup", G_CALLBACK(on_source_setup), NULL);
 
     // Create appsink for video frames
     p->video_sink = gst_element_factory_make("appsink", NULL);
@@ -167,6 +228,9 @@ VideoPlayer* nvp_create(void) {
         gst_object_unref(p->pipeline);
         pthread_mutex_destroy(&p->frame_lock);
         pthread_mutex_destroy(&p->meta_lock);
+#ifdef NVP_TESTING
+        destroy_copy_test_hooks(p);
+#endif
         free(p);
         return NULL;
     }
@@ -275,6 +339,9 @@ void nvp_destroy(VideoPlayer* p) {
     free(p->mime_type);
     pthread_mutex_unlock(&p->meta_lock);
     pthread_mutex_destroy(&p->meta_lock);
+#ifdef NVP_TESTING
+    destroy_copy_test_hooks(p);
+#endif
 
     free(p);
 }
@@ -296,6 +363,7 @@ int nvp_open_uri(VideoPlayer* p, const char* uri) {
     p->frame_buffer = NULL;
     p->frame_width = 0;
     p->frame_height = 0;
+    p->frame_stride = 0;
     p->frame_size = 0;
     pthread_mutex_unlock(&p->frame_lock);
 
@@ -396,18 +464,260 @@ float nvp_get_playback_speed(VideoPlayer* p) {
 // Frame access
 // ---------------------------------------------------------------------------
 
-void* nvp_get_latest_frame_address(VideoPlayer* p) {
-    if (!p) return NULL;
-    return p->frame_buffer;
+static int frame_layout_size(
+    int32_t width,
+    int32_t height,
+    int32_t stride,
+    size_t* row_bytes,
+    size_t* total_bytes
+) {
+    if (width <= 0 || height <= 0 || stride <= 0 ||
+        width > INT32_MAX / 4) {
+        return 0;
+    }
+
+    const size_t row = (size_t)width * 4u;
+    if ((size_t)stride < row || (size_t)height > SIZE_MAX / (size_t)stride) {
+        return 0;
+    }
+
+    if (row_bytes) *row_bytes = row;
+    if (total_bytes) *total_bytes = (size_t)stride * (size_t)height;
+    return 1;
+}
+
+static void lock_frame_for_publish(VideoPlayer* p) {
+#ifdef NVP_TESTING
+    int attempt_armed = 0;
+    pthread_mutex_lock(&p->test_copy_hook_lock);
+    if (p->test_publish_attempt_armed) {
+        p->test_publish_attempt_armed = 0;
+        attempt_armed = 1;
+    }
+    pthread_mutex_unlock(&p->test_copy_hook_lock);
+
+    if (attempt_armed) {
+        const int lock_result = pthread_mutex_trylock(&p->frame_lock);
+        pthread_mutex_lock(&p->test_copy_hook_lock);
+        p->test_publish_lock_result = lock_result;
+        p->test_publish_attempted = 1;
+        pthread_cond_broadcast(&p->test_copy_hook_condition);
+        pthread_mutex_unlock(&p->test_copy_hook_lock);
+        if (lock_result == 0) return;
+    }
+#endif
+    pthread_mutex_lock(&p->frame_lock);
+}
+
+static int32_t publish_bgra_frame(
+    VideoPlayer* p,
+    const uint8_t* source,
+    int32_t width,
+    int32_t height,
+    int32_t source_stride
+) {
+    size_t row_bytes = 0;
+    size_t source_size = 0;
+    if (!p || !source ||
+        !frame_layout_size(width, height, source_stride, &row_bytes, &source_size)) {
+        return 0;
+    }
+    (void)source_size;
+
+    if ((size_t)height > SIZE_MAX / row_bytes) return 0;
+    const size_t packed_size = row_bytes * (size_t)height;
+
+    lock_frame_for_publish(p);
+    if (!p->frame_buffer || p->frame_size != packed_size) {
+        uint8_t* replacement = (uint8_t*)malloc(packed_size);
+        if (!replacement) {
+            pthread_mutex_unlock(&p->frame_lock);
+            return 0;
+        }
+        free(p->frame_buffer);
+        p->frame_buffer = replacement;
+        p->frame_size = packed_size;
+    }
+
+    for (int32_t row = 0; row < height; ++row) {
+        memcpy(
+            p->frame_buffer + (size_t)row * row_bytes,
+            source + (size_t)row * (size_t)source_stride,
+            row_bytes
+        );
+    }
+    p->frame_width = width;
+    p->frame_height = height;
+    p->frame_stride = (int32_t)row_bytes;
+    pthread_mutex_unlock(&p->frame_lock);
+    return 1;
+}
+
+int32_t nvp_copy_latest_frame(
+    VideoPlayer* p,
+    void* destination,
+    size_t destination_capacity,
+    int32_t expected_width,
+    int32_t expected_height,
+    int32_t destination_stride,
+    NvpFrameInfo* out_info
+) {
+    if (out_info) memset(out_info, 0, sizeof(*out_info));
+
+    size_t destination_row_bytes = 0;
+    size_t destination_size = 0;
+    if (!p || !destination || !out_info ||
+        !frame_layout_size(
+            expected_width,
+            expected_height,
+            destination_stride,
+            &destination_row_bytes,
+            &destination_size
+        )) {
+        return NVP_FRAME_COPY_INVALID;
+    }
+
+    pthread_mutex_lock(&p->frame_lock);
+#ifdef NVP_TESTING
+    pause_copy_for_test_if_requested(p);
+#endif
+    out_info->width = p->frame_width;
+    out_info->height = p->frame_height;
+    out_info->source_stride = p->frame_stride;
+
+    if (!p->frame_buffer || p->frame_width <= 0 || p->frame_height <= 0 ||
+        p->frame_stride <= 0) {
+        pthread_mutex_unlock(&p->frame_lock);
+        return NVP_FRAME_COPY_NOT_READY;
+    }
+
+    if (p->frame_width != expected_width || p->frame_height != expected_height) {
+        pthread_mutex_unlock(&p->frame_lock);
+        return NVP_FRAME_COPY_SIZE_CHANGED;
+    }
+
+    size_t source_row_bytes = 0;
+    size_t source_size = 0;
+    if (!frame_layout_size(
+            p->frame_width,
+            p->frame_height,
+            p->frame_stride,
+            &source_row_bytes,
+            &source_size
+        ) || p->frame_size < source_size) {
+        pthread_mutex_unlock(&p->frame_lock);
+        return NVP_FRAME_COPY_INVALID;
+    }
+
+    if (destination_capacity < destination_size) {
+        pthread_mutex_unlock(&p->frame_lock);
+        return NVP_FRAME_COPY_DEST_TOO_SMALL;
+    }
+
+    for (int32_t row = 0; row < p->frame_height; ++row) {
+        memcpy(
+            (uint8_t*)destination + (size_t)row * (size_t)destination_stride,
+            p->frame_buffer + (size_t)row * (size_t)p->frame_stride,
+            source_row_bytes
+        );
+    }
+    pthread_mutex_unlock(&p->frame_lock);
+    return NVP_FRAME_COPY_OK;
 }
 
 int32_t nvp_get_frame_width(VideoPlayer* p) {
-    return p ? p->frame_width : 0;
+    if (!p) return 0;
+    pthread_mutex_lock(&p->frame_lock);
+    const int32_t width = p->frame_width;
+    pthread_mutex_unlock(&p->frame_lock);
+    return width;
 }
 
 int32_t nvp_get_frame_height(VideoPlayer* p) {
-    return p ? p->frame_height : 0;
+    if (!p) return 0;
+    pthread_mutex_lock(&p->frame_lock);
+    const int32_t height = p->frame_height;
+    pthread_mutex_unlock(&p->frame_lock);
+    return height;
 }
+
+#ifdef NVP_TESTING
+int32_t nvp_test_publish_bgra(
+    VideoPlayer* p,
+    const void* source,
+    int32_t width,
+    int32_t height,
+    int32_t source_stride
+) {
+    if (!p) return 0;
+    return publish_bgra_frame(
+        p,
+        (const uint8_t*)source,
+        width,
+        height,
+        source_stride
+    );
+}
+
+void nvp_test_pause_next_copy(VideoPlayer* p) {
+    if (!p) return;
+    pthread_mutex_lock(&p->test_copy_hook_lock);
+    p->test_pause_next_copy = 1;
+    p->test_copy_paused = 0;
+    p->test_resume_copy = 0;
+    pthread_mutex_unlock(&p->test_copy_hook_lock);
+}
+
+void nvp_test_wait_until_copy_paused(VideoPlayer* p) {
+    if (!p) return;
+    pthread_mutex_lock(&p->test_copy_hook_lock);
+    while (!p->test_copy_paused) {
+        pthread_cond_wait(
+            &p->test_copy_hook_condition,
+            &p->test_copy_hook_lock
+        );
+    }
+    pthread_mutex_unlock(&p->test_copy_hook_lock);
+}
+
+void nvp_test_resume_copy(VideoPlayer* p) {
+    if (!p) return;
+    pthread_mutex_lock(&p->test_copy_hook_lock);
+    p->test_resume_copy = 1;
+    pthread_cond_broadcast(&p->test_copy_hook_condition);
+    pthread_mutex_unlock(&p->test_copy_hook_lock);
+}
+
+void nvp_test_arm_publish_attempt(VideoPlayer* p) {
+    if (!p) return;
+    pthread_mutex_lock(&p->test_copy_hook_lock);
+    p->test_publish_attempted = 0;
+    p->test_publish_lock_result = -1;
+    p->test_publish_attempt_armed = 1;
+    pthread_mutex_unlock(&p->test_copy_hook_lock);
+}
+
+int32_t nvp_test_wait_until_publish_attempted(VideoPlayer* p) {
+    if (!p) return -1;
+    pthread_mutex_lock(&p->test_copy_hook_lock);
+    while (!p->test_publish_attempted) {
+        pthread_cond_wait(
+            &p->test_copy_hook_condition,
+            &p->test_copy_hook_lock
+        );
+    }
+    const int32_t result = p->test_publish_lock_result;
+    pthread_mutex_unlock(&p->test_copy_hook_lock);
+    return result;
+}
+
+int32_t nvp_test_try_frame_lock(VideoPlayer* p) {
+    if (!p) return 0;
+    if (pthread_mutex_trylock(&p->frame_lock) != 0) return 0;
+    pthread_mutex_unlock(&p->frame_lock);
+    return 1;
+}
+#endif
 
 int32_t nvp_set_output_size(VideoPlayer* p, int32_t width, int32_t height) {
     if (!p || width <= 0 || height <= 0) return 0;
@@ -503,70 +813,46 @@ static GstFlowReturn on_new_sample(GstAppSink* sink, gpointer data) {
     if (!sample) return GST_FLOW_OK;
 
     GstCaps* caps = gst_sample_get_caps(sample);
-    if (!caps) {
+    GstBuffer* buffer = gst_sample_get_buffer(sample);
+    if (!caps || !buffer) {
         gst_sample_unref(sample);
         return GST_FLOW_OK;
     }
 
-    GstStructure* s = gst_caps_get_structure(caps, 0);
-    gint width = 0, height = 0;
-    gst_structure_get_int(s, "width", &width);
-    gst_structure_get_int(s, "height", &height);
+    GstVideoInfo info;
+    if (!gst_video_info_from_caps(&info, caps)) {
+        gst_sample_unref(sample);
+        return GST_FLOW_OK;
+    }
 
+    const int32_t width = (int32_t)GST_VIDEO_INFO_WIDTH(&info);
+    const int32_t height = (int32_t)GST_VIDEO_INFO_HEIGHT(&info);
     if (width <= 0 || height <= 0) {
         gst_sample_unref(sample);
         return GST_FLOW_OK;
     }
 
-    // Extract frame rate from caps
-    gint fps_n = 0, fps_d = 1;
-    if (gst_structure_get_fraction(s, "framerate", &fps_n, &fps_d) && fps_d > 0) {
+    const gint fps_n = GST_VIDEO_INFO_FPS_N(&info);
+    const gint fps_d = GST_VIDEO_INFO_FPS_D(&info);
+    if (fps_d > 0) {
         p->frame_rate = (float)fps_n / (float)fps_d;
     }
 
-    GstBuffer* buffer = gst_sample_get_buffer(sample);
-    if (!buffer) {
+    GstVideoFrame frame;
+    if (!gst_video_frame_map(&frame, &info, buffer, GST_MAP_READ)) {
         gst_sample_unref(sample);
         return GST_FLOW_OK;
     }
 
-    GstMapInfo map;
-    if (!gst_buffer_map(buffer, &map, GST_MAP_READ)) {
-        gst_sample_unref(sample);
-        return GST_FLOW_OK;
+    const uint8_t* source =
+        (const uint8_t*)GST_VIDEO_FRAME_PLANE_DATA(&frame, 0);
+    const int32_t source_stride =
+        (int32_t)GST_VIDEO_FRAME_PLANE_STRIDE(&frame, 0);
+    if (source && source_stride > 0) {
+        publish_bgra_frame(p, source, width, height, source_stride);
     }
 
-    size_t expected = (size_t)width * (size_t)height * 4;
-    if (map.size < expected) {
-        gst_buffer_unmap(buffer, &map);
-        gst_sample_unref(sample);
-        return GST_FLOW_OK;
-    }
-
-    pthread_mutex_lock(&p->frame_lock);
-
-    if (p->frame_width != width || p->frame_height != height || !p->frame_buffer) {
-        free(p->frame_buffer);
-        p->frame_buffer = (uint8_t*)malloc(expected);
-        if (!p->frame_buffer) {
-            p->frame_width = 0;
-            p->frame_height = 0;
-            p->frame_size = 0;
-            pthread_mutex_unlock(&p->frame_lock);
-            gst_buffer_unmap(buffer, &map);
-            gst_sample_unref(sample);
-            return GST_FLOW_OK;
-        }
-        p->frame_width = width;
-        p->frame_height = height;
-        p->frame_size = expected;
-    }
-
-    memcpy(p->frame_buffer, map.data, expected);
-
-    pthread_mutex_unlock(&p->frame_lock);
-
-    gst_buffer_unmap(buffer, &map);
+    gst_video_frame_unmap(&frame);
     gst_sample_unref(sample);
     return GST_FLOW_OK;
 }
@@ -627,8 +913,8 @@ static void update_stream_metadata(VideoPlayer* p) {
             gst_structure_get_int(vs, "width", &w);
             gst_structure_get_int(vs, "height", &h);
 
-            // Only update dimensions if not already set by frame callback
-            if (w > 0 && h > 0 && (p->frame_width == 0 || p->frame_height == 0)) {
+            // Only update dimensions if not already set by frame callback.
+            if (w > 0 && h > 0) {
                 pthread_mutex_lock(&p->frame_lock);
                 if (p->frame_width == 0 || p->frame_height == 0) {
                     p->frame_width = w;

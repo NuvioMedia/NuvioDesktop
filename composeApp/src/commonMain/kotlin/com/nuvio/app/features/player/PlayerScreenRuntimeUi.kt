@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
@@ -47,6 +48,11 @@ private val playerControlsLog = Logger.withTag("PlayerControls")
 @Composable
 internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     val runtime = this
+    val systemBackRegistration = args.onSystemBackHandlerChanged
+    DisposableEffect(runtime, systemBackRegistration) {
+        systemBackRegistration { runtime.requestBack() }
+        onDispose { systemBackRegistration(null) }
+    }
     val isInPip = rememberIsInPictureInPicture()
     val displayedPositionMs = scrubbingPositionMs ?: playbackSnapshot.positionMs
     val seasonNumber = activeSeasonNumber
@@ -155,6 +161,24 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     }
     val playerSurfaceSourceUrl = if (isP2pPlaybackActive) p2pResolvedSourceUrl else activeSourceUrl
     val initialPositionRequestKey = currentInitialPositionRequestKey()
+    val currentPlayerSurfaceSource = playerSurfaceSourceUrl?.let { sourceUrl ->
+        PlayerSurfaceSource(
+            sourceUrl = sourceUrl,
+            sourceAudioUrl = activeSourceAudioUrl,
+            sourceHeaders = activeSourceHeaders,
+            sourceResponseHeaders = activeSourceResponseHeaders,
+            externalSubtitles = externalSubtitles,
+            streamType = activeStreamType,
+            initialPositionMs = activeInitialPositionMs.takeIf { it > 0L },
+            initialPositionRequestKey = initialPositionRequestKey,
+        )
+    }
+    val renderPlayerSurface = shouldRenderPlayerSurface(
+        hasCurrentSource = currentPlayerSurfaceSource != null,
+        hasLifecycleController = playerLifecycleController != null,
+        releaseInFlight = playerReleaseSurfaceRetention.inFlight,
+        desktop = isDesktop,
+    )
     val openingOverlayWanted = playerSettingsUiState.showLoadingOverlay &&
         !initialLoadCompleted &&
         errorMessage == null
@@ -196,7 +220,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             }
         }
     }.orEmpty()
-    val nativeSkipInterval = activeSkipInterval.takeIf { initialLoadCompleted && !pausedOverlayVisible }
+    val nativeSkipInterval = activeSkipInterval.takeIf {
+        initialLoadCompleted && !pausedOverlayVisible && !skipIntervalDismissed
+    }
     val nextEpisodeForControls = nextEpisodeInfo.takeIf { 
         isSeries && (showNextEpisodeCard || nextEpisodeAutoPlaySearching || nextEpisodeAutoPlayCountdown != null) 
     }
@@ -226,7 +252,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             activeProviderName
         },
         pauseOverlayEpisodeTitle = activeEpisodeTitle.orEmpty(),
-        pauseOverlayDescription = (pauseDescription ?: activeStreamSubtitle).orEmpty(),
+        pauseOverlayDescription = (activePauseDescription ?: activeStreamSubtitle).orEmpty(),
         resizeModeLabel = stringResource(resizeMode.labelRes),
         playbackSpeedLabel = formatPlaybackSpeedLabel(playbackSnapshot.playbackSpeed),
         subtitlesLabel = stringResource(Res.string.compose_player_subs),
@@ -269,6 +295,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         p2pConsentBody = stringResource(Res.string.p2p_consent_body),
         p2pConsentEnableLabel = stringResource(Res.string.p2p_consent_enable),
         p2pConsentCancelLabel = stringResource(Res.string.p2p_consent_cancel),
+        speedPanelTitle = stringResource(Res.string.compose_player_playback_speed),
         audioTracksPanelTitle = stringResource(Res.string.compose_player_audio_tracks),
         noAudioTracksLabel = stringResource(Res.string.compose_player_no_audio_tracks_available),
         subtitlesPanelTitle = stringResource(Res.string.compose_player_subtitles),
@@ -346,6 +373,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         episodeStreamItems = episodeStreamItems,
         blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
         submitIntroSegmentType = submitIntroSegmentType,
+        submitIntroContentKey = activeSubmitIntroContentKey(),
         submitIntroStartTime = submitIntroStartTimeStr,
         submitIntroEndTime = submitIntroEndTimeStr,
         isSubmitIntroSubmitting = isSubmitIntroSubmitting,
@@ -369,6 +397,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         subtitleAutoSyncIsLoading = subtitleAutoSyncState.isLoading,
         subtitleAutoSyncErrorMessage = subtitleAutoSyncState.errorMessage.orEmpty(),
         closeModalsToken = playerControlsCloseModalsToken,
+        submitIntroSuccessToken = playerControlsSubmitIntroSuccessToken,
+        notificationMessage = playerNotificationMessage,
+        notificationToken = playerNotificationToken,
         showOpeningOverlay = openingOverlayWanted,
         openingArtwork = background ?: poster,
         openingLogo = logo,
@@ -432,18 +463,21 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 commitHorizontalSeekState = gestureCallbacks.commitHorizontalSeek,
             ),
     ) {
-        if (playerSurfaceSourceUrl != null) {
+        if (renderPlayerSurface) {
+            val surfaceSource = currentPlayerSurfaceSource
+            val sourceAvailable = surfaceSource != null
             PlatformPlayerSurface(
-                sourceUrl = playerSurfaceSourceUrl,
-                sourceAudioUrl = activeSourceAudioUrl,
-                sourceHeaders = activeSourceHeaders,
-                sourceResponseHeaders = activeSourceResponseHeaders,
-                externalSubtitles = externalSubtitles,
-                streamType = activeStreamType,
+                sourceUrl = surfaceSource?.sourceUrl.orEmpty(),
+                sourceAvailable = sourceAvailable,
+                sourceAudioUrl = surfaceSource?.sourceAudioUrl,
+                sourceHeaders = surfaceSource?.sourceHeaders.orEmpty(),
+                sourceResponseHeaders = surfaceSource?.sourceResponseHeaders.orEmpty(),
+                externalSubtitles = surfaceSource?.externalSubtitles.orEmpty(),
+                streamType = surfaceSource?.streamType,
                 modifier = Modifier.fillMaxSize(),
-                playWhenReady = shouldPlay,
-                initialPositionMs = activeInitialPositionMs.takeIf { it > 0L },
-                initialPositionRequestKey = initialPositionRequestKey,
+                playWhenReady = shouldPlay && sourceAvailable,
+                initialPositionMs = surfaceSource?.initialPositionMs,
+                initialPositionRequestKey = surfaceSource?.initialPositionRequestKey,
                 resizeMode = resizeMode,
                 playerControlsState = playerControlsState,
                 onPlayerControlsAction = { action -> handlePlayerControlsAction(action) },
@@ -462,8 +496,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                     }
                 },
                 onControllerReady = { controller ->
-                    playerController = controller
-                    playerControllerSourceUrl = activeSourceUrl
+                    playerController = controller.takeIf { sourceAvailable }
+                    playerLifecycleController = controller
+                    playerControllerSourceUrl = surfaceSource?.sourceUrl
                 },
                 onSnapshot = { snapshot ->
                     playbackSnapshot = snapshot
@@ -498,7 +533,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 seasonNumber = activeSeasonNumber,
                 episodeNumber = activeEpisodeNumber,
                 episodeTitle = activeEpisodeTitle,
-                pauseDescription = pauseDescription ?: activeStreamSubtitle,
+                pauseDescription = activePauseDescription ?: activeStreamSubtitle,
                 providerName = activeProviderName,
                 metrics = metrics,
                 horizontalSafePadding = horizontalSafePadding,
@@ -566,10 +601,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             onLockToggle = {
                 if (playerControlsLocked) unlockPlayerControls() else lockPlayerControls()
             },
-            onBack = {
-                flushWatchProgress()
-                args.onBack()
-            },
+            onBack = { requestBack() },
             onTogglePlayback = { togglePlayback() },
             onSeekBack = { seekBy(-10_000L) },
             onSeekForward = { seekBy(10_000L) },
@@ -650,6 +682,64 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
     }
 }
 
+internal fun releasePlayerBeforeNavigation(
+    releasePlayer: (
+        onReleased: () -> Unit,
+        onReleaseFailed: (String) -> Unit,
+    ) -> Unit,
+    navigateBack: () -> Unit,
+    onReleaseFailed: (String) -> Unit = {},
+) {
+    releasePlayer(navigateBack, onReleaseFailed)
+}
+
+internal fun releaseRetainedPlayerBeforeNavigation(
+    controller: PlayerEngineController?,
+    navigateBack: () -> Unit,
+    onReleaseFailed: (String) -> Unit = {},
+) {
+    if (controller == null) {
+        navigateBack()
+    } else {
+        controller.releaseBeforeNavigation(navigateBack, onReleaseFailed)
+    }
+}
+
+private fun PlayerScreenRuntime.requestBack() {
+    flushWatchProgress()
+    val exitingController = playerLifecycleController
+    args.onBack { afterRelease, releaseFailed ->
+        val releaseAttemptId = playerReleaseSurfaceRetention.begin()
+        try {
+            releaseRetainedPlayerBeforeNavigation(
+                controller = exitingController,
+                navigateBack = {
+                    if (!playerReleaseSurfaceRetention.finish(releaseAttemptId)) {
+                        return@releaseRetainedPlayerBeforeNavigation
+                    }
+                    if (playerLifecycleController === exitingController) {
+                        playerLifecycleController = null
+                    }
+                    if (playerController === exitingController) {
+                        playerController = null
+                    }
+                    afterRelease()
+                },
+                onReleaseFailed = { message ->
+                    if (!playerReleaseSurfaceRetention.finish(releaseAttemptId)) {
+                        return@releaseRetainedPlayerBeforeNavigation
+                    }
+                    errorMessage = message
+                    releaseFailed(message)
+                },
+            )
+        } catch (failure: Throwable) {
+            playerReleaseSurfaceRetention.finish(releaseAttemptId)
+            throw failure
+        }
+    }
+}
+
 private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControlsAction): Boolean {
     playerControlsLog.d { "action=$action ${playerControlLogContext()}" }
     when (action) {
@@ -661,10 +751,7 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
             }
         }
         PlayerControlsAction.RevealLockedOverlay -> revealLockedOverlay()
-        PlayerControlsAction.Back -> {
-            flushWatchProgress()
-            args.onBack()
-        }
+        PlayerControlsAction.Back -> requestBack()
         PlayerControlsAction.TogglePlayback -> {
             prepareTogglePlaybackForNativeFallback()
             return false
@@ -856,6 +943,21 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
                 playerController?.selectSubtitleTrack(index)
             }
         }
+        "selectAudioTrack" -> {
+            // The controls webview sends the track id (trackIdValue); map it back
+            // to the logical index that selectAudioTrack() expects (falling back to
+            // treating the value as an index if no id matches).
+            val requestedId = value.toInt()
+            val index = audioTracks.firstOrNull { it.id == requestedId.toString() }?.index
+                ?: audioTracks.firstOrNull { it.index == requestedId }?.index
+                ?: requestedId
+            playerControlsLog.d {
+                "selectAudioTrack id=$requestedId index=$index tracks=${audioTracks.size} ${playerControlLogContext()}"
+            }
+            selectedAudioIndex = index
+            persistAudioPreference(audioTracks.firstOrNull { it.index == index })
+            playerController?.selectAudioTrack(index)
+        }
         "fetchAddonSubtitles" -> fetchAddonSubtitlesForActiveItem()
         "selectAddonSubtitle" -> {
             val addon = visibleAddonSubtitles.getOrNull(value.toInt()) ?: return true
@@ -1045,10 +1147,16 @@ private fun PlayerScreenRuntime.submitIntroFromPlayerControls() {
             submitIntroSegmentType = "intro"
             submitIntroStatusMessage = null
             playerControlsCloseModalsToken += 1
+            playerControlsSubmitIntroSuccessToken += 1
         } else {
             submitIntroStatusMessage = "Unable to submit timestamps."
         }
     }
+}
+
+private fun PlayerScreenRuntime.activeSubmitIntroContentKey(): String {
+    val imdbId = activeSubmitIntroImdbId()?.takeIf { it.isNotBlank() } ?: return ""
+    return "$imdbId:$activeSeasonNumber:$activeEpisodeNumber"
 }
 
 private fun PlayerScreenRuntime.activeSubmitIntroImdbId(): String? =
@@ -1496,10 +1604,7 @@ private fun BoxScope.RenderPlaybackOverlays(
             backdropArtwork = background ?: poster,
             logo = logo,
             title = title,
-            onBackWithProgress = {
-                flushWatchProgress()
-                args.onBack()
-            },
+            onBackWithProgress = { requestBack() },
             p2pInitialLoadingMessage = p2pInitialLoadingMessage,
             p2pInitialLoadingProgress = p2pInitialLoadingProgress,
             showP2pRebufferStats = showP2pRebufferStats,
@@ -1529,22 +1634,21 @@ private fun BoxScope.RenderPlaybackOverlays(
             nextEpisodeAutoPlaySearching = nextEpisodeAutoPlaySearching,
             nextEpisodeAutoPlaySourceName = nextEpisodeAutoPlaySourceName,
             nextEpisodeAutoPlayCountdown = nextEpisodeAutoPlayCountdown,
+            blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
             onPlayNextEpisode = {
                 nextEpisodeAutoPlayJob?.cancel()
                 playNextEpisode()
             },
             onDismissNextEpisode = {
                 nextEpisodeAutoPlayJob?.cancel()
+                nextEpisodeCardDismissed = true
                 showNextEpisodeCard = false
                 nextEpisodeAutoPlaySearching = false
                 nextEpisodeAutoPlaySourceName = null
                 nextEpisodeAutoPlayCountdown = null
             },
             errorMessage = errorMessage,
-            onDismissError = {
-                flushWatchProgress()
-                args.onBack()
-            },
+            onDismissError = { requestBack() },
         )
     }
 }
@@ -1586,6 +1690,8 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
         subtitleAutoSyncState = subtitleAutoSyncState,
         onBuiltInSubtitleTrackSelected = { index ->
             val wasCustom = useCustomSubtitles
+            isUserExplicitSubtitleSelection = true
+            preferredSubtitleSelectionApplied = true
             selectedSubtitleIndex = index
             selectedAddonSubtitleId = null
             useCustomSubtitles = false
@@ -1597,9 +1703,11 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
             }
         },
         onAddonSubtitleSelected = { addon ->
+            isUserExplicitSubtitleSelection = true
             selectedAddonSubtitleId = addon.id
             selectedSubtitleIndex = -1
             useCustomSubtitles = true
+            preferredSubtitleSelectionApplied = true
             persistAddonSubtitlePreference(addon)
             playerController?.setSubtitleUri(addon.url)
         },

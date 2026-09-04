@@ -125,7 +125,15 @@ fun HomeSkeletonHero(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
+                    .then(
+                        if (isDesktop) {
+                            Modifier
+                                .widthIn(max = layout.contentContainerMaxWidth)
+                                .fillMaxWidth()
+                        } else {
+                            Modifier.fillMaxWidth()
+                        },
+                    )
                     .padding(
                         horizontal = contentHorizontalPadding,
                         vertical = layout.contentVerticalPadding,

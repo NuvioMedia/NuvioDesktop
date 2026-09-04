@@ -4,6 +4,7 @@
 #ifndef NATIVE_VIDEO_PLAYER_H
 #define NATIVE_VIDEO_PLAYER_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -28,10 +29,48 @@ void nvp_set_playback_speed(VideoPlayer* p, float speed);
 float nvp_get_playback_speed(VideoPlayer* p);
 
 // Frame access
-void*   nvp_get_latest_frame_address(VideoPlayer* p);
+enum {
+    NVP_FRAME_COPY_INVALID = -1,
+    NVP_FRAME_COPY_DEST_TOO_SMALL = -2,
+    NVP_FRAME_COPY_SIZE_CHANGED = -3,
+    NVP_FRAME_COPY_NOT_READY = 0,
+    NVP_FRAME_COPY_OK = 1,
+};
+
+typedef struct NvpFrameInfo {
+    int32_t width;
+    int32_t height;
+    int32_t source_stride;
+} NvpFrameInfo;
+
+int32_t nvp_copy_latest_frame(
+    VideoPlayer* p,
+    void* destination,
+    size_t destination_capacity,
+    int32_t expected_width,
+    int32_t expected_height,
+    int32_t destination_stride,
+    NvpFrameInfo* out_info
+);
 int32_t nvp_get_frame_width(VideoPlayer* p);
 int32_t nvp_get_frame_height(VideoPlayer* p);
 int32_t nvp_set_output_size(VideoPlayer* p, int32_t width, int32_t height);
+
+#ifdef NVP_TESTING
+int32_t nvp_test_publish_bgra(
+    VideoPlayer* p,
+    const void* source,
+    int32_t width,
+    int32_t height,
+    int32_t source_stride
+);
+void nvp_test_pause_next_copy(VideoPlayer* p);
+void nvp_test_wait_until_copy_paused(VideoPlayer* p);
+void nvp_test_resume_copy(VideoPlayer* p);
+int32_t nvp_test_try_frame_lock(VideoPlayer* p);
+void nvp_test_arm_publish_attempt(VideoPlayer* p);
+int32_t nvp_test_wait_until_publish_attempted(VideoPlayer* p);
+#endif
 
 // Timing
 double nvp_get_duration(VideoPlayer* p);
