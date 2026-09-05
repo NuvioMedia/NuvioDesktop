@@ -64,6 +64,7 @@ actual fun PlatformPlayerSurface(
             sourceUrl = sourceUrl,
             sourceAvailable = sourceAvailable,
             sourceHeaders = sourceHeaders,
+            externalSubtitles = externalSubtitles,
             modifier = modifier,
             playWhenReady = playWhenReady,
             resizeMode = resizeMode,
@@ -96,6 +97,7 @@ private fun NativePlayerSurface(
     sourceUrl: String,
     sourceAvailable: Boolean,
     sourceHeaders: Map<String, String>,
+    externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> = emptyList(),
     modifier: Modifier,
     playWhenReady: Boolean,
     resizeMode: PlayerResizeMode,
@@ -195,6 +197,7 @@ private fun NativePlayerSurface(
         controller.attach(
             sourceUrl = sourceUrl,
             sourceHeaders = playbackHeaders,
+            externalSubtitles = externalSubtitles,
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs,
             decoderPriority = decoderPriority,
