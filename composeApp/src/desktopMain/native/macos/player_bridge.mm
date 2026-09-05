@@ -90,6 +90,7 @@ static constexpr double kMaxVolumePercent = 200.0;
                 initialPositionMs:(long long)initialPositionMs
                       controlsUrl:(NSString *)controlsUrl
                    decoderPriority:(int)decoderPriority
+                libmpvHrSeekEnabled:(bool)libmpvHrSeekEnabled
                            javaVm:(JavaVM *)javaVm
                         eventSink:(jobject)eventSink
                       eventMethod:(jmethodID)eventMethod;
@@ -1075,6 +1076,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                 initialPositionMs:(long long)initialPositionMs
                       controlsUrl:(NSString *)controlsUrl
                    decoderPriority:(int)decoderPriority
+                libmpvHrSeekEnabled:(bool)libmpvHrSeekEnabled
                            javaVm:(JavaVM *)javaVm
                         eventSink:(jobject)eventSink
                       eventMethod:(jmethodID)eventMethod {
@@ -1169,7 +1171,8 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                  headerLines:headerLines
                 playWhenReady:playWhenReady
              initialPositionMs:initialPositionMs
-              decoderPriority:decoderPriority];
+              decoderPriority:decoderPriority
+         libmpvHrSeekEnabled:libmpvHrSeekEnabled];
     _timer = [NSTimer scheduledTimerWithTimeInterval:0.5
                                              target:self
                                            selector:@selector(syncControls)
@@ -1415,7 +1418,8 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                headerLines:(NSArray<NSString *> *)headerLines
               playWhenReady:(BOOL)playWhenReady
            initialPositionMs:(long long)initialPositionMs
-            decoderPriority:(int)decoderPriority {
+            decoderPriority:(int)decoderPriority
+        libmpvHrSeekEnabled:(bool)libmpvHrSeekEnabled {
     _mpv = mpv_create();
     if (!_mpv) {
         @throw [NSException exceptionWithName:@"PlayerBridgeError"
@@ -1452,7 +1456,11 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     setMpvOptionString(_mpv, "dither-depth", "auto");
     setMpvOptionString(_mpv, "demuxer-max-bytes", "150MiB");
     setMpvOptionString(_mpv, "cache-secs", "120");
-    setMpvOptionString(_mpv, "hr-seek", "no");
+    if (libmpvHrSeekEnabled) {
+        setMpvOptionString(_mpv, "hr-seek", "yes");
+    } else {
+        setMpvOptionString(_mpv, "hr-seek", "no");
+    }
 
     if (headerLines.count > 0) {
         NSMutableArray *escaped = [NSMutableArray arrayWithCapacity:headerLines.count];
@@ -1816,7 +1824,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 - (void)seekToMilliseconds:(long long)positionMs {
     if (!_mpv) return;
     std::string seconds = std::to_string((double)positionMs / 1000.0);
-    const char *command[] = {"seek", seconds.c_str(), "absolute+keyframes", NULL};
+    const char *command[] = {"seek", seconds.c_str(), "absolute", NULL};
     mpv_command(_mpv, command);
     _cachedPositionSeconds.store(fmax((double)positionMs / 1000.0, 0.0));
 }
@@ -1824,7 +1832,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 - (void)seekByMilliseconds:(long long)offsetMs {
     if (!_mpv) return;
     std::string seconds = std::to_string((double)offsetMs / 1000.0);
-    const char *command[] = {"seek", seconds.c_str(), "relative+keyframes", NULL};
+    const char *command[] = {"seek", seconds.c_str(), "relative", NULL};
     mpv_command(_mpv, command);
     double nextPosition = fmax(_cachedPositionSeconds.load() + ((double)offsetMs / 1000.0), 0.0);
     _cachedPositionSeconds.store(nextPosition);
@@ -2549,6 +2557,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jstring controlsPageUrl,
     jint decoderPriority,
     jboolean nvidiaRtxSuperResolutionEnabled,
+    jboolean libmpvHrSeekEnabled,
     jobject eventSink
 ) {
     NSView *hostView = (__bridge NSView *)(void *)(intptr_t)hostViewPtr;
@@ -2590,6 +2599,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
                 initialPositionMs:initialPositionMs
                      controlsUrl:[NSString stringWithUTF8String:controls.c_str()]
                  decoderPriority:decoderPriority
+             libmpvHrSeekEnabled:libmpvHrSeekEnabled
                           javaVm:javaVm
                        eventSink:eventSinkRef
                      eventMethod:eventMethod];

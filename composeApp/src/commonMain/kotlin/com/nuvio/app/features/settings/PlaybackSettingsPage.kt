@@ -307,6 +307,7 @@ private fun PlaybackSettingsSection(
     var showPlaybackEngineDialog by remember { mutableStateOf(false) }
     var showLibmpvVideoOutputDialog by remember { mutableStateOf(false) }
     var showDecoderPriorityDialog by remember { mutableStateOf(false) }
+    var showLibmpvHrSeekOptionDialog by remember { mutableStateOf(false) }
     var showHoldToSpeedValueDialog by remember { mutableStateOf(false) }
     var showIosAudioOutputDialog by remember { mutableStateOf(false) }
     var showIosHardwareDecoderDialog by remember { mutableStateOf(false) }
@@ -933,6 +934,16 @@ private fun PlaybackSettingsSection(
                             isTablet = isTablet,
                             onCheckedChange = PlayerSettingsRepository::setAndroidLibmpvYuv420pEnabled,
                         )
+                        if (isDesktop) {
+                            SettingsGroupDivider(isTablet = isTablet)
+                            SettingsNavigationRow(
+                                title = stringResource(Res.string.settings_playback_libmpv_hr_seek),
+                                description = libmpvHrSeekOptionLabel(autoPlayPlayerSettings.libmpvHrSeekEnabled),
+                                enabled = libmpvOptionsEnabled,
+                                isTablet = isTablet,
+                                onClick = { showLibmpvHrSeekOptionDialog = true},
+                            )
+                        }
                     }
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(
@@ -1508,6 +1519,24 @@ private fun PlaybackSettingsSection(
                 showDecoderPriorityDialog = false
             },
             onDismiss = { showDecoderPriorityDialog = false },
+        )
+    }
+
+    if (showLibmpvHrSeekOptionDialog) {
+        LibmpvHrSeekOptionDialog(
+            selectedOption = autoPlayPlayerSettings.libmpvHrSeekEnabled,
+            onOptionSelected = { option ->
+                PlayerSettingsRepository.setLibmpvHrSeekEnabled(option)
+                showLibmpvHrSeekOptionDialog = false
+            },
+            description = { option ->
+                if (option) {
+                    stringResource(Res.string.settings_playback_libmpv_hr_seek_slow_desc)
+                } else {
+                    stringResource(Res.string.settings_playback_libmpv_hr_seek_fast_desc)
+                }
+            },
+            onDismiss = {showLibmpvHrSeekOptionDialog = false},
         )
     }
 
@@ -2302,6 +2331,106 @@ private fun DecoderPriorityDialog(
                                     color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.weight(1f),
                                 )
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Check,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = stringResource(Res.string.settings_playback_dialog_close),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun LibmpvHrSeekOptionDialog(
+    selectedOption: Boolean,
+    onOptionSelected: (Boolean) -> Unit,
+    description: @Composable (Boolean) -> String,
+    onDismiss: () -> Unit,
+) {
+    val options = listOf(
+        false to Res.string.settings_playback_libmpv_hr_seek_fast,
+        true to Res.string.settings_playback_libmpv_hr_seek_slow,
+    )
+
+    BasicAlertDialog(
+        onDismissRequest = onDismiss,
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = stringResource(Res.string.settings_playback_libmpv_hr_seek),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                )
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    options.forEach { (option, labelRes) ->
+                        val isSelected = option == selectedOption
+                        val containerColor = if (isSelected) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOptionSelected(option) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = containerColor,
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                                ) {
+                                    Text(
+                                        text = stringResource(labelRes),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Text(
+                                        text = description(option),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                                 Box(
                                     modifier = Modifier.size(24.dp),
                                     contentAlignment = Alignment.Center,
@@ -3597,6 +3726,14 @@ private fun decoderPriorityRes(priority: Int): StringResource = when (priority) 
 
 @Composable
 private fun decoderPriorityLabel(priority: Int): String = stringResource(decoderPriorityRes(priority))
+
+private fun libmpvHrSeekOptionRes(option: Boolean): StringResource = when(option) {
+    true -> Res.string.settings_playback_libmpv_hr_seek_slow
+    else -> Res.string.settings_playback_libmpv_hr_seek_fast
+}
+
+@Composable
+private fun libmpvHrSeekOptionLabel(option: Boolean): String = stringResource(libmpvHrSeekOptionRes(option))
 
 private fun StreamAutoPlaySource.labelRes(pluginsEnabled: Boolean): StringResource = when (this) {
     StreamAutoPlaySource.ALL_SOURCES ->
