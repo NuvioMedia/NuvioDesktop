@@ -341,6 +341,101 @@ class SimklProjectionsTest {
         assertNull(parseSimklUtcEpochMs("2024-01-01T00:00:00+01:00"))
     }
 
+    @Test
+    fun `alternate content ids prefer the franchise imdb id over per season anime ids`() {
+        // Re:Zero season 4: Simkl gives that season its own IMDB id that meta addons do not index,
+        // while the other seasons of the same TVDB series share the parent IMDB id.
+        val snapshot = SimklSyncSnapshot(entries = listOf(
+            animeEntry(simkl = 509292, imdb = "tt5607616", tvdb = "305089", mal = "31240", kitsu = "11209"),
+            animeEntry(simkl = 1367345, imdb = "tt5607616", tvdb = "305089", mal = "42203", kitsu = "43247"),
+            animeEntry(simkl = 2125704, imdb = "tt5607616", tvdb = "305089", mal = "54857", kitsu = "47235"),
+            animeEntry(
+                simkl = 2743422,
+                imdb = "tt36501927",
+                tvdb = "305089",
+                mal = "61316",
+                kitsu = "49746",
+                anidb = "19242",
+                anilist = "189046",
+            ),
+        ))
+
+        val alternates = snapshot.alternateContentIdsFor("tt36501927")
+
+        assertFalse(alternates.contains("tt36501927"))
+        assertEquals("tt5607616", alternates.first())
+        assertEquals(1, alternates.count { it == "tt5607616" })
+        assertTrue(alternates.contains("mal:61316"))
+        assertTrue(alternates.contains("kitsu:49746"))
+        assertTrue(alternates.indexOf("tt5607616") < alternates.indexOf("mal:61316"))
+    }
+
+    @Test
+    fun `alternate content ids fall back to anime ids when no sibling shares the tvdb series`() {
+        val snapshot = SimklSyncSnapshot(entries = listOf(
+            animeEntry(
+                simkl = 2743422,
+                imdb = "tt36501927",
+                tvdb = "305089",
+                mal = "61316",
+                kitsu = "49746",
+                anidb = "19242",
+                anilist = "189046",
+            ),
+        ))
+
+        val alternates = snapshot.alternateContentIdsFor("tt36501927")
+
+        assertFalse(alternates.any { it.startsWith("tt") })
+        assertTrue(alternates.contains("mal:61316"))
+        assertTrue(alternates.contains("anidb:19242"))
+        assertTrue(alternates.contains("anilist:189046"))
+        assertTrue(alternates.contains("kitsu:49746"))
+    }
+
+    @Test
+    fun `alternate content ids are empty for an unknown content id`() {
+        val snapshot = SimklSyncSnapshot(
+            entries = listOf(
+                entry(
+                    type = SimklMediaType.SHOWS,
+                    status = SimklListStatus.WATCHING,
+                    id = 2090,
+                    imdb = "tt1520211",
+                ),
+            ),
+        )
+
+        assertEquals(emptyList(), snapshot.alternateContentIdsFor("tt0000000"))
+    }
+
+    private fun animeEntry(
+        simkl: Long,
+        imdb: String,
+        tvdb: String,
+        mal: String? = null,
+        kitsu: String? = null,
+        anidb: String? = null,
+        anilist: String? = null,
+    ): SimklLibraryEntry = SimklLibraryEntry(
+        mediaType = SimklMediaType.ANIME,
+        status = SimklListStatus.WATCHING,
+        show = SimklMedia(
+            title = "Re:Zero - Starting Life in Another World",
+            poster = "20/poster",
+            year = 2026,
+            ids = buildJsonObject {
+                put("simkl", simkl)
+                put("imdb", imdb)
+                put("tvdb", tvdb)
+                mal?.let { put("mal", it) }
+                kitsu?.let { put("kitsu", it) }
+                anidb?.let { put("anidb", it) }
+                anilist?.let { put("anilist", it) }
+            },
+        ),
+    )
+
     private fun entry(
         type: SimklMediaType,
         status: SimklListStatus,

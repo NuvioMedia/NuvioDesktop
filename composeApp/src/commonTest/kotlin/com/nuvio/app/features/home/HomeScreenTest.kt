@@ -7,6 +7,7 @@ import com.nuvio.app.features.cloud.CloudLibraryProviderState
 import com.nuvio.app.features.cloud.CloudLibraryUiState
 import com.nuvio.app.features.cloud.playbackVideoId
 import com.nuvio.app.features.debrid.DebridProviders
+import com.nuvio.app.features.details.CompletedSeriesEpisode
 import com.nuvio.app.features.watchprogress.CachedInProgressItem
 import com.nuvio.app.features.watchprogress.CachedNextUpItem
 import com.nuvio.app.features.watchprogress.ContinueWatchingItem
@@ -23,6 +24,7 @@ import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -642,6 +644,136 @@ class HomeScreenTest {
         )
 
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `next up candidate keeps its own id when the addon served that id`() {
+        val candidate = CompletedSeriesCandidate(
+            content = WatchingContentRef(type = "series", id = "tt9335498"),
+            seasonNumber = 5,
+            episodeNumber = 8,
+            markedAtEpochMs = 3_000L,
+        )
+
+        val result = reanchorHomeNextUpCandidate(
+            candidate = candidate,
+            resolvedContentId = "tt9335498",
+            resolvedLatestCompleted = CompletedSeriesEpisode(
+                seasonNumber = 5,
+                episodeNumber = 8,
+                markedAtEpochMs = 3_000L,
+            ),
+        )
+
+        assertEquals(candidate, result)
+    }
+
+    @Test
+    fun `next up candidate resolved through a sibling id reseeds from the franchise history`() {
+        // Simkl models each anime arc as its own entry: this one carries a season-specific IMDB ID
+        // no addon serves, so its metadata resolves through the franchise ID the arcs share. Its
+        // own history stops at the arc finale (S3E11) while the franchise history runs to S5E8.
+        val arcCandidate = CompletedSeriesCandidate(
+            content = WatchingContentRef(type = "series", id = "tt15757634"),
+            seasonNumber = 3,
+            episodeNumber = 11,
+            markedAtEpochMs = 1_000L,
+        )
+
+        val result = reanchorHomeNextUpCandidate(
+            candidate = arcCandidate,
+            resolvedContentId = "tt9335498",
+            resolvedLatestCompleted = CompletedSeriesEpisode(
+                seasonNumber = 5,
+                episodeNumber = 8,
+                markedAtEpochMs = 3_000L,
+            ),
+        )
+
+        assertEquals(
+            CompletedSeriesCandidate(
+                content = WatchingContentRef(type = "series", id = "tt9335498"),
+                seasonNumber = 5,
+                episodeNumber = 8,
+                markedAtEpochMs = 3_000L,
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `next up candidate resolved through a sibling id without franchise history is dropped`() {
+        val arcCandidate = CompletedSeriesCandidate(
+            content = WatchingContentRef(type = "series", id = "tt15757634"),
+            seasonNumber = 3,
+            episodeNumber = 11,
+            markedAtEpochMs = 1_000L,
+        )
+
+        assertNull(
+            reanchorHomeNextUpCandidate(
+                candidate = arcCandidate,
+                resolvedContentId = "tt9335498",
+                resolvedLatestCompleted = null,
+            ),
+        )
+        assertNull(
+            reanchorHomeNextUpCandidate(
+                candidate = arcCandidate,
+                resolvedContentId = "tt9335498",
+                resolvedLatestCompleted = CompletedSeriesEpisode(
+                    seasonNumber = 0,
+                    episodeNumber = 4,
+                    markedAtEpochMs = 3_000L,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `next up candidate keeps its own id when no resolved id is reported`() {
+        val candidate = CompletedSeriesCandidate(
+            content = WatchingContentRef(type = "series", id = "tt15757634"),
+            seasonNumber = 3,
+            episodeNumber = 11,
+            markedAtEpochMs = 1_000L,
+        )
+
+        assertEquals(candidate, reanchorHomeNextUpCandidate(candidate, resolvedContentId = null, resolvedLatestCompleted = null))
+        assertEquals(candidate, reanchorHomeNextUpCandidate(candidate, resolvedContentId = "  ", resolvedLatestCompleted = null))
+    }
+
+    @Test
+    fun `reseeded next up candidate collapses onto the franchise dismiss key`() {
+        // The arc entry and the franchise entry must not produce two cards for one series: after
+        // reseeding they share a content ID and a seed, so one dismissal covers both.
+        val arcCandidate = CompletedSeriesCandidate(
+            content = WatchingContentRef(type = "series", id = "tt3687376"),
+            seasonNumber = 2,
+            episodeNumber = 24,
+            markedAtEpochMs = 1_000L,
+        )
+        val franchiseCompleted = CompletedSeriesEpisode(
+            seasonNumber = 3,
+            episodeNumber = 39,
+            markedAtEpochMs = 2_000L,
+        )
+
+        val reanchored = reanchorHomeNextUpCandidate(
+            candidate = arcCandidate,
+            resolvedContentId = "tt2359704",
+            resolvedLatestCompleted = franchiseCompleted,
+        )
+
+        assertNotNull(reanchored)
+        assertEquals(
+            nextUpDismissKey("tt2359704", 3, 39),
+            nextUpDismissKey(
+                reanchored.content.id,
+                reanchored.seasonNumber,
+                reanchored.episodeNumber,
+            ),
+        )
     }
 
     @Test

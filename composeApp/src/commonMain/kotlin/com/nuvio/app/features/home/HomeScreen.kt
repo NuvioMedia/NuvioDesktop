@@ -40,10 +40,12 @@ import com.nuvio.app.features.cloud.CloudLibraryContentType
 import com.nuvio.app.features.cloud.CloudLibraryRepository
 import com.nuvio.app.features.cloud.CloudLibraryUiState
 import com.nuvio.app.features.cloud.findPlaybackTargetForProgress
+import com.nuvio.app.features.details.CompletedSeriesEpisode
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.details.SeriesPrimaryAction
+import com.nuvio.app.features.details.latestCompletedSeriesEpisode
 import com.nuvio.app.features.details.seriesPrimaryAction
 import com.nuvio.app.features.home.components.HomeCatalogRowSection
 import com.nuvio.app.features.home.components.HomeContinueWatchingSection
@@ -1370,6 +1372,43 @@ internal fun classifyHomeNextUpCandidateMetadata(
     )
 }
 
+/**
+ * Re-anchors a Next Up candidate onto the content ID its metadata actually came from.
+ *
+ * When no installed addon serves an entry's own ID, [MetaDetailsRepository] falls back to one of
+ * the entry's other IDs - for a Simkl anime season, the franchise IMDB ID it shares through TVDB.
+ * The episode list that comes back is then the whole franchise's, while the candidate's seed was
+ * computed from that one arc's watch history, because the sibling arcs are recorded under the
+ * franchise ID instead. Left unreconciled the seed is the arc's own finale, so Next Up offers the
+ * first episode of the following arc - an episode the user has usually already watched under a
+ * sibling entry.
+ *
+ * Recomputing the seed under [resolvedContentId] puts both halves back on one identity: the
+ * franchise episode list is now read against the franchise watch history. It also collapses the
+ * candidate onto the franchise's own candidate, so one series cannot produce two Next Up cards.
+ *
+ * Returns [candidate] unchanged when no fallback happened, and null when the resolved ID carries
+ * no usable completed episode - there is no seed to offer a next episode from. A season-zero seed
+ * is rejected for the same reason [buildHomeNextUpSeedCandidates] rejects one: specials do not
+ * establish where a viewer is in the run.
+ */
+internal fun reanchorHomeNextUpCandidate(
+    candidate: CompletedSeriesCandidate,
+    resolvedContentId: String?,
+    resolvedLatestCompleted: CompletedSeriesEpisode?,
+): CompletedSeriesCandidate? {
+    val normalizedResolvedId = resolvedContentId?.trim().orEmpty()
+    if (normalizedResolvedId.isEmpty()) return candidate
+    if (normalizedResolvedId.equals(candidate.content.id.trim(), ignoreCase = true)) return candidate
+    if (resolvedLatestCompleted == null || resolvedLatestCompleted.seasonNumber == 0) return null
+    return CompletedSeriesCandidate(
+        content = candidate.content.copy(id = normalizedResolvedId),
+        seasonNumber = resolvedLatestCompleted.seasonNumber,
+        episodeNumber = resolvedLatestCompleted.episodeNumber,
+        markedAtEpochMs = resolvedLatestCompleted.markedAtEpochMs,
+    )
+}
+
 private suspend fun resolveHomeNextUpCandidate(
     completedEntry: CompletedSeriesCandidate,
     watchProgressEntries: List<WatchProgressEntry>,
@@ -1395,11 +1434,24 @@ private suspend fun resolveHomeNextUpCandidate(
         return HomeNextUpResolutionAttempt.transientFailure()
     }
 
+    val resolvedContentId = meta.id.takeIf(String::isNotBlank) ?: contentId
     val resolvedProgressEntries = WatchProgressRepository.prepareNextUpProgressEntries(
         entries = watchProgressEntries,
-        contentId = contentId,
+        contentId = resolvedContentId,
     )
     val resolvedWatchedItems = watchedItems
+    val anchoredEntry = reanchorHomeNextUpCandidate(
+        candidate = completedEntry,
+        resolvedContentId = resolvedContentId,
+        resolvedLatestCompleted = latestCompletedSeriesEpisode(
+            parentMetaId = resolvedContentId,
+            parentMetaType = completedEntry.content.type,
+            progressEntries = resolvedProgressEntries,
+            watchedItems = resolvedWatchedItems,
+            preferFurthestEpisode = preferFurthestEpisode,
+        ),
+    ) ?: return HomeNextUpResolutionAttempt.conclusiveNone()
+    val anchoredContentId = anchoredEntry.content.id
     val resolvedWatchedKeys = resolvedWatchedItems.mapTo(linkedSetOf()) { item ->
         watchedItemKey(item.type, item.id, item.season, item.episode)
     }
@@ -1421,7 +1473,7 @@ private suspend fun resolveHomeNextUpCandidate(
     }
 
     val action = meta.seriesPrimaryAction(
-        content = completedEntry.content,
+        content = anchoredEntry.content,
         entries = resolvedProgressEntries,
         watchedItems = resolvedWatchedItems,
         todayIsoDate = todayIsoDate,
@@ -1440,7 +1492,7 @@ private suspend fun resolveHomeNextUpCandidate(
         return HomeNextUpResolutionAttempt.conclusiveNone()
     }
     val metadataDecision = classifyHomeNextUpCandidateMetadata(
-        freshItem = completedEntry.toContinueWatchingSeed(meta)
+        freshItem = anchoredEntry.toContinueWatchingSeed(meta)
             .toUpNextContinueWatchingItem(nextEpisode),
         cachedFallbackItem = cachedFallbackItem,
         dismissedNextUpKeys = dismissedNextUpKeys,
@@ -1454,12 +1506,12 @@ private suspend fun resolveHomeNextUpCandidate(
     }
 
     val sortTimestamp = if (item.isReleaseAlert) {
-        com.nuvio.app.features.watchprogress.parseReleaseDateToEpochMs(item.released) ?: completedEntry.markedAtEpochMs
+        com.nuvio.app.features.watchprogress.parseReleaseDateToEpochMs(item.released) ?: anchoredEntry.markedAtEpochMs
     } else {
-        completedEntry.markedAtEpochMs
+        anchoredEntry.markedAtEpochMs
     }
     return HomeNextUpResolutionAttempt.success(
-        contentId to (sortTimestamp to item),
+        anchoredContentId to (sortTimestamp to item),
     )
 }
 
