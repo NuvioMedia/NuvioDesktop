@@ -490,7 +490,6 @@ const settingToastLabel = command => {
 };
 
 const maxVolumeLevel = 2;
-const standardMaxVolumeLevel = 1;
 const volumeStepLevel = 0.05;
 
 const clampVolumeLevel = level => Math.max(0, Math.min(maxVolumeLevel, level));
@@ -2436,14 +2435,8 @@ const sendKeyboardVolume = delta => {
   const currentLevel = typeof state.volumeLevel === "number" && Number.isFinite(state.volumeLevel)
     ? state.volumeLevel
     : 1;
-  if (delta > 0 && currentLevel >= standardMaxVolumeLevel) {
-    showPlayerToast(volumeToastLabel(delta));
-    return;
-  }
   const adjustedLevel = currentLevel + (delta * volumeStepLevel);
-  const nextLevel = delta > 0
-    ? Math.min(standardMaxVolumeLevel, clampVolumeLevel(adjustedLevel))
-    : clampVolumeLevel(adjustedLevel);
+  const nextLevel = clampVolumeLevel(adjustedLevel);
   state.volumeLevel = nextLevel;
   if (nextLevel > 0) {
     preMuteVolumeLevel = nextLevel;
