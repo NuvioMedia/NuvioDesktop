@@ -83,6 +83,8 @@ actual fun ManagePlayerPictureInPicture(
     }
 }
 
+actual fun togglePlayerPictureInPicture() = Unit
+
 @Composable
 actual fun rememberIsInPictureInPicture(): Boolean {
     val context = LocalContext.current
