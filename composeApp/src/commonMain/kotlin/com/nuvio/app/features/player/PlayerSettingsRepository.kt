@@ -280,8 +280,8 @@ object PlayerSettingsRepository {
                 ?: SubtitleStyleState.DEFAULT.outlineColor,
             outlineEnabled = PlayerSettingsStorage.loadSubtitleOutlineEnabled()
                 ?: SubtitleStyleState.DEFAULT.outlineEnabled,
-            outlineWidth = PlayerSettingsStorage.loadSubtitleOutlineWidth()
-                ?: SubtitleStyleState.DEFAULT.outlineWidth,
+            outlineWidth = (PlayerSettingsStorage.loadSubtitleOutlineWidth()
+                ?: SubtitleStyleState.DEFAULT.outlineWidth).coerceIn(subtitleOutlineWidthRange),
             bold = PlayerSettingsStorage.loadSubtitleBold()
                 ?: SubtitleStyleState.DEFAULT.bold,
             fontSizeSp = (PlayerSettingsStorage.loadSubtitleFontSizeSp()
@@ -520,7 +520,10 @@ object PlayerSettingsRepository {
 
     fun setSubtitleStyle(style: SubtitleStyleState) {
         ensureLoaded()
-        val normalized = style.copy(fontSizeSp = style.fontSizeSp.coerceIn(subtitleFontSizeRangeSp))
+        val normalized = style.copy(
+            fontSizeSp = style.fontSizeSp.coerceIn(subtitleFontSizeRangeSp),
+            outlineWidth = style.outlineWidth.coerceIn(subtitleOutlineWidthRange),
+        )
         if (subtitleStyle == normalized) return
         subtitleStyle = normalized
         publish()
