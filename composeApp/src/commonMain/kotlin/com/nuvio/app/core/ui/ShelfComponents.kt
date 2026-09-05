@@ -270,6 +270,7 @@ fun NuvioPosterCard(
                     shape = cardShape,
                     surface = NuvioCardDepthSurface.Posters,
                 )
+                .nuvioFocusBorder(cardShape)
                 .posterCardClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
