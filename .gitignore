@@ -36,3 +36,6 @@ scripts
 
 # Local MPVKit iOS build environment (sparse APFS image, see MPVKit docs)
 .mpvkit-build.sparseimage
+
+composeApp/hs_err_pid*.log
+hs_err_pid*.log

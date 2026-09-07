@@ -13,6 +13,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.isDesktop
 
 fun Modifier.nuvioFocusBorder(
     shape: Shape,
@@ -22,7 +23,7 @@ fun Modifier.nuvioFocusBorder(
     val tokens = MaterialTheme.nuvio
     this
         .onFocusChanged { focused = it.isFocused }
-        .focusable()
+        .then(if (isDesktop) Modifier.focusable() else Modifier)
         .then(
             if (focused) Modifier.border(
                 width = borderWidth,

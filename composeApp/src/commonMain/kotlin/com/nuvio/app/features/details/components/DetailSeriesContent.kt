@@ -69,6 +69,7 @@ import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioProgressBar
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.secondaryClick
@@ -527,9 +528,10 @@ private fun SeasonTextChipScrollRow(
         items(seasons, key = { season -> season }) { season ->
             val isSelected = season == currentSeason
             val onSecondaryClick = onLongPress?.let { handler -> { handler(season) } }
+            val chipShape = RoundedCornerShape(sizing.seasonChipRadius)
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(sizing.seasonChipRadius))
+                    .clip(chipShape)
                     .background(
                         if (isSelected) {
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
@@ -537,6 +539,7 @@ private fun SeasonTextChipScrollRow(
                             Color.Transparent
                         },
                     )
+                    .nuvioFocusBorder(chipShape)
                     .combinedClickable(
                         onClick = { onSelect(season) },
                         onLongClick = onSecondaryClick,
@@ -650,6 +653,7 @@ private fun SeasonPosterButton(
                 .height(sizing.seasonPosterHeight)
                 .clip(RoundedCornerShape(sizing.seasonPosterRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .nuvioFocusBorder(RoundedCornerShape(sizing.seasonPosterRadius))
                 .border(
                     width = if (isSelected) 2.dp else 1.dp,
                     color = if (isSelected) {
@@ -823,6 +827,7 @@ private fun EpisodeHorizontalCard(
                 surface = NuvioCardDepthSurface.EpisodeCards,
                 fallbackBorderAlpha = 0.12f,
             )
+            .nuvioFocusBorder(cardShape)
             .posterCardClickable(
                 onClick = onClick,
                 onLongClick = onLongPress,
@@ -1195,6 +1200,7 @@ private fun EpisodeListCard(
                 color = Color.White.copy(alpha = 0.1f),
                 shape = cardShape,
             )
+            .nuvioFocusBorder(cardShape)
             .combinedClickable(
                 enabled = onClick != null || onLongPress != null,
                 onClick = { onClick?.invoke() },
