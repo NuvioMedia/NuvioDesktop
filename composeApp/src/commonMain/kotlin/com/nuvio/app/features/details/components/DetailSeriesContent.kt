@@ -644,6 +644,7 @@ private fun SeasonPosterButton(
     Column(
         modifier = Modifier
             .width(sizing.seasonPosterWidth)
+            .nuvioFocusBorder(RoundedCornerShape(sizing.seasonPosterRadius))
             .posterCardClickable(onClick = onClick, onLongClick = onLongClick),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -653,7 +654,6 @@ private fun SeasonPosterButton(
                 .height(sizing.seasonPosterHeight)
                 .clip(RoundedCornerShape(sizing.seasonPosterRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                .nuvioFocusBorder(RoundedCornerShape(sizing.seasonPosterRadius))
                 .border(
                     width = if (isSelected) 2.dp else 1.dp,
                     color = if (isSelected) {
