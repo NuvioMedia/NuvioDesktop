@@ -63,6 +63,7 @@ internal object DesktopPlayerPictureInPicture {
     }
 
     fun toggle() = onEdt {
+        if (!isSupportedHost()) return@onEdt
         if (transition) return@onEdt
         val now = System.currentTimeMillis()
         if (now - lastToggleAtMs < 300L) return@onEdt
@@ -153,6 +154,10 @@ internal object DesktopPlayerPictureInPicture {
         notifyChanged()
         mainHost.requestFocusInWindow()
     }
+
+    private fun isSupportedHost(): Boolean =
+        DesktopHostOs.current == DesktopHostOs.WINDOWS ||
+            DesktopHostOs.current == DesktopHostOs.MACOS
 
     private fun videoAspectRatio(): Float =
         if (lastVideoSize.width > 0 && lastVideoSize.height > 0) {

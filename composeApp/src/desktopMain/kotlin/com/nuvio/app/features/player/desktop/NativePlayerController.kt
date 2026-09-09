@@ -504,8 +504,12 @@ internal class NativePlayerController(
                 }
             }
             "toggleFullscreen" -> {
-                toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
-                onDesktopFullscreenChanged()
+                if (DesktopPlayerPictureInPicture.isEnabled) {
+                    DesktopPlayerPictureInPicture.toggle()
+                } else {
+                    toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
+                    onDesktopFullscreenChanged()
+                }
             }
             "dragWindow" -> NativePlayerBridge.beginWindowDrag(handle)
             "volumeChange" -> setFallbackVolume(value.toFloat())
@@ -1416,7 +1420,16 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonField("isLoading", isLoading)
         append(',')
-        appendJsonField("pipLabel", pipLabel)
+        appendJsonField(
+            "pipLabel",
+            if (DesktopHostOs.current == DesktopHostOs.WINDOWS ||
+                DesktopHostOs.current == DesktopHostOs.MACOS
+            ) {
+                pipLabel
+            } else {
+                ""
+            },
+        )
         append(',')
         appendJsonField("isInPip", DesktopPlayerPictureInPicture.isEnabled)
         append(',')

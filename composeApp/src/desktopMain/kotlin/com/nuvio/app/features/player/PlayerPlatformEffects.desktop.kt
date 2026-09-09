@@ -5,6 +5,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.IntSize
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopPlayerPictureInPicture
@@ -49,9 +50,8 @@ actual fun ManagePlayerPictureInPicture(
 
 @Composable
 actual fun rememberIsInPictureInPicture(): Boolean {
-    val version = DesktopPlayerPictureInPicture.changes.collectAsState()
-    version.value
-    return DesktopPlayerPictureInPicture.isEnabled
+    val version by DesktopPlayerPictureInPicture.changes.collectAsState()
+    return version >= 0 && DesktopPlayerPictureInPicture.isEnabled
 }
 
 actual fun togglePlayerPictureInPicture() {

@@ -262,9 +262,8 @@ private fun NativePlayerSurface(
         }
     }
 
-    // Observe PiP state changes
     val pipChanges by DesktopPlayerPictureInPicture.changes.collectAsState()
-    val isInPip = DesktopPlayerPictureInPicture.isEnabled
+    val isInPip = pipChanges >= 0 && DesktopPlayerPictureInPicture.isEnabled
 
     Box(
         modifier = modifier

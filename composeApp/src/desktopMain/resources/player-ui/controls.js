@@ -26,6 +26,7 @@ const toggleLabel = document.getElementById("toggleLabel");
 const nextEpisodeButton = document.getElementById("nextEpisodeButton");
 const nextEpisodeButtonLabel = document.getElementById("nextEpisodeButtonLabel");
 const fullscreenButton = document.getElementById("fullscreenButton");
+const pipButton = document.getElementById("pipButton");
 const fullscreenIcon = document.getElementById("fullscreenIcon");
 const title = document.getElementById("title");
 const episode = document.getElementById("episode");
@@ -2220,6 +2221,12 @@ const renderChrome = () => {
   setActionButtonLabel("sources", state.sourcesLabel || "Sources");
   setActionButtonLabel("episodes", state.episodesLabel || "Episodes");
   setActionButtonLabel("pictureInPicture", state.pipLabel);
+  if (pipButton) {
+    const pipLabel = String(state.pipLabel || "").trim();
+    pipButton.setAttribute("aria-label", pipLabel);
+    pipButton.setAttribute("title", pipLabel);
+    pipButton.hidden = !pipLabel;
+  }
   const showBuffering = Boolean(!showError && state.isLoading && !activeModal && !showOpening);
   bufferingStatus.classList.toggle("visible", showBuffering);
   bufferingStatus.setAttribute("aria-hidden", showBuffering ? "false" : "true");
@@ -2400,8 +2407,6 @@ const actionShortcutCommandForEvent = event => {
       return "sources";
     case "KeyE":
       return "episodes";
-    case "KeyP":
-      return "pictureInPicture";
     default:
       return "";
   }
@@ -3201,6 +3206,7 @@ root.addEventListener("click", event => {
 root.addEventListener("pointerdown", event => {
   if (!state.isInPip || event.button !== 0) return;
   if (event.target.closest("button, input, select, textarea")) return;
+  event.preventDefault();
   send("dragWindow", 0);
 });
 
@@ -3209,6 +3215,10 @@ root.addEventListener("dblclick", event => {
   if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
   event.preventDefault();
   window.clearTimeout(tapTimer);
+  if (state.isInPip) {
+    send("pictureInPicture", 0);
+    return;
+  }
   togglePlayerFullscreen();
 });
 
@@ -3258,7 +3268,9 @@ document.addEventListener("keydown", event => {
   if (event.key === "Escape") {
     clearSpaceHoldTimerAndStopSpeedBoost();
     event.preventDefault();
-    if (state.isFullscreen) {
+    if (state.isInPip) {
+      send("pictureInPicture", 0);
+    } else if (state.isFullscreen) {
       togglePlayerFullscreen();
     } else {
       send("back", 0);
@@ -3519,9 +3531,7 @@ document.addEventListener("keydown", event => {
   }
   if (event.code === "KeyP") {
     event.preventDefault();
-    const style = state.subtitleStyle || {};
-    const currentOpacity = Math.round((parseArgb(style.textColor).alpha / 255) * 100);
-    send("subtitleTextOpacity", Math.min(100, currentOpacity + 10));
+    send("pictureInPicture", 0);
     return;
   }
   if (event.code === "KeyI") {

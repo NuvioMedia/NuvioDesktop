@@ -30,6 +30,7 @@ internal class DesktopPlayerPipWindow(
         minimumSize = Dimension(320, 180)
         videoHolderPanel.background = Color.BLACK
         contentPane = videoHolderPanel
+        title = ""
         addWindowListener(object : WindowAdapter() {
             override fun windowClosing(event: WindowEvent) {
                 onCloseRequested()
@@ -57,6 +58,7 @@ internal class DesktopPlayerPipWindow(
         })
     }
 
-    /** Kept as a no-op API so dynamic localization remains owned by player state. */
-    fun updateLocalizedLabels(windowTitle: String, restoreTooltip: String, closeTooltip: String) = Unit
+    fun updateLocalizedLabels(windowTitle: String, restoreTooltip: String, closeTooltip: String) {
+        title = windowTitle
+    }
 }
