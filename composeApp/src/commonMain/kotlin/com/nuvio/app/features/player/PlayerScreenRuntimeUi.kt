@@ -275,7 +275,6 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         pipPlaceholderTitle = stringResource(Res.string.compose_player_pip_placeholder_title),
         pipRestoreLabel = stringResource(Res.string.compose_player_pip_restore),
         pipWindowTitle = stringResource(Res.string.compose_player_pip_window_title),
-        pipCloseLabel = stringResource(Res.string.compose_player_pip_close),
         playbackErrorTitle = stringResource(Res.string.compose_player_playback_error),
         playbackErrorMessage = errorMessage.orEmpty(),
         playbackErrorActionLabel = stringResource(Res.string.compose_player_go_back),
@@ -623,11 +622,6 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             onAudioClick = {
                 refreshTracks()
                 showAudioModal = true
-            },
-            onPictureInPictureClick = if (isDesktop) {
-                { togglePlayerPictureInPicture() }
-            } else {
-                null
             },
             onVideoSettingsClick = if (isIos) {
                 {

@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.LocalNuvioPlatformDensity
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopPlayerPictureInPicture
-import com.nuvio.app.features.player.desktop.DesktopPlayerPipLabels
 import com.nuvio.app.features.player.desktop.NativePlayerController
 import com.nuvio.app.features.player.desktop.NativePlayerHost
 import com.nuvio.app.features.player.desktop.desktopFullscreenChanges
@@ -234,13 +233,7 @@ private fun NativePlayerSurface(
 
     LaunchedEffect(controller, playerControlsState) {
         controller.updateControls(playerControlsState)
-        DesktopPlayerPictureInPicture.setLabels(
-            DesktopPlayerPipLabels(
-                windowTitle = playerControlsState.pipWindowTitle,
-                restoreTooltip = playerControlsState.pipRestoreLabel,
-                closeTooltip = playerControlsState.pipCloseLabel,
-            ),
-        )
+        DesktopPlayerPictureInPicture.setWindowTitle(playerControlsState.pipWindowTitle)
     }
 
     LaunchedEffect(controller) {

@@ -105,7 +105,6 @@ data class PlayerControlsState(
     val pipPlaceholderTitle: String = "",
     val pipRestoreLabel: String = "",
     val pipWindowTitle: String = "",
-    val pipCloseLabel: String = "",
     val playbackErrorTitle: String = "Playback error",
     val playbackErrorMessage: String = "",
     val playbackErrorActionLabel: String = "Go back",

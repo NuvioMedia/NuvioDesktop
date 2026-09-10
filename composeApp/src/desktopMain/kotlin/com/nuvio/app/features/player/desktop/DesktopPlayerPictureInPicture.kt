@@ -2,20 +2,16 @@ package com.nuvio.app.features.player.desktop
 
 import androidx.compose.ui.unit.IntSize
 import co.touchlab.kermit.Logger
+import com.nuvio.app.features.settings.AppIconRepository
 import java.awt.GraphicsEnvironment
 import java.awt.KeyboardFocusManager
 import java.awt.Rectangle
 import java.awt.Window
+import javax.imageio.ImageIO
 import javax.swing.SwingUtilities
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
-internal data class DesktopPlayerPipLabels(
-    val windowTitle: String,
-    val restoreTooltip: String,
-    val closeTooltip: String,
-)
 
 /** Coordinates the independent PiP window without moving the Compose/AWT Canvas. */
 internal object DesktopPlayerPictureInPicture {
@@ -30,7 +26,7 @@ internal object DesktopPlayerPictureInPicture {
     private var host: NativePlayerHost? = null
     private var controller: NativePlayerController? = null
     private var pipWindow: DesktopPlayerPipWindow? = null
-    private var labels = DesktopPlayerPipLabels("", "", "")
+    private var windowTitle = ""
     private var lastVideoSize = IntSize.Zero
     private var transition = false
     private var lastToggleAtMs = 0L
@@ -43,13 +39,9 @@ internal object DesktopPlayerPictureInPicture {
         controller = value
     }
 
-    fun setLabels(newLabels: DesktopPlayerPipLabels) = onEdt {
-        labels = newLabels
-        pipWindow?.updateLocalizedLabels(
-            windowTitle = newLabels.windowTitle,
-            restoreTooltip = newLabels.restoreTooltip,
-            closeTooltip = newLabels.closeTooltip,
-        )
+    fun setWindowTitle(title: String) = onEdt {
+        windowTitle = title
+        pipWindow?.updateWindowTitle(title)
     }
 
     fun update(isPlaying: Boolean, videoSize: IntSize) = onEdt {
@@ -98,14 +90,19 @@ internal object DesktopPlayerPictureInPicture {
         val owner = currentWindow() ?: SwingUtilities.getWindowAncestor(mainHost)
         val window = DesktopPlayerPipWindow(
             ownerWindow = null,
-            onRestoreRequested = ::clear,
             onCloseRequested = ::clear,
         ).apply {
             aspectRatio = videoAspectRatio()
-            updateLocalizedLabels(labels.windowTitle, labels.restoreTooltip, labels.closeTooltip)
+            updateWindowTitle(windowTitle)
             bounds = computeDefaultBounds(owner, aspectRatio)
             isAlwaysOnTop = true
             isVisible = true
+            val iconKey = AppIconRepository.state.value.selected.key
+            runCatching {
+                val iconPath = "icons/app-icon-${iconKey}-transparent.png"
+                val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(iconPath)
+                stream?.use { ImageIO.read(it) }?.let { image -> iconImages = listOf(image) }
+            }.onFailure { error -> log.w(error) { "failed to set PiP window icon key=$iconKey" } }
         }
         pipWindow = window
 
@@ -138,21 +135,22 @@ internal object DesktopPlayerPictureInPicture {
     }
 
     private fun restoreOnEdt() {
-        val mainHost = host ?: return
-        val player = controller ?: return
         val window = pipWindow ?: return
-        if (!mainHost.isDisplayable) return
+        val mainHost = host
+        val player = controller
 
         transition = true
-        val restored = player.reparentSurface(mainHost)
-        log.d { "restoring PiP native surface success=$restored" }
+        if (mainHost != null && mainHost.isDisplayable && player != null) {
+            val restored = player.reparentSurface(mainHost)
+            log.d { "restoring PiP native surface success=$restored" }
+            mainHost.requestFocusInWindow()
+        }
         window.isVisible = false
         window.dispose()
         pipWindow = null
         isEnabled = false
         transition = false
         notifyChanged()
-        mainHost.requestFocusInWindow()
     }
 
     private fun isSupportedHost(): Boolean =

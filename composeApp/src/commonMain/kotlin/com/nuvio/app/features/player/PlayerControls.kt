@@ -31,7 +31,6 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
-import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.Replay10
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import androidx.compose.material3.Icon
@@ -92,7 +91,6 @@ internal fun PlayerControlsShell(
     onSourcesClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     onOpenInExternalPlayer: (() -> Unit)? = null,
-    onPictureInPictureClick: (() -> Unit)? = null,
     onSubmitIntroClick: (() -> Unit)? = null,
     parentalWarnings: List<ParentalWarning> = emptyList(),
     showParentalGuide: Boolean = false,
@@ -155,7 +153,6 @@ internal fun PlayerControlsShell(
                 onLockToggle = onLockToggle,
                 onVideoSettingsClick = onVideoSettingsClick,
                 onOpenInExternalPlayer = onOpenInExternalPlayer,
-                onPictureInPictureClick = onPictureInPictureClick,
                 onBack = onBack,
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -224,7 +221,6 @@ private fun PlayerHeader(
     onLockToggle: () -> Unit,
     onVideoSettingsClick: (() -> Unit)?,
     onOpenInExternalPlayer: (() -> Unit)?,
-    onPictureInPictureClick: (() -> Unit)?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -331,15 +327,6 @@ private fun PlayerHeader(
                             buttonSize = metrics.headerIconSize + 16.dp,
                             iconSize = metrics.headerIconSize,
                             onClick = onOpenInExternalPlayer,
-                        )
-                    }
-                    if (onPictureInPictureClick != null) {
-                        PlayerHeaderIconButton(
-                            icon = Icons.Rounded.PictureInPictureAlt,
-                            contentDescription = stringResource(Res.string.compose_player_picture_in_picture),
-                            buttonSize = metrics.headerIconSize + 16.dp,
-                            iconSize = metrics.headerIconSize,
-                            onClick = onPictureInPictureClick,
                         )
                     }
                     PlayerHeaderIconButton(

@@ -89,11 +89,22 @@
     <symbol id="icon-check" viewBox="0 0 24 24">
       <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/>
     </symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24">
+      <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-lock-open" viewBox="0 0 24 24">
+      <path d="M12 1C9.24 1 7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2h-1V6c0-2.76-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3v2H9V6c0-1.66 1.34-3 3-3zm0 10c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z" fill="currentColor"/><rect x="17" y="1" width="2" height="11" rx="1" fill="currentColor"/>
+    </symbol>
   </svg>
 
   <div class="player" id="playerRoot" tabindex="-1">
     <div class="top-gradient"></div>
     <div class="bottom-gradient"></div>
+    <button class="pip-lock-overlay" id="pipLockOverlay" type="button" aria-label="Unlock controls" aria-hidden="true">
+      <div class="pip-lock-badge">
+        <svg><use href="#icon-lock"></use></svg>
+      </div>
+    </button>
     <section class="opening-overlay" id="openingOverlay" aria-label="Opening player" aria-hidden="true">
       <img class="opening-artwork" id="openingArtwork" alt="">
       <div class="opening-scrim"></div>
@@ -127,6 +138,7 @@
         <nav class="header-actions" aria-label="Player actions">
           <button class="header-button" id="submitIntroButton" data-command="submitIntro" aria-label="Submit intro"><svg><use href="#icon-flag"></use></svg></button>
           <button class="header-button" id="videoSettingsButton" data-command="videoSettings" aria-label="Video settings"><svg><use href="#icon-build"></use></svg></button>
+          <button class="header-button pip-lock-button" id="pipLockButton" aria-label="Lock controls"><svg><use href="#icon-lock"></use></svg></button>
           <button class="header-button" id="pipButton" data-command="pictureInPicture" aria-label=""><svg><use href="#icon-pip"></use></svg></button>
           <button class="header-button" id="fullscreenButton" data-command="toggleFullscreen" aria-label="Enter fullscreen"><svg><use id="fullscreenIcon" href="#icon-fullscreen"></use></svg></button>
           <button class="header-button" id="backButton" data-command="back" aria-label="Close player"><svg><use href="#icon-close"></use></svg></button>

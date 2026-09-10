@@ -868,8 +868,8 @@ button:disabled {
   height: var(--header-icon);
 }
 
-/* PiP keeps only playback, captions/audio, volume and the restore action. */
-.player.pip-mode .header-button:not(#pipButton),
+/* PiP keeps only playback, captions/audio, volume, restore action, and pause overlay. */
+.player.pip-mode .header-button:not(#pipButton):not(#pipLockButton),
 .player.pip-mode .metadata,
 .player.pip-mode [data-command="resize"],
 .player.pip-mode [data-command="speed"],
@@ -877,7 +877,6 @@ button:disabled {
 .player.pip-mode [data-command="episodes"],
 .player.pip-mode .next-episode-card,
 .player.pip-mode .skip-prompt,
-.player.pip-mode .pause-metadata-overlay,
 .player.pip-mode .parental-guide,
 .player.pip-mode .opening-overlay {
   display: none !important;
@@ -897,18 +896,15 @@ button:disabled {
 
 .player.pip-mode .action {
   padding: 8px;
-}
-
-.player.pip-mode .action span {
-  display: none;
-}
-
-.player.pip-mode .action {
   width: 40px;
   min-width: 40px;
   height: 40px;
   min-height: 40px;
   justify-content: center;
+}
+
+.player.pip-mode .action span {
+  display: none;
 }
 
 .player.pip-mode .playback-status {
@@ -918,6 +914,111 @@ button:disabled {
 .player.pip-mode .volume-slider {
   width: 76px;
 }
+
+/* PiP lock button: hidden outside pip-mode, visible inside it. */
+.pip-lock-button {
+  display: none !important;
+}
+
+.player.pip-mode .pip-lock-button {
+  display: grid !important;
+  place-items: center;
+}
+
+/* PiP pause metadata overlay (idle watching screen) */
+.player.pip-mode .pause-metadata-content {
+  padding: 14px 14px 60px 14px;
+}
+
+.player.pip-mode .pause-kicker {
+  font-size: 11px;
+}
+
+.player.pip-mode .pause-logo {
+  width: min(160px, 50vw);
+  height: 36px;
+  margin-top: 4px;
+}
+
+.player.pip-mode .pause-title {
+  font-size: 15px;
+  margin-top: 4px;
+  -webkit-line-clamp: 1;
+}
+
+.player.pip-mode .pause-episode-info,
+.player.pip-mode .pause-episode-title {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.player.pip-mode .pause-description {
+  display: none !important;
+}
+
+/* When pip is locked, hide all chrome and gradients to protect against accidental clicks */
+.player.pip-locked .content,
+.player.pip-locked .top-gradient,
+.player.pip-locked .bottom-gradient {
+  display: none !important;
+}
+
+.pip-lock-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 100;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.pip-lock-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(18, 19, 24, 0.82);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transform: scale(0.88);
+  transition: opacity 180ms ease, transform 180ms ease, background 150ms ease;
+  pointer-events: auto;
+}
+
+.pip-lock-badge svg {
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
+}
+
+.player.pip-locked .pip-lock-overlay {
+  display: flex;
+}
+
+/* Hovering anywhere over the locked PiP window reveals the unlock padlock */
+.player.pip-locked:hover .pip-lock-badge,
+.player.pip-locked .pip-lock-overlay:hover .pip-lock-badge,
+.player.pip-locked .pip-lock-overlay:focus .pip-lock-badge {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.player.pip-locked .pip-lock-overlay:hover .pip-lock-badge {
+  background: rgba(30, 32, 42, 0.95);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
 
 .center-controls {
   position: absolute;

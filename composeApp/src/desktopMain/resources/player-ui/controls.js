@@ -408,6 +408,9 @@ let playerToastTimer = 0;
 let playerToastToken = 0;
 let pendingSettingToastCommand = "";
 let pendingSettingToastToken = 0;
+let isPipLocked = false;
+const pipLockButton = document.getElementById("pipLockButton");
+const pipLockOverlay = document.getElementById("pipLockOverlay");
 const prefersReducedMotion = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const modalTransitionMs = prefersReducedMotion ? 1 : 240;
@@ -2197,6 +2200,7 @@ const renderChrome = () => {
   const isPlaying = Boolean(state.isPlaying);
   const showError = renderPlaybackError();
   root.classList.toggle("pip-mode", Boolean(state.isInPip));
+  if (!state.isInPip && isPipLocked) setPipLocked(false);
   root.classList.toggle("chrome-hidden", Boolean(showError || !state.controlsVisible));
   root.classList.toggle("source-visible", Boolean(!showError && !isPlaying && !state.isLoading && (state.streamTitle || state.providerName)));
   syncHiddenCursor();
@@ -2220,7 +2224,6 @@ const renderChrome = () => {
   setActionButtonLabel("audio", state.audioLabel || "Audio");
   setActionButtonLabel("sources", state.sourcesLabel || "Sources");
   setActionButtonLabel("episodes", state.episodesLabel || "Episodes");
-  setActionButtonLabel("pictureInPicture", state.pipLabel);
   if (pipButton) {
     const pipLabel = String(state.pipLabel || "").trim();
     pipButton.setAttribute("aria-label", pipLabel);
@@ -3153,7 +3156,7 @@ root.addEventListener("contextmenu", event => {
 });
 
 root.addEventListener("pointerdown", event => {
-  if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
+  if (state.isInPip || playbackErrorText() || isControlsSurfaceEvent(event)) return;
   if (event.button !== 0) return;
 
   rootPointerStartX = event.clientX;
@@ -3189,6 +3192,7 @@ window.addEventListener("pointercancel", () => {
 
 root.addEventListener("click", event => {
   if (event.button !== 0) return;
+  if (isPipLocked) return;
   if (suppressNextRootClick) {
     suppressNextRootClick = false;
     window.clearTimeout(tapTimer);
@@ -3205,13 +3209,45 @@ root.addEventListener("click", event => {
 
 root.addEventListener("pointerdown", event => {
   if (!state.isInPip || event.button !== 0) return;
-  if (event.target.closest("button, input, select, textarea")) return;
+  if (isPipLocked) return;
+  if (event.target.closest("button, input, select, textarea, [data-command], a, #seek, .volume-control, .pip-lock-badge")) return;
   event.preventDefault();
+  if (event.target && event.target.releasePointerCapture) {
+    try { event.target.releasePointerCapture(event.pointerId); } catch (_) {}
+  }
   send("dragWindow", 0);
 });
 
+const setPipLocked = locked => {
+  isPipLocked = locked;
+  root.classList.toggle("pip-locked", locked);
+  if (pipLockButton) {
+    pipLockButton.setAttribute("aria-pressed", String(locked));
+    const useEl = pipLockButton.querySelector("use");
+    if (useEl) useEl.setAttribute("href", locked ? "#icon-lock-open" : "#icon-lock");
+    pipLockButton.setAttribute("aria-label", locked ? "Unlock controls" : "Lock controls");
+  }
+  if (pipLockOverlay) {
+    pipLockOverlay.setAttribute("aria-hidden", locked ? "false" : "true");
+  }
+};
+
+if (pipLockButton) {
+  pipLockButton.addEventListener("click", () => {
+    setPipLocked(!isPipLocked);
+  });
+}
+
+if (pipLockOverlay) {
+  pipLockOverlay.addEventListener("click", () => {
+    setPipLocked(false);
+  });
+}
+
+
 root.addEventListener("dblclick", event => {
   if (event.button !== 0) return;
+  if (isPipLocked) return;
   if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
   event.preventDefault();
   window.clearTimeout(tapTimer);

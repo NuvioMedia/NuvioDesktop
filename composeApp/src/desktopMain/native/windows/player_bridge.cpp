@@ -993,13 +993,13 @@ public:
     }
 
     void beginWindowDrag() {
-        postUiTask([self = shared_from_this()]() {
-            if (!self->containerHwnd) return;
-            HWND rootWindow = GetAncestor(self->containerHwnd, GA_ROOT);
-            if (!rootWindow || !IsWindow(rootWindow)) return;
-            ReleaseCapture();
-            SendMessageW(rootWindow, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-        });
+        if (!containerHwnd) return;
+        HWND rootWindow = GetAncestor(containerHwnd, GA_ROOT);
+        if (!rootWindow || !IsWindow(rootWindow)) return;
+        ReleaseCapture();
+        POINT pt;
+        GetCursorPos(&pt);
+        PostMessageW(rootWindow, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(pt.x, pt.y));
     }
 
     void reparentSurface(HWND newHost) {
@@ -1813,6 +1813,10 @@ private:
             }
             setPaused(!shouldPlay);
             sendPlayerEvent(type, value);
+            return;
+        }
+        if (type == "dragWindow") {
+            beginWindowDrag();
             return;
         }
         sendPlayerEvent(type, value);

@@ -14,7 +14,6 @@ import javax.swing.JDialog
 /** Borderless, always-on-top video surface used by desktop PiP. */
 internal class DesktopPlayerPipWindow(
     ownerWindow: Window?,
-    private val onRestoreRequested: () -> Unit,
     private val onCloseRequested: () -> Unit,
 ) : JDialog(ownerWindow) {
     /** Heavyweight host required by the native HWND/NSView reparenting bridge. */
@@ -58,7 +57,7 @@ internal class DesktopPlayerPipWindow(
         })
     }
 
-    fun updateLocalizedLabels(windowTitle: String, restoreTooltip: String, closeTooltip: String) {
+    fun updateWindowTitle(windowTitle: String) {
         title = windowTitle
     }
 }
