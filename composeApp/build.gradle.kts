@@ -1221,6 +1221,11 @@ kotlin {
                 }
             }
         }
+        val desktopTest by getting {
+            if (isLinuxHost) {
+                kotlin.srcDir("src/linuxDesktopTest/kotlin")
+            }
+        }
         val androidHostTest by getting {
             dependencies {
                 implementation("org.robolectric:robolectric:4.16")

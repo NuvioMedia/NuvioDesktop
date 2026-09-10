@@ -10,6 +10,7 @@ import com.nuvio.app.features.downloads.DownloadItem
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.p2p.P2pStreamingEngine
+import com.nuvio.app.features.player.skip.PlayerNextEpisodeRules
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
@@ -372,10 +373,26 @@ internal fun PlayerScreenRuntime.switchToDownloadedEpisode(downloadItem: Downloa
 }
 
 internal fun PlayerScreenRuntime.playNextEpisode() {
-    scope.launchPlayerNextEpisodeAutoPlay(
+    val targetEpisode = nextEpisodeInfo
+        ?.takeIf { it.hasAired == true }
+        ?.let { next -> playerMetaVideos.firstOrNull { it.id == next.videoId } }
+        ?: return
+    playEpisode(targetEpisode)
+}
+
+internal fun PlayerScreenRuntime.playPreviousEpisode() {
+    val targetEpisode = PlayerNextEpisodeRules.resolvePreviousEpisode(
+        videos = playerMetaVideos,
+        currentSeason = activeSeasonNumber,
+        currentEpisode = activeEpisodeNumber,
+    ) ?: return
+    playEpisode(targetEpisode)
+}
+
+private fun PlayerScreenRuntime.playEpisode(targetEpisode: MetaVideo) {
+    scope.launchPlayerEpisodeAutoPlay(
         previousJob = nextEpisodeAutoPlayJob,
-        nextEpisodeInfo = nextEpisodeInfo,
-        allEpisodes = playerMetaVideos,
+        targetEpisode = targetEpisode,
         parentMetaId = parentMetaId,
         parentMetaType = parentMetaType,
         contentType = contentType,
@@ -383,17 +400,17 @@ internal fun PlayerScreenRuntime.playNextEpisode() {
         currentStreamBingeGroup = currentStreamBingeGroup,
         onDownloadedEpisodeSelected = { item, episode -> switchToDownloadedEpisode(item, episode) },
         onEpisodeStreamSelected = { stream, episode -> switchToEpisodeStream(stream, episode) },
-        onManualSelectionRequired = { nextVideo ->
+        onManualSelectionRequired = { episode ->
             episodeStreamsPanelState = EpisodeStreamsPanelState(
                 showStreams = true,
-                selectedEpisode = nextVideo,
+                selectedEpisode = episode,
             )
             showEpisodesPanel = true
         },
         onSearchingChanged = { nextEpisodeAutoPlaySearching = it },
         onSourceNameChanged = { nextEpisodeAutoPlaySourceName = it },
         onCountdownChanged = { nextEpisodeAutoPlayCountdown = it },
-        onNextEpisodeCardVisibleChanged = { showNextEpisodeCard = it },
+        onEpisodeCardVisibleChanged = { showNextEpisodeCard = it },
     )?.let { job ->
         nextEpisodeAutoPlayJob = job
     }

@@ -6,7 +6,6 @@ import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.downloads.DownloadItem
 import com.nuvio.app.features.downloads.DownloadsRepository
-import com.nuvio.app.features.player.skip.NextEpisodeInfo
 import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamAutoPlaySelector
 import com.nuvio.app.features.streams.StreamAutoPlaySource
@@ -19,10 +18,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
+internal fun CoroutineScope.launchPlayerEpisodeAutoPlay(
     previousJob: Job?,
-    nextEpisodeInfo: NextEpisodeInfo?,
-    allEpisodes: List<MetaVideo>,
+    targetEpisode: MetaVideo,
     parentMetaId: String,
     parentMetaType: String,
     contentType: String?,
@@ -34,20 +32,16 @@ internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
     onSearchingChanged: (Boolean) -> Unit,
     onSourceNameChanged: (String?) -> Unit,
     onCountdownChanged: (Int?) -> Unit,
-    onNextEpisodeCardVisibleChanged: (Boolean) -> Unit,
+    onEpisodeCardVisibleChanged: (Boolean) -> Unit,
 ): Job? {
-    val nextVideoId = nextEpisodeInfo?.videoId ?: return null
-    val nextVideo = allEpisodes.firstOrNull { video -> video.id == nextVideoId } ?: return null
-    if (nextEpisodeInfo.hasAired != true) return null
-
-    val downloadedNextEpisode = DownloadsRepository.findPlayableDownload(
+    val downloadedEpisode = DownloadsRepository.findPlayableDownload(
         parentMetaId = parentMetaId,
-        seasonNumber = nextVideo.season,
-        episodeNumber = nextVideo.episode,
-        videoId = nextVideo.id,
+        seasonNumber = targetEpisode.season,
+        episodeNumber = targetEpisode.episode,
+        videoId = targetEpisode.id,
     )
-    if (downloadedNextEpisode != null) {
-        onDownloadedEpisodeSelected(downloadedNextEpisode, nextVideo)
+    if (downloadedEpisode != null) {
+        onDownloadedEpisodeSelected(downloadedEpisode, targetEpisode)
         return null
     }
 
@@ -104,9 +98,9 @@ internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
     return launch {
         PlayerStreamsRepository.loadEpisodeStreams(
             type = type,
-            videoId = nextVideo.id,
-            season = nextVideo.season,
-            episode = nextVideo.episode,
+            videoId = targetEpisode.id,
+            season = targetEpisode.season,
+            episode = targetEpisode.episode,
         )
 
         val installedAddonNames = AddonRepository.uiState.value.addons
@@ -215,13 +209,13 @@ internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
                 onCountdownChanged(i)
                 delay(1000)
             }
-            onEpisodeStreamSelected(selected, nextVideo)
-            onNextEpisodeCardVisibleChanged(false)
+            onEpisodeStreamSelected(selected, targetEpisode)
+            onEpisodeCardVisibleChanged(false)
             onCountdownChanged(null)
             onSourceNameChanged(null)
         } else {
-            onManualSelectionRequired(nextVideo)
-            onNextEpisodeCardVisibleChanged(false)
+            onManualSelectionRequired(targetEpisode)
+            onEpisodeCardVisibleChanged(false)
         }
     }
 }

@@ -97,6 +97,12 @@ internal class NativePlayerController(
     private var releaseTimedOut: Boolean = false
     private var terminalReleaseFailure: String? = null
     private var controlsState = PlayerControlsState()
+    private val mprisLifecycle = MprisRegistrationLifecycle<PlayerNowPlayingInfo>(
+        onRegister = { MprisBridge.register(this) },
+        onUnregister = { MprisBridge.unregister(this) },
+        onUpdateMetadata = MprisBridge::updateMetadata,
+        onClear = MprisBridge::clear,
+    )
     @Volatile
     private var currentVolumeLevel = rememberedVolumeLevel.coerceDesktopPlayerVolumeLevel()
     private var pendingSubtitleDelayMs: Int? = null
@@ -177,7 +183,7 @@ internal class NativePlayerController(
             terminalFailure?.let { message -> SwingUtilities.invokeLater { pending.onError(message) } }
             return
         }
-        MprisBridge.register(this)
+        registerMpris()
         log.d {
             "attach requested source=${sourceUrl.toPlaybackLogKey()} headers=${sourceHeaders.size} " +
                 "playWhenReady=$playWhenReady initialPositionMs=$initialPositionMs decoderPriority=$decoderPriority"
@@ -699,7 +705,7 @@ internal class NativePlayerController(
         onReleased: () -> Unit,
         onReleaseFailed: (String) -> Unit,
     ) {
-        MprisBridge.unregister(this)
+        unregisterMpris()
         synchronized(lifecycleLock) {
             releaseRequested = true
         }
@@ -808,7 +814,7 @@ internal class NativePlayerController(
     }
 
     fun dispose() {
-        MprisBridge.unregister(this)
+        unregisterMpris()
         host.resetCursorVisibility()
         val accepted = synchronized(lifecycleLock) {
             if (releaseRequested) {
@@ -988,12 +994,20 @@ internal class NativePlayerController(
     }
 
     override fun updateNowPlayingMetadata(info: PlayerNowPlayingInfo) {
-        MprisBridge.updateMetadata(info)
+        mprisLifecycle.updateMetadata(info)
         snapshot()
     }
 
     override fun clearNowPlayingInfo() {
-        MprisBridge.clear()
+        mprisLifecycle.clear()
+    }
+
+    private fun registerMpris() {
+        mprisLifecycle.register()
+    }
+
+    private fun unregisterMpris() {
+        mprisLifecycle.unregister()
     }
 
     override fun getAudioTracks(): List<AudioTrack> =

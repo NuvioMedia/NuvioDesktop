@@ -920,6 +920,10 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
                 playNextEpisode()
             }
         }
+        "playPreviousEpisode" -> {
+            nextEpisodeAutoPlayJob?.cancel()
+            playPreviousEpisode()
+        }
         "enableP2pForPlayerControls" -> enableP2pForPlayerControls()
         "cancelP2pForPlayerControls" -> {
             playerControlsPendingP2pSwitch = null
