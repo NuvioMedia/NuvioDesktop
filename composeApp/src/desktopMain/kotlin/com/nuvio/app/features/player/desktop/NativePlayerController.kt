@@ -1431,6 +1431,10 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
             },
         )
         append(',')
+        appendJsonField("lockLabel", lockLabel)
+        append(',')
+        appendJsonField("unlockLabel", unlockLabel)
+        append(',')
         appendJsonField("isInPip", DesktopPlayerPictureInPicture.isEnabled)
         append(',')
         appendJsonField("controlsVisible", controlsVisible)

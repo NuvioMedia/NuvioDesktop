@@ -97,6 +97,7 @@ internal object DesktopPlayerPictureInPicture {
             bounds = computeDefaultBounds(owner, aspectRatio)
             isAlwaysOnTop = true
             isVisible = true
+            AppIconRepository.ensureLoaded()
             val iconKey = AppIconRepository.state.value.selected.key
             runCatching {
                 val iconPath = "icons/app-icon-${iconKey}-transparent.png"

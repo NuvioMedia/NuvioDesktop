@@ -972,18 +972,23 @@ button:disabled {
   z-index: 100;
   background: transparent;
   border: none;
-  cursor: pointer;
+  cursor: grab;
   align-items: center;
   justify-content: center;
   padding: 0;
 }
 
 .pip-lock-badge {
-  display: flex;
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 101;
   align-items: center;
   justify-content: center;
   width: 52px;
   height: 52px;
+  margin: -26px 0 0 -26px;
   border-radius: 50%;
   background: rgba(18, 19, 24, 0.82);
   backdrop-filter: blur(12px);
@@ -994,6 +999,7 @@ button:disabled {
   transform: scale(0.88);
   transition: opacity 180ms ease, transform 180ms ease, background 150ms ease;
   pointer-events: auto;
+  cursor: pointer;
 }
 
 .pip-lock-badge svg {
@@ -1006,15 +1012,23 @@ button:disabled {
   display: flex;
 }
 
-/* Hovering anywhere over the locked PiP window reveals the unlock padlock */
+.player.pip-locked .pip-lock-overlay:active {
+  cursor: grabbing;
+}
+
+.player.pip-locked .pip-lock-badge {
+  display: flex;
+}
+
+/* Hovering the locked PiP window reveals the unlock padlock. Drag still works on the overlay. */
 .player.pip-locked:hover .pip-lock-badge,
-.player.pip-locked .pip-lock-overlay:hover .pip-lock-badge,
-.player.pip-locked .pip-lock-overlay:focus .pip-lock-badge {
+.player.pip-locked .pip-lock-badge:focus {
   opacity: 1;
   transform: scale(1);
 }
 
-.player.pip-locked .pip-lock-overlay:hover .pip-lock-badge {
+.player.pip-locked .pip-lock-badge:hover,
+.player.pip-locked .pip-lock-badge:focus {
   background: rgba(30, 32, 42, 0.95);
   border-color: rgba(255, 255, 255, 0.4);
 }

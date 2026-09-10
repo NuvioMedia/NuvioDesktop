@@ -190,6 +190,8 @@ let state = {
   playLabel: "Play",
   pauseLabel: "Pause",
   closeLabel: "Close player",
+  lockLabel: "Lock player controls",
+  unlockLabel: "Unlock player controls",
   submitIntroLabel: "Submit Intro",
   videoSettingsLabel: "Video settings",
   playbackErrorTitle: "Playback error",
@@ -411,6 +413,37 @@ let pendingSettingToastToken = 0;
 let isPipLocked = false;
 const pipLockButton = document.getElementById("pipLockButton");
 const pipLockOverlay = document.getElementById("pipLockOverlay");
+const pipLockBadge = document.getElementById("pipLockBadge");
+const pipLockLabel = () => String(state.lockLabel || "Lock player controls").trim();
+const pipUnlockLabel = () => String(state.unlockLabel || "Unlock player controls").trim();
+const syncPipLockLabels = () => {
+  const lockLabel = isPipLocked ? pipUnlockLabel() : pipLockLabel();
+  if (pipLockButton) {
+    pipLockButton.setAttribute("aria-label", lockLabel);
+    pipLockButton.setAttribute("title", lockLabel);
+  }
+  if (pipLockBadge) {
+    const unlockLabel = pipUnlockLabel();
+    pipLockBadge.setAttribute("aria-label", unlockLabel);
+    pipLockBadge.setAttribute("title", unlockLabel);
+  }
+};
+const setPipLocked = locked => {
+  isPipLocked = locked;
+  root.classList.toggle("pip-locked", locked);
+  if (pipLockButton) {
+    pipLockButton.setAttribute("aria-pressed", String(locked));
+    const useEl = pipLockButton.querySelector("use");
+    if (useEl) useEl.setAttribute("href", locked ? "#icon-lock-open" : "#icon-lock");
+  }
+  if (pipLockOverlay) {
+    pipLockOverlay.setAttribute("aria-hidden", "true");
+  }
+  if (pipLockBadge) {
+    pipLockBadge.hidden = !locked;
+  }
+  syncPipLockLabels();
+};
 const prefersReducedMotion = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const modalTransitionMs = prefersReducedMotion ? 1 : 240;
@@ -2230,6 +2263,7 @@ const renderChrome = () => {
     pipButton.setAttribute("title", pipLabel);
     pipButton.hidden = !pipLabel;
   }
+  syncPipLockLabels();
   const showBuffering = Boolean(!showError && state.isLoading && !activeModal && !showOpening);
   bufferingStatus.classList.toggle("visible", showBuffering);
   bufferingStatus.setAttribute("aria-hidden", showBuffering ? "false" : "true");
@@ -3209,7 +3243,6 @@ root.addEventListener("click", event => {
 
 root.addEventListener("pointerdown", event => {
   if (!state.isInPip || event.button !== 0) return;
-  if (isPipLocked) return;
   if (event.target.closest("button, input, select, textarea, [data-command], a, #seek, .volume-control, .pip-lock-badge")) return;
   event.preventDefault();
   if (event.target && event.target.releasePointerCapture) {
@@ -3218,28 +3251,15 @@ root.addEventListener("pointerdown", event => {
   send("dragWindow", 0);
 });
 
-const setPipLocked = locked => {
-  isPipLocked = locked;
-  root.classList.toggle("pip-locked", locked);
-  if (pipLockButton) {
-    pipLockButton.setAttribute("aria-pressed", String(locked));
-    const useEl = pipLockButton.querySelector("use");
-    if (useEl) useEl.setAttribute("href", locked ? "#icon-lock-open" : "#icon-lock");
-    pipLockButton.setAttribute("aria-label", locked ? "Unlock controls" : "Lock controls");
-  }
-  if (pipLockOverlay) {
-    pipLockOverlay.setAttribute("aria-hidden", locked ? "false" : "true");
-  }
-};
-
 if (pipLockButton) {
   pipLockButton.addEventListener("click", () => {
     setPipLocked(!isPipLocked);
   });
 }
 
-if (pipLockOverlay) {
-  pipLockOverlay.addEventListener("click", () => {
+if (pipLockBadge) {
+  pipLockBadge.addEventListener("click", event => {
+    event.stopPropagation();
     setPipLocked(false);
   });
 }
