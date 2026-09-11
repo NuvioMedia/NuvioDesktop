@@ -20,8 +20,17 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.core.diagnostics.SentryInitializer
+import com.nuvio.app.core.ui.NativeTabBridge
 import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.features.discordrpc.DiscordPresenceManager
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.plugins.configureDesktopQuickJsLibrary
 import com.nuvio.app.features.player.PlatformPlayerSurface
@@ -128,6 +137,25 @@ fun main(args: Array<String>) {
             title = if (smokePlayerUrl == null) "Nuvio" else "Nuvio Player Smoke",
             state = windowState,
             icon = painterResource(appIconState.selected.transparentPreviewResource),
+            onKeyEvent = { event ->
+                if (event.type == KeyEventType.KeyDown) {
+                    if (NativeTabBridge.isAnyTextInputFocused) return@Window false
+                    // Plain-key shortcuts only: bail out on any modifier so combinations
+                    // like Ctrl+1 or Alt+Escape aren't swallowed by these bindings.
+                    if (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed || event.isShiftPressed) {
+                        return@Window false
+                    }
+                    when (event.key) {
+                        Key.One, Key.NumPad1 -> { NativeTabBridge.requestTab("Home"); true }
+                        Key.Two, Key.NumPad2 -> { NativeTabBridge.requestTab("Search"); true }
+                        Key.Three, Key.NumPad3 -> { NativeTabBridge.requestTab("Library"); true }
+                        Key.Four, Key.NumPad4 -> { NativeTabBridge.requestTab("Settings"); true }
+                        Key.Slash, Key.Zero, Key.NumPad0 -> { NativeTabBridge.requestSearchWithFocus(); true }
+                        Key.Escape -> { NativeTabBridge.requestBack(); true }
+                        else -> false
+                    }
+                } else false
+            }
         ) {
             SideEffect {
                 window.background = NuvioDesktopNativeBackground
@@ -151,6 +179,12 @@ fun main(args: Array<String>) {
                 // Windows fullscreen is emulated natively and isn't reflected by
                 // WindowPlacement, so it must be re-applied once the window peer exists.
                 fullscreenController.applyRestoredFullscreenState(window, windowState, wasFullscreenOnLastExit)
+            }
+            DisposableEffect(window) {
+                // Windows multi-monitor maximize workaround — see DesktopMaximizedBounds.kt.
+                // (No-op on non-Windows: the helper checks the host OS itself.)
+                val stopTracking = window.trackMaximizedBoundsForCurrentScreen()
+                onDispose { stopTracking() }
             }
             LaunchedEffect(windowState) {
                 // Covers OS-driven placement changes too (e.g. the native macOS
@@ -200,6 +234,8 @@ fun main(args: Array<String>) {
                     },
                 )
                 val uninstallFullscreenShortcuts = installDesktopAppFullscreenShortcuts(window)
+                // Windows multi-monitor maximize workaround — see DesktopMaximizedBounds.kt.
+                // (No-op on non-Windows: the helper checks the host OS itself.)
                 val untrackMaximizedBounds = window.trackMaximizedBoundsForCurrentScreen()
                 onDispose {
                     fullscreenController.dispose(window)
@@ -228,6 +264,16 @@ fun main(args: Array<String>) {
     }
 }
 
+/**
+ * Windows multi-monitor maximize workaround.
+ *
+ * [java.awt.Frame.setMaximizedBounds] is sticky: once set, Windows keeps using those bounds
+ * for the maximize action regardless of which monitor the window is currently on, so a window
+ * dragged to a secondary display can maximize to the primary display's work area instead.
+ * This recomputes and re-applies the bounds for the screen currently under the window
+ * whenever it moves or resizes, so double-click-titlebar / Win+Up maximize always targets the
+ * correct monitor. Returns a callback to stop tracking and remove the listener.
+ */
 private fun configureDesktopChrome() {
     if (System.getProperty("os.name").contains("mac", ignoreCase = true)) {
         System.setProperty("apple.awt.application.appearance", MacosDarkAquaAppearance)

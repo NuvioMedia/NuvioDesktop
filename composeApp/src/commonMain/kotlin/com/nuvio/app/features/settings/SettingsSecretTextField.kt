@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import com.nuvio.app.core.ui.trackTextInputFocusForShortcutGuard
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.settings_hide_secret
 import nuvio.composeapp.generated.resources.settings_show_secret
@@ -37,7 +38,7 @@ internal fun SettingsSecretTextField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier,
+        modifier = modifier.trackTextInputFocusForShortcutGuard(),
         isError = isError,
         singleLine = true,
         label = { Text(label) },
