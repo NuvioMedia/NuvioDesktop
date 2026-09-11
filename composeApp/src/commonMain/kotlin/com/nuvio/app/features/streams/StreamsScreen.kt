@@ -92,6 +92,7 @@ import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
@@ -884,6 +885,7 @@ private fun FilterChip(
         animationSpec = tween(durationMillis = 180),
         label = "filter_chip_content",
     )
+    val chipShape = RoundedCornerShape(16.dp)
     Box(
         modifier = Modifier
             .graphicsLayer {
@@ -891,8 +893,9 @@ private fun FilterChip(
                 scaleY = scale
             }
             .height(36.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(chipShape)
             .background(containerColor)
+            .nuvioFocusBorder(chipShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
