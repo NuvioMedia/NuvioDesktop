@@ -2312,7 +2312,7 @@
     <string name="theme_custom">Vlastní</string>
     <string name="theme_gold">Zlatá</string>
     <string name="theme_graphite">Grafitová</string>
-    <string name="theme_jade">Nefritová</string>
+    <string name="theme_jade">Jade</string>
     <string name="theme_rose_gold">Růžové zlato</string>
     <string name="tracking_library_source_simkl_selected">Vybrán seznam ke zhlédnutí Simkl</string>
     <string name="tracking_list_status_rewritten">%1$s zařadil tento titul do %2$s místo %3$s</string>
