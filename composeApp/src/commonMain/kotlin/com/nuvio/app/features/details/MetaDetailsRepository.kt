@@ -10,6 +10,8 @@ import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.filterReleasedItems
 import com.nuvio.app.features.mdblist.MdbListMetadataService
 import com.nuvio.app.features.mdblist.MdbListSettingsRepository
+import com.nuvio.app.features.simkl.SimklSyncRepository
+import com.nuvio.app.features.simkl.alternateContentIdsFor
 import com.nuvio.app.features.tmdb.TmdbMetadataService
 import com.nuvio.app.features.tmdb.TmdbService
 import com.nuvio.app.features.tmdb.TmdbSettingsRepository
@@ -168,6 +170,21 @@ object MetaDetailsRepository {
                 return@launch
             }
 
+            val alternate = withContext(Dispatchers.Default) {
+                tryFetchMetaByAlternateId(type = type, id = metaLookupId)
+            }
+            if (alternate != null) {
+                publishLoadedMeta(
+                    requestKey = requestKey,
+                    meta = alternate.meta,
+                    fallbackItemId = alternate.id,
+                    fallbackItemType = type,
+                    mdbListSettings = mdbListSettings,
+                    metaScreenSettingsFingerprint = metaScreenSettingsFingerprint,
+                )
+                return@launch
+            }
+
             _uiState.value = MetaDetailsUiState(
                 errorMessage = getString(Res.string.details_load_failed_all_addons),
             )
@@ -212,7 +229,14 @@ object MetaDetailsRepository {
             }
         }
 
-        return tryFetchTmdbFallbackMeta(type = type, id = id)?.also { result ->
+        tryFetchTmdbFallbackMeta(type = type, id = id)?.let { result ->
+            if (cacheResult) {
+                cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
+            }
+            return result
+        }
+
+        return tryFetchMetaByAlternateId(type = type, id = metaLookupId)?.meta?.also { result ->
             if (cacheResult) {
                 cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
             }
@@ -273,6 +297,33 @@ object MetaDetailsRepository {
             log.e(e) { "Failed to fetch/parse meta from $url (manifest=${manifest.transportUrl})" }
             null
         }
+    }
+
+    private data class AlternateMeta(val id: String, val meta: MetaDetails)
+
+    /**
+     * Last-resort lookup for items whose canonical ID no installed addon can serve.
+     *
+     * A Simkl anime season can carry a season-specific IMDB ID that no meta addon indexes, while
+     * the same entry's MAL/AniDB/AniList/Kitsu IDs resolve fine through an anime addon. Those IDs
+     * are already known, so try them instead of failing. Only runs once every addon and the TMDB
+     * fallback have already missed, so the normal path is unaffected.
+     */
+    private suspend fun tryFetchMetaByAlternateId(type: String, id: String): AlternateMeta? {
+        val alternateIds = SimklSyncRepository.state.value.snapshot.alternateContentIdsFor(id)
+        if (alternateIds.isEmpty()) return null
+
+        log.d { "Retrying meta for id=$id with alternate ids=$alternateIds" }
+        for (alternateId in alternateIds) {
+            for (manifest in findMetaManifests(AddonRepository.uiState.value, type, alternateId)) {
+                val result = tryFetchMeta(manifest, type, alternateId, includeMdbList = false)
+                if (result != null) {
+                    log.i { "Resolved meta for id=$id via alternate id=$alternateId" }
+                    return AlternateMeta(id = alternateId, meta = result)
+                }
+            }
+        }
+        return null
     }
 
     private suspend fun findReadyMetaManifests(type: String, id: String): List<AddonManifest> {

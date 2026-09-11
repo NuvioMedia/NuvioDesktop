@@ -170,6 +170,45 @@ internal fun SimklSyncSnapshot.toSimklProgressEntries(): List<WatchProgressEntry
         .mapNotNull { (_, candidates) -> candidates.maxByOrNull(WatchProgressEntry::lastUpdatedEpochMs) }
         .sortedByDescending(WatchProgressEntry::lastUpdatedEpochMs)
 
+/**
+ * Returns the other content IDs the entry matching [contentId] is known under, in fallback order.
+ *
+ * Used as a last resort when no installed addon can serve meta for [contentId]. An anime season can
+ * carry a season-specific IMDB ID that no meta addon indexes, even though the rest of the franchise
+ * shares a parent IMDB ID that resolves fine.
+ *
+ * Sibling IMDB IDs come first so the franchise keeps its IMDB identity — that is what the
+ * "Prefer IMDB" option promises, and it keeps episode air dates coming from the same source as the
+ * rest of the library. The entry's own MAL/AniDB/AniList/Kitsu IDs follow as a last resort.
+ */
+internal fun SimklSyncSnapshot.alternateContentIdsFor(contentId: String): List<String> {
+    val media = entries.firstOrNull { entry -> entry.matchesContentId(contentId) }?.media ?: return emptyList()
+    return (siblingImdbIdsFor(media) + media.alternateContentIds())
+        .filterNot { it.equals(contentId, ignoreCase = true) }
+        .distinct()
+}
+
+/**
+ * IMDB IDs used by other entries that belong to the same TVDB series as [media], most common first.
+ *
+ * Simkl models each anime season as its own entry but keeps the franchise TVDB ID on all of them,
+ * so the seasons that share a parent IMDB ID identify that parent for the season that does not.
+ */
+private fun SimklSyncSnapshot.siblingImdbIdsFor(media: SimklMedia): List<String> {
+    val tvdbId = media.ids.idValue("tvdb") ?: return emptyList()
+    val ownImdbId = media.ids.idValue("imdb")
+    return entries
+        .mapNotNull { entry -> entry.media }
+        .filter { candidate -> tvdbId.equals(candidate.ids.idValue("tvdb"), ignoreCase = true) }
+        .mapNotNull { candidate -> candidate.ids.idValue("imdb") }
+        .filterNot { imdbId -> imdbId.equals(ownImdbId, ignoreCase = true) }
+        .groupingBy { imdbId -> imdbId }
+        .eachCount()
+        .entries
+        .sortedByDescending { (_, count) -> count }
+        .map { (imdbId, _) -> imdbId }
+}
+
 internal fun SimklSyncSnapshot.toSimklShowIdSiblings(): Map<String, Set<String>> {
     val siblingsMap = mutableMapOf<String, MutableSet<String>>()
     entries.forEach { entry ->
@@ -305,7 +344,7 @@ internal fun SimklMedia.canonicalContentId(animeIdPreference: SimklAnimeIdPrefer
  * When the user prefers MAL or Kitsu as the canonical anime ID, only the preferred ID type
  * is emitted to prevent duplicates in continue watching and watched badge resolution.
  */
-private fun SimklMedia.alternateContentIds(): Set<String> {
+internal fun SimklMedia.alternateContentIds(): Set<String> {
     val preference = TrackingSettingsRepository.uiState.value.simklAnimeIdPreference
     return when (preference) {
         SimklAnimeIdPreference.IMDB -> buildSet {
