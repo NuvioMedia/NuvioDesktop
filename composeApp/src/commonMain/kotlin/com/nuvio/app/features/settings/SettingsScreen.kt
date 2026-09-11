@@ -614,6 +614,7 @@ private fun MobileSettingsScreen(
                             onPlaybackClick = { onPageChange(SettingsPage.Playback) },
                             onAppearanceClick = { onPageChange(SettingsPage.Appearance) },
                             onAdvancedClick = { onPageChange(SettingsPage.Advanced) },
+                            onShortcutsClick = { onPageChange(SettingsPage.Shortcuts) },
                             onNotificationsClick = { onPageChange(SettingsPage.Notifications) },
                             onContentDiscoveryClick = { onPageChange(SettingsPage.ContentDiscovery) },
                             onIntegrationsClick = { onPageChange(SettingsPage.Integrations) },
@@ -698,6 +699,9 @@ private fun MobileSettingsScreen(
                 SettingsPage.Advanced -> advancedSettingsContent(
                     isTablet = false,
                     rememberLastProfileEnabled = rememberLastProfileEnabled,
+                )
+                SettingsPage.Shortcuts -> shortcutsSettingsContent(
+                    isTablet = false,
                 )
                 SettingsPage.Notifications -> if (AppFeaturePolicy.notificationsEnabled) {
                     notificationsSettingsContent(
@@ -930,10 +934,12 @@ private fun TabletSettingsScreen(
                         icon = category.icon,
                         selected = category == activeCategory,
                         onClick = {
-                            if (category != activeCategory || page != SettingsPage.Root) {
+                            if (category != activeCategory || (category != SettingsCategory.Shortcuts && page != SettingsPage.Root) || (category == SettingsCategory.Shortcuts && page != SettingsPage.Shortcuts)) {
                                 selectedCategory = category.name
                                 navBarScrollState?.expand()
-                                if (page != SettingsPage.Root) {
+                                if (category == SettingsCategory.Shortcuts) {
+                                    onPageChange(SettingsPage.Shortcuts)
+                                } else {
                                     onPageChange(SettingsPage.Root)
                                 }
                             }
@@ -1042,7 +1048,7 @@ private fun TabletSettingsScreen(
                             } else {
                                 stringResource(page.titleRes)
                             },
-                            showBack = previousPage != null,
+                            showBack = previousPage != null && page != SettingsPage.Shortcuts,
                             onBack = { previousPage?.let(onPageChange) },
                         )
                     }
@@ -1063,6 +1069,7 @@ private fun TabletSettingsScreen(
                                     onPlaybackClick = { openInlinePage(SettingsPage.Playback) },
                                     onAppearanceClick = { openInlinePage(SettingsPage.Appearance) },
                                     onAdvancedClick = { openInlinePage(SettingsPage.Advanced) },
+                                    onShortcutsClick = { openInlinePage(SettingsPage.Shortcuts) },
                                     onNotificationsClick = { openInlinePage(SettingsPage.Notifications) },
                                     onContentDiscoveryClick = { openInlinePage(SettingsPage.ContentDiscovery) },
                                     onIntegrationsClick = { openInlinePage(SettingsPage.Integrations) },
@@ -1080,10 +1087,14 @@ private fun TabletSettingsScreen(
                                     showGeneralSection = activeCategory == SettingsCategory.General,
                                     showAboutSection = activeCategory == SettingsCategory.About,
                                     showAdvancedSection = activeCategory == SettingsCategory.Advanced,
+                                    showShortcutsSection = activeCategory == SettingsCategory.Shortcuts,
                                     showSupportersContributorsPage = AppFeaturePolicy.supportersContributorsPageEnabled,
                                 )
                             }
                         }
+                        SettingsPage.Shortcuts -> shortcutsSettingsContent(
+                            isTablet = true,
+                        )
                         SettingsPage.Account -> accountSettingsContent(
                             isTablet = true,
                         )
