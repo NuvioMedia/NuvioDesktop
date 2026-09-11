@@ -28,6 +28,8 @@ internal object TrailerExtractionPlatform {
     )
 
     private val httpClient = OkHttpClient.Builder()
+        .dns(com.nuvio.app.core.network.DesktopIPv4FirstDns())
+        .connectionPool(okhttp3.ConnectionPool(8, 5, TimeUnit.MINUTES))
         .connectTimeout(TRAILER_REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .readTimeout(TRAILER_REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .writeTimeout(TRAILER_REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
@@ -36,11 +38,14 @@ internal object TrailerExtractionPlatform {
         .build()
 
     private val probeClient = OkHttpClient.Builder()
+        .dns(com.nuvio.app.core.network.DesktopIPv4FirstDns())
+        .connectionPool(okhttp3.ConnectionPool(8, 5, TimeUnit.MINUTES))
         .connectTimeout(2, TimeUnit.SECONDS)
         .readTimeout(2, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .build()
+
 
     fun supportsSeparateVideo(candidate: StreamCandidate): Boolean = candidate.ext == "mp4"
 
