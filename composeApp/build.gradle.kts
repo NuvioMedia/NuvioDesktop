@@ -881,13 +881,14 @@ val windowsPlayerBridgeCommand = if (missingWindowsPlayerBridgeInputs.isNotEmpty
         ${'$'}compile = ${psSingleQuote(powershellCompileCommand)}.Replace('__DQ__', ${'$'}dq)
         ${'$'}lines = @(
           '@echo off',
+          'chcp 65001 >nul',
           ('set {0}VCVARS={1}{0}' -f ${'$'}dq, ${'$'}vcvars),
           ('call {0}%VCVARS%{0} >nul' -f ${'$'}dq),
           'if errorlevel 1 exit /b %errorlevel%',
           ${'$'}compile,
           'exit /b %ERRORLEVEL%'
         )
-        Set-Content -LiteralPath ${'$'}bat -Value ${'$'}lines -Encoding ASCII
+        [System.IO.File]::WriteAllLines(${'$'}bat, ${'$'}lines, [System.Text.UTF8Encoding]::new(${'$'}false))
         & cmd.exe /d /c ${'$'}bat
         ${'$'}code = ${'$'}LASTEXITCODE
         if (${'$'}code -ne 0) { exit ${'$'}code }

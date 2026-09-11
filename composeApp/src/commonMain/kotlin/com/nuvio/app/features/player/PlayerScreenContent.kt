@@ -116,7 +116,22 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
         runtime.episodeStreamsRepoState = episodeStreamsRepoState
         runtime.metaUiState = metaUiState
         runtime.addonsUiState = addonsUiState
-        runtime.addonSubtitles = addonSubtitles
+        val streamExternalSubtitles = remember(runtime.activeExternalSubtitles) {
+            runtime.activeExternalSubtitles.mapIndexed { index, sub ->
+                val normalizedLang = normalizeLanguageCode(sub.language)
+                    ?: normalizeLanguageCode(sub.name)
+                    ?: sub.language.trim().lowercase().ifBlank { SubtitleUnknownLanguageKey }
+                val isForced = inferForcedSubtitleTrack(sub.name, sub.language, sub.url)
+                AddonSubtitle(
+                    id = "stream_sub_${index}_${normalizedLang}_${sub.url.hashCode()}",
+                    url = sub.url,
+                    language = normalizedLang,
+                    display = if (isForced) "Forced" else "",
+                    addonName = null,
+                )
+            }
+        }
+        runtime.addonSubtitles = streamExternalSubtitles + addonSubtitles
         runtime.isLoadingAddonSubtitles = isLoadingAddonSubtitles
         runtime.horizontalSafePadding = horizontalSafePadding
         runtime.metrics = metrics
