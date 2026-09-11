@@ -1958,7 +1958,7 @@
     <string name="collections_editor_tmdb_without_watch_providers">Vyloučená ID poskytovatelů</string>
     <string name="collections_editor_tmdb_without_watch_providers_helper">Vyloučí tituly dostupné u těchto poskytovatelů TMDB ve vybrané oblasti.</string>
     <string name="collections_editor_tmdb_without_watch_providers_placeholder">8|337|350</string>
-    <string name="community_membership_connected_description">Na tomto účtu Patreon nebyla nalezena žádná aktivní úroveň Nuvio. Zobrazte dostupné možnosti nebo po změně členství na Patreonu obnovte stav.</string>
+    <string name="community_membership_connected_description">Na tomto účtu Patreon nebyla nalezena žádná aktivní úroveň členství Nuvio. Zobrazte dostupné možnosti nebo po změně členství na Patreonu obnovte stav.</string>
     <string name="community_membership_connected_title">Patreon je připojen</string>
     <string name="community_membership_description">Podpora Nuvia pomáhá pokrýt infrastrukturu a průběžný vývoj a zároveň zachovat základní funkce zdarma pro všechny.</string>
     <string name="community_membership_manage">Spravovat členství</string>
@@ -1972,7 +1972,7 @@
     <string name="community_membership_unable_load">Stav členství se nepodařilo načíst. Zkuste to znovu.</string>
     <string name="community_membership_you_are">Jste</string>
     <string name="community_view_supporter_membership">Zobrazit členství podporovatele</string>
-    <string name="compose_about_based_on_version_format">Založeno na Nuvio %1$s</string>
+    <string name="compose_about_based_on_version_format">Vychází z Nuvio %1$s</string>
     <string name="compose_auth_link_cancel">Zrušit</string>
     <string name="compose_auth_link_code_expired">Platnost tohoto kódu vypršela.</string>
     <string name="compose_auth_link_creating_code">Vytváření kódu…</string>
@@ -2079,12 +2079,11 @@
     <string name="server_connect_title">Připojit k vlastnímu serveru</string>
     <string name="server_connect_url_placeholder">https://backend.example.com</string>
     <string name="server_error_auth">Server nenabízí podporovaný způsob přihlášení.</string>
-    <string name="server_error_connection">K rozpoznávacímu endpointu se nepodařilo připojit. Zkontrolujte URL a dostupnost serveru.</string>
-    <string name="server_error_http">Rozpoznávací endpoint vrátil HTTP %1$d.</string>
+    <string name="server_error_connection">Nepodařilo se připojit ke koncovému bodu pro zjištění konfigurace. Zkontrolujte URL a dostupnost serveru.</string>
+    <string name="server_error_http">Koncový bod pro zjištění konfigurace vrátil HTTP %1$d.</string>
     <string name="server_error_invalid_document">Server vrátil neplatný rozpoznávací dokument.</string>
     <string name="server_error_invalid_url">Zadejte platnou HTTP nebo HTTPS URL backendu.</string>
-    <string name="server_error_missing_configuration">V rozpoznávacím dokumentu chybí platná URL backendu nebo veřejný klíč.</string>
-    <string name="server_error_not_self_hosted">Rozpoznávací dokument neoznačuje server jako vlastní (self-hosted).</string>
+    <string name="server_error_missing_configuration">V dokumentu konfigurace chybí platná URL backendu nebo publikovatelný klíč.</string>    <string name="server_error_not_self_hosted">Rozpoznávací dokument neoznačuje server jako vlastní (self-hosted).</string>
     <string name="server_error_official_active">api.nuvio.tv je oficiální server a už je vybraný.</string>
     <string name="server_error_official_available">api.nuvio.tv je oficiální server. Zavřete toto okno a volbou Použít oficiální server se přepněte zpět.</string>
     <string name="server_error_response_too_large">Rozpoznávací dokument je větší, než je povoleno.</string>
@@ -2228,18 +2227,18 @@
     <string name="settings_p2p_profile_soft">Úsporný</string>
     <string name="settings_p2p_profile_soft_description">Používá méně připojení k peerům, aby snížil zatížení baterie a sítě</string>
     <string name="settings_p2p_profile_title">Profil torrentů</string>
-    <string name="settings_playback_auto_play_next_episode_fallback">Náhradní chování při selhání skupiny binge</string>
-    <string name="settings_playback_auto_play_next_episode_fallback_description">Pokud se skupina binge nenajde, automaticky vybrat první dostupný stream. Když je volba vypnutá, zobrazí se místo toho výběr streamu.</string>
-    <string name="settings_playback_auto_skip_intro">Úvod / Opening</string>
-    <string name="settings_playback_auto_skip_intro_description">Automaticky přeskakovat úvody a anime openingy.</string>
+    <string name="settings_playback_auto_play_next_episode_fallback">Náhradní chování při selhání skupiny pro automatické pokračování</string>
+    <string name="settings_playback_auto_play_next_episode_fallback_description">Pokud se skupina pro automatické pokračování nenajde, automaticky vybrat první dostupný stream. Když je volba vypnutá, zobrazí se místo toho výběr streamu.</string>
+    <string name="settings_playback_auto_skip_intro">Úvod</string>
+    <string name="settings_playback_auto_skip_intro_description">Automaticky přeskakovat úvody a úvodní sekvence anime.</string>
     <string name="settings_playback_auto_skip_none">Vypnuto</string>
-    <string name="settings_playback_auto_skip_outro">Závěr / Ending</string>
-    <string name="settings_playback_auto_skip_outro_description">Automaticky přeskakovat závěry a anime endingy.</string>
+    <string name="settings_playback_auto_skip_outro">Závěr</string>
+    <string name="settings_playback_auto_skip_outro_description">Automaticky přeskakovat závěry a závěrečné sekvence anime.</string>
     <string name="settings_playback_auto_skip_recap">Rekapitulace</string>
     <string name="settings_playback_auto_skip_recap_description">Automaticky přeskakovat rekapitulace.</string>
     <string name="settings_playback_auto_skip_segments">Automatické přeskakování</string>
     <string name="settings_playback_nvidia_rtx_super_resolution">RTX Video Super Resolution</string>
-    <string name="settings_playback_nvidia_rtx_super_resolution_desc">Zvýšit rozlišení videa s nízkým rozlišením pomocí NVIDIA RTX AI Super Resolution.</string>
+    <string name="settings_playback_nvidia_rtx_super_resolution_desc">Vylepšit video v nízkém rozlišení pomocí NVIDIA RTX AI Super Resolution.</string>
     <string name="settings_playback_nvidia_rtx_video_section">NVIDIA RTX Video</string>
     <string name="settings_playback_parental_guide">Upozornění na obsah</string>
     <string name="settings_playback_parental_guide_description">Při spuštění přehrávání zobrazit překryv s rodičovským upozorněním.</string>
@@ -2254,7 +2253,7 @@
     <string name="settings_simkl_disconnect">Odpojit</string>
     <string name="settings_simkl_disconnect_description">Tímto se z profilu odebere účet Simkl a data Simkl uložená v mezipaměti.</string>
     <string name="settings_simkl_finish_sign_in">Dokončit schválení připojení</string>
-    <string name="settings_simkl_invalid_callback">Simkl nepřijal zpětné volání přihlášení. Zkuste to znovu.</string>
+    <string name="settings_simkl_invalid_callback">Simkl nepřijal zpětné přesměrování po přihlášení. Zkuste to znovu.</string>
     <string name="settings_simkl_missing_credentials">Chybí SIMKL_CLIENT_ID</string>
     <string name="settings_simkl_open_login">Otevřít přihlášení Simkl</string>
     <string name="settings_simkl_open_pin">Otevřít PIN Simkl</string>
@@ -2297,7 +2296,7 @@
     <string name="settings_tracking_services">Účty</string>
     <string name="settings_tracking_simkl_library_description">Použít seznam Plánuji zhlédnout a stavové seznamy ze Simkl.</string>
     <string name="settings_tracking_simkl_progress_description">Pokračovat podle průběhu přehrávání ze Simkl.</string>
-    <string name="settings_tracking_source_fallback">%1$s není dostupné. Do opětovného připojení se používá %2$s.</string>
+    <string name="settings_tracking_source_fallback">Služba %1$s není dostupná. Do opětovného připojení se používá %2$s.</string>
     <string name="settings_tracking_tmdb_recommendations_description">Použít doporučení TMDB na stránkách s podrobnostmi.</string>
     <string name="settings_tracking_trakt_library_description">Použít váš seznam ke zhlédnutí a osobní seznamy na Trakt.</string>
     <string name="settings_tracking_trakt_progress_description">Pokračovat podle průběhu přehrávání z Trakt.</string>
