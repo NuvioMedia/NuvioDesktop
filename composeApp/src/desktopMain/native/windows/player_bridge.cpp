@@ -46,7 +46,24 @@ typedef enum mpv_format {
 typedef enum mpv_event_id {
     MPV_EVENT_NONE = 0,
     MPV_EVENT_SHUTDOWN = 1,
+    MPV_EVENT_END_FILE = 7,
 } mpv_event_id;
+
+typedef enum mpv_end_file_reason {
+    MPV_END_FILE_REASON_EOF = 0,
+    MPV_END_FILE_REASON_STOP = 2,
+    MPV_END_FILE_REASON_QUIT = 3,
+    MPV_END_FILE_REASON_ERROR = 4,
+    MPV_END_FILE_REASON_REDIRECT = 5,
+} mpv_end_file_reason;
+
+typedef struct mpv_event_end_file {
+    mpv_end_file_reason reason;
+    int error;
+    int64_t playlist_entry_id;
+    int64_t playlist_insert_id;
+    int playlist_insert_num_entries;
+} mpv_event_end_file;
 
 typedef struct mpv_event {
     mpv_event_id event_id;
@@ -54,6 +71,24 @@ typedef struct mpv_event {
     uint64_t reply_userdata;
     void *data;
 } mpv_event;
+
+typedef struct mpv_render_context mpv_render_context;
+
+typedef enum mpv_render_param_type {
+    MPV_RENDER_PARAM_INVALID = 0,
+    MPV_RENDER_PARAM_API_TYPE = 1,
+    MPV_RENDER_PARAM_SW_SIZE = 17,
+    MPV_RENDER_PARAM_SW_FORMAT = 18,
+    MPV_RENDER_PARAM_SW_STRIDE = 19,
+    MPV_RENDER_PARAM_SW_POINTER = 20,
+} mpv_render_param_type;
+
+typedef struct mpv_render_param {
+    mpv_render_param_type type;
+    void *data;
+} mpv_render_param;
+
+typedef void (*mpv_render_update_fn)(void *cb_ctx);
 }
 
 namespace {
@@ -497,6 +532,11 @@ struct MpvApi {
     using mpv_free_fn = void (*)(void *);
     using mpv_wait_event_fn = mpv_event *(*)(mpv_handle *, double);
     using mpv_wakeup_fn = void (*)(mpv_handle *);
+    using mpv_render_context_create_fn = int (*)(mpv_render_context **, mpv_handle *, mpv_render_param *);
+    using mpv_render_context_set_update_callback_fn = void (*)(mpv_render_context *, mpv_render_update_fn, void *);
+    using mpv_render_context_update_fn = uint64_t (*)(mpv_render_context *);
+    using mpv_render_context_render_fn = int (*)(mpv_render_context *, mpv_render_param *);
+    using mpv_render_context_free_fn = void (*)(mpv_render_context *);
 
     HMODULE library = nullptr;
     std::once_flag loadOnce;
@@ -515,6 +555,11 @@ struct MpvApi {
     mpv_free_fn freeValue = nullptr;
     mpv_wait_event_fn waitEvent = nullptr;
     mpv_wakeup_fn wakeup = nullptr;
+    mpv_render_context_create_fn renderContextCreate = nullptr;
+    mpv_render_context_set_update_callback_fn renderContextSetUpdateCallback = nullptr;
+    mpv_render_context_update_fn renderContextUpdate = nullptr;
+    mpv_render_context_render_fn renderContextRender = nullptr;
+    mpv_render_context_free_fn renderContextFree = nullptr;
 
     void ensureLoaded() {
         std::call_once(loadOnce, [this]() { load(); });
@@ -574,6 +619,11 @@ struct MpvApi {
         freeValue = loadSymbol<mpv_free_fn>("mpv_free");
         waitEvent = loadSymbol<mpv_wait_event_fn>("mpv_wait_event");
         wakeup = loadSymbol<mpv_wakeup_fn>("mpv_wakeup");
+        renderContextCreate = loadSymbol<mpv_render_context_create_fn>("mpv_render_context_create");
+        renderContextSetUpdateCallback = loadSymbol<mpv_render_context_set_update_callback_fn>("mpv_render_context_set_update_callback");
+        renderContextUpdate = loadSymbol<mpv_render_context_update_fn>("mpv_render_context_update");
+        renderContextRender = loadSymbol<mpv_render_context_render_fn>("mpv_render_context_render");
+        renderContextFree = loadSymbol<mpv_render_context_free_fn>("mpv_render_context_free");
     }
 
     template <typename T>
@@ -2206,6 +2256,233 @@ std::shared_ptr<WindowsMpvWebPlayer> playerFromHandle(jlong handle) {
     return holder ? *holder : nullptr;
 }
 
+class WindowsMpvSurfacePlayer : public std::enable_shared_from_this<WindowsMpvSurfacePlayer> {
+public:
+    WindowsMpvSurfacePlayer(
+        std::string videoUrl,
+        std::string audioUrl,
+        int64_t startPositionMs,
+        bool playWhenReady,
+        bool muted,
+        bool fillFrame
+    ) : videoUrl(std::move(videoUrl)),
+        audioUrl(std::move(audioUrl)),
+        startPositionMs(startPositionMs),
+        playWhenReady(playWhenReady),
+        muted(muted),
+        fillFrame(fillFrame) {
+    }
+
+    ~WindowsMpvSurfacePlayer() {
+        dispose();
+    }
+
+    void initialize() {
+        MpvApi &api = mpvApi();
+        mpv = api.create();
+        if (!mpv) {
+            throw std::runtime_error("mpv_create failed for surface player");
+        }
+
+        api.setOptionString(mpv, "vo", "libmpv");
+        api.setOptionString(mpv, "loop-file", "inf");
+        api.setOptionString(mpv, "keep-open", "yes");
+        api.setOptionString(mpv, "hwdec", "auto");
+        api.setOptionString(mpv, "vd-lavc-threads", "4");
+        api.setOptionString(mpv, "audio-pitch-correction", "yes");
+        api.setOptionString(mpv, "volume", "100");
+        api.setOptionString(mpv, "mute", muted ? "yes" : "no");
+        api.setOptionString(mpv, "pause", playWhenReady ? "no" : "yes");
+        api.setOptionString(mpv, "panscan", fillFrame ? "1.0" : "0.0");
+        api.setOptionString(mpv, "user-agent", "Mozilla/5.0 (Linux; Android 13; Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        api.setOptionString(mpv, "referrer", "https://www.youtube.com/");
+        api.setOptionString(mpv, "cache", "yes");
+        api.setOptionString(mpv, "demuxer-max-bytes", "64MiB");
+        api.setOptionString(mpv, "demuxer-readahead-secs", "2");
+        api.setOptionString(mpv, "demuxer-lavf-probesize", "500000");
+        api.setOptionString(mpv, "demuxer-lavf-analyzeduration", "0.5");
+        api.setOptionString(mpv, "demuxer-lavf-buffersize", "32768");
+
+        int initRes = api.initialize(mpv);
+        if (initRes < 0) {
+            api.terminateDestroy(mpv);
+            mpv = nullptr;
+            throw std::runtime_error(std::string("mpv_initialize failed for surface player: ") + api.errorText(initRes));
+        }
+
+        mpv_render_param params[] = {
+            {MPV_RENDER_PARAM_API_TYPE, (void *)"sw"},
+            {MPV_RENDER_PARAM_INVALID, nullptr}
+        };
+
+        int renderRes = api.renderContextCreate(&renderCtx, mpv, params);
+        if (renderRes < 0 || !renderCtx) {
+            api.terminateDestroy(mpv);
+            mpv = nullptr;
+            throw std::runtime_error(std::string("mpv_render_context_create failed: ") + api.errorText(renderRes));
+        }
+
+        std::vector<const char *> cmd;
+        cmd.push_back("loadfile");
+        cmd.push_back(videoUrl.c_str());
+        cmd.push_back("replace");
+        cmd.push_back("-1");
+
+        std::string options;
+        if (!audioUrl.empty()) {
+            options += "audio-file=";
+            for (char c : audioUrl) {
+                if (c == ',') options += "\\,";
+                else options += c;
+            }
+        }
+        if (startPositionMs > 0) {
+            char startBuf[64];
+            std::snprintf(startBuf, sizeof(startBuf), "start=%.3f", (double)startPositionMs / 1000.0);
+            if (!options.empty()) options += ",";
+            options += startBuf;
+        }
+        if (!options.empty()) {
+            cmd.push_back(options.c_str());
+        }
+        cmd.push_back(nullptr);
+
+        int cmdRes = api.command(mpv, cmd.data());
+        if (cmdRes < 0) {
+            hadError.store(true);
+        }
+
+        auto self = shared_from_this();
+        eventThread = std::thread([self]() {
+            self->drainEvents();
+        });
+    }
+
+    void drainEvents() {
+        MpvApi &api = mpvApi();
+        while (!stopping.load()) {
+            mpv_handle *current = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(playerMutex);
+                current = mpv;
+            }
+            if (!current) break;
+
+            mpv_event *ev = api.waitEvent(current, 0.1);
+            if (!ev) continue;
+            if (ev->event_id == MPV_EVENT_SHUTDOWN) {
+                break;
+            }
+            if (ev->event_id == MPV_EVENT_END_FILE) {
+                if (ev->data) {
+                    auto *endFile = reinterpret_cast<mpv_event_end_file *>(ev->data);
+                    if (endFile->reason == MPV_END_FILE_REASON_ERROR || endFile->error < 0) {
+                        hadError.store(true);
+                    }
+                }
+            }
+        }
+    }
+
+    bool renderFrame(void *dstPixels, int width, int height) {
+        if (!dstPixels || width <= 0 || height <= 0) return false;
+        std::lock_guard<std::mutex> lock(playerMutex);
+        if (!renderCtx) return false;
+
+        uint64_t flags = mpvApi().renderContextUpdate(renderCtx);
+        if (flags & 1) {
+            int size[2] = {width, height};
+            char format[] = "bgr0";
+            size_t stride = (size_t)width * 4;
+
+            mpv_render_param renderParams[] = {
+                {MPV_RENDER_PARAM_SW_SIZE, size},
+                {MPV_RENDER_PARAM_SW_FORMAT, format},
+                {MPV_RENDER_PARAM_SW_STRIDE, &stride},
+                {MPV_RENDER_PARAM_SW_POINTER, dstPixels},
+                {MPV_RENDER_PARAM_INVALID, nullptr}
+            };
+
+            int err = mpvApi().renderContextRender(renderCtx, renderParams);
+            if (err == 0) {
+                hasRenderedFirstFrame.store(true);
+                size_t totalPixels = (size_t)width * (size_t)height;
+                uint32_t *pixels = reinterpret_cast<uint32_t *>(dstPixels);
+                for (size_t i = 0; i < totalPixels; i++) {
+                    pixels[i] |= 0xFF000000U;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void setMuted(bool isMuted) {
+        std::lock_guard<std::mutex> lock(playerMutex);
+        if (mpv) {
+            mpvApi().setPropertyString(mpv, "mute", isMuted ? "yes" : "no");
+        }
+    }
+
+    void setPaused(bool isPaused) {
+        std::lock_guard<std::mutex> lock(playerMutex);
+        if (mpv) {
+            mpvApi().setPropertyString(mpv, "pause", isPaused ? "yes" : "no");
+        }
+    }
+
+    bool isReady() {
+        return hasRenderedFirstFrame.load();
+    }
+
+    bool isEnded() {
+        std::lock_guard<std::mutex> lock(playerMutex);
+        if (!mpv) return true;
+        int flag = 0;
+        int res = mpvApi().getProperty(mpv, "eof-reached", MPV_FORMAT_FLAG, &flag);
+        return res >= 0 && flag != 0;
+    }
+
+    bool hasError() {
+        return hadError.load();
+    }
+
+    void dispose() {
+        stopping.store(true);
+        if (eventThread.joinable()) {
+            if (mpv) mpvApi().wakeup(mpv);
+            eventThread.join();
+        }
+
+        std::lock_guard<std::mutex> lock(playerMutex);
+        MpvApi &api = mpvApi();
+        if (renderCtx) {
+            api.renderContextFree(renderCtx);
+            renderCtx = nullptr;
+        }
+        if (mpv) {
+            api.terminateDestroy(mpv);
+            mpv = nullptr;
+        }
+    }
+
+private:
+    std::string videoUrl;
+    std::string audioUrl;
+    int64_t startPositionMs = 0;
+    bool playWhenReady = true;
+    bool muted = true;
+    bool fillFrame = true;
+
+    std::mutex playerMutex;
+    mpv_handle *mpv = nullptr;
+    mpv_render_context *renderCtx = nullptr;
+    std::atomic<bool> stopping{false};
+    std::atomic<bool> hasRenderedFirstFrame{false};
+    std::atomic<bool> hadError{false};
+    std::thread eventThread;
+};
+
 } // namespace
 
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
@@ -2530,3 +2807,136 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
         stripSdh == JNI_TRUE
     );
 }
+
+extern "C" {
+
+JNIEXPORT jlong JNICALL
+Java_com_nuvio_app_features_trailer_desktop_NativeMpvSurfaceBridge_nativeCreate(
+    JNIEnv *env,
+    jobject,
+    jstring videoUrl,
+    jstring audioUrl,
+    jlong startPositionMs,
+    jboolean playWhenReady,
+    jboolean muted,
+    jboolean fillFrame
+) {
+    std::string videoUrlText = jstringToUtf8(env, videoUrl);
+    std::string audioUrlText = audioUrl ? jstringToUtf8(env, audioUrl) : std::string();
+
+    auto player = std::make_shared<WindowsMpvSurfacePlayer>(
+        videoUrlText,
+        audioUrlText,
+        (int64_t)startPositionMs,
+        playWhenReady == JNI_TRUE,
+        muted == JNI_TRUE,
+        fillFrame == JNI_TRUE
+    );
+
+    try {
+        player->initialize();
+    } catch (const std::exception &e) {
+        player->dispose();
+        throwJavaError(env, e.what());
+        return 0;
+    }
+
+    auto *holder = new std::shared_ptr<WindowsMpvSurfacePlayer>(player);
+    return (jlong)(intptr_t)holder;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_nuvio_app_features_trailer_desktop_NativeMpvSurfaceBridge_nativeRenderFrame(
+    JNIEnv *,
+    jobject,
+    jlong handle,
+    jlong pixelsAddr,
+    jint width,
+    jint height
+) {
+    if (handle == 0 || pixelsAddr == 0 || width <= 0 || height <= 0) return JNI_FALSE;
+    auto *holder = reinterpret_cast<std::shared_ptr<WindowsMpvSurfacePlayer> *>(handle);
+    if (!holder || !(*holder)) return JNI_FALSE;
+    return (*holder)->renderFrame((void *)(intptr_t)pixelsAddr, (int)width, (int)height) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_trailer_desktop_NativeMpvSurfaceBridge_nativeSetMuted(
+    JNIEnv *,
+    jobject,
+    jlong handle,
+    jboolean muted
+) {
+    if (handle == 0) return;
+    auto *holder = reinterpret_cast<std::shared_ptr<WindowsMpvSurfacePlayer> *>(handle);
+    if (holder && *holder) {
+        (*holder)->setMuted(muted == JNI_TRUE);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_trailer_desktop_NativeMpvSurfaceBridge_nativeSetPaused(
+    JNIEnv *,
+    jobject,
+    jlong handle,
+    jboolean paused
+) {
+    if (handle == 0) return;
+    auto *holder = reinterpret_cast<std::shared_ptr<WindowsMpvSurfacePlayer> *>(handle);
+    if (holder && *holder) {
+        (*holder)->setPaused(paused == JNI_TRUE);
+    }
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_nuvio_app_features_trailer_desktop_NativeMpvSurfaceBridge_nativeIsReady(
+    JNIEnv *,
+    jobject,
+    jlong handle
+) {
+    if (handle == 0) return JNI_FALSE;
+    auto *holder = reinterpret_cast<std::shared_ptr<WindowsMpvSurfacePlayer> *>(handle);
+    if (!holder || !(*holder)) return JNI_FALSE;
+    return (*holder)->isReady() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_nuvio_app_features_trailer_desktop_NativeMpvSurfaceBridge_nativeIsEnded(
+    JNIEnv *,
+    jobject,
+    jlong handle
+) {
+    if (handle == 0) return JNI_TRUE;
+    auto *holder = reinterpret_cast<std::shared_ptr<WindowsMpvSurfacePlayer> *>(handle);
+    if (!holder || !(*holder)) return JNI_TRUE;
+    return (*holder)->isEnded() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_nuvio_app_features_trailer_desktop_NativeMpvSurfaceBridge_nativeHasError(
+    JNIEnv *,
+    jobject,
+    jlong handle
+) {
+    if (handle == 0) return JNI_TRUE;
+    auto *holder = reinterpret_cast<std::shared_ptr<WindowsMpvSurfacePlayer> *>(handle);
+    if (!holder || !(*holder)) return JNI_TRUE;
+    return (*holder)->hasError() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_trailer_desktop_NativeMpvSurfaceBridge_nativeDispose(
+    JNIEnv *,
+    jobject,
+    jlong handle
+) {
+    if (handle == 0) return;
+    auto *holder = reinterpret_cast<std::shared_ptr<WindowsMpvSurfacePlayer> *>(handle);
+    std::shared_ptr<WindowsMpvSurfacePlayer> player = *holder;
+    delete holder;
+    if (player) {
+        player->dispose();
+    }
+}
+
+} // extern "C"

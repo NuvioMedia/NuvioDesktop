@@ -913,8 +913,12 @@ val buildWindowsPlayerBridge = tasks.register<Exec>("buildWindowsPlayerBridge") 
     }
     outputs.file(windowsPlayerBridgeOutput)
     outputs.file(windowsPlayerBridgeImportLib)
-    outputs.file(windowsPlayerBridgePdb)
-    onlyIf { !windowsPlayerBridgeOutput.get().asFile.exists() }
+    val rebuildBridgeRequested = providers.gradleProperty("rebuildWindowsPlayerBridge").isPresent
+    onlyIf {
+        !windowsPlayerBridgeOutput.get().asFile.exists() ||
+            rebuildBridgeRequested ||
+            windowsPlayerBridgeSource.asFile.lastModified() > windowsPlayerBridgeOutput.get().asFile.lastModified()
+    }
     commandLine(windowsPlayerBridgeCommand)
 }
 

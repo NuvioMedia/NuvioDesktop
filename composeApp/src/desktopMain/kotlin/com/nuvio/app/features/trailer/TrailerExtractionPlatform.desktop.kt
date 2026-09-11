@@ -42,9 +42,11 @@ internal object TrailerExtractionPlatform {
         .followSslRedirects(true)
         .build()
 
-    fun supportsSeparateVideo(candidate: StreamCandidate): Boolean = candidate.ext == "mp4"
+    fun supportsSeparateVideo(candidate: StreamCandidate): Boolean =
+        if (com.nuvio.app.isWindows) true else candidate.ext == "mp4"
 
-    fun supportsSeparateAudio(candidate: StreamCandidate): Boolean = candidate.ext == "m4a"
+    fun supportsSeparateAudio(candidate: StreamCandidate): Boolean =
+        if (com.nuvio.app.isWindows) true else candidate.ext == "m4a"
 
     fun diagnostic(message: String) {
         if (diagnosticsEnabled) {
@@ -101,7 +103,7 @@ internal object TrailerExtractionPlatform {
         val bestCombinedIsManifest = bestManifest != null &&
             (bestProgressive == null || bestManifest.height > bestProgressive.height)
         val preferManifestPlayback = bestManifest != null &&
-            (bestVideo == null || bestManifest.height >= bestVideo.height)
+            (bestVideo == null || (bestManifest.height >= bestVideo.height && !com.nuvio.app.isWindows))
         val combinedUrl = if (bestCombinedIsManifest) {
             bestManifest.manifestUrl
         } else {
@@ -206,7 +208,7 @@ internal object TrailerExtractionPlatform {
         }
 
         return try {
-            val selected = withTimeoutOrNull(4_000L) { result.await() }
+            val selected = withTimeoutOrNull(2_000L) { result.await() }
             diagnostic(
                 "probe ${if (selected != null) "ok" else "failed"} ${describeUrl(url)} candidates=${candidates.size}" +
                     selected?.let { " selectedHost=${it.toHttpUrlOrNull()?.host ?: "unknown"}" }.orEmpty(),
@@ -218,33 +220,19 @@ internal object TrailerExtractionPlatform {
     }
 
     private fun isUrlReachable(url: String): Boolean = runCatching {
-        val parsedUrl = url.toHttpUrlOrNull()
-        val sourceSize = parsedUrl?.queryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L }
-        val ranges = sourceSize?.let { size ->
-            listOf(
-                0L to 65_535L.coerceAtMost(size - 1L),
-                (size - 65_536L).coerceAtLeast(0L) to size - 1L,
-            ).distinct()
-        } ?: listOf(0L to 0L)
+        val request = Request.Builder()
+            .url(url)
+            .headers(buildHeaders(defaultHeaders))
+            .header("Range", "bytes=0-0")
+            .get()
+            .build()
 
-        ranges.all { (rangeStart, rangeEnd) ->
-            val request = Request.Builder()
-                .url(url)
-                .headers(buildHeaders(defaultHeaders))
-                .header("Range", "bytes=$rangeStart-$rangeEnd")
-                .get()
-                .build()
-
-            probeClient.newCall(request).execute().use { response ->
-                val reachable = response.code == 206 ||
-                    (sourceSize == null && rangeStart == 0L && response.code in 200..299)
-                if (!reachable) {
-                    diagnostic(
-                        "probe range rejected ${describeUrl(url)} requested=$rangeStart-$rangeEnd status=${response.code}",
-                    )
-                }
-                reachable
+        probeClient.newCall(request).execute().use { response ->
+            val reachable = response.isSuccessful || response.code == 206
+            if (!reachable) {
+                diagnostic("probe range rejected ${describeUrl(url)} status=${response.code}")
             }
+            reachable
         }
     }.getOrDefault(false)
 

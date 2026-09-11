@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -170,12 +172,19 @@ private fun DesktopTrailerPlayerSession(
             }
     }
 
+    val surfaceAlpha by animateFloatAsState(
+        targetValue = if (playWhenReady) 1f else 0f,
+        animationSpec = tween(durationMillis = 300),
+        label = "hero_surface_alpha",
+    )
+
     Box(modifier = modifier.clipToBounds()) {
         VideoPlayerSurface(
             playerState = player,
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
+                    alpha = surfaceAlpha
                     if (fillFrame) {
                         scaleX = TrailerFillFrameScale
                         scaleY = TrailerFillFrameScale
