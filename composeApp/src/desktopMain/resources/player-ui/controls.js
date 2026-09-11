@@ -26,6 +26,7 @@ const toggleLabel = document.getElementById("toggleLabel");
 const nextEpisodeButton = document.getElementById("nextEpisodeButton");
 const nextEpisodeButtonLabel = document.getElementById("nextEpisodeButtonLabel");
 const fullscreenButton = document.getElementById("fullscreenButton");
+const pipButton = document.getElementById("pipButton");
 const fullscreenIcon = document.getElementById("fullscreenIcon");
 const title = document.getElementById("title");
 const episode = document.getElementById("episode");
@@ -189,6 +190,8 @@ let state = {
   playLabel: "Play",
   pauseLabel: "Pause",
   closeLabel: "Close player",
+  lockLabel: "Lock player controls",
+  unlockLabel: "Unlock player controls",
   submitIntroLabel: "Submit Intro",
   videoSettingsLabel: "Video settings",
   playbackErrorTitle: "Playback error",
@@ -407,6 +410,40 @@ let playerToastTimer = 0;
 let playerToastToken = 0;
 let pendingSettingToastCommand = "";
 let pendingSettingToastToken = 0;
+let isPipLocked = false;
+const pipLockButton = document.getElementById("pipLockButton");
+const pipLockOverlay = document.getElementById("pipLockOverlay");
+const pipLockBadge = document.getElementById("pipLockBadge");
+const pipLockLabel = () => String(state.lockLabel || "Lock player controls").trim();
+const pipUnlockLabel = () => String(state.unlockLabel || "Unlock player controls").trim();
+const syncPipLockLabels = () => {
+  const lockLabel = isPipLocked ? pipUnlockLabel() : pipLockLabel();
+  if (pipLockButton) {
+    pipLockButton.setAttribute("aria-label", lockLabel);
+    pipLockButton.setAttribute("title", lockLabel);
+  }
+  if (pipLockBadge) {
+    const unlockLabel = pipUnlockLabel();
+    pipLockBadge.setAttribute("aria-label", unlockLabel);
+    pipLockBadge.setAttribute("title", unlockLabel);
+  }
+};
+const setPipLocked = locked => {
+  isPipLocked = locked;
+  root.classList.toggle("pip-locked", locked);
+  if (pipLockButton) {
+    pipLockButton.setAttribute("aria-pressed", String(locked));
+    const useEl = pipLockButton.querySelector("use");
+    if (useEl) useEl.setAttribute("href", locked ? "#icon-lock-open" : "#icon-lock");
+  }
+  if (pipLockOverlay) {
+    pipLockOverlay.setAttribute("aria-hidden", "true");
+  }
+  if (pipLockBadge) {
+    pipLockBadge.hidden = !locked;
+  }
+  syncPipLockLabels();
+};
 const prefersReducedMotion = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const modalTransitionMs = prefersReducedMotion ? 1 : 240;
@@ -534,6 +571,7 @@ const syncVolumeControl = () => {
 const seekToastLabel = command => {
   if (command === "seekBack" || command === "keyboardSeekBack") return "-10s";
   if (command === "seekForward" || command === "keyboardSeekForward") return "+10s";
+  if (command === "pictureInPicture" || command === "pip") return state.pipLabel || "";
   return "";
 };
 
@@ -2194,6 +2232,8 @@ const renderChrome = () => {
   const positionMs = isScrubbing ? scrubPositionMs : Math.max(0, Number(state.positionMs) || 0);
   const isPlaying = Boolean(state.isPlaying);
   const showError = renderPlaybackError();
+  root.classList.toggle("pip-mode", Boolean(state.isInPip));
+  if (!state.isInPip && isPipLocked) setPipLocked(false);
   root.classList.toggle("chrome-hidden", Boolean(showError || !state.controlsVisible));
   root.classList.toggle("source-visible", Boolean(!showError && !isPlaying && !state.isLoading && (state.streamTitle || state.providerName)));
   syncHiddenCursor();
@@ -2217,6 +2257,13 @@ const renderChrome = () => {
   setActionButtonLabel("audio", state.audioLabel || "Audio");
   setActionButtonLabel("sources", state.sourcesLabel || "Sources");
   setActionButtonLabel("episodes", state.episodesLabel || "Episodes");
+  if (pipButton) {
+    const pipLabel = String(state.pipLabel || "").trim();
+    pipButton.setAttribute("aria-label", pipLabel);
+    pipButton.setAttribute("title", pipLabel);
+    pipButton.hidden = !pipLabel;
+  }
+  syncPipLockLabels();
   const showBuffering = Boolean(!showError && state.isLoading && !activeModal && !showOpening);
   bufferingStatus.classList.toggle("visible", showBuffering);
   bufferingStatus.setAttribute("aria-hidden", showBuffering ? "false" : "true");
@@ -2397,8 +2444,6 @@ const actionShortcutCommandForEvent = event => {
       return "sources";
     case "KeyE":
       return "episodes";
-    case "KeyP":
-      return "keyboardToggle";
     default:
       return "";
   }
@@ -3146,7 +3191,7 @@ root.addEventListener("contextmenu", event => {
 });
 
 root.addEventListener("pointerdown", event => {
-  if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
+  if (state.isInPip || playbackErrorText() || isControlsSurfaceEvent(event)) return;
   if (event.button !== 0) return;
 
   rootPointerStartX = event.clientX;
@@ -3182,6 +3227,7 @@ window.addEventListener("pointercancel", () => {
 
 root.addEventListener("click", event => {
   if (event.button !== 0) return;
+  if (isPipLocked) return;
   if (suppressNextRootClick) {
     suppressNextRootClick = false;
     window.clearTimeout(tapTimer);
@@ -3196,11 +3242,40 @@ root.addEventListener("click", event => {
   }, 220);
 });
 
+root.addEventListener("pointerdown", event => {
+  if (!state.isInPip || event.button !== 0) return;
+  if (event.target.closest("button, input, select, textarea, [data-command], a, #seek, .volume-control, .pip-lock-badge")) return;
+  event.preventDefault();
+  if (event.target && event.target.releasePointerCapture) {
+    try { event.target.releasePointerCapture(event.pointerId); } catch (_) {}
+  }
+  send("dragWindow", 0);
+});
+
+if (pipLockButton) {
+  pipLockButton.addEventListener("click", () => {
+    setPipLocked(!isPipLocked);
+  });
+}
+
+if (pipLockBadge) {
+  pipLockBadge.addEventListener("click", event => {
+    event.stopPropagation();
+    setPipLocked(false);
+  });
+}
+
+
 root.addEventListener("dblclick", event => {
   if (event.button !== 0) return;
+  if (isPipLocked) return;
   if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
   event.preventDefault();
   window.clearTimeout(tapTimer);
+  if (state.isInPip) {
+    send("pictureInPicture", 0);
+    return;
+  }
   togglePlayerFullscreen();
 });
 
@@ -3250,7 +3325,9 @@ document.addEventListener("keydown", event => {
   if (event.key === "Escape") {
     clearSpaceHoldTimerAndStopSpeedBoost();
     event.preventDefault();
-    if (state.isFullscreen) {
+    if (state.isInPip) {
+      send("pictureInPicture", 0);
+    } else if (state.isFullscreen) {
       togglePlayerFullscreen();
     } else {
       send("back", 0);
@@ -3511,9 +3588,7 @@ document.addEventListener("keydown", event => {
   }
   if (event.code === "KeyP") {
     event.preventDefault();
-    const style = state.subtitleStyle || {};
-    const currentOpacity = Math.round((parseArgb(style.textColor).alpha / 255) * 100);
-    send("subtitleTextOpacity", Math.min(100, currentOpacity + 10));
+    send("pictureInPicture", 0);
     return;
   }
   if (event.code === "KeyI") {

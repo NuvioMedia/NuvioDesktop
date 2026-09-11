@@ -28,6 +28,7 @@ import com.nuvio.app.features.player.toStorageHexString
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import java.awt.Component
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.util.concurrent.CountDownLatch
@@ -430,6 +431,7 @@ internal class NativePlayerController(
         val structureKey = NativeControlsStructureKey(
             state = stateWithVolume.nativeControlsStructureKey(),
             isFullscreen = isFullscreen,
+            isInPip = DesktopPlayerPictureInPicture.isEnabled,
         )
         if (structureKey == lastSentControlsStructureKey) return
         lastSentControlsStructureKey = structureKey
@@ -446,6 +448,15 @@ internal class NativePlayerController(
         lastSentControlsStructureKey = null
         updateControls(controlsState)
         requestKeyboardFocus()
+    }
+
+    fun reparentSurface(host: Component): Boolean {
+        val current = handle.takeIf { it != 0L } ?: return false
+        if (!host.isDisplayable) return false
+        val pointer = runCatching { AwtNativeViewResolver.resolveNativeViewPointer(host) }
+            .onFailure { error -> log.w(error) { "failed to resolve PiP native host ${host.javaClass.name}" } }
+            .getOrNull() ?: return false
+        return NativePlayerBridge.reparentSurface(current, pointer)
     }
 
     private fun requestKeyboardFocus() {
@@ -493,9 +504,14 @@ internal class NativePlayerController(
                 }
             }
             "toggleFullscreen" -> {
-                toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
-                onDesktopFullscreenChanged()
+                if (DesktopPlayerPictureInPicture.isEnabled) {
+                    DesktopPlayerPictureInPicture.toggle()
+                } else {
+                    toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
+                    onDesktopFullscreenChanged()
+                }
             }
+            "dragWindow" -> NativePlayerBridge.beginWindowDrag(handle)
             "volumeChange" -> setFallbackVolume(value.toFloat())
             "volumeChangeTemporary" -> setTemporaryVolume(value.toFloat())
             "setPlaybackSpeed" -> {
@@ -547,9 +563,14 @@ internal class NativePlayerController(
             PlayerControlsAction.KeyboardSeekForward -> fallbackSeekBy(10_000L)
             PlayerControlsAction.KeyboardVolumeDown -> adjustFallbackVolume(-10f)
             PlayerControlsAction.KeyboardVolumeUp -> adjustFallbackVolume(10f)
+            PlayerControlsAction.PictureInPicture -> togglePictureInPictureFromShortcut()
             PlayerControlsAction.Speed -> cycleFallbackSpeed()
             else -> Unit
         }
+    }
+
+    fun togglePictureInPictureFromShortcut() {
+        DesktopPlayerPictureInPicture.toggle()
     }
 
     @Synchronized
@@ -1171,6 +1192,7 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
         "keyboardSeekForward" -> PlayerControlsAction.KeyboardSeekForward
         "keyboardVolumeDown" -> PlayerControlsAction.KeyboardVolumeDown
         "keyboardVolumeUp" -> PlayerControlsAction.KeyboardVolumeUp
+        "pictureInPicture", "pip" -> PlayerControlsAction.PictureInPicture
         "resize" -> PlayerControlsAction.ResizeMode
         "speed" -> PlayerControlsAction.Speed
         "subtitles" -> PlayerControlsAction.Subtitles
@@ -1186,6 +1208,7 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
 private data class NativeControlsStructureKey(
     val state: PlayerControlsState,
     val isFullscreen: Boolean,
+    val isInPip: Boolean,
 )
 
 private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
@@ -1396,6 +1419,23 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("isPlaying", isPlaying)
         append(',')
         appendJsonField("isLoading", isLoading)
+        append(',')
+        appendJsonField(
+            "pipLabel",
+            if (DesktopHostOs.current == DesktopHostOs.WINDOWS ||
+                DesktopHostOs.current == DesktopHostOs.MACOS
+            ) {
+                pipLabel
+            } else {
+                ""
+            },
+        )
+        append(',')
+        appendJsonField("lockLabel", lockLabel)
+        append(',')
+        appendJsonField("unlockLabel", unlockLabel)
+        append(',')
+        appendJsonField("isInPip", DesktopPlayerPictureInPicture.isEnabled)
         append(',')
         appendJsonField("controlsVisible", controlsVisible)
         append(',')

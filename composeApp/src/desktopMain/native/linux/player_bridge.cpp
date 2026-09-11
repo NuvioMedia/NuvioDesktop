@@ -2018,6 +2018,9 @@ JNIEXPORT void JNICALL NP(shutdownWebView2Warmup)(JNIEnv *, jobject) {
 JNIEXPORT jboolean JNICALL NP(setWindowsDisplaySleepInhibited)(JNIEnv *, jobject, jboolean) {
     return JNI_FALSE;
 }
+JNIEXPORT void JNICALL NP(beginWindowDrag)(JNIEnv *, jobject, jlong) {}
+JNIEXPORT void JNICALL NP(setWindowResizable)(JNIEnv *, jobject, jlong, jboolean) {}
+JNIEXPORT void JNICALL NP(reparentSurfaceNative)(JNIEnv *, jobject, jlong, jlong) {}
 
 #undef NP
 } // extern "C"
