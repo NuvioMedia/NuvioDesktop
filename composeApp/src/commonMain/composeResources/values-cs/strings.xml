@@ -1037,11 +1037,11 @@
     <string name="settings_trakt_failed_open_browser">Nepodařilo se otevřít prohlížeč.</string>
     <string name="settings_trakt_features">FUNKCE</string>
     <string name="settings_trakt_finish_sign_in">Dokončete přihlášení do Trakt ve svém prohlížeči.</string>
-    <string name="settings_trakt_intro_description">Synchronizujte svůj seznam sledovaných (watchlist), postup sledování, scrobblování, pokračování ve sledování a osobní seznamy s Trakt.</string>
+    <string name="settings_trakt_intro_description">Synchronizujte s Traktem svůj seznam ke zhlédnutí, průběh sledování, sekci Pokračovat ve sledování, scrobbling a osobní seznamy.</string>
     <string name="settings_trakt_missing_credentials">Chybí pověření pro Trakt v local.properties (TRAKT_CLIENT_ID / TRAKT_CLIENT_SECRET).</string>
     <string name="settings_trakt_open_login">Otevřít přihlášení k Trakt</string>
     <string name="settings_trakt_save_actions_description">Vaše akce Uložit teď mohou zacílit na seznam sledovaných (watchlist) a osobní seznamy na Trakt.</string>
-    <string name="settings_trakt_sign_in_description">Přihlaste se přes Trakt, abyste povolili ukládání přes seznamy a režim knihovny Trakt.</string>
+    <string name="settings_trakt_sign_in_description">Synchronizujte s Traktem svůj seznam ke zhlédnutí, průběh sledování, sekci Pokračovat ve sledování, scrobbling a osobní seznamy.</string>
     <string name="trakt_library_source_title">Zdroj knihovny</string>
     <string name="trakt_library_source_subtitle">Vyberte, která knihovna se použije pro ukládání a zobrazení vaší sbírky.</string>
     <string name="trakt_library_source_dialog_title">Zdroj knihovny</string>
@@ -1050,11 +1050,10 @@
     <string name="trakt_library_source_nuvio">Knihovna Nuvio</string>
     <string name="trakt_library_source_trakt_selected">Byla vybrána knihovna Trakt</string>
     <string name="trakt_library_source_nuvio_selected">Byla vybrána knihovna Nuvio</string>
-    <string name="trakt_watch_progress_title">Postup sledování</string>
-    <string name="trakt_watch_progress_subtitle">Vyberte, který zdroj postupu bude ovládat funkce Pokračovat ve sledování (resume a next up).</string>
-    <string name="trakt_watch_progress_dialog_title">Postup sledování</string>
-    <string name="trakt_watch_progress_dialog_subtitle">Vyberte, zda by panel Pokračovat ve sledování (resume a next up) měl používat Trakt nebo Synchronizaci Nuvio, zatímco Trakt scrobbling zůstane aktivní.</string>
-    <string name="trakt_watch_progress_source_trakt">Trakt</string>
+    <string name="trakt_watch_progress_title">Průběh sledování</string>
+    <string name="trakt_watch_progress_subtitle">Vyberte zdroj průběhu pro obnovení přehrávání a sekci Pokračovat ve sledování.</string>
+    <string name="trakt_watch_progress_dialog_title">Průběh sledování</string>
+    <string name="trakt_watch_progress_dialog_subtitle">Vyberte, zda se má pro obnovení přehrávání a sekci Pokračovat ve sledování používat Trakt nebo Synchronizace Nuvio. Scrobbling přes Trakt zůstane aktivní.</string>    <string name="trakt_watch_progress_source_trakt">Trakt</string>
     <string name="trakt_watch_progress_source_nuvio">Synchronizace Nuvio</string>
     <string name="trakt_watch_progress_trakt_selected">Zdroj postupu sledování byl nastaven na Trakt</string>
     <string name="trakt_watch_progress_nuvio_selected">Zdroj postupu sledování byl nastaven na Synchronizaci Nuvio</string>
