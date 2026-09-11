@@ -1631,8 +1631,8 @@ private:
             setMpvOptionStringLocked("deband", "yes");
             setMpvOptionStringLocked("scale", "spline36");
             setMpvOptionStringLocked("cscale", "spline36");
-            setMpvOptionStringLocked("demuxer-max-bytes", "512MiB");
-            setMpvOptionStringLocked("demuxer-max-back-bytes", "256MiB");
+            setMpvOptionStringLocked("demuxer-max-bytes", "256MiB");
+            setMpvOptionStringLocked("demuxer-max-back-bytes", "64MiB");
             setMpvOptionStringLocked("demuxer-seekable-cache", "yes");
             setMpvOptionStringLocked("cache-secs", "36000");
             setMpvOptionStringLocked("hr-seek", "no");
