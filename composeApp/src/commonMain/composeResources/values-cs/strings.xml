@@ -1053,7 +1053,8 @@
     <string name="trakt_watch_progress_title">Průběh sledování</string>
     <string name="trakt_watch_progress_subtitle">Vyberte zdroj průběhu pro obnovení přehrávání a sekci Pokračovat ve sledování.</string>
     <string name="trakt_watch_progress_dialog_title">Průběh sledování</string>
-    <string name="trakt_watch_progress_dialog_subtitle">Vyberte, zda se má pro obnovení přehrávání a sekci Pokračovat ve sledování používat Trakt nebo Synchronizace Nuvio. Scrobbling přes Trakt zůstane aktivní.</string>    <string name="trakt_watch_progress_source_trakt">Trakt</string>
+    <string name="trakt_watch_progress_dialog_subtitle">Vyberte, zda se má pro obnovení přehrávání a sekci Pokračovat ve sledování používat Trakt nebo Synchronizace Nuvio. Scrobbling přes Trakt zůstane aktivní.</string>
+    <string name="trakt_watch_progress_source_trakt">Trakt</string>
     <string name="trakt_watch_progress_source_nuvio">Synchronizace Nuvio</string>
     <string name="trakt_watch_progress_trakt_selected">Zdroj postupu sledování byl nastaven na Trakt</string>
     <string name="trakt_watch_progress_nuvio_selected">Zdroj postupu sledování byl nastaven na Synchronizaci Nuvio</string>
