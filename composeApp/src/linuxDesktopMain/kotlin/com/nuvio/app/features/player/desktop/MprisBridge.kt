@@ -235,7 +235,6 @@ internal object MprisBridge {
         private var previousAvailable = false
         private var trackSequence = 0L
         private var trackId = ""
-        private var itemId: String? = null
         private var rate = 1.0
         private var volume = 1.0
 
@@ -379,10 +378,9 @@ internal object MprisBridge {
             val oldCanGoNext = getCanGoNext()
             val oldCanGoPrevious = getCanGoPrevious()
             val oldCanSeek = getCanSeek()
-            if (newInfo != null && newInfo.itemId != itemId) {
+            if (newInfo != null && newInfo != info) {
                 trackSequence += 1L
                 trackId = "$TRACK_PATH_PREFIX$trackSequence"
-                itemId = newInfo.itemId
             }
             info = newInfo
             snapshot = newSnapshot
@@ -407,7 +405,6 @@ internal object MprisBridge {
             info = null
             snapshot = PlayerPlaybackSnapshot()
             trackId = ""
-            itemId = null
             val changed = LinkedHashMap<String, Variant<Any>>()
             if (oldStatus != getPlaybackStatus()) changed["PlaybackStatus"] = Variant(getPlaybackStatus())
             changed["Metadata"] = Variant(getMetadata(), "a{sv}")

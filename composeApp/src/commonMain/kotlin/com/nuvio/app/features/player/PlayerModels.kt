@@ -223,7 +223,6 @@ data class PlayerPlaybackSnapshot(
 )
 
 data class PlayerNowPlayingInfo(
-    val itemId: String,
     val title: String,
     val subtitle: String? = null,
     val artworkUrl: String? = null,

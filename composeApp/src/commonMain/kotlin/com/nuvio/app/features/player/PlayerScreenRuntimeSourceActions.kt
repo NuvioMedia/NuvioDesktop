@@ -10,6 +10,7 @@ import com.nuvio.app.features.downloads.DownloadItem
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.p2p.P2pStreamingEngine
+import com.nuvio.app.features.player.skip.NextEpisodeInfo
 import com.nuvio.app.features.player.skip.PlayerNextEpisodeRules
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
@@ -373,26 +374,37 @@ internal fun PlayerScreenRuntime.switchToDownloadedEpisode(downloadItem: Downloa
 }
 
 internal fun PlayerScreenRuntime.playNextEpisode() {
-    val targetEpisode = nextEpisodeInfo
-        ?.takeIf { it.hasAired == true }
-        ?.let { next -> playerMetaVideos.firstOrNull { it.id == next.videoId } }
-        ?: return
-    playEpisode(targetEpisode)
+    playEpisodeWithAutoPlay(nextEpisodeInfo)
 }
 
-internal fun PlayerScreenRuntime.playPreviousEpisode() {
-    val targetEpisode = PlayerNextEpisodeRules.resolvePreviousEpisode(
-        videos = playerMetaVideos,
-        currentSeason = activeSeasonNumber,
-        currentEpisode = activeEpisodeNumber,
-    ) ?: return
-    playEpisode(targetEpisode)
+// Play the episode at the given playerMetaVideos index through the standard
+// autoplay pipeline. The caller resolves the index; no ordering logic here.
+internal fun PlayerScreenRuntime.playEpisodeAtIndex(index: Int) {
+    val episode = playerMetaVideos.getOrNull(index) ?: return
+    val season = episode.season ?: return
+    val number = episode.episode ?: return
+    if (!PlayerNextEpisodeRules.hasEpisodeAired(episode.released)) return
+    playEpisodeWithAutoPlay(
+        NextEpisodeInfo(
+            videoId = episode.id,
+            season = season,
+            episode = number,
+            title = episode.title,
+            thumbnail = episode.thumbnail,
+            overview = episode.overview,
+            released = episode.released,
+            hasAired = true,
+            isWatched = false,
+            unairedMessage = null,
+        ),
+    )
 }
 
-private fun PlayerScreenRuntime.playEpisode(targetEpisode: MetaVideo) {
-    scope.launchPlayerEpisodeAutoPlay(
+private fun PlayerScreenRuntime.playEpisodeWithAutoPlay(nextEpisodeInfo: NextEpisodeInfo?) {
+    scope.launchPlayerNextEpisodeAutoPlay(
         previousJob = nextEpisodeAutoPlayJob,
-        targetEpisode = targetEpisode,
+        nextEpisodeInfo = nextEpisodeInfo,
+        allEpisodes = playerMetaVideos,
         parentMetaId = parentMetaId,
         parentMetaType = parentMetaType,
         contentType = contentType,
@@ -400,17 +412,17 @@ private fun PlayerScreenRuntime.playEpisode(targetEpisode: MetaVideo) {
         currentStreamBingeGroup = currentStreamBingeGroup,
         onDownloadedEpisodeSelected = { item, episode -> switchToDownloadedEpisode(item, episode) },
         onEpisodeStreamSelected = { stream, episode -> switchToEpisodeStream(stream, episode) },
-        onManualSelectionRequired = { episode ->
+        onManualSelectionRequired = { nextVideo ->
             episodeStreamsPanelState = EpisodeStreamsPanelState(
                 showStreams = true,
-                selectedEpisode = episode,
+                selectedEpisode = nextVideo,
             )
             showEpisodesPanel = true
         },
         onSearchingChanged = { nextEpisodeAutoPlaySearching = it },
         onSourceNameChanged = { nextEpisodeAutoPlaySourceName = it },
         onCountdownChanged = { nextEpisodeAutoPlayCountdown = it },
-        onEpisodeCardVisibleChanged = { showNextEpisodeCard = it },
+        onNextEpisodeCardVisibleChanged = { showNextEpisodeCard = it },
     )?.let { job ->
         nextEpisodeAutoPlayJob = job
     }

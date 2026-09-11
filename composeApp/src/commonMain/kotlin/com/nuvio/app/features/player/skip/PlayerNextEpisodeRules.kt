@@ -8,19 +8,6 @@ object PlayerNextEpisodeRules {
         videos: List<MetaVideo>,
         currentSeason: Int?,
         currentEpisode: Int?,
-    ): MetaVideo? = resolveAdjacentEpisode(videos, currentSeason, currentEpisode, offset = 1)
-
-    fun resolvePreviousEpisode(
-        videos: List<MetaVideo>,
-        currentSeason: Int?,
-        currentEpisode: Int?,
-    ): MetaVideo? = resolveAdjacentEpisode(videos, currentSeason, currentEpisode, offset = -1)
-
-    private fun resolveAdjacentEpisode(
-        videos: List<MetaVideo>,
-        currentSeason: Int?,
-        currentEpisode: Int?,
-        offset: Int,
     ): MetaVideo? {
         if (currentSeason == null || currentEpisode == null) return null
         val sortedEpisodes = videos
@@ -34,7 +21,7 @@ object PlayerNextEpisodeRules {
             it.season == currentSeason && it.episode == currentEpisode
         }
         if (currentIndex < 0) return null
-        return sortedEpisodes.getOrNull(currentIndex + offset)
+        return sortedEpisodes.getOrNull(currentIndex + 1)
     }
 
     fun shouldShowNextEpisodeCard(

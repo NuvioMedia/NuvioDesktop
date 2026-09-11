@@ -134,8 +134,13 @@ internal class NativePlayerController(
                 }
                 MprisCommand.Next -> onEvent("playNextEpisode", 0.0)
                 MprisCommand.Previous -> {
-                    if (snapshot().positionMs > 5_000L) seekTo(0L)
-                    else onEvent("playPreviousEpisode", 0.0)
+                    // Same ordering as CanGoPrevious; the event below auto-plays
+                    // the previous episode instead of only opening its streams.
+                    when (val action = resolveMprisPreviousAction(snapshot().positionMs, previousEpisodeItems())) {
+                        is MprisPreviousAction.RestartCurrent -> seekTo(0L)
+                        is MprisPreviousAction.PlayAtIndex -> onEvent("playEpisodeAtIndex", action.index.toDouble())
+                        MprisPreviousAction.NoPrevious -> Unit
+                    }
                 }
                 is MprisCommand.Seek -> seekBy(
                     (command.offsetUs / 1_000L).coerceIn(-86_400_000L, 86_400_000L),
@@ -146,6 +151,9 @@ internal class NativePlayerController(
             }
         }
     }
+
+    @Synchronized
+    private fun previousEpisodeItems(): List<PlayerControlEpisodeItem> = controlsState.episodeItems
 
     fun attach(
         sourceUrl: String,
@@ -448,10 +456,10 @@ internal class NativePlayerController(
     @Synchronized
     fun updateControls(state: PlayerControlsState) {
         host.setControlsVisible(state.controlsVisible)
-        val currentEpisodeIndex = state.episodeItems.indexOfFirst { it.isCurrent }
+        // Same logical ordering as the MPRIS Previous action below: do not use raw list index.
         MprisBridge.updateNavigation(
             canGoNext = state.nextEpisodePlayable,
-            canGoPrevious = currentEpisodeIndex > 0,
+            canGoPrevious = state.episodeItems.resolvePreviousEpisode() != null,
         )
         val currentHandle = handle
         val current = currentHandle.takeIf { it != 0L } ?: run {

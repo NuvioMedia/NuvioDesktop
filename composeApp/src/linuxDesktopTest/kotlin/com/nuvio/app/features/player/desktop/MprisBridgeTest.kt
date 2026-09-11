@@ -14,7 +14,7 @@ class MprisBridgeTest {
         val commands = mutableListOf<MprisCommand>()
         val player = MprisBridge.MprisObject(commands::add)
         player.update(
-            PlayerNowPlayingInfo(itemId = "episode-1", title = "Episode"),
+            PlayerNowPlayingInfo(title = "Episode"),
             PlayerPlaybackSnapshot(durationMs = 10_000L),
         )
         val trackId = player.getMetadata().getValue("mpris:trackid").value.toString()
@@ -30,36 +30,14 @@ class MprisBridgeTest {
     @Test
     fun trackIdChangesWithTheCurrentItem() {
         val player = MprisBridge.MprisObject { }
-        player.update(PlayerNowPlayingInfo(itemId = "episode-1", title = "Episode 1"), PlayerPlaybackSnapshot())
+        player.update(PlayerNowPlayingInfo(title = "Episode 1"), PlayerPlaybackSnapshot())
         val first = player.getMetadata().getValue("mpris:trackid").value.toString()
 
-        player.update(PlayerNowPlayingInfo(itemId = "episode-2", title = "Episode 2"), PlayerPlaybackSnapshot())
+        player.update(PlayerNowPlayingInfo(title = "Episode 2"), PlayerPlaybackSnapshot())
         val second = player.getMetadata().getValue("mpris:trackid").value.toString()
 
         assertTrue(first.startsWith("/com/nuvio/app/mpris/track/"))
         assertTrue(first != second)
-    }
-
-    @Test
-    fun trackIdStaysStableWhenDisplayMetadataChangesForTheSameItem() {
-        val player = MprisBridge.MprisObject { }
-        player.update(
-            PlayerNowPlayingInfo(itemId = "episode-1", title = "Episode", artworkUrl = "old.jpg"),
-            PlayerPlaybackSnapshot(),
-        )
-        val originalTrackId = player.getMetadata().getValue("mpris:trackid").value.toString()
-
-        player.update(
-            PlayerNowPlayingInfo(
-                itemId = "episode-1",
-                title = "Renamed Episode",
-                subtitle = "New subtitle",
-                artworkUrl = "new.jpg",
-            ),
-            PlayerPlaybackSnapshot(durationMs = 42_000L),
-        )
-
-        assertEquals(originalTrackId, player.getMetadata().getValue("mpris:trackid").value.toString())
     }
 
     @Test
@@ -68,7 +46,7 @@ class MprisBridgeTest {
         val player = MprisBridge.MprisObject(commands::add)
         player.setControllerAvailable(true)
         player.update(
-            PlayerNowPlayingInfo(itemId = "episode-1", title = "Episode"),
+            PlayerNowPlayingInfo(title = "Episode"),
             PlayerPlaybackSnapshot(durationMs = 10_000L),
         )
         val trackId = player.getMetadata().getValue("mpris:trackid").value.toString()
@@ -103,13 +81,10 @@ class MprisBridgeTest {
     @Test
     fun updateReportsRateChangesToMprisClients() {
         val player = MprisBridge.MprisObject { }
-        player.update(
-            PlayerNowPlayingInfo(itemId = "episode-1", title = "Episode"),
-            PlayerPlaybackSnapshot(playbackSpeed = 1f),
-        )
+        player.update(PlayerNowPlayingInfo(title = "Episode"), PlayerPlaybackSnapshot(playbackSpeed = 1f))
 
         val changed = player.update(
-            PlayerNowPlayingInfo(itemId = "episode-1", title = "Episode"),
+            PlayerNowPlayingInfo(title = "Episode"),
             PlayerPlaybackSnapshot(playbackSpeed = 1.5f),
         )
 
@@ -124,7 +99,7 @@ class MprisBridgeTest {
         player.setNavigationCapabilities(canGoNext = true, canGoPrevious = true)
 
         val changed = player.update(
-            PlayerNowPlayingInfo(itemId = "episode-1", title = "Episode"),
+            PlayerNowPlayingInfo(title = "Episode"),
             PlayerPlaybackSnapshot(durationMs = 10_000L),
         )
 
@@ -148,7 +123,7 @@ class MprisBridgeTest {
     @Test
     fun getAllKeepsRootAndPlayerPropertiesSeparate() {
         val player = MprisBridge.MprisObject { }
-        player.update(PlayerNowPlayingInfo(itemId = "episode-1", title = "Episode"), PlayerPlaybackSnapshot())
+        player.update(PlayerNowPlayingInfo(title = "Episode"), PlayerPlaybackSnapshot())
 
         val root = player.GetAll("org.mpris.MediaPlayer2")
         val playback = player.GetAll("org.mpris.MediaPlayer2.Player")
