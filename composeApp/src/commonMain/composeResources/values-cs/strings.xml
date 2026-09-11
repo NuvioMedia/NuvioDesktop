@@ -2018,8 +2018,8 @@
     <string name="entity_browse_about">O položce</string>
     <string name="entity_browse_catalogue">Katalog</string>
     <string name="entity_browse_country">Země</string>
-    <string name="entity_browse_title_count_one">%d titul</string>
-    <string name="entity_browse_title_count_other">%d titulů</string>
+    <string name="entity_browse_title_count_one">Počet titulů: %d</string>
+    <string name="entity_browse_title_count_other">Počet titulů: %d</string>
     <string name="entity_browse_type">Typ</string>
     <string name="home_load_failed_title">Domovskou stránku se nepodařilo načíst</string>
     <string name="layout_catalog_type">Zobrazit typ katalogu</string>
