@@ -2051,7 +2051,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     double size = MAX(18.0, MIN(96.0, fontSize));
     double scale = useLibass ? size / 54.0 : 1.0;
     int64_t position = MAX(0, MIN(150, subPos));
-    double outline = MAX(0.0, MIN(8.0, outlineSize));
+    double outline = MAX(0.0, MIN(16.0, outlineSize));
     NSString *resolvedTextColor = textColor ?: @"#FFFFFFFF";
     NSString *resolvedBackgroundColor = backgroundColor ?: @"#00000000";
     NSString *resolvedOutlineColor = outlineColor ?: @"#FF000000";
@@ -2071,12 +2071,15 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     if (modeChanged) {
         [self setStringProperty:"sub-ass-override" value:useLibass ? @"scale" : @"force"];
     }
-    if (modeChanged || (!useLibass && boldChanged)) {
+    if (modeChanged || (!useLibass && (boldChanged || outlineSizeChanged))) {
+        NSString *styleOverrides = useLibass
+            ? @""
+            : [NSString stringWithFormat:@"Bold=%d,Outline=%.2f,Shadow=0", bold ? 1 : 0, outline];
         const char *styleOverridesCommand[] = {
             "change-list",
             "sub-ass-style-overrides",
             useLibass ? "clr" : "set",
-            useLibass ? "" : (bold ? "Bold=1" : "Bold=0"),
+            styleOverrides.UTF8String,
             NULL,
         };
         mpv_command(_mpv, styleOverridesCommand);
@@ -2100,12 +2103,16 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         }
         if (modeChanged || outlineColorChanged) {
             [self setStringProperty:"sub-outline-color" value:resolvedOutlineColor];
+            [self setStringProperty:"sub-border-color" value:resolvedOutlineColor];
         }
         if (modeChanged || boldChanged) {
             [self setStringProperty:"sub-bold" value:bold ? @"yes" : @"no"];
         }
         if (modeChanged || outlineSizeChanged) {
+            double shadow = 0.0;
             mpv_set_property(_mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
+            mpv_set_property(_mpv, "sub-border-size", MPV_FORMAT_DOUBLE, &outline);
+            mpv_set_property(_mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadow);
         }
     }
     if (stripSdhChanged) {
