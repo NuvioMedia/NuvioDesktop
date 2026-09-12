@@ -16,7 +16,7 @@ class MprisPreviousActionTest {
     fun navigatesToPreviousEpisodeAtOrBelowThresholdWithOriginalIndex() {
         val action = resolveMprisPreviousAction(3_000L, episodes.withCurrent("s2e1"))
 
-        assertTrue(action is MprisPreviousAction.PlayAtIndex)
+        assertTrue(action is MprisPreviousAction.SelectEpisode)
         assertEquals(1, action.index)
     }
 

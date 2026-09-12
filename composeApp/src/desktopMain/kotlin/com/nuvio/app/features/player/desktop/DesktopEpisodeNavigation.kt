@@ -19,7 +19,7 @@ internal fun List<PlayerControlEpisodeItem>.resolvePreviousEpisode(): PlayerCont
 // the logically previous episode (same ordering as CanGoPrevious above).
 internal sealed interface MprisPreviousAction {
     data object RestartCurrent : MprisPreviousAction
-    data class PlayAtIndex(val index: Int) : MprisPreviousAction
+    data class SelectEpisode(val index: Int) : MprisPreviousAction
     data object NoPrevious : MprisPreviousAction
 }
 
@@ -29,5 +29,5 @@ internal fun resolveMprisPreviousAction(
 ): MprisPreviousAction {
     val previous = episodeItems.resolvePreviousEpisode() ?: return MprisPreviousAction.NoPrevious
     return if (positionMs > 5_000L) MprisPreviousAction.RestartCurrent
-    else MprisPreviousAction.PlayAtIndex(previous.index)
+    else MprisPreviousAction.SelectEpisode(previous.index)
 }

@@ -10,8 +10,6 @@ import com.nuvio.app.features.downloads.DownloadItem
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.p2p.P2pStreamingEngine
-import com.nuvio.app.features.player.skip.NextEpisodeInfo
-import com.nuvio.app.features.player.skip.PlayerNextEpisodeRules
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
@@ -374,33 +372,6 @@ internal fun PlayerScreenRuntime.switchToDownloadedEpisode(downloadItem: Downloa
 }
 
 internal fun PlayerScreenRuntime.playNextEpisode() {
-    playEpisodeWithAutoPlay(nextEpisodeInfo)
-}
-
-// Play the episode at the given playerMetaVideos index through the standard
-// autoplay pipeline. The caller resolves the index; no ordering logic here.
-internal fun PlayerScreenRuntime.playEpisodeAtIndex(index: Int) {
-    val episode = playerMetaVideos.getOrNull(index) ?: return
-    val season = episode.season ?: return
-    val number = episode.episode ?: return
-    if (!PlayerNextEpisodeRules.hasEpisodeAired(episode.released)) return
-    playEpisodeWithAutoPlay(
-        NextEpisodeInfo(
-            videoId = episode.id,
-            season = season,
-            episode = number,
-            title = episode.title,
-            thumbnail = episode.thumbnail,
-            overview = episode.overview,
-            released = episode.released,
-            hasAired = true,
-            isWatched = false,
-            unairedMessage = null,
-        ),
-    )
-}
-
-private fun PlayerScreenRuntime.playEpisodeWithAutoPlay(nextEpisodeInfo: NextEpisodeInfo?) {
     scope.launchPlayerNextEpisodeAutoPlay(
         previousJob = nextEpisodeAutoPlayJob,
         nextEpisodeInfo = nextEpisodeInfo,

@@ -134,11 +134,11 @@ internal class NativePlayerController(
                 }
                 MprisCommand.Next -> onEvent("playNextEpisode", 0.0)
                 MprisCommand.Previous -> {
-                    // Same ordering as CanGoPrevious; the event below auto-plays
-                    // the previous episode instead of only opening its streams.
+                    // Same ordering as CanGoPrevious. selectEpisode is the
+                    // existing player-controls event for selecting an episode.
                     when (val action = resolveMprisPreviousAction(snapshot().positionMs, previousEpisodeItems())) {
                         is MprisPreviousAction.RestartCurrent -> seekTo(0L)
-                        is MprisPreviousAction.PlayAtIndex -> onEvent("playEpisodeAtIndex", action.index.toDouble())
+                        is MprisPreviousAction.SelectEpisode -> onEvent("selectEpisode", action.index.toDouble())
                         MprisPreviousAction.NoPrevious -> Unit
                     }
                 }
