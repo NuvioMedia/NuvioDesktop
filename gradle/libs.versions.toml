@@ -36,6 +36,7 @@ desugarJdkLibs = "2.1.5"
 sentry = "8.47.0"
 sentryDesktop = "8.52.0"
 sentryGradle = "6.18.0"
+dbusJava = "5.1.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -100,6 +101,8 @@ reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reo
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentry" }
 sentry-jvm = { module = "io.sentry:sentry", version.ref = "sentryDesktop" }
+dbus-java-core = { module = "com.github.hypfvieh:dbus-java-core", version.ref = "dbusJava" }
+dbus-java-transport-native-unixsocket = { module = "com.github.hypfvieh:dbus-java-transport-native-unixsocket", version.ref = "dbusJava" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

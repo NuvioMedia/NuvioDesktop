@@ -15,6 +15,7 @@ import com.nuvio.app.features.player.ParentalWarning
 import com.nuvio.app.features.player.PlayerControlsAction
 import com.nuvio.app.features.player.PlayerControlsState
 import com.nuvio.app.features.player.PlayerEngineController
+import com.nuvio.app.features.player.PlayerNowPlayingInfo
 import com.nuvio.app.features.player.PlayerPlaybackSnapshot
 import com.nuvio.app.features.player.PlayerResizeMode
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MAX_MS
@@ -96,6 +97,12 @@ internal class NativePlayerController(
     private var releaseTimedOut: Boolean = false
     private var terminalReleaseFailure: String? = null
     private var controlsState = PlayerControlsState()
+    private val mprisLifecycle = MprisRegistrationLifecycle<PlayerNowPlayingInfo>(
+        onRegister = { MprisBridge.register(this) },
+        onUnregister = { MprisBridge.unregister(this) },
+        onUpdateMetadata = MprisBridge::updateMetadata,
+        onClear = MprisBridge::clear,
+    )
     @Volatile
     private var currentVolumeLevel = rememberedVolumeLevel.coerceDesktopPlayerVolumeLevel()
     private var pendingSubtitleDelayMs: Int? = null
@@ -111,6 +118,42 @@ internal class NativePlayerController(
             handlePlayerEvent(type, value)
         }
     }
+
+    internal fun handleMprisCommand(command: MprisCommand) {
+        SwingUtilities.invokeLater {
+            when (command) {
+                MprisCommand.Play -> play()
+                MprisCommand.Pause -> pause()
+                MprisCommand.PlayPause -> {
+                    val current = handle.takeIf { it != 0L } ?: return@invokeLater
+                    if (NativePlayerBridge.isPaused(current)) play() else pause()
+                }
+                MprisCommand.Stop -> {
+                    seekTo(0L)
+                    pause()
+                }
+                MprisCommand.Next -> onEvent("playNextEpisode", 0.0)
+                MprisCommand.Previous -> {
+                    // Same ordering as CanGoPrevious. selectEpisode is the
+                    // existing player-controls event for selecting an episode.
+                    when (val action = resolveMprisPreviousAction(snapshot().positionMs, previousEpisodeItems())) {
+                        is MprisPreviousAction.RestartCurrent -> seekTo(0L)
+                        is MprisPreviousAction.SelectEpisode -> onEvent("selectEpisode", action.index.toDouble())
+                        MprisPreviousAction.NoPrevious -> Unit
+                    }
+                }
+                is MprisCommand.Seek -> seekBy(
+                    (command.offsetUs / 1_000L).coerceIn(-86_400_000L, 86_400_000L),
+                )
+                is MprisCommand.SetPosition -> seekTo((command.positionUs / 1_000L).coerceAtLeast(0L))
+                is MprisCommand.SetRate -> setPlaybackSpeed(command.rate.toFloat())
+                is MprisCommand.SetVolume -> setFallbackVolume(command.volume.toFloat())
+            }
+        }
+    }
+
+    @Synchronized
+    private fun previousEpisodeItems(): List<PlayerControlEpisodeItem> = controlsState.episodeItems
 
     fun attach(
         sourceUrl: String,
@@ -148,6 +191,7 @@ internal class NativePlayerController(
             terminalFailure?.let { message -> SwingUtilities.invokeLater { pending.onError(message) } }
             return
         }
+        registerMpris()
         log.d {
             "attach requested source=${sourceUrl.toPlaybackLogKey()} headers=${sourceHeaders.size} " +
                 "playWhenReady=$playWhenReady initialPositionMs=$initialPositionMs decoderPriority=$decoderPriority"
@@ -412,6 +456,11 @@ internal class NativePlayerController(
     @Synchronized
     fun updateControls(state: PlayerControlsState) {
         host.setControlsVisible(state.controlsVisible)
+        // Same logical ordering as the MPRIS Previous action below: do not use raw list index.
+        MprisBridge.updateNavigation(
+            canGoNext = state.nextEpisodePlayable,
+            canGoPrevious = state.episodeItems.resolvePreviousEpisode() != null,
+        )
         val currentHandle = handle
         val current = currentHandle.takeIf { it != 0L } ?: run {
             controlsState = state
@@ -575,6 +624,7 @@ internal class NativePlayerController(
             currentVolumeLevel = nextLevel
             DesktopPlayerVolumeStorage.saveVolumeLevel(nextLevel)
             NativePlayerBridge.setVolume(current, nextLevel)
+            MprisBridge.updateVolume(nextLevel)
             controlsState = controlsState.copy(volumeLevel = nextLevel)
             updateControls(controlsState)
         }
@@ -587,6 +637,7 @@ internal class NativePlayerController(
             val nextLevel = level.coerceDesktopPlayerVolumeLevel()
             currentVolumeLevel = nextLevel
             NativePlayerBridge.setVolume(current, nextLevel)
+            MprisBridge.updateVolume(nextLevel)
             controlsState = controlsState.copy(volumeLevel = nextLevel)
             updateControls(controlsState)
         }
@@ -599,6 +650,7 @@ internal class NativePlayerController(
         val level = rememberedVolumeLevel.coerceDesktopPlayerVolumeLevel()
         currentVolumeLevel = level
         NativePlayerBridge.setVolume(current, level)
+        MprisBridge.updateVolume(level)
         controlsState = controlsState.copy(volumeLevel = level)
         log.d { "applied remembered volume level=$level handle=$current" }
     }
@@ -606,8 +658,18 @@ internal class NativePlayerController(
     private fun fallbackSeekBy(offsetMs: Long) {
         val current = handle
         if (current != 0L) {
+            val anchor = snapshot()
             NativePlayerBridge.seekBy(current, offsetMs)
+            MprisBridge.notifySeek(requestedSeekTargetMs(anchor, offsetMs))
         }
+    }
+
+    private fun requestedSeekTargetMs(anchor: PlayerPlaybackSnapshot, offsetMs: Long): Long =
+        clampedSeekTargetMs(anchor.durationMs, anchor.positionMs + offsetMs)
+
+    private fun clampedSeekTargetMs(durationMs: Long, targetMs: Long): Long {
+        val lower = targetMs.coerceAtLeast(0L)
+        return if (durationMs > 0L) lower.coerceAtMost(durationMs) else lower
     }
 
     private fun cycleFallbackSpeed() {
@@ -621,8 +683,12 @@ internal class NativePlayerController(
 
     fun snapshot(): PlayerPlaybackSnapshot {
         val current = handle
-        if (current == 0L) return PlayerPlaybackSnapshot(isLoading = true)
-        return runCatching {
+        if (current == 0L) {
+            val empty = PlayerPlaybackSnapshot(isLoading = true)
+            MprisBridge.updatePlayback(empty)
+            return empty
+        }
+        val result = runCatching {
             val isLoading = NativePlayerBridge.isLoading(current)
             val isEnded = NativePlayerBridge.isEnded(current)
             PlayerPlaybackSnapshot(
@@ -635,6 +701,8 @@ internal class NativePlayerController(
                 playbackSpeed = NativePlayerBridge.speed(current),
             )
         }.getOrDefault(PlayerPlaybackSnapshot(isLoading = true))
+        MprisBridge.updatePlayback(result)
+        return result
     }
 
     fun releaseBeforeNavigation(onReleased: () -> Unit) {
@@ -645,6 +713,7 @@ internal class NativePlayerController(
         onReleased: () -> Unit,
         onReleaseFailed: (String) -> Unit,
     ) {
+        unregisterMpris()
         synchronized(lifecycleLock) {
             releaseRequested = true
         }
@@ -753,6 +822,7 @@ internal class NativePlayerController(
     }
 
     fun dispose() {
+        unregisterMpris()
         host.resetCursorVisibility()
         val accepted = synchronized(lifecycleLock) {
             if (releaseRequested) {
@@ -874,28 +944,42 @@ internal class NativePlayerController(
     override fun play() {
         log.d { "play handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.setPaused(it, false) }
+        snapshot()
     }
 
     override fun pause() {
         log.d { "pause handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.setPaused(it, true) }
+        snapshot()
     }
 
     override fun seekTo(positionMs: Long) {
         log.d { "seekTo positionMs=$positionMs handle=$handle" }
-        handle.takeIf { it != 0L }?.let { nativeSeekTo(it, positionMs) }
+        val anchor = snapshot()
+        handle.takeIf { it != 0L }?.let {
+            nativeSeekTo(it, positionMs)
+            MprisBridge.notifySeek(clampedSeekTargetMs(anchor.durationMs, positionMs))
+        }
+        snapshot()
     }
 
     override fun trySeekTo(positionMs: Long): Boolean {
         val current = handle.takeIf { it != 0L } ?: return false
         log.d { "trySeekTo positionMs=$positionMs handle=$current" }
+        val anchor = snapshot()
         nativeSeekTo(current, positionMs)
+        MprisBridge.notifySeek(clampedSeekTargetMs(anchor.durationMs, positionMs))
+        snapshot()
         return true
     }
 
     override fun seekBy(offsetMs: Long) {
         log.d { "seekBy offsetMs=$offsetMs handle=$handle" }
-        handle.takeIf { it != 0L }?.let { NativePlayerBridge.seekBy(it, offsetMs) }
+        val anchor = snapshot()
+        handle.takeIf { it != 0L }?.let {
+            NativePlayerBridge.seekBy(it, offsetMs)
+            MprisBridge.notifySeek(requestedSeekTargetMs(anchor, offsetMs))
+        }
     }
 
     override fun retry() {
@@ -914,6 +998,24 @@ internal class NativePlayerController(
     override fun setPlaybackSpeed(speed: Float) {
         log.d { "setPlaybackSpeed speed=$speed handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.setSpeed(it, speed) }
+        snapshot()
+    }
+
+    override fun updateNowPlayingMetadata(info: PlayerNowPlayingInfo) {
+        mprisLifecycle.updateMetadata(info)
+        snapshot()
+    }
+
+    override fun clearNowPlayingInfo() {
+        mprisLifecycle.clear()
+    }
+
+    private fun registerMpris() {
+        mprisLifecycle.register()
+    }
+
+    private fun unregisterMpris() {
+        mprisLifecycle.unregister()
     }
 
     override fun getAudioTracks(): List<AudioTrack> =
