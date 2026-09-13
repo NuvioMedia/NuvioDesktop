@@ -15,6 +15,7 @@ import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.plugins.PluginRepository
 import com.nuvio.app.features.plugins.pluginContentId
 import com.nuvio.app.features.plugins.PluginsUiState
+import com.nuvio.app.features.tmdb.TmdbService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -461,13 +462,22 @@ object StreamsRepository {
                 }
             }
 
+            // Most scrapers expect a numeric TMDB id, but videoId is frequently an
+            // IMDb id (e.g. from Cinemeta). Resolve it once up front so every scraper
+            // gets a usable id instead of each independently failing TMDB lookups.
+            val resolvedPluginTmdbId = if (pluginProviderGroups.isNotEmpty()) {
+                runCatchingUnlessCancelled { TmdbService.ensureTmdbId(videoId, type) }.getOrNull()
+            } else {
+                null
+            }
+
             pluginProviderGroups.forEach { providerGroup ->
                 val includeScraperNameInSubtitle = false
                 providerGroup.scrapers.forEach { scraper ->
                     launch {
                         val completion = PluginRepository.executeScraper(
                             scraper = scraper,
-                            tmdbId = pluginContentId(
+                            tmdbId = resolvedPluginTmdbId ?: pluginContentId(
                                 videoId = videoId,
                                 season = season,
                                 episode = episode,

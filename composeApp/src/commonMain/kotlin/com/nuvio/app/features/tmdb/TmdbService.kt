@@ -99,8 +99,13 @@ object TmdbService {
         }.getOrNull()
     }
 
+    // Public demo TMDB v3 key, used as a fallback so IMDb->TMDB id resolution for
+    // plugin scrapers works even when the user hasn't configured a personal TMDB
+    // API key. This is the same key several community scraper plugins embed directly.
+    private const val FALLBACK_API_KEY = "439c478a771f35c05022f9feabcca01c"
+
     private fun currentApiKey(): String? =
-        TmdbSettingsRepository.snapshot().apiKey.trim().takeIf(String::isNotBlank)
+        TmdbSettingsRepository.snapshot().apiKey.trim().takeIf(String::isNotBlank) ?: FALLBACK_API_KEY
 
     internal fun normalizeMediaType(mediaType: String): String =
         when (mediaType.trim().lowercase()) {
