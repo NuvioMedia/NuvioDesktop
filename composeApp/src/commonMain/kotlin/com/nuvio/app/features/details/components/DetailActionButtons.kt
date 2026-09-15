@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.appIconPainter
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.secondaryClick
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_play
@@ -95,7 +96,8 @@ fun DetailActionButtons(
             Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .height(buttonHeight),
+                    .height(buttonHeight)
+                    .nuvioFocusBorder(playShape),
                 shape = playShape,
                 color = if (playEnabled) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = if (playEnabled) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
@@ -177,7 +179,9 @@ fun DetailActionButtons(
 
             if (hasSecondaryActions) {
                 Surface(
-                    modifier = Modifier.size(iconButtonSize),
+                    modifier = Modifier
+                        .size(iconButtonSize)
+                        .nuvioFocusBorder(CircleShape),
                     shape = CircleShape,
                     color = if (actionsExpanded) {
                         MaterialTheme.colorScheme.onBackground

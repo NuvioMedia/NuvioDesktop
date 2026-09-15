@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.secondaryClickAt
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.features.debrid.DebridProviders
 import com.nuvio.app.isDesktop
 
@@ -99,6 +100,7 @@ internal fun StreamCard(
                     Modifier
                 },
             )
+            .nuvioFocusBorder(cardShape)
             .then(
                 if (isDesktop) {
                     Modifier.onGloballyPositioned { coordinates ->

@@ -16,6 +16,7 @@ import coil3.request.crossfade
 import coil3.svg.SvgDecoder
 import com.nuvio.app.core.ui.NativeProfileSwitcherController
 import com.nuvio.app.core.ui.NuvioTheme
+import com.nuvio.app.core.ui.PlatformKeyboardNavigation
 import com.nuvio.app.core.ui.configurePlatformImageLoader
 import com.nuvio.app.core.ui.desktopUiScaleForWindow
 import com.nuvio.app.features.settings.ThemeSettingsRepository
@@ -105,6 +106,7 @@ internal fun AppEnvironment(content: @Composable () -> Unit) {
             customThemeColors = customThemeColors,
             desktopUiScale = desktopUiScaleForWindow(maxWidth.value, maxHeight.value),
         ) {
+            PlatformKeyboardNavigation()
             content()
         }
     }
