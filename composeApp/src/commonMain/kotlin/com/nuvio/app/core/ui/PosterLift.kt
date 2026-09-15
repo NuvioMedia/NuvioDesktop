@@ -90,6 +90,18 @@ internal fun Modifier.posterCardClickable(
             )
         }
         .then(this)
+    val handleLongClick = onLongClick?.let { longClick ->
+        {
+            source.bounds?.let { cardBounds ->
+                PosterZoomAnchorHolder.stash(
+                    PosterZoomAnchor(cardBounds, zoomImageUrl, zoomCornerRadius).also {
+                        it.source = source
+                    },
+                )
+            }
+            longClick()
+        }
+    }
     if (onClick == null && onLongClick == null) return posterModifier
     return posterModifier
         .combinedClickable(
@@ -105,19 +117,9 @@ internal fun Modifier.posterCardClickable(
                     onClick()
                 }
             },
-            onLongClick = onLongClick?.let { longClick ->
-                {
-                    source.bounds?.let { cardBounds ->
-                        PosterZoomAnchorHolder.stash(
-                            PosterZoomAnchor(cardBounds, zoomImageUrl, zoomCornerRadius).also {
-                                it.source = source
-                            },
-                        )
-                    }
-                    longClick()
-                }
-            },
+            onLongClick = handleLongClick,
         )
+        .secondaryClick(handleLongClick)
 }
 
 internal fun DrawScope.drawLiftedPoster(source: PosterLiftSource) {
