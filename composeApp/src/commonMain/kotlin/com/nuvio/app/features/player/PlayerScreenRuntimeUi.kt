@@ -926,10 +926,7 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
             skipIntervalDismissed = true
         }
         "playNextEpisode" -> {
-            if (nextEpisodeInfo?.hasAired == true) {
-                nextEpisodeAutoPlayJob?.cancel()
-                playNextEpisode()
-            }
+            if (nextEpisodeInfo?.hasAired == true) requestPlayNextEpisode()
         }
         "enableP2pForPlayerControls" -> enableP2pForPlayerControls()
         "cancelP2pForPlayerControls" -> {
@@ -1656,10 +1653,7 @@ private fun BoxScope.RenderPlaybackOverlays(
             nextEpisodeAutoPlaySourceName = nextEpisodeAutoPlaySourceName,
             nextEpisodeAutoPlayCountdown = nextEpisodeAutoPlayCountdown,
             blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
-            onPlayNextEpisode = {
-                nextEpisodeAutoPlayJob?.cancel()
-                playNextEpisode()
-            },
+            onPlayNextEpisode = { requestPlayNextEpisode() },
             onDismissNextEpisode = {
                 nextEpisodeAutoPlayJob?.cancel()
                 nextEpisodeCardDismissed = true
