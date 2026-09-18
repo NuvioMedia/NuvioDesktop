@@ -2703,6 +2703,18 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowResizable
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowAspectRatio(
+    JNIEnv *, jobject, jlong, jfloat
+) {
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_layoutNativeSubviews(
+    JNIEnv *, jobject, jlong
+) {
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_reparentSurfaceNative(
     JNIEnv *, jobject, jlong handle, jlong hostViewPtr
 ) {

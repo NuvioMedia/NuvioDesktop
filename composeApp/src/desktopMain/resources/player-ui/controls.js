@@ -430,6 +430,9 @@ const syncPipLockLabels = () => {
 };
 const setPipLocked = locked => {
   isPipLocked = locked;
+  if (locked && document.body.style.cursor && document.body.style.cursor.includes("resize")) {
+    document.body.style.cursor = "";
+  }
   root.classList.toggle("pip-locked", locked);
   if (pipLockButton) {
     pipLockButton.setAttribute("aria-pressed", String(locked));
@@ -1919,9 +1922,18 @@ const renderActiveModal = () => {
 window.nuvioNativeViewportChanged = () => {
   root.classList.add("native-resizing");
   window.clearTimeout(nativeViewportTimer);
+  const timeoutMs = state.isInPip ? 5000 : 180;
   nativeViewportTimer = window.setTimeout(() => {
     root.classList.remove("native-resizing");
-  }, 180);
+  }, timeoutMs);
+  syncSkipPromptPlacement(skipPrompt.classList.contains("visible"));
+  if (activeModal) renderActiveModal();
+};
+
+window.nuvioNativeResizeEnded = () => {
+  window.clearTimeout(nativeViewportTimer);
+  root.classList.remove("native-resizing");
+  noteChromeActivity(true);
   syncSkipPromptPlacement(skipPrompt.classList.contains("visible"));
   if (activeModal) renderActiveModal();
 };
@@ -3111,8 +3123,45 @@ let isSpeedBoosting = false;
 let speedBoostHoldTimer = null;
 let isHoldSpeedActive = false;
 let suppressNextRootClick = false;
+let suppressClickTimer = null;
+
+const setSuppressNextRootClick = () => {
+  suppressNextRootClick = true;
+  if (suppressClickTimer) {
+    window.clearTimeout(suppressClickTimer);
+  }
+  suppressClickTimer = window.setTimeout(() => {
+    suppressNextRootClick = false;
+    suppressClickTimer = null;
+  }, 250);
+};
+
+const clearSuppressNextRootClick = () => {
+  suppressNextRootClick = false;
+  if (suppressClickTimer) {
+    window.clearTimeout(suppressClickTimer);
+    suppressClickTimer = null;
+  }
+};
+
+window.nuvioNativeViewportChanged = () => {
+  root.classList.add("native-resizing");
+};
+
+window.nuvioNativeResizeEnded = () => {
+  pipPointerDown = false;
+  clearSuppressNextRootClick();
+  root.classList.remove("native-resizing");
+  if (document.body.style.cursor && document.body.style.cursor.includes("resize")) {
+    document.body.style.cursor = "";
+  }
+};
+
 let rootPointerStartX = 0;
 let rootPointerStartY = 0;
+let pipPointerStartX = 0;
+let pipPointerStartY = 0;
+let pipPointerDown = false;
 let spaceHoldTimer = null;
 let isSpaceBoosting = false;
 let pausedBeforeSpeedBoosting = false;
@@ -3207,29 +3256,89 @@ root.addEventListener("pointerdown", event => {
   }, 220);
 });
 
+const PIP_RESIZE_BORDER = 8;
+
+const getPipEdgeHit = (clientX, clientY) => {
+  if (!state.isInPip || isPipLocked) return null;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  if (w <= 0 || h <= 0) return null;
+  const left = clientX < PIP_RESIZE_BORDER;
+  const right = clientX >= w - PIP_RESIZE_BORDER;
+  const top = clientY < PIP_RESIZE_BORDER;
+  const bottom = clientY >= h - PIP_RESIZE_BORDER;
+
+  if (top && left) return { hit: 13, cursor: "nwse-resize" };
+  if (top && right) return { hit: 14, cursor: "nesw-resize" };
+  if (bottom && left) return { hit: 16, cursor: "nesw-resize" };
+  if (bottom && right) return { hit: 17, cursor: "nwse-resize" };
+  if (left) return { hit: 10, cursor: "ew-resize" };
+  if (right) return { hit: 11, cursor: "ew-resize" };
+  if (top) return { hit: 12, cursor: "ns-resize" };
+  if (bottom) return { hit: 15, cursor: "ns-resize" };
+  return null;
+};
+
 window.addEventListener("pointermove", event => {
   if (speedBoostHoldTimer && !isHoldSpeedActive) {
     const dx = Math.abs(event.clientX - rootPointerStartX);
     const dy = Math.abs(event.clientY - rootPointerStartY);
     if (dx > 12 || dy > 12) clearSpeedBoostHoldTimer();
   }
+  if (state.isInPip && !isPipLocked) {
+    if (event.target && event.target.closest && event.target.closest("button, input, select, textarea, [data-command], a, #seek, .volume-control, .pip-lock-badge, .modal")) {
+      if (document.body.style.cursor && document.body.style.cursor.includes("resize")) {
+        document.body.style.cursor = "";
+      }
+    } else {
+      const edge = getPipEdgeHit(event.clientX, event.clientY);
+      if (edge) {
+        document.body.style.cursor = edge.cursor;
+      } else if (document.body.style.cursor && document.body.style.cursor.includes("resize")) {
+        document.body.style.cursor = "";
+      }
+    }
+  }
+  if (pipPointerDown && state.isInPip) {
+    const dx = Math.abs(event.clientX - pipPointerStartX);
+    const dy = Math.abs(event.clientY - pipPointerStartY);
+    if (dx > 6 || dy > 6) {
+      pipPointerDown = false;
+      setSuppressNextRootClick();
+      if (event.target && event.target.releasePointerCapture) {
+        try { event.target.releasePointerCapture(event.pointerId); } catch (_) {}
+      }
+      send("dragWindow", 0);
+    }
+  }
 });
 
 window.addEventListener("pointerup", () => {
+  pipPointerDown = false;
   clearSpeedBoostHoldTimer();
   preventClickAndStopSpeedBoost();
 });
 
 window.addEventListener("pointercancel", () => {
+  pipPointerDown = false;
+  clearSuppressNextRootClick();
   clearSpeedBoostHoldTimer();
   preventClickAndStopSpeedBoost();
+});
+
+window.addEventListener("blur", () => {
+  pipPointerDown = false;
+  clearSuppressNextRootClick();
+  if (document.body.style.cursor && document.body.style.cursor.includes("resize")) {
+    document.body.style.cursor = "";
+  }
 });
 
 root.addEventListener("click", event => {
   if (event.button !== 0) return;
   if (isPipLocked) return;
   if (suppressNextRootClick) {
-    suppressNextRootClick = false;
+    clearSuppressNextRootClick();
     window.clearTimeout(tapTimer);
     event.stopPropagation();
     event.preventDefault();
@@ -3244,12 +3353,29 @@ root.addEventListener("click", event => {
 
 root.addEventListener("pointerdown", event => {
   if (!state.isInPip || event.button !== 0) return;
-  if (event.target.closest("button, input, select, textarea, [data-command], a, #seek, .volume-control, .pip-lock-badge")) return;
-  event.preventDefault();
-  if (event.target && event.target.releasePointerCapture) {
-    try { event.target.releasePointerCapture(event.pointerId); } catch (_) {}
+  if (activeModal) return;
+
+  if (event.target.closest("button, input, select, textarea, [data-command], a, #seek, .volume-control, .pip-lock-badge, .modal")) return;
+
+  if (!isPipLocked) {
+    const edge = getPipEdgeHit(event.clientX, event.clientY);
+    if (edge) {
+      event.preventDefault();
+      event.stopPropagation();
+      setSuppressNextRootClick();
+      pipPointerDown = false;
+      root.classList.add("native-resizing");
+      if (event.target && event.target.releasePointerCapture) {
+        try { event.target.releasePointerCapture(event.pointerId); } catch (_) {}
+      }
+      send("resizeWindow", edge.hit);
+      return;
+    }
   }
-  send("dragWindow", 0);
+
+  pipPointerStartX = event.clientX;
+  pipPointerStartY = event.clientY;
+  pipPointerDown = true;
 });
 
 if (pipLockButton) {

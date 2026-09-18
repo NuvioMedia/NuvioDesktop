@@ -51,6 +51,8 @@ internal object NativePlayerBridge {
     external fun requestFocus(handle: Long)
     external fun beginWindowDrag(handle: Long)
     external fun setWindowResizable(windowHwnd: Long, enabled: Boolean)
+    external fun setWindowAspectRatio(windowHwnd: Long, ratio: Float)
+    external fun layoutNativeSubviews(handle: Long)
     private external fun reparentSurfaceNative(handle: Long, hostViewPtr: Long)
 
     fun reparentSurface(handle: Long, hostViewPtr: Long): Boolean =

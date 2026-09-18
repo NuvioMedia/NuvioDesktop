@@ -459,11 +459,21 @@ internal class NativePlayerController(
         return NativePlayerBridge.reparentSurface(current, pointer)
     }
 
-    private fun requestKeyboardFocus() {
+    fun layoutNativeSubviews() {
+        val current = handle.takeIf { it != 0L } ?: return
+        NativePlayerBridge.layoutNativeSubviews(current)
+    }
+
+    fun requestKeyboardFocus() {
         SwingUtilities.invokeLater {
+            val current = handle.takeIf { it != 0L } ?: return@invokeLater
+            if (DesktopPlayerPictureInPicture.isEnabled) {
+                DesktopPlayerPictureInPicture.pipWindow?.videoHolderPanel?.requestFocusInWindow()
+                NativePlayerBridge.requestFocus(current)
+                return@invokeLater
+            }
             if (!isHostDisplayable()) return@invokeLater
             host.requestFocusInWindow()
-            val current = handle.takeIf { it != 0L } ?: return@invokeLater
             NativePlayerBridge.requestFocus(current)
         }
     }
