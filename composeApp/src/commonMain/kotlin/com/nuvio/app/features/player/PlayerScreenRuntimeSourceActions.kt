@@ -380,6 +380,16 @@ internal fun PlayerScreenRuntime.switchToDownloadedEpisode(downloadItem: Downloa
     controlsVisible = true
 }
 
+// User-initiated "play next" (card click, Shift+N). A click that lands while the
+// auto-play job is already searching or counting down is a no-op: restarting the
+// job here cancelled the in-flight search and reset its delay on every click, so
+// repeated clicks kept the card on "Finding source..." indefinitely.
+internal fun PlayerScreenRuntime.requestPlayNextEpisode() {
+    if (nextEpisodeAutoPlaySearching || nextEpisodeAutoPlayCountdown != null) return
+    nextEpisodeAutoPlayJob?.cancel()
+    playNextEpisode()
+}
+
 internal fun PlayerScreenRuntime.playNextEpisode() {
     scope.launchPlayerNextEpisodeAutoPlay(
         previousJob = nextEpisodeAutoPlayJob,
