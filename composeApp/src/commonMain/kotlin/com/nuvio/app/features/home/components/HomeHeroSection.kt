@@ -1117,7 +1117,7 @@ private fun desktopHeroHeight(
     maxWidthDp: Float,
     viewportHeightDp: Float?,
 ): Dp {
-    val baselineHeight = (maxWidthDp * 0.56f).dp.coerceIn(460.dp, 660.dp)
+    val baselineHeight = (maxWidthDp * 0.56f).dp.coerceIn(460.dp, 640.dp)
     val viewportHeight = viewportHeightDp ?: return baselineHeight
     val ultrawideProgress = ultrawideViewportProgress(
         widthDp = maxWidthDp,
