@@ -2,6 +2,7 @@ package com.nuvio.app.features.player.skip
 
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.addons.httpPostJsonWithHeaders
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 
 internal object SkipIntroApi {
@@ -12,6 +13,22 @@ internal object SkipIntroApi {
     private const val ANIMESKIP_BASE = "https://api.anime-skip.com/"
 
     // --- IntroDb ---
+
+    internal fun movieSegmentsUrl(baseUrl: String, imdbId: String): String =
+        "${baseUrl.trimEnd('/')}/segments?imdb_id=$imdbId&is_movie=true"
+
+    suspend fun getIntroDbMovieSegments(imdbId: String): IntroDbSegmentsResponse? {
+        val baseUrl = IntroDbConfig.URL
+        if (baseUrl.isBlank()) return null
+        return try {
+            val text = httpGetText(movieSegmentsUrl(baseUrl, imdbId))
+            json.decodeFromString<IntroDbSegmentsResponse>(text)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     suspend fun getIntroDbSegments(
         imdbId: String,

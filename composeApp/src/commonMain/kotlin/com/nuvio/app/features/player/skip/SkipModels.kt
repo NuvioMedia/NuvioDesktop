@@ -38,6 +38,7 @@ data class IntroDbSegmentsResponse(
     @SerialName("intro") val intro: IntroDbSegment? = null,
     @SerialName("recap") val recap: IntroDbSegment? = null,
     @SerialName("outro") val outro: IntroDbSegment? = null,
+    @SerialName("post_credits") val postCredits: IntroDbSegment? = null,
 )
 
 @Serializable

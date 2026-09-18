@@ -1,5 +1,8 @@
 package com.nuvio.app.features.player
 
+import com.nuvio.app.features.player.skip.trySkipInterval
+import com.nuvio.app.features.player.skip.followingPostCreditsScene
+import com.nuvio.app.features.player.skip.isManuallySkippable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -223,7 +226,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     }.orEmpty()
     val nativeSkipInterval = activeSkipInterval.takeIf {
         initialLoadCompleted && !pausedOverlayVisible && !skipIntervalDismissed
-    }
+    }?.takeIf { it.isManuallySkippable() }
     val nextEpisodeForControls = nextEpisodeInfo.takeIf { 
         isSeries && (showNextEpisodeCard || nextEpisodeAutoPlaySearching || nextEpisodeAutoPlayCountdown != null) 
     }
@@ -414,7 +417,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         openingMessage = p2pInitialLoadingMessage,
         openingProgress = p2pInitialLoadingProgress,
         skipPromptVisible = nativeSkipInterval != null && !playerControlsLocked,
-        skipPromptLabel = skipPromptLabel(nativeSkipInterval?.type),
+        skipPromptLabel = if (nativeSkipInterval?.followingPostCreditsScene(skipIntervals, playbackSnapshot.durationMs) != null) {
+            stringResource(Res.string.player_skip_to_post_credits)
+        } else skipPromptLabel(nativeSkipInterval?.type),
         skipPromptStartMs = ((nativeSkipInterval?.startTime ?: 0.0) * 1000).toLong().coerceAtLeast(0L),
         skipPromptEndMs = ((nativeSkipInterval?.endTime ?: 0.0) * 1000).toLong().coerceAtLeast(0L),
         skipPromptDismissed = skipIntervalDismissed,
@@ -920,8 +925,8 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         }
         "submitIntroCommit" -> submitIntroFromPlayerControls()
         "skipInterval" -> {
-            val interval = activeSkipInterval ?: return true
-            playerController?.seekTo((interval.endTime * 1000).toLong())
+            val interval = activeSkipInterval?.takeIf { it.isManuallySkippable() } ?: return true
+            if (playerController?.trySkipInterval(interval, skipIntervals, playbackSnapshot.durationMs) != true) return true
             scheduleProgressSyncAfterSeek()
             skipIntervalDismissed = true
         }
@@ -1184,6 +1189,7 @@ private fun skipPromptLabel(type: String?): String =
     when (type?.lowercase()) {
         "intro", "op", "mixed-op" -> stringResource(Res.string.player_skip_intro)
         "outro", "ed", "mixed-ed", "credits" -> stringResource(Res.string.player_skip_outro)
+        "movie-credits" -> stringResource(Res.string.player_skip_movie_credits)
         "recap" -> stringResource(Res.string.player_skip_recap)
         else -> stringResource(Res.string.player_skip)
     }
@@ -1636,15 +1642,14 @@ private fun BoxScope.RenderPlaybackOverlays(
             initialLoadCompleted = initialLoadCompleted,
             pausedOverlayVisible = pausedOverlayVisible,
             activeSkipInterval = activeSkipInterval.takeUnless { isDesktop },
+            skipToPostCredits = activeSkipInterval?.followingPostCreditsScene(skipIntervals, playbackSnapshot.durationMs) != null,
             skipIntervalDismissed = skipIntervalDismissed,
             controlsVisible = controlsVisible,
             onSkipInterval = { interval ->
-                val rawMs = (interval.endTime * 1000.0).toLong()
-                val durationMs = playbackSnapshot.durationMs
-                val seekMs = if (durationMs > 0L) rawMs.coerceAtMost(durationMs - 1) else rawMs
-                playerController?.seekTo(seekMs)
-                scheduleProgressSyncAfterSeek()
-                skipIntervalDismissed = true
+                if (playerController?.trySkipInterval(interval, skipIntervals, playbackSnapshot.durationMs, clampToDuration = true) == true) {
+                    scheduleProgressSyncAfterSeek()
+                    skipIntervalDismissed = true
+                }
             },
             onDismissSkipInterval = { skipIntervalDismissed = true },
             sliderEdgePadding = sliderEdgePadding,

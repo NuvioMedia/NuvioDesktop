@@ -101,6 +101,7 @@ static constexpr double kMaxVolumePercent = 200.0;
 - (void)setPaused:(BOOL)paused;
 - (BOOL)isPaused;
 - (void)seekToMilliseconds:(long long)positionMs;
+- (void)seekToMilliseconds:(long long)positionMs exact:(BOOL)exact;
 - (void)seekByMilliseconds:(long long)offsetMs;
 - (void)setSpeed:(double)speed;
 - (double)speed;
@@ -1853,9 +1854,13 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 }
 
 - (void)seekToMilliseconds:(long long)positionMs {
+    [self seekToMilliseconds:positionMs exact:NO];
+}
+
+- (void)seekToMilliseconds:(long long)positionMs exact:(BOOL)exact {
     if (!_mpv) return;
     std::string seconds = std::to_string((double)positionMs / 1000.0);
-    const char *command[] = {"seek", seconds.c_str(), "absolute+keyframes", NULL};
+    const char *command[] = {"seek", seconds.c_str(), exact ? "absolute+exact" : "absolute+keyframes", NULL};
     mpv_command(_mpv, command);
     _cachedPositionSeconds.store(fmax((double)positionMs / 1000.0, 0.0));
 }
@@ -2739,6 +2744,20 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_seekTo(
     MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
     runOnMainAsync(^{
         [player seekToMilliseconds:positionMs];
+    });
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_seekToExact(
+    JNIEnv * /* env */,
+    jobject /* bridge */,
+    jlong handle,
+    jlong positionMs
+) {
+    if (handle == 0) return;
+    MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
+    runOnMainAsync(^{
+        [player seekToMilliseconds:positionMs exact:YES];
     });
 }
 

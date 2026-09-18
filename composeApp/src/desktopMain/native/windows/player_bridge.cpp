@@ -1029,11 +1029,11 @@ public:
         return flagProperty("pause", true);
     }
 
-    void seekToMilliseconds(long long positionMs) {
+    void seekToMilliseconds(long long positionMs, bool exact = false) {
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         std::string seconds = std::to_string((double)positionMs / 1000.0);
-        const char *command[] = {"seek", seconds.c_str(), "absolute+keyframes", nullptr};
+        const char *command[] = {"seek", seconds.c_str(), exact ? "absolute+exact" : "absolute+keyframes", nullptr};
         mpvApi().command(mpv, command);
     }
 
@@ -2388,6 +2388,12 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_seekTo(JNIEnv *, jobject, jlong handle, jlong positionMs) {
     auto player = playerFromHandle(handle);
     if (player) player->seekToMilliseconds(positionMs);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_seekToExact(JNIEnv *, jobject, jlong handle, jlong positionMs) {
+    auto player = playerFromHandle(handle);
+    if (player) player->seekToMilliseconds(positionMs, true);
 }
 
 extern "C" JNIEXPORT void JNICALL

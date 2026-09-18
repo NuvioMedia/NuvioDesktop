@@ -2268,4 +2268,8 @@
     <string name="player_torrent_preparing_stream">Przygotowywanie strumienia torrent…</string>
     <string name="player_torrent_connecting_status">%1$s · %2$s · %3$s</string>
     <string name="player_torrent_loading_status">%1$s pobrano · %2$s · %3$s</string>
+    <string name="player_skip_movie_credits">Pomiń napisy końcowe</string>
+    <string name="player_skip_to_post_credits">Do sceny po napisach</string>
+    <string name="settings_playback_auto_skip_movie_credits">Napisy końcowe</string>
+    <string name="settings_playback_auto_skip_movie_credits_description">Automatycznie pomijaj napisy końcowe filmów, zachowując sceny po napisach.</string>
 </resources>

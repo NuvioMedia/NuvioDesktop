@@ -57,6 +57,7 @@ internal class NativePlayerController(
     private val createWaitTimeoutMs: Long = 5_000L,
     private val releaseTimeoutMs: Long = 10_000L,
     private val onCreateWaitCompleted: () -> Unit = {},
+    private val nativeSeekToExact: (Long, Long) -> Unit = NativePlayerBridge::seekToExact,
 ) : PlayerEngineController {
     private companion object {
         val json = Json { ignoreUnknownKeys = true }
@@ -911,6 +912,12 @@ internal class NativePlayerController(
         val current = handle.takeIf { it != 0L } ?: return false
         log.d { "trySeekTo positionMs=$positionMs handle=$current" }
         nativeSeekTo(current, positionMs)
+        return true
+    }
+
+    override fun trySeekToExact(positionMs: Long): Boolean {
+        val current = handle.takeIf { it != 0L } ?: return false
+        nativeSeekToExact(current, positionMs)
         return true
     }
 

@@ -41,6 +41,8 @@ import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.player_skip
 import nuvio.composeapp.generated.resources.player_skip_intro
 import nuvio.composeapp.generated.resources.player_skip_outro
+import nuvio.composeapp.generated.resources.player_skip_movie_credits
+import nuvio.composeapp.generated.resources.player_skip_to_post_credits
 import nuvio.composeapp.generated.resources.player_skip_recap
 import org.jetbrains.compose.resources.stringResource
 
@@ -52,10 +54,11 @@ fun SkipIntroButton(
     onSkip: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    skipToPostCredits: Boolean = false,
 ) {
     var lastType by remember { mutableStateOf(interval?.type) }
     if (interval != null) lastType = interval.type
-    val shouldShow = interval != null && (!dismissed || controlsVisible)
+    val shouldShow = interval != null && interval.isManuallySkippable() && (!dismissed || controlsVisible)
 
     var autoHidden by remember { mutableStateOf(false) }
     var manuallyDismissed by remember { mutableStateOf(false) }
@@ -118,7 +121,7 @@ fun SkipIntroButton(
                     modifier = Modifier.size(20.dp),
                 )
                 Text(
-                    text = skipLabel(lastType),
+                    text = if (skipToPostCredits) stringResource(Res.string.player_skip_to_post_credits) else skipLabel(lastType),
                     color = Color.White,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(start = 8.dp),
@@ -151,6 +154,7 @@ private fun skipLabel(type: String?): String =
     when (type?.lowercase()) {
         "intro", "op", "mixed-op" -> stringResource(Res.string.player_skip_intro)
         "outro", "ed", "mixed-ed", "credits" -> stringResource(Res.string.player_skip_outro)
+        "movie-credits" -> stringResource(Res.string.player_skip_movie_credits)
         "recap" -> stringResource(Res.string.player_skip_recap)
         else -> stringResource(Res.string.player_skip)
     }

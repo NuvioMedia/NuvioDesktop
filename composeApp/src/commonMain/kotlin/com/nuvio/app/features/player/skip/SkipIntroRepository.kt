@@ -1,17 +1,32 @@
 package com.nuvio.app.features.player.skip
 
 import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.features.tmdb.TmdbService
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
 object SkipIntroRepository {
 
     private val cache = HashMap<String, List<SkipInterval>>()
+    private val movieCache = HashMap<String, List<SkipInterval>>()
     private val animeSkipShowIdCache = HashMap<String, String>()
     private const val NO_ID = "__none__"
 
     private val introDbConfigured: Boolean
         get() = IntroDbConfig.URL.isNotBlank()
+
+    suspend fun getMovieSkipIntervals(contentId: String?, videoId: String? = null): List<SkipInterval> {
+        if (!introDbConfigured || !PlayerSettingsRepository.uiState.value.skipIntroEnabled) return emptyList()
+        val imdbId = resolveMovieSkipImdbId(
+            contentId = contentId,
+            videoId = videoId,
+            resolveTmdb = { TmdbService.tmdbToImdb(it, "movie") },
+            resolveAnime = { source, id -> SimklIdResolver.resolveIds(source, id)?.imdb },
+        ) ?: return emptyList()
+        movieCache[imdbId]?.let { return it }
+        val response = SkipIntroApi.getIntroDbMovieSegments(imdbId) ?: return emptyList()
+        return response.toMovieSkipIntervals().also { movieCache[imdbId] = it }
+    }
 
     suspend fun getSkipIntervals(
         imdbId: String?,
@@ -306,6 +321,7 @@ object SkipIntroRepository {
 
     fun clearCache() {
         cache.clear()
+        movieCache.clear()
         animeSkipShowIdCache.clear()
         SimklIdResolver.clearCache()
     }

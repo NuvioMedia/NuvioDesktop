@@ -11,6 +11,7 @@ interface PlayerEngineController {
         seekTo(positionMs)
         return true
     }
+    fun trySeekToExact(positionMs: Long): Boolean = trySeekTo(positionMs)
     fun seekBy(offsetMs: Long)
     fun retry()
     fun setPlaybackSpeed(speed: Float)

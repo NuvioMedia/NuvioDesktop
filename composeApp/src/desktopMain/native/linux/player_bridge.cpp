@@ -1758,6 +1758,15 @@ JNIEXPORT void JNICALL NP(seekTo)(JNIEnv *, jobject, jlong handle, jlong positio
     p->ended.store(false);
 }
 
+JNIEXPORT void JNICALL NP(seekToExact)(JNIEnv *, jobject, jlong handle, jlong positionMs) {
+    Player *p = asPlayer(handle);
+    if (!p) return;
+    std::string target = std::to_string(positionMs / 1000.0);
+    const char *cmd[] = {"seek", target.c_str(), "absolute+exact", nullptr};
+    mpv_command(p->mpv, cmd);
+    p->ended.store(false);
+}
+
 JNIEXPORT void JNICALL NP(seekBy)(JNIEnv *, jobject, jlong handle, jlong offsetMs) {
     Player *p = asPlayer(handle);
     if (!p) return;
