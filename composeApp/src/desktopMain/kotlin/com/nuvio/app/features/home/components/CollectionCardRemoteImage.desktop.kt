@@ -133,14 +133,10 @@ internal actual fun CollectionCardRemoteImage(
     contentScale: ContentScale,
     animateIfPossible: Boolean,
 ) {
-    val isGifUrl = remember(imageUrl) {
-        imageUrl.contains(".gif", ignoreCase = true)
-    }
-
     val hoverInteractionSource = remember { MutableInteractionSource() }
     val isHovered by hoverInteractionSource.collectIsHoveredAsState()
 
-    val shouldAnimate = animateIfPossible && isGifUrl && (isHovered || staticImageUrl.isNullOrBlank())
+    val shouldAnimate = animateIfPossible && (isHovered || staticImageUrl.isNullOrBlank())
 
     var composeBitmap by remember(imageUrl) { mutableStateOf<ImageBitmap?>(null) }
 
