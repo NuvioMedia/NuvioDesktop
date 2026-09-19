@@ -49,6 +49,8 @@ const val SUBTITLE_AUTO_SYNC_REACTION_COMPENSATION_MS = 300L
 internal val subtitleFontSizeRangeSp: IntRange
     get() = if (isDesktop || isIos) 6..40 else 12..40
 
+internal val subtitleOutlineWidthRange: IntRange = 1..8
+
 data class SubtitleStyleState(
     val textColor: Color = Color.White,
     val backgroundColor: Color = Color.Transparent,
