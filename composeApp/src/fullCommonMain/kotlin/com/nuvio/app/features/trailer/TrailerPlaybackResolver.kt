@@ -1,7 +1,7 @@
 package com.nuvio.app.features.trailer
 
 import kotlinx.coroutines.sync.Mutex
-import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
@@ -50,4 +50,6 @@ actual object TrailerPlaybackResolver {
     )
 }
 
-private val PlaybackCacheTtl = 10.minutes
+// googlevideo URLs carry their own `expire` (~6h), so a short TTL only forces
+// needless re-extraction - which is what gets the device rate limited.
+private val PlaybackCacheTtl = 3.hours

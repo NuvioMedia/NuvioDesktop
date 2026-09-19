@@ -14,6 +14,9 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
+private const val PROBE_TIMEOUT_SECONDS = 5L
+private const val PROBE_RACE_TIMEOUT_MS = 8_000L
+
 internal object TrailerExtractionPlatform {
     val diagnosticsEnabled: Boolean = System.getenv("NUVIO_TRAILER_DEBUG")
         ?.trim()
@@ -36,8 +39,8 @@ internal object TrailerExtractionPlatform {
         .build()
 
     private val probeClient = OkHttpClient.Builder()
-        .connectTimeout(2, TimeUnit.SECONDS)
-        .readTimeout(2, TimeUnit.SECONDS)
+        .connectTimeout(PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .build()
@@ -93,70 +96,92 @@ internal object TrailerExtractionPlatform {
     }
 
     suspend fun buildPlaybackSource(
-        bestManifest: ManifestCandidate?,
-        bestProgressive: StreamCandidate?,
-        bestVideo: StreamCandidate?,
-        bestAudio: StreamCandidate?,
+        manifestCandidates: List<ManifestCandidate>,
+        progressiveCandidates: List<StreamCandidate>,
+        videoCandidates: List<StreamCandidate>,
+        audioCandidates: List<StreamCandidate>,
     ): TrailerPlaybackSource? = withContext(Dispatchers.IO) {
-        val bestCombinedIsManifest = bestManifest != null &&
-            (bestProgressive == null || bestManifest.height > bestProgressive.height)
-        val preferManifestPlayback = bestManifest != null &&
-            (bestVideo == null || bestManifest.height >= bestVideo.height)
-        val combinedUrl = if (bestCombinedIsManifest) {
-            bestManifest.manifestUrl
-        } else {
-            bestProgressive?.url
+        // A candidate can look fine and still be unplayable (PO-token gated URLs
+        // answer the first range and 403 everything after), so every candidate is
+        // probed and the first one that survives wins.
+        var videoOnlyFallback: String? = null
+        // A PO token gated client answers the first range and 403s the rest for
+        // every one of its adaptive formats, so one rejection condemns them all.
+        val gatedClients = mutableSetOf<String>()
+
+        suspend fun fromManifests(): TrailerPlaybackSource? {
+            for (candidate in manifestCandidates.take(MAX_CANDIDATE_ATTEMPTS)) {
+                val url = resolveReachableUrlOrNull(candidate.manifestUrl) ?: continue
+                diagnostic("selected mode=hls video=[${candidate.diagnosticSummary()}]")
+                return TrailerPlaybackSource(videoUrl = url, audioUrl = null)
+            }
+            return null
         }
 
-        val separatedVideoUrl = if (preferManifestPlayback) {
-            null
+        suspend fun fromSeparateStreams(): TrailerPlaybackSource? {
+            for (video in videoCandidates.take(MAX_CANDIDATE_ATTEMPTS)) {
+                if (video.client in gatedClients) continue
+                val videoUrl = resolveReachableUrlOrNull(video.url)
+                if (videoUrl == null) {
+                    gatedClients += video.client
+                    diagnostic("blocked stage=video_probe candidate=${video.diagnosticSummary()}")
+                    continue
+                }
+                for (audio in audioCandidates.take(MAX_CANDIDATE_ATTEMPTS)) {
+                    val audioUrl = resolveReachableUrlOrNull(audio.url)
+                    if (audioUrl == null) {
+                        diagnostic("blocked stage=audio_probe candidate=${audio.diagnosticSummary()}")
+                        continue
+                    }
+                    diagnostic(
+                        "selected mode=adaptive_separate video=[${video.diagnosticSummary()}] " +
+                            "audio=[${audio.diagnosticSummary()}]",
+                    )
+                    return TrailerPlaybackSource(videoUrl = videoUrl, audioUrl = audioUrl)
+                }
+                // Video plays but no audio track survived: remember it and let the
+                // other strategies try to produce a source that still has sound.
+                if (videoOnlyFallback == null) {
+                    videoOnlyFallback = videoUrl
+                }
+                break
+            }
+            return null
+        }
+
+        suspend fun fromProgressive(): TrailerPlaybackSource? {
+            for (candidate in progressiveCandidates.take(MAX_CANDIDATE_ATTEMPTS)) {
+                val url = resolveReachableUrlOrNull(candidate.url) ?: continue
+                diagnostic("selected mode=combined_fallback video=[${candidate.diagnosticSummary()}]")
+                return TrailerPlaybackSource(videoUrl = url, audioUrl = null)
+            }
+            return null
+        }
+
+        val manifestHeight = manifestCandidates.firstOrNull()?.height ?: -1
+        val separateHeight = videoCandidates.firstOrNull()?.height ?: -1
+        val strategies: List<suspend () -> TrailerPlaybackSource?> = if (manifestHeight >= separateHeight) {
+            listOf({ fromManifests() }, { fromSeparateStreams() }, { fromProgressive() })
         } else {
-            bestVideo?.url?.let { resolveReachableUrlOrNull(it) }
+            listOf({ fromSeparateStreams() }, { fromManifests() }, { fromProgressive() })
         }
-        if (!preferManifestPlayback && bestVideo != null && separatedVideoUrl == null) {
-            diagnostic("blocked stage=video_probe candidate=${bestVideo.diagnosticSummary()}")
+
+        for (strategy in strategies) {
+            val source = strategy()
+            if (source != null) {
+                diagnostic("source videoUrl=${source.videoUrl}")
+                diagnostic("source audioUrl=${source.audioUrl ?: "none"}")
+                return@withContext source
+            }
         }
-        val separatedAudioUrl = if (!separatedVideoUrl.isNullOrBlank()) {
-            bestAudio?.url?.let { resolveReachableUrlOrNull(it) }
-        } else {
-            null
+
+        videoOnlyFallback?.let { videoUrl ->
+            diagnostic("selected mode=adaptive_video_only")
+            return@withContext TrailerPlaybackSource(videoUrl = videoUrl, audioUrl = null)
         }
-        if (separatedVideoUrl != null && bestAudio != null && separatedAudioUrl == null) {
-            diagnostic("blocked stage=audio_probe candidate=${bestAudio.diagnosticSummary()}")
-        }
-        val useSeparatedStreams = separatedVideoUrl != null && separatedAudioUrl != null
-        val combinedCandidateUrl = if (!useSeparatedStreams) {
-            combinedUrl?.let { resolveReachableUrlOrNull(it) }
-        } else {
-            null
-        }
-        val videoUrl = if (useSeparatedStreams) separatedVideoUrl else combinedCandidateUrl ?: separatedVideoUrl
-        if (videoUrl == null) {
-            diagnostic("blocked stage=source reason=no_reachable_video")
-            return@withContext null
-        }
-        val audioUrl = separatedAudioUrl.takeIf { useSeparatedStreams }
-        val mode = when {
-            useSeparatedStreams -> "adaptive_separate"
-            combinedCandidateUrl != null && bestCombinedIsManifest -> "hls"
-            combinedCandidateUrl != null -> "combined_fallback"
-            else -> "adaptive_video_only"
-        }
-        val videoSummary = when {
-            useSeparatedStreams -> bestVideo.diagnosticSummary()
-            combinedCandidateUrl != null && bestCombinedIsManifest -> bestManifest.diagnosticSummary()
-            combinedCandidateUrl != null -> bestProgressive.diagnosticSummary()
-            else -> bestVideo.diagnosticSummary()
-        }
-        diagnostic(
-            "selected mode=$mode video=[$videoSummary] audio=[${bestAudio.takeIf { useSeparatedStreams }.diagnosticSummary()}]",
-        )
-        diagnostic("source videoUrl=$videoUrl")
-        diagnostic("source audioUrl=${audioUrl ?: "none"}")
-        TrailerPlaybackSource(
-            videoUrl = videoUrl,
-            audioUrl = audioUrl,
-        )
+
+        diagnostic("blocked stage=source reason=no_reachable_video")
+        null
     }
 
     private suspend fun resolveReachableUrlOrNull(url: String): String? {
@@ -206,7 +231,7 @@ internal object TrailerExtractionPlatform {
         }
 
         return try {
-            val selected = withTimeoutOrNull(4_000L) { result.await() }
+            val selected = withTimeoutOrNull(PROBE_RACE_TIMEOUT_MS) { result.await() }
             diagnostic(
                 "probe ${if (selected != null) "ok" else "failed"} ${describeUrl(url)} candidates=${candidates.size}" +
                     selected?.let { " selectedHost=${it.toHttpUrlOrNull()?.host ?: "unknown"}" }.orEmpty(),
