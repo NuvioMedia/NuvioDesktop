@@ -85,6 +85,7 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.ui.NuvioBackButton
+import com.nuvio.app.core.ui.desktopPageHorizontalPaddingForWidth
 import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
 import com.nuvio.app.core.ui.NuvioBottomSheetDivider
 import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
@@ -325,16 +326,24 @@ fun StreamsScreen(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-                .padding(start = 12.dp, top = 8.dp),
+                .padding(
+                    start = if (isDesktop) desktopPageHorizontalPaddingForWidth(maxWidth.value) else 12.dp,
+                    top = if (isDesktop) 32.dp else 8.dp,
+                ),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             NuvioBackButton(
                 onClick = onBack,
-                modifier = Modifier
-                    .size(40.dp),
-                containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
+                modifier = if (isDesktop) Modifier else Modifier.size(40.dp),
+                containerColor = if (isDesktop) {
+                    Color.Black.copy(alpha = 0.34f)
+                } else {
+                    MaterialTheme.colorScheme.background.copy(alpha = 0.45f)
+                },
                 showContainerOnDesktop = true,
                 contentColor = MaterialTheme.colorScheme.onBackground,
+                buttonSize = if (isDesktop) 48.dp else 40.dp,
+                iconSize = if (isDesktop) 24.dp else 20.dp,
             )
 
         }
