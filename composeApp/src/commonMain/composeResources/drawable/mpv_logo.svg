@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g1" x1="10.315" y1="17.131" x2="53.509" y2="47.106" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fafafa" />
+      <stop offset="1" stop-color="#bababa" />
+    </linearGradient>
+    <linearGradient id="g2" x1="17.855" y1="11.173" x2="45.224" y2="52.505" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6b3c74" />
+      <stop offset="1" stop-color="#461b4d" />
+    </linearGradient>
+    <linearGradient id="g3" x1="22.137" y1="17.503" x2="46.341" y2="43.476" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#320f38" />
+      <stop offset="1" stop-color="#5a2963" />
+    </linearGradient>
+    <linearGradient id="g4" x1="23.161" y1="23.926" x2="39.732" y2="41.055" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e6e2e8" />
+      <stop offset="1" stop-color="#aaa3ad" />
+    </linearGradient>
+    <linearGradient id="g5" x1="28.822" y1="29.061" x2="32.227" y2="34.078" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#65376e" />
+      <stop offset="1" stop-color="#4c2354" />
+    </linearGradient>
+  </defs>
+  <!-- Outer rim -->
+  <path d="M32 4.051 A27.949 27.949 0 1 0 32 59.949 A27.949 27.949 0 1 0 32 4.051 Z" fill="url(#g1)" />
+  <!-- Middle purple disc -->
+  <path d="M32.727 5.195 A25.951 25.951 0 1 0 32.727 57.097 A25.951 25.951 0 1 0 32.727 5.195 Z" fill="url(#g2)" />
+  <!-- Inner dark purple recess -->
+  <path d="M34.224 9.434 A20 20 0 1 0 34.224 49.434 A20 20 0 1 0 34.224 9.434 Z" fill="url(#g3)" />
+  <!-- Inner silver disc -->
+  <path d="M44.481 32.119 a12.849 12.849 0 0 1 -12.849 12.849 a12.849 12.849 0 0 1 -12.849 -12.849 a12.849 12.849 0 0 1 12.849 -12.849 a12.849 12.849 0 0 1 12.849 12.849 Z" fill="url(#g4)" />
+  <!-- Center play triangle -->
+  <path d="M28.374 26.347 l0 11.450 l9.216 -5.865 Z" fill="url(#g5)" />
+</svg>

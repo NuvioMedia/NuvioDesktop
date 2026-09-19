@@ -68,6 +68,7 @@ internal data class LicenseItem(
     val bodyRes: StringResource,
     val licenseRes: StringResource,
     val link: String,
+    val logo: IntegrationLogo? = null,
 )
 
 @Composable
@@ -149,6 +150,7 @@ private fun LicensesAttributionsBody(
                     bodyRes = Res.string.settings_licenses_attributions_haze_body,
                     licenseRes = Res.string.settings_licenses_attributions_haze_license,
                     link = HazeLicenseUrl,
+                    logo = IntegrationLogo.Haze,
                 ),
                 isTablet = isTablet,
             )
@@ -225,16 +227,26 @@ private fun LicenseRow(
     val uriHandler = LocalUriHandler.current
     val itemBody = stringResource(item.bodyRes)
     val itemLicense = stringResource(item.licenseRes)
+    val title = stringResource(item.titleRes)
     val body = buildString {
         append(itemBody)
         append("\n")
         append(itemLicense)
     }
     LinkedPlainRow(
-        title = stringResource(item.titleRes),
+        title = title,
         body = body,
         link = item.link,
         isTablet = isTablet,
+        leading = item.logo?.let { logo ->
+            {
+                IntegrationLogoImage(
+                    painter = integrationLogoPainter(logo),
+                    contentDescription = title,
+                    isTablet = isTablet,
+                )
+            }
+        },
         onOpen = { uriHandler.openUri(item.link) },
     )
 }
@@ -385,7 +397,7 @@ private fun attributionItems(): List<AttributionItem> = listOf(
     AttributionItem(
         titleRes = Res.string.settings_licenses_attributions_imdb_title,
         bodyRes = Res.string.settings_licenses_attributions_imdb_body,
-        logo = null,
+        logo = IntegrationLogo.ImdbData,
         link = ImdbDatasetsUrl,
     ),
 )
@@ -405,12 +417,14 @@ internal fun platformLicenseItem(): LicenseItem =
             bodyRes = Res.string.settings_licenses_attributions_mpv_body,
             licenseRes = Res.string.settings_licenses_attributions_mpv_license,
             link = MpvUrl,
+            logo = IntegrationLogo.Mpv,
         )
         isIos -> LicenseItem(
             titleRes = Res.string.settings_licenses_attributions_mpvkit_title,
             bodyRes = Res.string.settings_licenses_attributions_mpvkit_body,
             licenseRes = Res.string.settings_licenses_attributions_mpvkit_license,
             link = MpvKitUrl,
+            logo = IntegrationLogo.Mpv,
         )
         else -> LicenseItem(
             titleRes = Res.string.settings_licenses_attributions_exoplayer_title,
