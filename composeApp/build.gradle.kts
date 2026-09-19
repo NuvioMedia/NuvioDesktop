@@ -1212,6 +1212,13 @@ kotlin {
                     "src/nonWindowsDesktopMain/kotlin"
                 },
             )
+            kotlin.srcDir(
+                if (isLinuxHost) {
+                    "src/linuxDesktopMain/kotlin"
+                } else {
+                    "src/nonLinuxDesktopMain/kotlin"
+                },
+            )
             resources.srcDir(desktopSentryResourceDir)
             dependencies {
                 implementation(compose.desktop.currentOs)
@@ -1224,6 +1231,15 @@ kotlin {
                 implementation(libs.quickjs.kt)
                 implementation(libs.ksoup)
                 implementation(libs.sentry.jvm)
+                if (isLinuxHost) {
+                    implementation(libs.dbus.java.core)
+                    implementation(libs.dbus.java.transport.native.unixsocket)
+                }
+            }
+        }
+        val desktopTest by getting {
+            if (isLinuxHost) {
+                kotlin.srcDir("src/linuxDesktopTest/kotlin")
             }
         }
         val androidHostTest by getting {
@@ -1319,13 +1335,15 @@ compose.desktop {
             if (isMacHost) {
                 appResourcesRootDir.set(macosPlayerAppResourcesRoot)
             }
-            modules(
+            val distributionModules = mutableListOf(
                 "java.instrument",
                 "java.management",
                 "java.net.http",
                 "jdk.httpserver",
                 "jdk.unsupported",
             )
+            if (isLinuxHost) distributionModules += "jdk.security.auth"
+            modules(*distributionModules.toTypedArray())
             macOS {
                 bundleID = "com.nuvio.media.desktop"
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon-transparent.icns"))

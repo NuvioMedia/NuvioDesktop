@@ -236,6 +236,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         playerController,
         playerControllerSourceUrl,
         activeSourceUrl,
+        activeVideoId,
         title,
         activeStreamTitle,
         activeSeasonNumber,
@@ -693,6 +694,12 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
 private fun PlayerScreenRuntime.buildNowPlayingInfo(): PlayerNowPlayingInfo {
     val isEpisode = activeSeasonNumber != null && activeEpisodeNumber != null
     return PlayerNowPlayingInfo(
+        itemId = buildPlaybackVideoId(
+            parentMetaId = parentMetaId,
+            seasonNumber = activeSeasonNumber,
+            episodeNumber = activeEpisodeNumber,
+            fallbackVideoId = activeVideoId,
+        ),
         title = title.ifBlank { activeStreamTitle },
         subtitle = buildNowPlayingSubtitle(
             isEpisode = isEpisode,
