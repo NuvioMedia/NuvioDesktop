@@ -1,6 +1,7 @@
 package com.nuvio.app.features.catalog
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,6 +28,7 @@ import com.nuvio.app.core.ui.NuvioBackButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -210,7 +212,7 @@ fun CatalogScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = pageHorizontalPadding,
-                    top = with(androidx.compose.ui.platform.LocalDensity.current) { headerHeightPx.toDp() } + 12.dp,
+                    top = with(androidx.compose.ui.platform.LocalDensity.current) { headerHeightPx.toDp() } + 24.dp,
                     end = pageHorizontalPadding,
                     bottom = nuvioSafeBottomPadding(28.dp),
                 ),
@@ -376,9 +378,10 @@ private fun CatalogPosterTile(
         onLongClick = onLongClick,
         modifier = Modifier.fillMaxWidth(),
     ) {
+        val interactionSource = remember { MutableInteractionSource() }
         Column(
             modifier = Modifier
-                .desktopPosterHoverScale()
+                .desktopPosterHoverScale(interactionSource = interactionSource)
                 .then(it),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -398,6 +401,7 @@ private fun CatalogPosterTile(
                         zoomImageUrl = item.poster,
                         zoomCornerRadius = cornerRadiusDp.dp,
                         hoverScaleEnabled = false,
+                        interactionSource = interactionSource,
                     ),
             ) {
                 if (item.poster != null) {

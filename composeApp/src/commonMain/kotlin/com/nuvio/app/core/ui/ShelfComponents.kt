@@ -250,10 +250,11 @@ fun NuvioPosterCard(
         shape = shape,
     )
     val shouldShowTitleBelow = showTitleBelow && !posterCardStyle.hideLabelsEnabled
+    val interactionSource = remember { MutableInteractionSource() }
 
     Column(
         modifier = Modifier
-            .desktopPosterHoverScale()
+            .desktopPosterHoverScale(interactionSource = interactionSource)
             .then(modifier)
             .width(cardWidth),
         verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
@@ -274,6 +275,7 @@ fun NuvioPosterCard(
                     zoomImageUrl = imageUrl,
                     zoomCornerRadius = posterCardStyle.cornerRadiusDp.dp,
                     hoverScaleEnabled = false,
+                    interactionSource = interactionSource,
                 ),
             contentAlignment = Alignment.Center,
         ) {

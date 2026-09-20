@@ -1,6 +1,7 @@
 package com.nuvio.app.features.home.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,9 +25,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -679,8 +680,11 @@ private fun ContinueWatchingCard(
     val backgroundColor = MaterialTheme.colorScheme.background
     val badgeBackground = continueWatchingBadgeBackground(item)
 
+    val interactionSource = remember { MutableInteractionSource() }
+
     Box(
         modifier = Modifier
+            .desktopPosterHoverScale(interactionSource = interactionSource)
             .width(cardMetrics.width)
             .aspectRatio(PosterLandscapeAspectRatio)
             .clip(RoundedCornerShape(cardMetrics.cornerRadius))
@@ -694,6 +698,8 @@ private fun ContinueWatchingCard(
                 onLongClick = onLongClick,
                 zoomImageUrl = imageUrl,
                 zoomCornerRadius = cardMetrics.cornerRadius,
+                hoverScaleEnabled = false,
+                interactionSource = interactionSource,
             ),
     ) {
         if (imageUrl != null) {
@@ -858,9 +864,11 @@ private fun ContinueWatchingWideCard(
     onLongClick: (() -> Unit)?,
 ) {
     val cornerRadius = rememberPosterCardStyleUiState().cornerRadiusDp.dp
+    val interactionSource = remember { MutableInteractionSource() }
+
     Row(
         modifier = Modifier
-            .posterCardClickable(onClick = onClick, onLongClick = onLongClick)
+            .desktopPosterHoverScale(interactionSource = interactionSource)
             .width(layout.wideCardWidth)
             .height(layout.wideCardHeight)
             .clip(RoundedCornerShape(cornerRadius))
@@ -869,6 +877,12 @@ private fun ContinueWatchingWideCard(
                 width = 1.5.dp,
                 color = Color.White.copy(alpha = 0.15f),
                 shape = RoundedCornerShape(cornerRadius),
+            )
+            .posterCardClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                hoverScaleEnabled = false,
+                interactionSource = interactionSource,
             ),
     ) {
         val artworkUrl = item.continueWatchingArtworkUrl(useEpisodeThumbnails)
@@ -986,9 +1000,10 @@ private fun ContinueWatchingPosterCard(
 ) {
     val cornerRadius = rememberPosterCardStyleUiState().cornerRadiusDp.dp
     val imageUrl = item.continueWatchingPosterArtworkUrl(useEpisodeThumbnails)
+    val interactionSource = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
-            .desktopPosterHoverScale()
+            .desktopPosterHoverScale(interactionSource = interactionSource)
             .width(layout.posterCardWidth),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -1008,6 +1023,7 @@ private fun ContinueWatchingPosterCard(
                     zoomImageUrl = imageUrl,
                     zoomCornerRadius = cornerRadius,
                     hoverScaleEnabled = false,
+                    interactionSource = interactionSource,
                 ),
         ) {
             val shouldBlurArtwork = item.shouldBlurContinueWatchingArtwork(

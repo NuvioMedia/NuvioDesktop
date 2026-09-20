@@ -2,6 +2,7 @@ package com.nuvio.app.features.home.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +31,7 @@ import com.nuvio.app.core.ui.NuvioAsyncImage
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioPosterWatchedOverlay
 import com.nuvio.app.core.ui.SkeletonPoster
+import com.nuvio.app.core.ui.desktopPosterHoverScale
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
@@ -117,8 +120,10 @@ private fun PosterGridTile(
         onLongClick = onLongClick,
         modifier = modifier,
     ) {
+        val interactionSource = remember { MutableInteractionSource() }
         Column(
             modifier = Modifier
+                .desktopPosterHoverScale(interactionSource = interactionSource)
                 .fillMaxWidth()
                 .then(it),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -138,6 +143,8 @@ private fun PosterGridTile(
                         onLongClick = onLongClick,
                         zoomImageUrl = item.poster,
                         zoomCornerRadius = cornerRadiusDp.dp,
+                        hoverScaleEnabled = false,
+                        interactionSource = interactionSource,
                     ),
             ) {
                 if (item.poster != null) {

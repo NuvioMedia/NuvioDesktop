@@ -389,8 +389,6 @@ private fun TabbedGridContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
         val selectedTab = uiState.tabs.getOrNull(uiState.selectedTabIndex)
         if (selectedTab == null) return
 
@@ -429,6 +427,7 @@ private fun TabbedGridContent(
                             contentPadding = PaddingValues(
                                 start = pageHorizontalPadding,
                                 end = pageHorizontalPadding,
+                                top = 24.dp,
                                 bottom = nuvioSafeBottomPadding(18.dp),
                             ),
                             horizontalArrangement = Arrangement.spacedBy(if (isDesktop) 12.dp else 10.dp),
@@ -528,6 +527,7 @@ private fun RowsContent(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
+                top = 24.dp,
                 bottom = nuvioSafeBottomPadding(18.dp),
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
