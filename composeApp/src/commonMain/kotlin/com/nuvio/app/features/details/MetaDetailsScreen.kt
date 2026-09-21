@@ -2161,7 +2161,7 @@ private fun LazyListScope.configuredMetaSectionItems(
             DetailSectionContainer(
                 horizontalPadding = contentHorizontalPadding,
                 contentMaxWidth = contentMaxWidth,
-                bottomPadding = 12.dp,
+                bottomPadding = if (isDesktop) 8.dp else 12.dp,
             ) {
                 DetailSeriesListHeader(
                     meta = meta,
