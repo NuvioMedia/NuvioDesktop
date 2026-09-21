@@ -2129,7 +2129,7 @@ private:
 
     std::string channelLayoutName(const std::string &channels, int channelCount) {
         std::string normalized = trim(channels);
-        if (!normalized.empty() && lowerCopy(normalized) != "unknown") {
+        if (!normalized.empty() && lowerCopy(normalized).rfind("unknown", 0) != 0) {
             std::string lower = lowerCopy(normalized);
             if (lower == "mono") return "Mono";
             if (lower == "stereo") return "Stereo";
