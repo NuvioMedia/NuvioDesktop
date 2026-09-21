@@ -6,8 +6,9 @@ import io.github.jan.supabase.auth.user.UserSession
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-internal class DesktopSessionManager : SessionManager {
-    private val store = DesktopStorage.store("nuvio_auth")
+internal class DesktopSessionManager(
+    private val store: DesktopStorage.Store = DesktopStorage.store("nuvio_auth"),
+) : SessionManager {
     private val json = Json {
         encodeDefaults = true
         ignoreUnknownKeys = true

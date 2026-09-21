@@ -4,6 +4,8 @@ import com.nuvio.app.core.storage.DesktopStorage
 import io.github.jan.supabase.auth.user.UserInfo
 import io.github.jan.supabase.auth.user.UserSession
 import kotlinx.coroutines.runBlocking
+import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -12,14 +14,21 @@ import kotlin.test.assertNull
 
 class DesktopSessionManagerTest {
 
-    private val sessionManager = DesktopSessionManager()
-    private val authStore = DesktopStorage.store("nuvio_auth")
+    private lateinit var tempDir: Path
+    private lateinit var authStore: DesktopStorage.Store
+    private lateinit var sessionManager: DesktopSessionManager
 
     @BeforeTest
+    fun setup() {
+        tempDir = Files.createTempDirectory("nuvio_auth_test")
+        authStore = DesktopStorage.Store(tempDir.resolve("test_auth.properties"))
+        sessionManager = DesktopSessionManager(authStore)
+    }
+
     @AfterTest
     fun cleanup() {
-        runBlocking {
-            sessionManager.deleteSession()
+        if (::tempDir.isInitialized) {
+            tempDir.toFile().deleteRecursively()
         }
     }
 
