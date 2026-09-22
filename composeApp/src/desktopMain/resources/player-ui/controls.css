@@ -499,7 +499,7 @@ button:disabled {
   width: 3px;
   height: 0;
   border-radius: 1px;
-  background: var(--theme-accent);
+  background: var(--theme-accent-gradient-vertical, var(--theme-accent));
   transform: scaleY(0);
   transform-origin: top;
   transition: transform 400ms var(--ease-out);
@@ -622,7 +622,7 @@ button:disabled {
 .skip-progress-fill {
   width: 0%;
   height: 100%;
-  background: var(--theme-timeline-fill);
+  background: var(--theme-accent-gradient, var(--theme-timeline-fill));
 }
 
 .next-episode-card {
@@ -1498,7 +1498,7 @@ button:disabled {
   width: 0%;
   height: 100%;
   border-radius: inherit;
-  background: var(--theme-timeline-fill);
+  background: var(--theme-accent-gradient, var(--theme-timeline-fill));
   transition: width 900ms cubic-bezier(.4, 0, .2, 1);
 }
 
@@ -1566,7 +1566,9 @@ button:disabled {
   height: 10px;
   border-radius: 999px;
   background:
-    linear-gradient(to right, var(--theme-timeline-fill) 0 var(--progress, 0%), var(--theme-timeline-track) var(--progress, 0%) 100%);
+    var(--theme-accent-gradient, linear-gradient(var(--theme-timeline-fill), var(--theme-timeline-fill)))
+      left center / var(--progress, 0%) 100% no-repeat,
+    var(--theme-timeline-track);
 }
 
 .scrub::-webkit-slider-thumb {
@@ -1680,11 +1682,9 @@ button:disabled {
       rgba(255, 173, 50, .78) 84%,
       #ff4d4d 100%
     ),
-    linear-gradient(
-      to right,
-      var(--theme-accent) 0 var(--volume-position),
-      rgba(255, 255, 255, .26) var(--volume-position) 100%
-    );
+    var(--theme-accent-gradient, linear-gradient(var(--theme-accent), var(--theme-accent)))
+      left center / var(--volume-position) 100% no-repeat,
+    rgba(255, 255, 255, .26);
 }
 
 .volume-slider::-webkit-slider-thumb {

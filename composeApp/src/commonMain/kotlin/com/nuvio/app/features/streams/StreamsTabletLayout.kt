@@ -630,7 +630,7 @@ private fun ActiveScrapersStatusBlock(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
                         .padding(horizontal = 8.dp, vertical = 3.dp),
                 ) {
                     Text(

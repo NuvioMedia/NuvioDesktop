@@ -251,6 +251,7 @@ let state = {
   onLabel: "On",
   offLabel: "Off",
   themeAccentColor: "#2f6fed",
+  themeAccentGradientColors: [],
   themeAccentStrongColor: "#3c7bff",
   themeOnAccentColor: "#fff",
   themeFocusColor: "#9ecaff",
@@ -732,6 +733,16 @@ const cssColorOrFallback = (value, fallback) => {
 
 const applyTheme = () => {
   const style = document.documentElement.style;
+  const gradientColors = Array.isArray(state.themeAccentGradientColors)
+    ? state.themeAccentGradientColors.map(color => cssColorOrFallback(color, "")).filter(Boolean)
+    : [];
+  if (gradientColors.length > 1) {
+    style.setProperty("--theme-accent-gradient", `linear-gradient(to right, ${gradientColors.join(", ")})`);
+    style.setProperty("--theme-accent-gradient-vertical", `linear-gradient(to bottom, ${gradientColors.join(", ")})`);
+  } else {
+    style.removeProperty("--theme-accent-gradient");
+    style.removeProperty("--theme-accent-gradient-vertical");
+  }
   const setColor = (name, value, fallback) => {
     style.setProperty(name, cssColorOrFallback(value, fallback));
   };

@@ -2,6 +2,7 @@ package com.nuvio.app.features.player.skip
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -43,5 +44,26 @@ class AutoSkipSegmentTypeTest {
         val intro = SkipInterval(0.0, 90.0, "intro", "introdb")
 
         assertTrue(listOf(intro).autoSkipKeysCompletedBy(positionMs = 0L).isEmpty())
+    }
+    @Test
+    fun movieCreditsSkipToThePostCreditsSceneWithoutSkippingTheScene() {
+        val credits = SkipInterval(900.0, 960.0, "movie-credits", "introdb")
+        val scene = SkipInterval(970.0, 1_000.0, "post-credits", "introdb")
+        val intervals = listOf(credits, scene)
+
+        assertTrue(credits.shouldAutoSkip(setOf(AutoSkipSegmentType.MOVIE_CREDITS)))
+        assertFalse(credits.shouldAutoSkip(setOf(AutoSkipSegmentType.OUTRO)))
+        assertEquals(InternalSkipAction(970_000L, true), credits.internalSkipAction(intervals, 1_020_000L))
+        assertNull(scene.internalSkipAction(intervals, 1_020_000L))
+        assertFalse(scene.shouldAutoSkip(AutoSkipSegmentType.entries.toSet()))
+    }
+
+    @Test
+    fun seekingBackIntoCreditsConsumesTheIntervalForAutoSkip() {
+        val credits = SkipInterval(900.0, 960.0, "movie-credits", "introdb")
+        val scene = SkipInterval(970.0, 1_000.0, "post-credits", "introdb")
+
+        assertEquals(listOf(credits), listOf(credits, scene).intervalsAtSeekPositions(980_000L, 930_000L))
+        assertTrue(listOf(credits, scene).intervalsAtSeekPositions(980_000L, 990_000L).isEmpty())
     }
 }

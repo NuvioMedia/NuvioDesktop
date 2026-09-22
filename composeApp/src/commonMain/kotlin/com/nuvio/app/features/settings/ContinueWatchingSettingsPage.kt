@@ -365,7 +365,7 @@ private fun ContinueWatchingSortModeDialog(
                         val containerColor = if (isSelected) {
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
                         } else {
-                            MaterialTheme.colorScheme.surfaceVariant
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                         }
 
                         Surface(

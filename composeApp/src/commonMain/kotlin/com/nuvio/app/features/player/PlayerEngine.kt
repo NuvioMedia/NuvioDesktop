@@ -163,6 +163,7 @@ data class PlayerControlsState(
     val onLabel: String = "On",
     val offLabel: String = "Off",
     val themeAccentColor: String = "#2f6fed",
+    val themeAccentGradientColors: List<String> = emptyList(),
     val themeAccentStrongColor: String = "#3c7bff",
     val themeOnAccentColor: String = "#ffffff",
     val themeFocusColor: String = "#9ecaff",

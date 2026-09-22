@@ -107,11 +107,12 @@ internal fun Modifier.posterCardClickable(
             longClick()
         }
     }
-    return posterModifier
+    return Modifier
         .desktopPosterHoverScale(
             enabled = hoverScaleEnabled,
             interactionSource = interactionSource,
         )
+        .then(posterModifier)
         .combinedClickable(
             interactionSource = interactionSource,
             indication = if (!isDesktop && onPosterClickAnchor == null) LocalIndication.current else null,

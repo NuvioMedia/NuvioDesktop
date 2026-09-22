@@ -70,7 +70,7 @@ actual fun togglePlayerPictureInPicture() {
 }
 
 @Composable
-actual fun rememberPlayerGestureController(): PlayerGestureController? = null
+internal actual fun rememberPlatformPlayerGestureController(): PlayerGestureController? = null
 
 private class DesktopKeepAwakeController : AutoCloseable {
     private var caffeinateProcess: Process? = null

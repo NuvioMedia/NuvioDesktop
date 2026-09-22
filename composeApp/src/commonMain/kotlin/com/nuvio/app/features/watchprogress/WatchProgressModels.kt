@@ -171,6 +171,7 @@ data class WatchProgressUiState(
         get() = entries.continueWatchingEntries(limit = ContinueWatchingLimit)
 }
 
+@Serializable
 data class WatchProgressPlaybackSession(
     val profileId: Int,
     val contentType: String,
@@ -218,6 +219,8 @@ data class ContinueWatchingItem(
     val progressFraction: Float,
     val isReleaseAlert: Boolean = false,
     val isNewSeasonRelease: Boolean = false,
+    val rawPosterUrl: String? = null,
+    val rawBackgroundUrl: String? = null,
 )
 
 internal fun continueWatchingItemKey(item: ContinueWatchingItem): String {

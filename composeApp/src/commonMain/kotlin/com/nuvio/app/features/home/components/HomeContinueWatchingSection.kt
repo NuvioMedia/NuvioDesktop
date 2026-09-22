@@ -224,6 +224,35 @@ private fun ContinueWatchingItem.continueWatchingCardArtworkUrl(
 private fun firstNonBlank(vararg values: String?): String? =
     values.firstOrNull { value -> !value.isNullOrBlank() }?.trim()
 
+private fun ContinueWatchingItem.fallbackUrlForArtwork(artworkUrl: String?): String? {
+    if (artworkUrl.isNullOrBlank()) return null
+    val trimmed = artworkUrl.trim()
+    if (trimmed == poster?.trim() && !rawPosterUrl.isNullOrBlank() && rawPosterUrl != poster) return rawPosterUrl
+    if (trimmed == background?.trim() && !rawBackgroundUrl.isNullOrBlank() && rawBackgroundUrl != background) return rawBackgroundUrl
+    return null
+}
+
+@Composable
+private fun continuewatchingImageModel(
+    imageUrl: String?,
+    fallbackUrl: String?,
+): Any? {
+    val platformContext = coil3.compose.LocalPlatformContext.current
+    return remember(imageUrl, fallbackUrl, platformContext) {
+        if (imageUrl.isNullOrBlank()) return@remember imageUrl
+        if (!fallbackUrl.isNullOrBlank() && fallbackUrl != imageUrl) {
+            coil3.request.ImageRequest.Builder(platformContext)
+                .data(imageUrl)
+                .memoryCacheKeyExtras(
+                    mapOf(com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY to fallbackUrl)
+                )
+                .build()
+        } else {
+            imageUrl
+        }
+    }
+}
+
 internal fun ContinueWatchingItem.shouldBlurContinueWatchingArtwork(
     blurUnwatchedEpisodes: Boolean,
     useEpisodeThumbnails: Boolean,
@@ -462,7 +491,7 @@ private fun WideCardPreview() {
             .width(100.dp)
             .height(60.dp)
             .clip(RoundedCornerShape(6.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)),
     ) {
         Box(
             modifier = Modifier
@@ -697,8 +726,13 @@ private fun ContinueWatchingCard(
             ),
     ) {
         if (imageUrl != null) {
+            val cwFallbackUrl = item.fallbackUrlForArtwork(imageUrl)
+            val cwImageModel = continuewatchingImageModel(
+                imageUrl = cloudLibraryDisplayArtworkUrl(imageUrl),
+                fallbackUrl = cwFallbackUrl,
+            )
             AsyncImage(
-                model = cloudLibraryDisplayArtworkUrl(imageUrl),
+                model = cwImageModel,
                 contentDescription = item.title,
                 modifier = Modifier
                     .fillMaxSize()
@@ -881,6 +915,7 @@ private fun ContinueWatchingWideCard(
             imageUrl = artworkUrl,
             width = layout.widePosterStripWidth,
             blurred = shouldBlurArtwork,
+            fallbackUrl = item.fallbackUrlForArtwork(artworkUrl),
             contentScale = if (item.isCloudLibraryItem()) ContentScale.Fit else ContentScale.Crop,
             modifier = Modifier.fillMaxHeight(),
         )
@@ -1016,8 +1051,13 @@ private fun ContinueWatchingPosterCard(
                 artworkUrl = imageUrl,
             )
             if (imageUrl != null) {
+                val cwFallbackUrl = item.fallbackUrlForArtwork(imageUrl)
+                val cwImageModel = continuewatchingImageModel(
+                    imageUrl = cloudLibraryDisplayArtworkUrl(imageUrl),
+                    fallbackUrl = cwFallbackUrl,
+                )
                 AsyncImage(
-                    model = cloudLibraryDisplayArtworkUrl(imageUrl),
+                    model = cwImageModel,
                     contentDescription = item.title,
                     modifier = Modifier
                         .fillMaxSize()
@@ -1113,6 +1153,7 @@ private fun ArtworkPanel(
     imageUrl: String?,
     width: Dp,
     blurred: Boolean = false,
+    fallbackUrl: String? = null,
     contentScale: ContentScale = ContentScale.Crop,
     modifier: Modifier = Modifier,
 ) {
@@ -1122,8 +1163,12 @@ private fun ArtworkPanel(
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
         if (imageUrl != null) {
+            val artworkModel = continuewatchingImageModel(
+                imageUrl = cloudLibraryDisplayArtworkUrl(imageUrl),
+                fallbackUrl = fallbackUrl,
+            )
             AsyncImage(
-                model = cloudLibraryDisplayArtworkUrl(imageUrl),
+                model = artworkModel,
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()

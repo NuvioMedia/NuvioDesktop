@@ -119,7 +119,7 @@ fun TrackingListPickerDialog(
                                         color = if (selected) {
                                             tokens.colors.accent.copy(alpha = tokens.opacity.selected)
                                         } else {
-                                            tokens.colors.surfaceCard
+                                            tokens.colors.surfaceCard.copy(alpha = tokens.opacity.medium)
                                         },
                                         shape = tokens.shapes.compactCard,
                                     )

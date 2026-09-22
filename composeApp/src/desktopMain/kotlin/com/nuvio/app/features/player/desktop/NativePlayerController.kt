@@ -1384,6 +1384,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonField("themeAccentColor", themeAccentColor)
         append(',')
+        appendJsonArrayField("themeAccentGradientColors", themeAccentGradientColors) { append(it.toJsonString()) }
+        append(',')
         appendJsonField("themeAccentStrongColor", themeAccentStrongColor)
         append(',')
         appendJsonField("themeOnAccentColor", themeOnAccentColor)

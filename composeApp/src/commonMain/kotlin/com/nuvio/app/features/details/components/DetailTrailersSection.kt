@@ -107,7 +107,7 @@ fun DetailTrailersSection(
                 Box {
                     Surface(
                         shape = RoundedCornerShape(sizing.selectorRadius),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                         tonalElevation = 0.dp,
                         modifier = Modifier
                             .clip(RoundedCornerShape(sizing.selectorRadius))

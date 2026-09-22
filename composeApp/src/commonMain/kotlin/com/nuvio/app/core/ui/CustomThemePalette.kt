@@ -23,5 +23,6 @@ fun CustomThemeColors.toColorPalette(): ThemeColorPalette {
         focusBackground = surface(0xFF242424, 0.18f),
         background = surface(0xFF0C0D0F, 0.025f),
         backgroundElevated = surface(0xFF17191D, 0.045f),
+        backgroundCard = surface(0xFF20242A, 0.06f),
     )
 }

@@ -1259,7 +1259,7 @@ object TmdbMetadataService {
         ) ?: return null to emptyList()
 
         val items = response.parts
-            .sortedBy { it.releaseDate ?: "9999" }
+            .sortedBy { it.releaseDate?.takeIf(String::isNotBlank) ?: "9999" }
             .mapNotNull { part ->
                 val title = part.title?.trim()?.takeIf(String::isNotBlank) ?: return@mapNotNull null
                 MetaPreview(

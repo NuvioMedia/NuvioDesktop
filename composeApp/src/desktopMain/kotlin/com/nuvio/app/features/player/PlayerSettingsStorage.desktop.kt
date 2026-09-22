@@ -17,6 +17,11 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 internal actual object PlayerSettingsStorage {
+    private const val pendingExternalPlaybackKey = "pending_external_playback"
+    private const val playbackBrightnessKey = "playback_brightness"
+    private const val useLegacyPlayerLayoutKey = "use_legacy_player_layout"
+    private const val autoSkipMovieCreditsKey = "auto_skip_movie_credits"
+    private const val autoSkipPostCreditsKey = "auto_skip_post_credits"
     private const val showLoadingOverlayKey = "show_loading_overlay"
     private const val showPlayerLoadingStatusKey = "show_player_loading_status"
     private const val pauseOverlayEnabledKey = "pause_overlay_enabled"
@@ -138,6 +143,8 @@ internal actual object PlayerSettingsStorage {
         streamAutoPlayTimeoutSecondsKey,
         skipIntroEnabledKey,
         autoSkipSegmentTypesKey,
+        autoSkipMovieCreditsKey,
+        autoSkipPostCreditsKey,
         animeSkipEnabledKey,
         animeSkipClientIdKey,
         streamAutoPlayNextEpisodeEnabledKey,
@@ -167,6 +174,16 @@ internal actual object PlayerSettingsStorage {
     )
     private val store = DesktopStorage.store("nuvio_player_settings")
 
+    actual fun loadPendingExternalPlayback(): String? = store.getString(pendingExternalPlaybackKey)
+    actual fun savePendingExternalPlayback(value: String?) = store.putString(pendingExternalPlaybackKey, value)
+    actual fun loadPlaybackBrightness(): Float? = loadFloat(playbackBrightnessKey)
+    actual fun savePlaybackBrightness(level: Float) = saveFloat(playbackBrightnessKey, level)
+    actual fun loadUseLegacyPlayerLayout(): Boolean? = loadBoolean(useLegacyPlayerLayoutKey)
+    actual fun saveUseLegacyPlayerLayout(enabled: Boolean) = saveBoolean(useLegacyPlayerLayoutKey, enabled)
+    actual fun loadAutoSkipMovieCredits(): Boolean? = loadBoolean(autoSkipMovieCreditsKey)
+    actual fun saveAutoSkipMovieCredits(enabled: Boolean) = saveBoolean(autoSkipMovieCreditsKey, enabled)
+    actual fun loadAutoSkipPostCredits(): Boolean? = loadBoolean(autoSkipPostCreditsKey)
+    actual fun saveAutoSkipPostCredits(enabled: Boolean) = saveBoolean(autoSkipPostCreditsKey, enabled)
     actual fun loadShowLoadingOverlay(): Boolean? = loadBoolean(showLoadingOverlayKey)
     actual fun saveShowLoadingOverlay(enabled: Boolean) = saveBoolean(showLoadingOverlayKey, enabled)
     actual fun loadShowPlayerLoadingStatus(): Boolean? = loadBoolean(showPlayerLoadingStatusKey)
@@ -381,6 +398,8 @@ internal actual object PlayerSettingsStorage {
         loadStreamAutoPlayRegex()?.let { put(streamAutoPlayRegexKey, encodeSyncString(it)) }
         loadStreamAutoPlayTimeoutSeconds()?.let { put(streamAutoPlayTimeoutSecondsKey, encodeSyncInt(it)) }
         loadSkipIntroEnabled()?.let { put(skipIntroEnabledKey, encodeSyncBoolean(it)) }
+        loadAutoSkipMovieCredits()?.let { put(autoSkipMovieCreditsKey, encodeSyncBoolean(it)) }
+        loadAutoSkipPostCredits()?.let { put(autoSkipPostCreditsKey, encodeSyncBoolean(it)) }
         loadAutoSkipSegmentTypes()?.let { put(autoSkipSegmentTypesKey, encodeSyncStringSet(it)) }
         loadAnimeSkipEnabled()?.let { put(animeSkipEnabledKey, encodeSyncBoolean(it)) }
         loadAnimeSkipClientId()?.let { put(animeSkipClientIdKey, encodeSyncString(it)) }
@@ -460,6 +479,8 @@ internal actual object PlayerSettingsStorage {
         payload.decodeSyncString(streamAutoPlayRegexKey)?.let(::saveStreamAutoPlayRegex)
         payload.decodeSyncInt(streamAutoPlayTimeoutSecondsKey)?.let(::saveStreamAutoPlayTimeoutSeconds)
         payload.decodeSyncBoolean(skipIntroEnabledKey)?.let(::saveSkipIntroEnabled)
+        payload.decodeSyncBoolean(autoSkipMovieCreditsKey)?.let(::saveAutoSkipMovieCredits)
+        payload.decodeSyncBoolean(autoSkipPostCreditsKey)?.let(::saveAutoSkipPostCredits)
         payload.decodeSyncStringSet(autoSkipSegmentTypesKey)?.let(::saveAutoSkipSegmentTypes)
         payload.decodeSyncBoolean(animeSkipEnabledKey)?.let(::saveAnimeSkipEnabled)
         payload.decodeSyncString(animeSkipClientIdKey)?.let(::saveAnimeSkipClientId)

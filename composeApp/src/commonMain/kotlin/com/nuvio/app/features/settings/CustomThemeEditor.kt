@@ -18,6 +18,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,7 +38,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import com.nuvio.app.core.ui.Chip
 import com.nuvio.app.core.ui.CustomThemeColors
 import com.nuvio.app.core.ui.NuvioInputField
 import com.nuvio.app.core.ui.NuvioModalBottomSheet
@@ -118,7 +119,7 @@ internal fun CustomThemeEditor(
                         horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8),
                     ) {
                         listOf(true, false).forEach { gradient ->
-                            Chip(
+                            FilterChip(
                                 selected = gradientEnabled == gradient,
                                 onClick = { gradientEnabled = gradient },
                                 label = {
@@ -127,6 +128,10 @@ internal fun CustomThemeEditor(
                                     ))
                                 },
                                 modifier = Modifier.semantics { role = Role.RadioButton },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                ),
                             )
                         }
                     }

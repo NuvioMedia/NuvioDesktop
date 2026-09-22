@@ -640,7 +640,7 @@ private fun DebridPrepareCountDialog(
                         val containerColor = if (isSelected) {
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
                         } else {
-                            MaterialTheme.colorScheme.surfaceVariant
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                         }
                         Surface(
                             modifier = Modifier
@@ -1236,7 +1236,7 @@ private fun DebridDialogOptionRow(
     val containerColor = if (selected) {
         MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
     } else {
-        MaterialTheme.colorScheme.surfaceVariant
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
     }
     Surface(
         modifier = Modifier
@@ -1607,7 +1607,7 @@ private fun DebridDeviceAuthDialog(
                                 statusMessage = codeCopiedMessage
                             },
                         shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
                     ) {
                         Column(
                             modifier = Modifier.padding(14.dp),
