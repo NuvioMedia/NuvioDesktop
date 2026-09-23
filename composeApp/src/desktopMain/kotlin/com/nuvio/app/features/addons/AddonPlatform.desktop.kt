@@ -44,6 +44,11 @@ internal actual object AddonStorage {
 }
 
 private val desktopHttpClient = OkHttpClient.Builder()
+    .dispatcher(okhttp3.Dispatcher().apply {
+        maxRequests = 64
+        maxRequestsPerHost = 16
+    })
+    .connectionPool(okhttp3.ConnectionPool(16, 5, TimeUnit.MINUTES))
     .dns(DesktopIPv4FirstDns())
     .connectTimeout(60, TimeUnit.SECONDS)
     .readTimeout(60, TimeUnit.SECONDS)
@@ -51,6 +56,7 @@ private val desktopHttpClient = OkHttpClient.Builder()
     .followRedirects(true)
     .followSslRedirects(true)
     .build()
+
 
 private const val truncationSuffix = "\n...[truncated]"
 
