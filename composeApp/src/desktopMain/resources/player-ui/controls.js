@@ -301,7 +301,6 @@ let state = {
   showExternalPlayer: false,
   durationMs: 0,
   positionMs: 0,
-  timeLabelShowRemaining: false,
   audioTracks: [],
   subtitleTracks: [],
   sourceIsLoading: false,
@@ -413,6 +412,7 @@ let playerToastTimer = 0;
 let playerToastToken = 0;
 let pendingSettingToastCommand = "";
 let pendingSettingToastToken = 0;
+let timeLabelShowRemaining = false;
 let isPipLocked = false;
 const pipLockButton = document.getElementById("pipLockButton");
 const pipLockOverlay = document.getElementById("pipLockOverlay");
@@ -788,7 +788,7 @@ const setProgress = (positionMs, durationMs) => {
   durationLabel.textContent = formatTime(durationMs);
   if (timeLabel) {
     durationMs = durationMs - (durationMs % 1000);
-    if (state.timeLabelShowRemaining) {
+    if (timeLabelShowRemaining) {
       let remainingTimeMs = durationMs - positionMs + (positionMs % 1000 == 0 ? 0 : 1000);
       timeLabel.textContent = `-${formatTime(remainingTimeMs)}`;
     } else {
@@ -2981,7 +2981,7 @@ volumeButton.addEventListener("click", () => {
 
 timeLabel.addEventListener("click", () => {
   noteChromeActivity();
-  state = { ...state, timeLabelShowRemaining: !state.timeLabelShowRemaining };
+  timeLabelShowRemaining = !timeLabelShowRemaining;
   renderChrome();
 });
 
