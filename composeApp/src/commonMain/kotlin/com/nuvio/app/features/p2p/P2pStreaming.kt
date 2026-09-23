@@ -11,7 +11,13 @@ data class P2pSettingsUiState(
     val hideTorrentStats: Boolean = false,
     val torrentProfile: P2pTorrentProfile = P2pTorrentProfile.BALANCED,
     val cacheSize: P2pCacheSize = P2pCacheSize.GB_2,
+    val engineBackend: P2pEngineBackend = P2pEngineBackend.NUVIO_ENGINE,
 )
+
+enum class P2pEngineBackend {
+    NUVIO_ENGINE,
+    TORRSERVER,
+}
 
 enum class P2pTorrentProfile {
     SOFT,
@@ -24,6 +30,8 @@ enum class P2pCacheSize(val bytes: Long) {
     GB_2(2L * 1024L * 1024L * 1024L),
     GB_5(5L * 1024L * 1024L * 1024L),
     GB_10(10L * 1024L * 1024L * 1024L),
+    GB_20(20L * 1024L * 1024L * 1024L),
+    GB_50(50L * 1024L * 1024L * 1024L),
 }
 
 data class P2pCacheUiState(
@@ -52,6 +60,7 @@ object P2pSettingsRepository {
     private var hideTorrentStats = false
     private var torrentProfile = P2pTorrentProfile.BALANCED
     private var cacheSize = P2pCacheSize.GB_2
+    private var engineBackend = P2pEngineBackend.NUVIO_ENGINE
 
     fun ensureLoaded() {
         if (hasLoaded) return
@@ -69,6 +78,7 @@ object P2pSettingsRepository {
         hideTorrentStats = false
         torrentProfile = P2pTorrentProfile.BALANCED
         cacheSize = P2pCacheSize.GB_2
+        engineBackend = P2pEngineBackend.NUVIO_ENGINE
         publish()
     }
 
@@ -112,6 +122,14 @@ object P2pSettingsRepository {
         publish()
     }
 
+    fun setEngineBackend(backend: P2pEngineBackend) {
+        ensureLoaded()
+        if (engineBackend == backend) return
+        engineBackend = backend
+        P2pSettingsStorage.saveEngineBackend(backend.name)
+        publish()
+    }
+
     private fun loadFromDisk() {
         hasLoaded = true
         p2pEnabled = P2pSettingsStorage.loadP2pEnabled() ?: false
@@ -123,6 +141,9 @@ object P2pSettingsRepository {
         cacheSize = P2pSettingsStorage.loadCacheSize()
             ?.let { stored -> P2pCacheSize.entries.firstOrNull { it.name == stored } }
             ?: P2pCacheSize.GB_2
+        engineBackend = P2pSettingsStorage.loadEngineBackend()
+            ?.let { stored -> P2pEngineBackend.entries.firstOrNull { it.name == stored } }
+            ?: P2pEngineBackend.NUVIO_ENGINE
         publish()
     }
 
@@ -133,6 +154,7 @@ object P2pSettingsRepository {
             hideTorrentStats = hideTorrentStats,
             torrentProfile = torrentProfile,
             cacheSize = cacheSize,
+            engineBackend = engineBackend,
         )
     }
 }
@@ -148,6 +170,8 @@ internal expect object P2pSettingsStorage {
     fun saveTorrentProfile(profile: String)
     fun loadCacheSize(): String?
     fun saveCacheSize(size: String)
+    fun loadEngineBackend(): String?
+    fun saveEngineBackend(backend: String)
 }
 
 data class P2pStreamRequest(
