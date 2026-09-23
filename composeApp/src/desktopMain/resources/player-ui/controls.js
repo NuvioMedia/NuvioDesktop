@@ -787,11 +787,13 @@ const setProgress = (positionMs, durationMs) => {
   positionLabel.textContent = formatTime(positionMs);
   durationLabel.textContent = formatTime(durationMs);
   if (timeLabel) {
-    durationMs = Math.floor(durationMs / 1000) * 1000;
-    let remainTimeLabel = state.timeLabelShowRemaining
-    ? `-${formatTime(durationMs - positionMs + (positionMs % 1000 == 0 ? 0 : 1000))}`
-    : `${formatTime(durationMs)}`;
-    timeLabel.textContent = `${formatTime(positionMs)} / ${remainTimeLabel}`;
+    durationMs = durationMs - (durationMs % 1000);
+    if (state.timeLabelShowRemaining) {
+      let remainingTimeMs = durationMs - positionMs + (positionMs % 1000 == 0 ? 0 : 1000);
+      timeLabel.textContent = `-${formatTime(remainingTimeMs)}`;
+    } else {
+      timeLabel.textContent = `${formatTime(positionMs)} / ${formatTime(durationMs)}`;
+    }
   }
   syncVolumeControl();
 };
