@@ -24,12 +24,14 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import okhttp3.ConnectionPool
 
 internal class AndroidDownloadScheduler(val context: Context) {
@@ -120,7 +122,10 @@ internal class AndroidDownloadScheduler(val context: Context) {
         transfer?.let { DownloadsLiveStatusPlatform.removeNotification(it.item.id) }
         cleanupScope.launch {
             lock(fileName).withLock {
-                if (store.get(fileName) == null) File(directory, "$fileName.part").delete()
+                if (store.get(fileName) == null) {
+                    File(directory, "$fileName.part").delete()
+                    DownloadSubtitleStorage(File(directory, fileName).toURI().toString()).remove()
+                }
             }
         }
     }
@@ -146,6 +151,9 @@ internal class AndroidDownloadScheduler(val context: Context) {
                 .build()
         } else downloadHttpClient
         try {
+            DownloadSubtitles.prepare(transfer.item, destination.toURI().toString())
+            currentCoroutineContext().ensureActive()
+            if (!isActive(transfer)) return@withLock false
             var lastProgressAt = 0L
             val partial = if (destination.isFile) destination else transferAndroidDownload(
                 item = transfer.item,
@@ -190,7 +198,7 @@ internal class AndroidDownloadScheduler(val context: Context) {
             else fail(transfer, error)
             retry
         } finally {
-            if (network != null) client.connectionPool.evictAll()
+            if (network != null) withContext(NonCancellable + Dispatchers.IO) { client.connectionPool.evictAll() }
         }
     }
 

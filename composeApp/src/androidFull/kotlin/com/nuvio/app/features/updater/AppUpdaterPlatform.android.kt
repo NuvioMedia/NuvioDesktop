@@ -6,6 +6,7 @@ actual object AppUpdaterPlatform {
     actual val isSupported: Boolean = true
     actual val isDebugBuild: Boolean
         get() = AndroidAppUpdaterPlatform.isDebugBuild()
+    actual val hasSingleUpdateChannel: Boolean = false
 
     actual val releaseSource: AppUpdateReleaseSource = AppUpdateReleaseSource(
         owner = "NuvioMedia",
@@ -24,10 +25,22 @@ actual object AppUpdaterPlatform {
 
     actual val currentVersionName: String = AppVersionConfig.VERSION_NAME
 
+    actual fun getSupportedAbis(): List<String> = AndroidAppUpdaterPlatform.getSupportedAbis()
+
     actual fun getIgnoredTag(): String? = AndroidAppUpdaterPlatform.getIgnoredTag()
 
     actual fun setIgnoredTag(tag: String?) {
         AndroidAppUpdaterPlatform.setIgnoredTag(tag)
+    }
+
+    actual fun getUpdateChannel(): String? = AndroidAppUpdaterPlatform.getUpdateChannel()
+
+    actual fun setUpdateChannel(channel: String) {
+        AndroidAppUpdaterPlatform.setUpdateChannel(channel)
+    }
+
+    actual fun deleteDownloadedUpdate(path: String) {
+        AndroidAppUpdaterPlatform.deleteDownloadedUpdate(path)
     }
 
     actual suspend fun downloadUpdateAsset(

@@ -32,7 +32,9 @@ tools
 AGENTS.md
 
 PERFORMANCE_FINDINGS.md
-scripts
+scripts/*
+!scripts/sign-ios-device-app.py
+iosApp/Configuration/DeviceSigning.local.json
 
 # Local MPVKit iOS build environment (sparse APFS image, see MPVKit docs)
 .mpvkit-build.sparseimage

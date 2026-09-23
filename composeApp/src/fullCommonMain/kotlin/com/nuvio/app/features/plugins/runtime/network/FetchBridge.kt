@@ -72,8 +72,8 @@ internal class FetchBridge : HostModule {
             mapOf(
                 "ok" to JsonPrimitive(response.status in 200..299),
                 "status" to JsonPrimitive(response.status),
-                "statusText" to JsonPrimitive(response.statusText),
                 "url" to JsonPrimitive(response.url),
+                "statusText" to JsonPrimitive(response.statusText),
                 "body" to JsonPrimitive(response.body),
                 "headers" to JsonObject(responseHeaders.mapValues { JsonPrimitive(it.value) }),
             ),

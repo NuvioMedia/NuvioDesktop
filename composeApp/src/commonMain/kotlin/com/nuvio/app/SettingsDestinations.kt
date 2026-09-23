@@ -49,6 +49,7 @@ internal fun SettingsRootDestination(
 ) {
     SettingsScreen(
         modifier = Modifier.fillMaxSize(),
+        initialPageName = route.pageName,
         requestedPageName = route.pageName,
         onRequestedPageConsumed = {},
         rootActionsEnabled = false,

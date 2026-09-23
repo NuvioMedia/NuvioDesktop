@@ -1,10 +1,106 @@
 package com.nuvio.app.features.streams
 
+import com.nuvio.app.features.player.PlayerSettingsUiState
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class StreamAutoPlayLoadingPolicyTest {
+
+    private val autoPlaySettings = PlayerSettingsUiState(streamAutoPlayMode = StreamAutoPlayMode.FIRST_STREAM)
+
+    @Test
+    fun `autoplay shows loading before the stream request starts`() {
+        assertTrue(StreamsUiState().shouldShowAutoPlayLoading("new", autoPlaySettings, false))
+        assertTrue(
+            StreamsUiState(requestToken = "new")
+                .shouldShowAutoPlayLoading("new", autoPlaySettings, false),
+        )
+    }
+
+    @Test
+    fun `previous request cannot hide a new autoplay loading screen`() {
+        val previous = StreamsUiState(requestToken = "old", autoPlayDecided = true)
+        assertTrue(previous.shouldShowAutoPlayLoading("new", autoPlaySettings, false))
+    }
+
+    @Test
+    fun `manual selection and invalid regex do not start autoplay loading`() {
+        val initial = StreamsUiState()
+        assertFalse(initial.shouldShowAutoPlayLoading("new", autoPlaySettings, true))
+        assertFalse(initial.shouldShowAutoPlayLoading("new", PlayerSettingsUiState(), false))
+        assertFalse(initial.shouldShowAutoPlayLoading(
+            "new",
+            PlayerSettingsUiState(streamAutoPlayMode = StreamAutoPlayMode.REGEX_MATCH, streamAutoPlayRegex = "["),
+            false,
+        ))
+    }
+
+    @Test
+    fun `settled autoplay fallback reveals the stream picker`() {
+        val loading = StreamsUiState(
+            requestToken = "new",
+            autoPlayDecided = true,
+            showDirectAutoPlayOverlay = true,
+        )
+        assertTrue(loading.shouldShowAutoPlayLoading("new", autoPlaySettings, false))
+        assertFalse(
+            loading.copy(showDirectAutoPlayOverlay = false)
+                .shouldShowAutoPlayLoading("new", autoPlaySettings, false),
+        )
+    }
+
+    @Test
+    fun `last link reuse starts with loading even in manual mode`() {
+        assertTrue(
+            StreamsUiState().shouldShowAutoPlayLoading(
+                "new", PlayerSettingsUiState(streamReuseLastLinkEnabled = true), false,
+            ),
+        )
+    }
+
+    @Test
+    fun `predicted autoplay loading does not rotate before the request starts`() {
+        val state = StreamsUiState()
+        val settings = listOf(
+            autoPlaySettings,
+            PlayerSettingsUiState(streamReuseLastLinkEnabled = true),
+            PlayerSettingsUiState(streamAutoPlayReuseBingeGroup = true),
+        )
+
+        settings.forEach { playerSettings ->
+            assertTrue(state.shouldShowAutoPlayLoading("new", playerSettings, false))
+            assertFalse(state.shouldUseLandscapeAutoPlayLoading("new", false))
+        }
+    }
+
+    @Test
+    fun `confirmed autoplay loading rotates only for the current automatic request`() {
+        val state = StreamsUiState(
+            requestToken = "new",
+            autoPlayDecided = true,
+            isDirectAutoPlayFlow = true,
+            showDirectAutoPlayOverlay = true,
+        )
+
+        assertTrue(state.shouldUseLandscapeAutoPlayLoading("new", false))
+        assertFalse(state.shouldUseLandscapeAutoPlayLoading("other", false))
+        assertFalse(state.shouldUseLandscapeAutoPlayLoading("new", true))
+        assertFalse(state.copy(autoPlayDecided = false).shouldUseLandscapeAutoPlayLoading("new", false))
+        assertFalse(state.copy(showDirectAutoPlayOverlay = false).shouldUseLandscapeAutoPlayLoading("new", false))
+    }
+
+    @Test
+    fun `stream picker and external preparation overlays do not rotate`() {
+        val state = StreamsUiState(requestToken = "new", autoPlayDecided = true)
+
+        assertFalse(state.shouldUseLandscapeAutoPlayLoading("new", false))
+        assertFalse(state.shouldUseLandscapeAutoPlayLoading("new", true))
+        assertFalse(
+            state.copy(showDirectAutoPlayOverlay = true)
+                .shouldUseLandscapeAutoPlayLoading("new", false),
+        )
+    }
 
     @Test
     fun `installed addons are loaded while plugins are still loading`() {

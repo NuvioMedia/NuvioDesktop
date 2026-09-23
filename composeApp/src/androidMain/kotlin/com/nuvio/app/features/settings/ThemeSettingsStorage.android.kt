@@ -16,14 +16,18 @@ import kotlinx.serialization.json.put
 actual object ThemeSettingsStorage {
     private const val preferencesName = "nuvio_theme_settings"
     private const val selectedThemeKey = "selected_theme"
+    private const val customThemeColorsKey = "custom_theme_colors"
     private const val amoledEnabledKey = "amoled_enabled"
     private const val liquidGlassNativeTabBarEnabledKey = "liquid_glass_native_tab_bar_enabled"
     private const val desktopNavigationLayoutKey = "desktop_navigation_layout"
     private const val selectedAppLanguageKey = "selected_app_language"
     private const val NAV_BAR_STYLE_KEY = "nav_bar_style"
+    private const val navBarGlowEnabledKey = "nav_bar_glow_enabled"
     private val profileScopedSyncKeys = listOf(
         selectedThemeKey,
+        customThemeColorsKey,
         amoledEnabledKey,
+        navBarGlowEnabledKey,
         liquidGlassNativeTabBarEnabledKey,
         desktopNavigationLayoutKey,
         NAV_BAR_STYLE_KEY,
@@ -46,6 +50,16 @@ actual object ThemeSettingsStorage {
             ?.apply()
     }
 
+    actual fun loadCustomThemeColors(): String? =
+        preferences?.getString(ProfileScopedKey.of(customThemeColorsKey), null)
+
+    actual fun saveCustomThemeColors(colors: String) {
+        preferences
+            ?.edit()
+            ?.putString(ProfileScopedKey.of(customThemeColorsKey), colors)
+            ?.apply()
+    }
+
     actual fun loadAmoledEnabled(): Boolean? =
         preferences?.let { prefs ->
             val key = ProfileScopedKey.of(amoledEnabledKey)
@@ -56,6 +70,19 @@ actual object ThemeSettingsStorage {
         preferences
             ?.edit()
             ?.putBoolean(ProfileScopedKey.of(amoledEnabledKey), enabled)
+            ?.apply()
+    }
+
+    actual fun loadNavBarGlowEnabled(): Boolean? =
+        preferences?.let { prefs ->
+            val key = ProfileScopedKey.of(navBarGlowEnabledKey)
+            if (prefs.contains(key)) prefs.getBoolean(key, false) else null
+        }
+
+    actual fun saveNavBarGlowEnabled(enabled: Boolean) {
+        preferences
+            ?.edit()
+            ?.putBoolean(ProfileScopedKey.of(navBarGlowEnabledKey), enabled)
             ?.apply()
     }
 
@@ -119,6 +146,8 @@ actual object ThemeSettingsStorage {
 
     actual fun exportToSyncPayload(): JsonObject = buildJsonObject {
         loadSelectedTheme()?.let { put(selectedThemeKey, encodeSyncString(it)) }
+        loadCustomThemeColors()?.let { put(customThemeColorsKey, encodeSyncString(it)) }
+        loadNavBarGlowEnabled()?.let { put(navBarGlowEnabledKey, encodeSyncBoolean(it)) }
         loadAmoledEnabled()?.let { put(amoledEnabledKey, encodeSyncBoolean(it)) }
         loadLiquidGlassNativeTabBarEnabled()?.let { put(liquidGlassNativeTabBarEnabledKey, encodeSyncBoolean(it)) }
         loadDesktopNavigationLayout()?.let { put(desktopNavigationLayoutKey, encodeSyncString(it)) }
@@ -131,6 +160,8 @@ actual object ThemeSettingsStorage {
         }?.apply()
 
         payload.decodeSyncString(selectedThemeKey)?.let(::saveSelectedTheme)
+        payload.decodeSyncString(customThemeColorsKey)?.let(::saveCustomThemeColors)
+        payload.decodeSyncBoolean(navBarGlowEnabledKey)?.let(::saveNavBarGlowEnabled)
         payload.decodeSyncBoolean(amoledEnabledKey)?.let(::saveAmoledEnabled)
         payload.decodeSyncBoolean(liquidGlassNativeTabBarEnabledKey)?.let(::saveLiquidGlassNativeTabBarEnabled)
         payload.decodeSyncString(desktopNavigationLayoutKey)?.let(::saveDesktopNavigationLayout)
