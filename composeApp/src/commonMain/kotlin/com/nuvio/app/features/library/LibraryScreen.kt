@@ -41,7 +41,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.gestures.stopScroll
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.core.ui.ScreenActivityEffect
 import com.nuvio.app.core.i18n.localizedByteUnit
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
@@ -141,32 +142,60 @@ fun LibraryScreen(
     var selectedLibraryType by rememberSaveable { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    ScreenActivityEffect(listState) { screenActive ->
+        if (!screenActive) listState.stopScroll()
+    }
     val isRemoteSource = uiState.sourceMode != LibrarySourceMode.LOCAL
     val effectiveSortOption = effectiveLibrarySortOption(
         selected = displaySettings.sortOption,
         sourceMode = uiState.sourceMode,
     )
-    val sortedSections = remember(uiState.sections, displaySettings.sortOption, uiState.sourceMode) {
-        sortLibrarySections(
-            sections = uiState.sections,
-            selected = displaySettings.sortOption,
-            sourceMode = uiState.sourceMode,
-        )
+    val orderListKeys = if (sourceMode != LibraryViewMode.Saved) emptyList() else {
+        if (displaySettings.layoutMode == LibraryLayoutMode.HORIZONTAL) uiState.sections.map { it.type }
+        else listOfNotNull(uiState.sections.firstOrNull { it.type == selectedLibrarySectionKey }?.type
+            ?: uiState.sections.firstOrNull()?.type)
+    }
+    val providerOrders = rememberLibraryProviderOrders(uiState.sourceMode, orderListKeys, effectiveSortOption)
+    val visibleSortOption = if (providerOrders.failed) LibrarySortOption.DEFAULT else effectiveSortOption
+    val sortedSections = remember(uiState.sections, displaySettings, uiState.sourceMode, sourceMode, providerOrders) {
+        if (sourceMode == LibraryViewMode.Saved && displaySettings.layoutMode == LibraryLayoutMode.HORIZONTAL) {
+            sortLibrarySections(
+                sections = uiState.sections,
+                selected = visibleSortOption,
+                sourceMode = uiState.sourceMode,
+                providerOrders = providerOrders.ranks,
+            )
+        } else {
+            emptyList()
+        }
     }
     val verticalProjection = remember(
         uiState.sections,
         uiState.sourceMode,
         selectedLibrarySectionKey,
         selectedLibraryType,
-        displaySettings.sortOption,
+        displaySettings,
+        sourceMode,
+        providerOrders,
     ) {
-        buildLibraryVerticalProjection(
-            sections = uiState.sections,
-            sourceMode = uiState.sourceMode,
-            selectedSectionKey = selectedLibrarySectionKey,
-            selectedType = selectedLibraryType,
-            sortOption = displaySettings.sortOption,
-        )
+        if (sourceMode == LibraryViewMode.Saved && displaySettings.layoutMode == LibraryLayoutMode.VERTICAL) {
+            buildLibraryVerticalProjection(
+                sections = uiState.sections,
+                sourceMode = uiState.sourceMode,
+                selectedSectionKey = selectedLibrarySectionKey,
+                selectedType = selectedLibraryType,
+                sortOption = visibleSortOption,
+                providerOrders = providerOrders.ranks,
+            )
+        } else {
+            LibraryVerticalProjection(
+                availableSections = emptyList(),
+                selectedSectionKey = null,
+                availableTypes = emptyList(),
+                selectedType = null,
+                entries = emptyList(),
+            )
+        }
     }
     val retryLibraryLoad: () -> Unit = {
         NetworkStatusRepository.requestRefresh(force = true)
@@ -178,7 +207,8 @@ fun LibraryScreen(
         }
     }
 
-    LaunchedEffect(networkStatusUiState.condition, isRemoteSource) {
+    ScreenActivityEffect(networkStatusUiState.condition, isRemoteSource) { screenActive ->
+        if (!screenActive) return@ScreenActivityEffect
         when (networkStatusUiState.condition) {
             NetworkCondition.NoInternet,
             NetworkCondition.ServersUnreachable,
@@ -187,7 +217,7 @@ fun LibraryScreen(
             }
 
             NetworkCondition.Online -> {
-                if (!observedOfflineState) return@LaunchedEffect
+                if (!observedOfflineState) return@ScreenActivityEffect
                 observedOfflineState = false
                 if (isRemoteSource) {
                     coroutineScope.launch {
@@ -202,14 +232,15 @@ fun LibraryScreen(
         }
     }
 
-    LaunchedEffect(scrollToTopRequests) {
+    ScreenActivityEffect(scrollToTopRequests) { screenActive ->
+        if (!screenActive) return@ScreenActivityEffect
         scrollToTopRequests.collect {
             listState.animateScrollToItem(0)
         }
     }
 
-    LaunchedEffect(sourceMode, cloudSettings.cloudLibraryEnabled, cloudSettings.providerApiKeys) {
-        if (sourceMode == LibraryViewMode.Cloud) {
+    ScreenActivityEffect(sourceMode, cloudSettings.cloudLibraryEnabled, cloudSettings.providerApiKeys) { screenActive ->
+        if (screenActive && sourceMode == LibraryViewMode.Cloud) {
             CloudLibraryRepository.ensureLoaded()
             selectedCloudItemKey = null
         }
@@ -268,12 +299,14 @@ fun LibraryScreen(
                                     LibrarySourceMode.LOCAL -> stringResource(Res.string.library_title)
                                     LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_title)
                                     LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_title)
+                                    LibrarySourceMode.MDBLIST -> stringResource(Res.string.library_mdblist_title)
                                 }
                             },
                             modifier = Modifier.padding(horizontal = 16.dp),
                             topPadding = topChromePadding,
                             actions = {
                                 if (sourceMode == LibraryViewMode.Saved) {
+                                    LibraryListManagementButton()
                                     val targetLayout = if (displaySettings.layoutMode == LibraryLayoutMode.HORIZONTAL) {
                                         LibraryLayoutMode.VERTICAL
                                     } else {
@@ -380,6 +413,7 @@ fun LibraryScreen(
                                         LibrarySourceMode.LOCAL -> stringResource(Res.string.library_load_failed)
                                         LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_load_failed)
                                         LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_load_failed)
+                                        LibrarySourceMode.MDBLIST -> stringResource(Res.string.library_mdblist_load_failed)
                                     },
                                     message = uiState.errorMessage.orEmpty(),
                                     actionLabel = stringResource(Res.string.action_retry),
@@ -397,11 +431,13 @@ fun LibraryScreen(
                                     LibrarySourceMode.LOCAL -> stringResource(Res.string.library_empty_title)
                                     LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_empty_title)
                                     LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_empty_title)
+                                    LibrarySourceMode.MDBLIST -> stringResource(Res.string.library_mdblist_empty_title)
                                 },
                                 message = when (uiState.sourceMode) {
                                     LibrarySourceMode.LOCAL -> stringResource(Res.string.library_empty_message)
                                     LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_empty_message)
                                     LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_empty_message)
+                                    LibrarySourceMode.MDBLIST -> stringResource(Res.string.library_mdblist_empty_message)
                                 },
                             )
                         }

@@ -19,6 +19,11 @@ private class DiscordDisconnected : Exception()
 
 private const val ReconnectDelayMs = 15_000L
 
+// Discord activity type: 0 = Playing, 2 = Listening, 3 = Watching, 5 = Competing.
+// Nuvio is a media app, so every presence it publishes is a Watching one -- including the menus,
+// where Discord renders "Watching Nuvio" instead of the default "Playing Nuvio" (a game).
+private const val WatchingActivityType = 3
+
 internal object DiscordPresenceManager {
     private val log = Logger.withTag("DiscordPresenceManager")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -49,7 +54,7 @@ internal object DiscordPresenceManager {
                     lastActivity = null
                     try {
                         AppPresenceState.current.collect { snapshot ->
-                            val activity = snapshot?.toDiscordActivity() ?: DiscordActivity(details = "Browsing Nuvio")
+                            val activity = snapshot?.toDiscordActivity() ?: IdleActivity
                             if (activity == lastActivity) return@collect
                             if (client.setActivity(activity)) {
                                 lastActivity = activity
@@ -76,6 +81,12 @@ internal object DiscordPresenceManager {
     }
 }
 
+// Shown when nothing has been published yet, so the profile still reads "Watching Nuvio".
+private val IdleActivity = DiscordActivity(
+    type = WatchingActivityType,
+    details = "Browsing Nuvio",
+)
+
 private fun String.toDiscordEpisodeLabel(): String {
     val match = Regex("""S(\d+)E(\d+)(?:\s*-\s*(.*))?""").matchEntire(trim())
         ?: return this
@@ -87,14 +98,14 @@ private fun String.toDiscordEpisodeLabel(): String {
 
 
 private fun PresenceSnapshot.toDiscordActivity(): DiscordActivity = when (this) {
-    is PresenceSnapshot.Tab -> DiscordActivity(details = "Browsing ${tab.name}")
-    is PresenceSnapshot.Details -> DiscordActivity(details = "Viewing $title")
+    is PresenceSnapshot.Tab -> DiscordActivity(type = WatchingActivityType, details = "Browsing ${tab.name}")
+    is PresenceSnapshot.Details -> DiscordActivity(type = WatchingActivityType, details = "Viewing $title")
     is PresenceSnapshot.Player -> {
         val episode = episodeLabel?.toDiscordEpisodeLabel()
         // Discord expects Unix timestamps in seconds, not milliseconds.
         val startSecs = (System.currentTimeMillis() - positionMs) / 1_000L
         DiscordActivity(
-            type = 3, // Watching -> "Watching …" instead of the default "Playing …" (game).
+            type = WatchingActivityType,
             name = title, // Show the media title under the pseudo when the client honors it.
             details = title, // Always keep the title here as a fallback for clients that ignore `name`.
             state = if (isPlaying) episode else episode?.let { "$it • Paused" } ?: "Paused",

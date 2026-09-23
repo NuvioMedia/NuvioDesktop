@@ -35,6 +35,25 @@ class ThemeSettingsRepositoryTest {
     }
 
     @Test
+    fun glowDefaultsOnAndRetainsItsPreferenceAcrossStyleChangesAndReloads() {
+        ThemeSettingsRepository.ensureLoaded()
+        assertEquals(true, ThemeSettingsRepository.navBarGlowEnabled.value)
+
+        ThemeSettingsRepository.setNavBarGlowEnabled(false)
+        ThemeSettingsRepository.setNavBarStyle(NavBarStyle.CLASSIC)
+        ThemeSettingsRepository.setNavBarStyle(NavBarStyle.COMPACT)
+        ThemeSettingsRepository.clearLocalState()
+        ThemeSettingsRepository.ensureLoaded()
+
+        assertEquals(false, ThemeSettingsRepository.navBarGlowEnabled.value)
+        assertEquals(NavBarStyle.COMPACT, ThemeSettingsRepository.navBarStyle.value)
+
+        ThemeSettingsStorage.replaceFromSyncPayload(kotlinx.serialization.json.buildJsonObject {})
+        ThemeSettingsRepository.onProfileChanged()
+        assertEquals(true, ThemeSettingsRepository.navBarGlowEnabled.value)
+    }
+
+    @Test
     fun nonMembersCanSaveAndReloadASolidCustomTheme() {
         val colors = CustomThemeColors.solid(0x2255AA)
 

@@ -992,6 +992,32 @@ public:
         });
     }
 
+    void beginWindowDrag() {
+        if (!containerHwnd) return;
+        HWND rootWindow = GetAncestor(containerHwnd, GA_ROOT);
+        if (!rootWindow || !IsWindow(rootWindow)) return;
+        ReleaseCapture();
+        POINT pt;
+        GetCursorPos(&pt);
+        PostMessageW(rootWindow, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(pt.x, pt.y));
+    }
+
+    void reparentSurface(HWND newHost) {
+        if (!newHost || !IsWindow(newHost)) return;
+        sendUiTask([self = shared_from_this(), newHost]() {
+            if (self->shuttingDown.load() || !IsWindow(newHost) || !self->containerHwnd) return;
+            self->hostHwnd = newHost;
+            SetParent(self->containerHwnd, newHost);
+            LONG_PTR style = GetWindowLongPtrW(self->containerHwnd, GWL_STYLE);
+            style |= WS_CHILD;
+            style &= ~WS_POPUP;
+            SetWindowLongPtrW(self->containerHwnd, GWL_STYLE, style);
+            self->layoutNativeSubviews();
+            ShowWindow(self->containerHwnd, SW_SHOW);
+            self->focusNativeControls();
+        });
+    }
+
     void setPaused(bool paused) {
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
@@ -1789,6 +1815,10 @@ private:
             sendPlayerEvent(type, value);
             return;
         }
+        if (type == "dragWindow") {
+            beginWindowDrag();
+            return;
+        }
         sendPlayerEvent(type, value);
     }
 
@@ -2313,6 +2343,39 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_requestFocus(JNIEnv *, jobject, jlong handle) {
     auto player = playerFromHandle(handle);
     if (player) player->requestFocus();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_beginWindowDrag(JNIEnv *, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    if (player) player->beginWindowDrag();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowResizable(
+    JNIEnv *, jobject, jlong windowHwnd, jboolean enabled
+) {
+    HWND window = (HWND)(intptr_t)windowHwnd;
+    if (!window || !IsWindow(window)) return;
+    LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
+    if (enabled == JNI_TRUE) {
+        style |= WS_THICKFRAME;
+        style &= ~(WS_CAPTION | WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX);
+    } else {
+        style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX);
+    }
+    SetWindowLongPtrW(window, GWL_STYLE, style);
+    COLORREF black = RGB(0, 0, 0);
+    DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &black, sizeof(black));
+    DwmSetWindowAttribute(window, DWMWA_CAPTION_COLOR, &black, sizeof(black));
+    SetWindowPos(window, nullptr, 0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_reparentSurfaceNative(JNIEnv *, jobject, jlong handle, jlong hostViewPtr) {
+    auto player = playerFromHandle(handle);
+    if (player) player->reparentSurface((HWND)(intptr_t)hostViewPtr);
 }
 
 extern "C" JNIEXPORT void JNICALL

@@ -3,6 +3,7 @@ package com.nuvio.app.features.settings
 import android.app.Application
 import android.content.Context
 import com.nuvio.app.core.storage.ProfileScopedKey
+import com.nuvio.app.core.sync.decodeSyncBoolean
 import com.nuvio.app.core.sync.decodeSyncString
 import com.nuvio.app.core.sync.encodeSyncString
 import com.nuvio.app.core.ui.CustomThemeColors
@@ -25,6 +26,33 @@ class ThemeSettingsStorageTest {
         val context = RuntimeEnvironment.getApplication()
         context.getSharedPreferences("nuvio_theme_settings", Context.MODE_PRIVATE).edit().clear().commit()
         ThemeSettingsStorage.initialize(context)
+    }
+
+    @Test
+    fun glowPreferenceSurvivesReloadAndSync() {
+        ThemeSettingsStorage.saveNavBarGlowEnabled(false)
+        ThemeSettingsStorage.initialize(RuntimeEnvironment.getApplication())
+        assertEquals(false, ThemeSettingsStorage.loadNavBarGlowEnabled())
+        val payload = ThemeSettingsStorage.exportToSyncPayload()
+        assertEquals(false, payload.decodeSyncBoolean("nav_bar_glow_enabled"))
+
+        ThemeSettingsStorage.saveNavBarGlowEnabled(true)
+        ThemeSettingsStorage.replaceFromSyncPayload(payload)
+        assertEquals(false, ThemeSettingsStorage.loadNavBarGlowEnabled())
+    }
+
+    @Test
+    fun olderPayloadClearsOnlyTheCurrentProfilesGlowPreference() {
+        val preferences = RuntimeEnvironment.getApplication()
+            .getSharedPreferences("nuvio_theme_settings", Context.MODE_PRIVATE)
+        val otherProfileKey = ProfileScopedKey.of("nav_bar_glow_enabled", 99)
+        preferences.edit().putBoolean(otherProfileKey, false).commit()
+        ThemeSettingsStorage.saveNavBarGlowEnabled(false)
+
+        ThemeSettingsStorage.replaceFromSyncPayload(buildJsonObject {})
+
+        assertNull(ThemeSettingsStorage.loadNavBarGlowEnabled())
+        assertEquals(false, preferences.getBoolean(otherProfileKey, true))
     }
 
     @Test

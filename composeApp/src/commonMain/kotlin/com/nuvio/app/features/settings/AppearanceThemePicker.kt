@@ -130,7 +130,7 @@ private fun ThemeChip(
     ) {
         Box(
             modifier = Modifier.size(NuvioTokens.Space.s56).then(
-                if (isSelected) Modifier.border(tokens.borders.medium, palette.focusRing, tokens.shapes.button)
+                if (isSelected) Modifier.border(tokens.borders.medium, palette.focusRing, CircleShape)
                 else Modifier,
             ),
             contentAlignment = Alignment.Center,
@@ -164,11 +164,6 @@ private fun ThemeChip(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(NuvioTokens.Space.s4))
-        Box(
-            Modifier.size(width = NuvioTokens.Space.s36, height = NuvioTokens.Space.s3)
-                .clip(tokens.shapes.chip).background(palette.focusRing),
         )
     }
 }

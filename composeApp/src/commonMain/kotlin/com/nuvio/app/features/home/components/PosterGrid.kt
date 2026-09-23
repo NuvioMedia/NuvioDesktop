@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +30,7 @@ import com.nuvio.app.core.ui.NuvioAsyncImage
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioPosterWatchedOverlay
 import com.nuvio.app.core.ui.SkeletonPoster
+import com.nuvio.app.core.ui.desktopPosterHoverScale
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
@@ -119,6 +121,7 @@ private fun PosterGridTile(
     ) {
         Column(
             modifier = Modifier
+                .desktopPosterHoverScale()
                 .fillMaxWidth()
                 .then(it),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -138,19 +141,34 @@ private fun PosterGridTile(
                         onLongClick = onLongClick,
                         zoomImageUrl = item.poster,
                         zoomCornerRadius = cornerRadiusDp.dp,
+                        hoverScaleEnabled = false,
                     ),
             ) {
                 if (item.poster != null) {
+                    val platformContext = coil3.compose.LocalPlatformContext.current
+                    val hasFallback = !item.rawPosterUrl.isNullOrBlank() && item.rawPosterUrl != item.poster
+                    val imageModel = remember(item.poster, item.rawPosterUrl, platformContext) {
+                        if (hasFallback) {
+                            coil3.request.ImageRequest.Builder(platformContext)
+                                .data(item.poster)
+                                .memoryCacheKeyExtras(
+                                    mapOf(com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY to item.rawPosterUrl!!)
+                                )
+                                .build()
+                        } else {
+                            item.poster
+                        }
+                    }
                     if (isDesktop) {
                         NuvioAsyncImage(
-                            model = item.poster,
+                            model = imageModel,
                             contentDescription = item.name,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,
                         )
                     } else {
                         AsyncImage(
-                            model = item.poster,
+                            model = imageModel,
                             contentDescription = item.name,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,

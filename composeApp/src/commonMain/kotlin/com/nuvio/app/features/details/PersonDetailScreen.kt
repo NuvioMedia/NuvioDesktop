@@ -75,6 +75,7 @@ import com.nuvio.app.features.details.components.DetailPosterRailSection
 import com.nuvio.app.features.details.components.ExpandableDescription
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.tmdb.TmdbMetadataService
+import com.nuvio.app.core.poster.withCustomPosterUrls
 import com.nuvio.app.features.watched.WatchedRepository
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import nuvio.composeapp.generated.resources.*
@@ -107,6 +108,7 @@ fun PersonDetailScreen(
         WatchedRepository.ensureLoaded()
         WatchedRepository.uiState
     }.collectAsStateWithLifecycle()
+    val fullyWatchedSeriesKeys by WatchedRepository.fullyWatchedSeriesKeys.collectAsStateWithLifecycle()
     val resolvedAvatarTransitionKey = avatarTransitionKey ?: castAvatarSharedTransitionKey(personId)
 
     LaunchedEffect(personId) {
@@ -116,7 +118,11 @@ fun PersonDetailScreen(
             preferCrewCredits = preferCrew,
         )
         uiState = if (detail != null) {
-            PersonDetailUiState.Success(detail)
+            val pattern = com.nuvio.app.core.poster.CustomPosterUrlRepository.let { repo ->
+                repo.ensureLoaded()
+                repo.pattern.value
+            }
+            PersonDetailUiState.Success(detail.withCustomPosterUrls(pattern))
         } else {
             PersonDetailUiState.Error(getString(Res.string.person_load_failed, personName))
         }
@@ -146,6 +152,7 @@ fun PersonDetailScreen(
             is PersonDetailUiState.Success -> PersonDetailContent(
                 person = state.personDetail,
                 watchedKeys = watchedUiState.watchedKeys,
+                fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                 onOpenMeta = onOpenMeta,
                 initialProfilePhoto = initialProfilePhoto,
                 avatarTransitionKey = resolvedAvatarTransitionKey,
@@ -195,6 +202,7 @@ fun PersonDetailScreen(
 private fun PersonDetailContent(
     person: PersonDetail,
     watchedKeys: Set<String>,
+    fullyWatchedSeriesKeys: Set<String> = emptySet(),
     onOpenMeta: (MetaPreview) -> Unit,
     initialProfilePhoto: String? = null,
     avatarTransitionKey: String,
@@ -301,6 +309,7 @@ private fun PersonDetailContent(
                         latestCredits = latestCredits,
                         upcomingCredits = upcomingCredits,
                         watchedKeys = watchedKeys,
+                        fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                         onOpenMeta = onOpenMeta,
                         fallbackProfilePhoto = initialProfilePhoto,
                         avatarTransitionKey = avatarTransitionKey,
@@ -331,6 +340,7 @@ private fun PersonDetailContent(
                                     title = stringResource(Res.string.person_popular),
                                     items = popularCredits,
                                     watchedKeys = watchedKeys,
+                                    fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                                     headerHorizontalPadding = 20.dp,
                                     onPosterClick = onOpenMeta,
                                 )
@@ -342,6 +352,7 @@ private fun PersonDetailContent(
                                     title = stringResource(Res.string.person_latest),
                                     items = latestCredits,
                                     watchedKeys = watchedKeys,
+                                    fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                                     headerHorizontalPadding = 20.dp,
                                     onPosterClick = onOpenMeta,
                                 )
@@ -353,6 +364,7 @@ private fun PersonDetailContent(
                                     title = stringResource(Res.string.person_upcoming),
                                     items = upcomingCredits,
                                     watchedKeys = watchedKeys,
+                                    fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                                     headerHorizontalPadding = 20.dp,
                                     onPosterClick = onOpenMeta,
                                 )
@@ -388,6 +400,7 @@ private fun WidePersonDetailContent(
     latestCredits: List<MetaPreview>,
     upcomingCredits: List<MetaPreview>,
     watchedKeys: Set<String>,
+    fullyWatchedSeriesKeys: Set<String> = emptySet(),
     onOpenMeta: (MetaPreview) -> Unit,
     fallbackProfilePhoto: String?,
     avatarTransitionKey: String,
@@ -435,6 +448,7 @@ private fun WidePersonDetailContent(
                         title = stringResource(Res.string.person_popular),
                         items = popularCredits,
                         watchedKeys = watchedKeys,
+                        fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                         headerHorizontalPadding = 0.dp,
                         onPosterClick = onOpenMeta,
                     )
@@ -445,6 +459,7 @@ private fun WidePersonDetailContent(
                         title = stringResource(Res.string.person_latest),
                         items = latestCredits,
                         watchedKeys = watchedKeys,
+                        fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                         headerHorizontalPadding = 0.dp,
                         onPosterClick = onOpenMeta,
                     )
@@ -455,6 +470,7 @@ private fun WidePersonDetailContent(
                         title = stringResource(Res.string.person_upcoming),
                         items = upcomingCredits,
                         watchedKeys = watchedKeys,
+                        fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                         headerHorizontalPadding = 0.dp,
                         onPosterClick = onOpenMeta,
                     )

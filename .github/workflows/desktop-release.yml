@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.release.outputs.version }}
-      tag: ${{ steps.release.outputs.tag }}
+      tag: ${{ steps.release.outputs.version }}
       release_commit: ${{ steps.release.outputs.release_commit }}
       current_bump: ${{ steps.release.outputs.current_bump }}
       previous_bump: ${{ steps.release.outputs.previous_bump }}
@@ -65,7 +65,7 @@ jobs:
 
       - name: Validate release state
         env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_TAG: ${{ steps.release.outputs.version }}
           CURRENT_BUMP: ${{ steps.release.outputs.current_bump }}
           RELEASE_COMMIT: ${{ steps.release.outputs.release_commit }}
           RELEASE_REF_TYPE: ${{ github.ref_type }}

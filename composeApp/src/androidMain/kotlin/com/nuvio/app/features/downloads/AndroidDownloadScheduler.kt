@@ -122,7 +122,10 @@ internal class AndroidDownloadScheduler(val context: Context) {
         transfer?.let { DownloadsLiveStatusPlatform.removeNotification(it.item.id) }
         cleanupScope.launch {
             lock(fileName).withLock {
-                if (store.get(fileName) == null) File(directory, "$fileName.part").delete()
+                if (store.get(fileName) == null) {
+                    File(directory, "$fileName.part").delete()
+                    DownloadSubtitleStorage(File(directory, fileName).toURI().toString()).remove()
+                }
             }
         }
     }
@@ -148,6 +151,9 @@ internal class AndroidDownloadScheduler(val context: Context) {
                 .build()
         } else downloadHttpClient
         try {
+            DownloadSubtitles.prepare(transfer.item, destination.toURI().toString())
+            currentCoroutineContext().ensureActive()
+            if (!isActive(transfer)) return@withLock false
             var lastProgressAt = 0L
             val partial = if (destination.isFile) destination else transferAndroidDownload(
                 item = transfer.item,

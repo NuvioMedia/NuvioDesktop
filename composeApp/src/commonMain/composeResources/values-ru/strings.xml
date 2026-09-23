@@ -413,6 +413,7 @@
     <string name="compose_nav_library">Медиатека</string>
     <string name="compose_nav_profile">Профиль</string>
     <string name="compose_nav_search">Поиск</string>
+    <string name="compose_nav_settings">Настройки</string>
     <string name="compose_player_audio_tracks">Аудиодорожки</string>
     <string name="compose_player_audio">Аудио</string>
     <string name="compose_player_auto_sync">Автосинхронизация</string>
@@ -1177,11 +1178,8 @@
     <string name="settings_playback_timeout_unlimited">Безлимитный</string>
     <string name="settings_playback_tunneled_playback">Туннельное воспроизведение</string>
     <string name="settings_playback_tunneled_playback_description">Синхронизация аудио/видео на аппаратном уровне. Может улучшить воспроизведение на некоторых телевизионных устройствах Android.</string>
-    <string name="settings_tmdb_add_api_key_first">Добавьте свой собственный ключ TMDB API ниже, прежде чем включать расширение.</string>
-    <string name="settings_tmdb_api_key_label">API Ключ</string>
     <string name="settings_tmdb_enable_enrichment">Включить обогащение TMDB</string>
     <string name="settings_tmdb_enable_enrichment_description">Используйте TMDB в качестве источника метаданных для улучшения данных аддона.</string>
-    <string name="settings_tmdb_enter_api_key">Введите ключ TMDB v3 API.</string>
     <string name="settings_tmdb_language_code_label">Код языка</string>
     <string name="settings_tmdb_module_artwork">произведение искусства</string>
     <string name="settings_tmdb_module_artwork_description">Логотип и фоновые изображения от TMDB</string>
@@ -1193,8 +1191,6 @@
     <string name="settings_tmdb_module_credits_description">Актерский состав с фотографиями, режиссер и сценарист из TMDB</string>
     <string name="settings_tmdb_module_details">Подробности</string>
     <string name="settings_tmdb_module_details_description">Время выполнения, статус, страна и язык из TMDB</string>
-    <string name="settings_tmdb_module_release_dates">Даты выхода</string>
-    <string name="settings_tmdb_module_release_dates_description">Используйте даты выхода в эфир телеканала TMDB вместо точного времени выпуска дополнений.</string>
     <string name="settings_tmdb_module_episodes">Эпизоды</string>
     <string name="settings_tmdb_module_episodes_description">Названия эпизодов, обзоры, миниатюры и время выполнения из TMDB</string>
     <string name="settings_tmdb_module_more_like_this">Больше подобного</string>
@@ -1207,10 +1203,8 @@
     <string name="settings_tmdb_module_season_posters_description">Использовать постеры сезонов TMDB в выборе сезона на странице сериала.</string>
     <string name="settings_tmdb_module_trailers">Трейлеры</string>
     <string name="settings_tmdb_module_trailers_description">Кандидаты в трейлеры из видеороликов TMDB для раздела подробных трейлеров</string>
-    <string name="settings_tmdb_personal_api_key">Персональный ключ API</string>
     <string name="settings_tmdb_preferred_language">Язык</string>
     <string name="settings_tmdb_preferred_language_description">Язык метаданных TMDB для заголовка, логотипа и включенных полей.</string>
-    <string name="settings_tmdb_section_credentials">ПОЛНОМОЧИЯ</string>
     <string name="settings_tmdb_section_localization">ЛОКАЛИЗАЦИЯ</string>
     <string name="settings_tmdb_section_modules">МОДУЛИ</string>
     <string name="settings_tmdb_section_title">TMDB ОБОГАЩЕНИЕ</string>
@@ -1700,7 +1694,6 @@
     <string name="trakt_error_add_list_failed">Не удалось добавить в список Trakt.</string>
     <string name="trakt_error_missing_ids">Отсутствуют совместимые идентификаторы Trakt.</string>
     <string name="trakt_error_empty_response">Пустое тело ответа</string>
-    <string name="tmdb_sources_api_key_required">Добавьте ключ TMDB API в настройках, чтобы использовать источники TMDB.</string>
     <string name="tmdb_sources_collection_fallback_title">Коллекция TMDB %1$d</string>
     <string name="tmdb_sources_collection_not_found">Коллекция TMDB не найдена</string>
     <string name="tmdb_sources_company_fallback_title">TMDB Производство %1$d</string>
@@ -2061,7 +2054,6 @@
     <string name="collections_editor_tmdb_production_title_format">TMDB Производство %1$s</string>
     <string name="collections_editor_tmdb_source_load_failed">Не удалось загрузить источник TMDB.</string>
     <string name="collections_editor_trakt_list_id_format">ID %1$s</string>
-    <string name="collections_tmdb_api_key_required">Добавьте ключ TMDB API в настройках, чтобы использовать источники TMDB.</string>
     <string name="collections_tmdb_collection_not_found">Коллекция TMDB не найдена</string>
     <string name="collections_tmdb_company_not_found">Компания TMDB не найдена</string>
     <string name="collections_tmdb_discover_no_data">TMDB обнаружение не вернуло данных</string>
@@ -2104,8 +2096,6 @@
     <string name="plugins_badge_providers">%1$d провайдеров</string>
     <string name="plugins_badge_refreshing">Обновляется</string>
     <string name="plugins_badge_repos">%1$d репозиториев</string>
-    <string name="plugins_badge_tmdb_key_missing">TMDB API ключ отсутствует</string>
-    <string name="plugins_badge_tmdb_key_set">Ключ TMDB API задан</string>
     <string name="plugins_button_install_repo">Установить репозиторий плагинов</string>
     <string name="plugins_button_installing">Установка…</string>
     <string name="plugins_button_test_provider">Поставщик тестов</string>
@@ -2149,7 +2139,6 @@
     <string name="plugins_test_error_title">Ошибка</string>
     <string name="plugins_test_failed">Тест провайдера не пройден</string>
     <string name="plugins_test_results_count">Результаты испытаний (%1$d)</string>
-    <string name="plugins_tmdb_required_message">Поставщикам плагинов требуется ключ TMDB API. Установите его на экране TMDB, иначе поставщики плагинов будут работать неправильно.</string>
     <string name="search_error_no_results_for_catalog">Результаты поиска по %1$s не возвращены.</string>
     <string name="settings_playback_introdb_invalid_key">Неверный ключ API или соединение не установлено.</string>
     <string name="streams_plugin_repository_fallback">Репозиторий плагинов</string>
@@ -2251,4 +2240,12 @@
         <item quantity="many">%d названий</item>
         <item quantity="other">%d названия</item>
     </plurals>
+    <string name="layout_overall_ratings">Общие рейтинги</string>
+    <string name="layout_overall_ratings_sub_on">Показываются стандартные рейтинги и рейтинги TMDB.</string>
+    <string name="layout_overall_ratings_sub_off">Стандартные рейтинги и рейтинги TMDB скрыты. На страницах с описанием приоритет имеют настройки провайдера MDBList.</string>
+    <string name="layout_episode_ratings">Рейтинги эпизодов</string>
+    <string name="layout_episode_ratings_sub">Выберите, какие рейтинги эпизодов отображать.</string>
+    <string name="layout_ratings_show">Показывать</string>
+    <string name="layout_ratings_hide">Скрывать</string>
+    <string name="layout_ratings_hide_unwatched">Скрывать для непросмотренных</string>
 </resources>

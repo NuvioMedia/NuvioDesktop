@@ -1,5 +1,6 @@
 package com.nuvio.app.features.downloads
 
+import com.nuvio.app.features.player.addonSubtitleRequests
 import com.nuvio.app.features.streams.StreamItem
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -178,6 +179,8 @@ object DownloadsRepository {
             sourceUrl = sourceUrl,
             sourceHeaders = sanitizeRequestHeaders(stream.behaviorHints.proxyHeaders?.request),
             sourceResponseHeaders = sanitizeResponseHeaders(stream.behaviorHints.proxyHeaders?.response),
+            subtitleRequests = addonSubtitleRequests(contentType, videoId),
+            sourceSubtitles = stream.externalSubtitles,
             localFileUri = null,
             fileName = fileName,
             status = DownloadStatus.Downloading,

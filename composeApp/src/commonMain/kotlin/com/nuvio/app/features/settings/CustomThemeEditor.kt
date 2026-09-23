@@ -42,7 +42,6 @@ import com.nuvio.app.core.ui.CustomThemeColors
 import com.nuvio.app.core.ui.NuvioInputField
 import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.NuvioPrimaryButton
-import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.formatHexColor
@@ -63,21 +62,9 @@ import nuvio.composeapp.generated.resources.custom_theme_subtitle
 import nuvio.composeapp.generated.resources.custom_theme_title
 import org.jetbrains.compose.resources.stringResource
 
-@Composable
-internal fun CustomThemeEditor(
-    initialColors: CustomThemeColors,
-    allowGradient: Boolean,
-    onSave: (CustomThemeColors) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    NuvioTheme {
-        CustomThemeEditorSheet(initialColors, allowGradient, onSave, onDismiss)
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CustomThemeEditorSheet(
+internal fun CustomThemeEditor(
     initialColors: CustomThemeColors,
     allowGradient: Boolean,
     onSave: (CustomThemeColors) -> Unit,
