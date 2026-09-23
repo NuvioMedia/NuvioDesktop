@@ -9,6 +9,9 @@ internal enum class IntegrationLogo {
     Simkl,
     MdbList,
     IntroDb,
+    ImdbData,
+    Mpv,
+    Haze,
 }
 
 @Composable
