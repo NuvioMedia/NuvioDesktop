@@ -1033,7 +1033,7 @@ public:
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         std::string seconds = std::to_string((double)positionMs / 1000.0);
-        const char *command[] = {"seek", seconds.c_str(), "absolute+keyframes", nullptr};
+        const char *command[] = {"seek", seconds.c_str(), "absolute+exact", nullptr};
         mpvApi().command(mpv, command);
     }
 
@@ -1041,7 +1041,8 @@ public:
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         std::string seconds = std::to_string((double)offsetMs / 1000.0);
-        const char *command[] = {"seek", seconds.c_str(), "relative+keyframes", nullptr};
+        const char *mode = (std::abs(offsetMs) <= 3000) ? "relative+exact" : "relative+keyframes";
+        const char *command[] = {"seek", seconds.c_str(), mode, nullptr};
         mpvApi().command(mpv, command);
     }
 
@@ -1661,7 +1662,7 @@ private:
             setMpvOptionStringLocked("demuxer-max-back-bytes", "256MiB");
             setMpvOptionStringLocked("demuxer-seekable-cache", "yes");
             setMpvOptionStringLocked("cache-secs", "36000");
-            setMpvOptionStringLocked("hr-seek", "no");
+            setMpvOptionStringLocked("hr-seek", "default");
 
             int64_t wid = (int64_t)(intptr_t)containerHwnd;
             int widResult = api.setOption(mpv, "wid", MPV_FORMAT_INT64, &wid);

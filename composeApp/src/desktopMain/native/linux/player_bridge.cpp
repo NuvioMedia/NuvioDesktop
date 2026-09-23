@@ -1753,7 +1753,7 @@ JNIEXPORT void JNICALL NP(seekTo)(JNIEnv *, jobject, jlong handle, jlong positio
     Player *p = asPlayer(handle);
     if (!p) return;
     std::string target = std::to_string(positionMs / 1000.0);
-    const char *cmd[] = {"seek", target.c_str(), "absolute", nullptr};
+    const char *cmd[] = {"seek", target.c_str(), "absolute+exact", nullptr};
     mpv_command(p->mpv, cmd);
     p->ended.store(false);
 }
@@ -1762,7 +1762,8 @@ JNIEXPORT void JNICALL NP(seekBy)(JNIEnv *, jobject, jlong handle, jlong offsetM
     Player *p = asPlayer(handle);
     if (!p) return;
     std::string delta = std::to_string(offsetMs / 1000.0);
-    const char *cmd[] = {"seek", delta.c_str(), "relative", nullptr};
+    const char *mode = (std::abs(offsetMs) <= 3000) ? "relative+exact" : "relative";
+    const char *cmd[] = {"seek", delta.c_str(), mode, nullptr};
     mpv_command(p->mpv, cmd);
     p->ended.store(false);
 }
