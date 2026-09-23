@@ -1595,6 +1595,7 @@ JNIEXPORT jlong JNICALL NP(create)(
         // X11 embedding composites correctly inside the Nuvio window.
         mpv_set_option_string(m, "gpu-context", gpuCtx);
         mpv_set_option_string(m, "force-seekable", "yes");
+        mpv_set_option_string(m, "hr-seek", "default");
 
         // Decoder config mirrors the macOS bridge for parity (mac: hwdec=auto +
         // gpu-hwdec-interop=auto + decoderPriority handling). gpu-hwdec-interop=auto
@@ -1762,7 +1763,7 @@ JNIEXPORT void JNICALL NP(seekBy)(JNIEnv *, jobject, jlong handle, jlong offsetM
     Player *p = asPlayer(handle);
     if (!p) return;
     std::string delta = std::to_string(offsetMs / 1000.0);
-    const char *mode = (std::abs(offsetMs) <= 3000) ? "relative+exact" : "relative";
+    const char *mode = (std::abs(offsetMs) <= 3000) ? "relative+exact" : "relative+keyframes";
     const char *cmd[] = {"seek", delta.c_str(), mode, nullptr};
     mpv_command(p->mpv, cmd);
     p->ended.store(false);
