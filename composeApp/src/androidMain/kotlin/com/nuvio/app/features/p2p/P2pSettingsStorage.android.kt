@@ -11,6 +11,7 @@ internal actual object P2pSettingsStorage {
     private const val hideTorrentStatsKey = "hide_torrent_stats"
     private const val torrentProfileKey = "torrent_profile"
     private const val cacheSizeKey = "cache_size"
+    private const val engineBackendKey = "engine_backend"
 
     private var preferences: SharedPreferences? = null
 
@@ -49,6 +50,12 @@ internal actual object P2pSettingsStorage {
 
     actual fun saveCacheSize(size: String) {
         saveString(cacheSizeKey, size)
+    }
+
+    actual fun loadEngineBackend(): String? = loadString(engineBackendKey)
+
+    actual fun saveEngineBackend(backend: String) {
+        saveString(engineBackendKey, backend)
     }
 
     private fun loadBoolean(keyBase: String): Boolean? =

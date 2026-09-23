@@ -172,21 +172,23 @@ class LinuxUpdateInstallTest {
 
     @Test
     fun `a package install is handed to the desktop package handler`() {
+        val updateFile = File("/tmp/updates/Nuvio.rpm")
         val command = linuxInstallerCommand(
             method = LinuxInstallMethod.RPM,
-            updateFile = File("/tmp/updates/Nuvio.rpm"),
+            updateFile = updateFile,
             appImagePath = null,
             currentPid = 4242L,
         )
 
-        assertEquals(listOf("xdg-open", "/tmp/updates/Nuvio.rpm"), command)
+        assertEquals(listOf("xdg-open", updateFile.absolutePath), command)
     }
 
     @Test
     fun `an app image replaces itself once this process is gone`() {
+        val updateFile = File("/tmp/updates/Nuvio.AppImage")
         val command = linuxInstallerCommand(
             method = LinuxInstallMethod.APP_IMAGE,
-            updateFile = File("/tmp/updates/Nuvio.AppImage"),
+            updateFile = updateFile,
             appImagePath = "/home/user/Apps/Nuvio.AppImage",
             currentPid = 4242L,
         )
@@ -195,21 +197,22 @@ class LinuxUpdateInstallTest {
         assertEquals("-c", command[1])
         val script = command[2]
         assertTrue(script.contains("kill -0 4242"))
-        assertTrue(script.contains("cp -f -- '/tmp/updates/Nuvio.AppImage' '/home/user/Apps/Nuvio.AppImage'"))
+        assertTrue(script.contains("cp -f -- '${updateFile.absolutePath}' '/home/user/Apps/Nuvio.AppImage'"))
         assertTrue(script.contains("exec '/home/user/Apps/Nuvio.AppImage'"))
-        assertTrue(script.contains("else xdg-open '/tmp/updates/Nuvio.AppImage'"))
+        assertTrue(script.contains("else xdg-open '${updateFile.absolutePath}'"))
     }
 
     @Test
     fun `an app image with no known path falls back to the desktop handler`() {
+        val updateFile = File("/tmp/updates/Nuvio.AppImage")
         val command = linuxInstallerCommand(
             method = LinuxInstallMethod.APP_IMAGE,
-            updateFile = File("/tmp/updates/Nuvio.AppImage"),
+            updateFile = updateFile,
             appImagePath = null,
             currentPid = 4242L,
         )
 
-        assertEquals(listOf("xdg-open", "/tmp/updates/Nuvio.AppImage"), command)
+        assertEquals(listOf("xdg-open", updateFile.absolutePath), command)
     }
 
     @Test
