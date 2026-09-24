@@ -2,7 +2,10 @@ package com.nuvio.app.features.player.desktop
 
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import java.awt.Frame
 import java.awt.GraphicsEnvironment
 import java.awt.KeyEventDispatcher
@@ -266,8 +269,27 @@ internal fun applyMacosComposeFullscreenExit(
     setStatePlacement(targetPlacement)
 }
 
-internal fun installDesktopAppFullscreenShortcuts(window: Window): () -> Unit {
+internal fun installDesktopAppFullscreenShortcuts(window: Window, windowState: WindowState): () -> Unit {
     val dispatcher = KeyEventDispatcher { event ->
+        if (event.id == KeyEvent.KEY_PRESSED && event.keyCode == KeyEvent.VK_ESCAPE &&
+            DesktopHostOs.current == DesktopHostOs.WINDOWS &&
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().focusedWindow === window
+        ) {
+            val wasFullscreen = isDesktopAppFullscreen(window)
+            val wasMaximized = windowState.placement == WindowPlacement.Maximized
+            if (wasFullscreen) toggleDesktopAppFullscreen(window)
+            if (windowState.placement == WindowPlacement.Maximized) {
+                val savedGeometry = DesktopWindowModeStorage.loadWindowedGeometry()
+                    ?.takeIf { it.width >= 640f && it.height >= 480f }
+                windowState.size = savedGeometry?.let { DpSize(it.width.dp, it.height.dp) }
+                    ?: DpSize(1280.dp, 820.dp)
+                windowState.position = savedGeometry?.let {
+                    WindowPosition.Absolute(it.x.dp, it.y.dp)
+                } ?: WindowPosition.PlatformDefault
+                windowState.placement = WindowPlacement.Floating
+            }
+            if (wasFullscreen || wasMaximized) return@KeyEventDispatcher true
+        }
         if (!event.isDesktopAppFullscreenShortcut()) return@KeyEventDispatcher false
         toggleDesktopAppFullscreen(window)
         true

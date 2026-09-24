@@ -202,7 +202,7 @@ fun main(args: Array<String>) {
                             fullscreenController.isFullscreen(window, windowState)
                     },
                 )
-                val uninstallFullscreenShortcuts = installDesktopAppFullscreenShortcuts(window)
+                val uninstallFullscreenShortcuts = installDesktopAppFullscreenShortcuts(window, windowState)
                 val untrackMaximizedBounds = window.trackMaximizedBoundsForCurrentScreen()
                 onDispose {
                     fullscreenController.dispose(window)
