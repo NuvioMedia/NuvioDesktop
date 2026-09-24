@@ -11,10 +11,13 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 private const val MAX_FETCH_HEADER_VALUE_CHARS = 8 * 1024
 private const val FETCH_TRUNCATION_SUFFIX = "\n...[truncated]"
 
+@OptIn(ExperimentalEncodingApi::class)
 internal class FetchBridge : HostModule {
     private val log = Logger.withTag("PluginRuntime")
     private val json = Json { ignoreUnknownKeys = true }
@@ -26,8 +29,9 @@ internal class FetchBridge : HostModule {
             val headersJson = args.getOrNull(2)?.toString() ?: "{}"
             val body = args.getOrNull(3)?.toString() ?: ""
             val followRedirects = args.getOrNull(4) as? Boolean ?: true
+            val bodyIsBase64 = args.getOrNull(5) as? Boolean ?: false
             try {
-                performNativeFetch(url, method, headersJson, body, followRedirects)
+                performNativeFetch(url, method, headersJson, body, followRedirects, bodyIsBase64)
             } catch (ce: CancellationException) {
                 throw ce
             } catch (t: Throwable) {
@@ -52,6 +56,7 @@ internal class FetchBridge : HostModule {
         headersJson: String,
         body: String,
         followRedirects: Boolean,
+        bodyIsBase64: Boolean,
     ): String {
         val headers = parseHeaders(headersJson).toMutableMap()
         if (!headers.containsKey("User-Agent")) {
@@ -64,6 +69,7 @@ internal class FetchBridge : HostModule {
             headers = headers,
             body = body,
             followRedirects = followRedirects,
+            bodyBytes = if (bodyIsBase64) Base64.Default.decode(body) else null,
         )
 
         val responseHeaders = response.headers.mapKeys { (key, _) -> key.lowercase() }
@@ -75,6 +81,7 @@ internal class FetchBridge : HostModule {
                 "url" to JsonPrimitive(response.url),
                 "statusText" to JsonPrimitive(response.statusText),
                 "body" to JsonPrimitive(response.body),
+                "bodyBase64" to JsonPrimitive(Base64.Default.encode(response.bodyBytes ?: response.body.encodeToByteArray())),
                 "headers" to JsonObject(responseHeaders.mapValues { JsonPrimitive(it.value) }),
             ),
         )

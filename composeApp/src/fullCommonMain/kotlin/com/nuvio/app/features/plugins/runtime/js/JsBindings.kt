@@ -84,9 +84,18 @@ internal object JsBindings {
             options = options || {};
             var method = (options.method || 'GET').toUpperCase();
             var headers = __normalize_fetch_headers(options.headers);
-            var body = options.body || '';
+            var body = options.body == null ? '' : options.body;
+            var bodyIsBase64 = body instanceof ArrayBuffer || (typeof ArrayBuffer.isView === 'function' && ArrayBuffer.isView(body));
+            if (bodyIsBase64) {
+                var bytes = body instanceof ArrayBuffer ? new Uint8Array(body) : new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+                var chunks = [];
+                for (var i = 0; i < bytes.length; i += 8192) {
+                    chunks.push(String.fromCharCode.apply(null, bytes.subarray(i, i + 8192)));
+                }
+                body = btoa(chunks.join(''));
+            }
             var followRedirects = options.redirect !== 'manual';
-            var result = await __native_fetch(url, method, JSON.stringify(headers), body, followRedirects);
+            var result = await __native_fetch(url, method, JSON.stringify(headers), body, followRedirects, bodyIsBase64);
             var parsed = JSON.parse(result);
             return {
                 ok: parsed.ok,
@@ -99,6 +108,12 @@ internal object JsBindings {
                     }
                 },
                 text: function() { return Promise.resolve(parsed.body); },
+                arrayBuffer: function() {
+                    var binary = atob(parsed.bodyBase64 || '');
+                    var bytes = new Uint8Array(binary.length);
+                    for (var i = 0; i < bytes.length; i++) bytes[i] = binary.charCodeAt(i);
+                    return Promise.resolve(bytes.buffer);
+                },
                 json: function() {
                     try {
                         if (parsed.body === null || parsed.body === undefined || parsed.body === '') {

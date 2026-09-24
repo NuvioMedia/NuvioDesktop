@@ -104,6 +104,7 @@ actual suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean,
     maxResponseBodyBytes: Int,
+    bodyBytes: ByteArray?,
 ): RawHttpResponse = withContext(Dispatchers.IO) {
     val client = if (followRedirects) {
         desktopHttpClient
@@ -113,19 +114,23 @@ actual suspend fun httpRequestRaw(
             .followSslRedirects(false)
             .build()
     }
-    val request = buildDesktopRequest(method, url, headers, body)
+    val request = buildDesktopRequest(method, url, headers, body, bodyBytes)
 
     client.newCall(request).execute().use { response ->
+        val bodyResult = response.body?.byteStream()?.use { stream ->
+            readAtMostBytes(stream, maxResponseBodyBytes.coerceAtLeast(0))
+        } ?: LimitedReadResult(ByteArray(0), false)
         RawHttpResponse(
             status = response.code,
             statusText = response.message,
             url = response.request.url.toString(),
-            body = readResponseBodyLimited(response.body, maxResponseBodyBytes),
+            body = decodeResponseBodyLimited(response.body, bodyResult),
             headers = response.headers.toMultimap().mapValues { (_, values) ->
                 values.joinToString(",")
             }.mapKeys { (name, _) ->
                 name.lowercase()
             },
+            bodyBytes = bodyResult.bytes,
         )
     }
 }
@@ -154,6 +159,7 @@ private fun buildDesktopRequest(
     url: String,
     headers: Map<String, String>,
     body: String,
+    bodyBytes: ByteArray? = null,
 ): Request {
     val normalizedMethod = method.trim().uppercase().ifBlank { "GET" }
     val sanitizedHeaders = headers.withoutAcceptEncoding()
@@ -169,7 +175,7 @@ private fun buildDesktopRequest(
             ?: if (normalizedMethod == "POST") "application/x-www-form-urlencoded" else "application/json"
         builder.method(
             normalizedMethod,
-            body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType()),
+            (bodyBytes ?: body.toByteArray(Charsets.UTF_8)).toRequestBody(contentType.toMediaType()),
         )
     } else {
         builder.method(normalizedMethod, null)
@@ -215,12 +221,9 @@ private fun readAtMostBytes(stream: InputStream, maxBytes: Int): LimitedReadResu
     return LimitedReadResult(out.toByteArray(), truncated)
 }
 
-private fun readResponseBodyLimited(body: ResponseBody?, maxBytes: Int): String {
+private fun decodeResponseBodyLimited(body: ResponseBody?, readResult: LimitedReadResult): String {
     if (body == null) return ""
     val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
-    val readResult = body.byteStream().use { stream ->
-        readAtMostBytes(stream, maxBytes.coerceAtLeast(0))
-    }
     val decoded = runCatching {
         String(readResult.bytes, charset)
     }.getOrElse {
