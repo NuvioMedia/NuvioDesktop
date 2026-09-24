@@ -174,6 +174,7 @@ internal class PlayerScreenRuntime(
     var playerLifecycleController by mutableStateOf<PlayerEngineController?>(null)
     val playerReleaseSurfaceRetention = PlayerReleaseSurfaceRetention()
     var playerControllerSourceUrl by mutableStateOf<String?>(null)
+    var nativeOpeningVisualReady by mutableStateOf(false)
     var errorMessage by mutableStateOf<String?>(null)
     var isScrubbingTimeline by mutableStateOf(false)
     var scrubbingPositionMs by mutableStateOf<Long?>(null)

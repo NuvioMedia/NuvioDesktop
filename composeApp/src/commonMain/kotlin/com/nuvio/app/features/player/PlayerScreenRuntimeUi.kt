@@ -37,6 +37,7 @@ import com.nuvio.app.features.streams.isSelectableForPlayback
 import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
 import com.nuvio.app.features.watching.application.WatchingState
 import com.nuvio.app.isDesktop
+import com.nuvio.app.isWindows
 import com.nuvio.app.features.player.skip.internalSkipAction
 import com.nuvio.app.isIos
 import kotlinx.coroutines.launch
@@ -577,7 +578,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             showP2pRebufferStats = showP2pRebufferStats,
             p2pRebufferMessage = p2pRebufferMessage,
             p2pRebufferProgress = p2pRebufferProgress,
-            suppressOpeningOverlay = isDesktop && playerSurfaceSourceUrl != null,
+            suppressOpeningOverlay = isWindows && nativeOpeningVisualReady,
         )
         RenderPlayerModals(displayedPositionMs = displayedPositionMs)
     }
@@ -866,6 +867,15 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         playerControlsLog.d { "event type=$type value=$value ${playerControlLogContext()}" }
     }
     when (type) {
+        "openingVisualReady" -> {
+            val readySourceUrl = playerControllerSourceUrl
+            if (readySourceUrl != null) {
+                scope.launch {
+                    kotlinx.coroutines.delay(150L)
+                    if (playerControllerSourceUrl == readySourceUrl) nativeOpeningVisualReady = true
+                }
+            }
+        }
         "cursorActivity" -> {
             if (!playerControlsLocked) {
                 controlsVisible = true
@@ -1643,7 +1653,7 @@ private fun BoxScope.RenderPlaybackOverlays(
             horizontalSafePadding = horizontalSafePadding,
             onUnlock = { unlockPlayerControls() },
             showOpeningOverlay = playerSettingsUiState.showLoadingOverlay &&
-                !initialLoadCompleted &&
+                (!initialLoadCompleted || (isWindows && !nativeOpeningVisualReady)) &&
                 errorMessage == null &&
                 !suppressOpeningOverlay,
             backdropArtwork = background ?: poster,

@@ -3,10 +3,12 @@ package com.nuvio.app.features.player
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.Button
@@ -123,9 +125,12 @@ private fun NativePlayerSurface(
     val controller = remember(host) { NativePlayerController(host) }
     val hostFirstPaintComplete = remember { mutableStateOf(false) }
     val hostFirstFullSizePaintComplete = remember { mutableStateOf(false) }
+    val openingVisualReady = remember(sourceUrl) { mutableStateOf(false) }
+    val openingVisualVisible = remember(sourceUrl) { mutableStateOf(false) }
     val playbackHeaders = remember(sourceHeaders) { sanitizePlaybackHeaders(sourceHeaders) }
     val latestOnPlayerControlsAction = rememberUpdatedState(onPlayerControlsAction)
     val latestOnPlayerControlsEvent = rememberUpdatedState(onPlayerControlsEvent)
+    val latestOpeningVisualReady = rememberUpdatedState(openingVisualReady)
     val latestOnPlayerControlsScrubChange = rememberUpdatedState(onPlayerControlsScrubChange)
     val latestOnPlayerControlsScrubFinished = rememberUpdatedState(onPlayerControlsScrubFinished)
     val latestOnInitialPositionHandled = rememberUpdatedState(onInitialPositionHandled)
@@ -165,7 +170,14 @@ private fun NativePlayerSurface(
     LaunchedEffect(controller) {
         controller.setControlCallbacks(
             onAction = { action -> latestOnPlayerControlsAction.value(action) },
-            onEvent = { type, value -> latestOnPlayerControlsEvent.value(type, value) },
+            onEvent = { type, value ->
+                if (type == "openingVisualReady") {
+                    latestOpeningVisualReady.value.value = true
+                    true
+                } else {
+                    latestOnPlayerControlsEvent.value(type, value)
+                }
+            },
             onScrubChange = { positionMs -> latestOnPlayerControlsScrubChange.value(positionMs) },
             onScrubFinished = { positionMs -> latestOnPlayerControlsScrubFinished.value(positionMs) },
         )
@@ -188,6 +200,12 @@ private fun NativePlayerSurface(
         onDispose { uninstall?.invoke() }
     }
 
+    val hostReadyForAttach = if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+        hostFirstPaintComplete.value
+    } else {
+        hostFirstFullSizePaintComplete.value
+    }
+
     LaunchedEffect(
         controller,
         sourceAvailable,
@@ -195,11 +213,11 @@ private fun NativePlayerSurface(
         playbackHeaders,
         decoderPriority,
         nvidiaRtxSuperResolutionEnabled,
-        hostFirstFullSizePaintComplete.value,
+        hostReadyForAttach,
         initialPositionMs,
         initialPositionRequestKey,
     ) {
-        if (!sourceAvailable || !hostFirstFullSizePaintComplete.value) {
+        if (!sourceAvailable || !hostReadyForAttach) {
             return@LaunchedEffect
         }
         delay(16L)
@@ -224,6 +242,15 @@ private fun NativePlayerSurface(
             controller.play()
         } else {
             controller.pause()
+        }
+    }
+
+    LaunchedEffect(sourceUrl, openingVisualReady.value) {
+        if (DesktopHostOs.current == DesktopHostOs.WINDOWS && openingVisualReady.value) {
+            // Let the full-size native surface paint outside the window before moving it over Compose.
+            delay(400L)
+            openingVisualVisible.value = true
+            latestOnPlayerControlsEvent.value("openingVisualReady", 0.0)
         }
     }
 
@@ -258,7 +285,7 @@ private fun NativePlayerSurface(
     val pipChanges by DesktopPlayerPictureInPicture.changes.collectAsState()
     val isInPip = pipChanges >= 0 && DesktopPlayerPictureInPicture.isEnabled
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black),
@@ -273,7 +300,14 @@ private fun NativePlayerSurface(
                     Modifier
                         .align(Alignment.BottomEnd)
                         .requiredSize(1.dp)
-                } else if (hostFirstPaintComplete.value) {
+                } else if (hostFirstPaintComplete.value &&
+                    DesktopHostOs.current == DesktopHostOs.WINDOWS && openingVisualReady.value &&
+                    !openingVisualVisible.value
+                ) {
+                    Modifier.fillMaxSize().offset(x = maxWidth)
+                } else if (hostFirstPaintComplete.value &&
+                    (DesktopHostOs.current != DesktopHostOs.WINDOWS || openingVisualVisible.value)
+                ) {
                     Modifier.fillMaxSize()
                 } else {
                     Modifier

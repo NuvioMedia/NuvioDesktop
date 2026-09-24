@@ -88,7 +88,7 @@ internal fun OpeningOverlay(
             .fillMaxSize()
             .background(Color.Black),
     ) {
-        val logoWidth = minOf(320.dp, maxWidth - 48.dp)
+        val logoWidth = minOf(300.dp, maxWidth - 48.dp)
         val logoHeight = minOf(180.dp, maxHeight * 0.4f)
         val titleFontSize = if (maxWidth < 600.dp) 30.sp else 42.sp
         if (artwork != null) {
@@ -97,7 +97,7 @@ internal fun OpeningOverlay(
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
-                alignment = Alignment.TopEnd,
+                alignment = Alignment.Center,
             )
             Box(
                 modifier = Modifier
@@ -258,7 +258,7 @@ internal fun OpeningOverlay(
         ) { measurables, constraints ->
             val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
             val artworkContent = measurables[0].measure(looseConstraints)
-            val artworkTop = (constraints.maxHeight - artworkContent.height) / 2
+            val artworkTop = (constraints.maxHeight - artworkContent.height) / 2 - 28.dp.roundToPx()
             val statusTop = artworkTop + artworkContent.height
             val statusContent = measurables[1].measure(
                 looseConstraints.copy(maxHeight = constraints.maxHeight - statusTop),

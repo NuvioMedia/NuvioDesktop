@@ -77,6 +77,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         errorMessage = null
         playerController = null
         playerControllerSourceUrl = null
+        nativeOpeningVisualReady = false
         playbackSnapshot = PlayerPlaybackSnapshot()
         isScrubbingTimeline = false
         scrubbingPositionMs = null
@@ -140,6 +141,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         errorMessage = null
         playerController = null
         playerControllerSourceUrl = null
+        nativeOpeningVisualReady = false
         playbackSnapshot = PlayerPlaybackSnapshot()
         initialLoadCompleted = false
 
@@ -176,6 +178,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
             p2pResolvedSourceUrl = null
             playerController = null
             playerControllerSourceUrl = null
+            nativeOpeningVisualReady = false
             playbackSnapshot = PlayerPlaybackSnapshot()
             initialLoadCompleted = true
             errorMessage = getString(Res.string.player_error_torrent, state.message)

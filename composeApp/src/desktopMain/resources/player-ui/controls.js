@@ -385,6 +385,7 @@ let submitIntroDraft = {
   status: "",
 };
 let hasReceivedPlayerControls = false;
+let openingVisualReadySent = false;
 let parentalGuideRunId = 0;
 let parentalGuideStartedKey = "";
 let parentalGuideCompletedKey = "";
@@ -833,12 +834,16 @@ const setImageSource = (element, source) => {
     element.onload = () => {
       if (element.getAttribute("src") !== url) return;
       element.setAttribute("data-loaded-src", url);
-      window.requestAnimationFrame(() => setImageVisualState(element, "loaded"));
+      window.requestAnimationFrame(() => {
+        setImageVisualState(element, "loaded");
+        if (element === openingArtwork) notifyOpeningVisualReady();
+      });
     };
     element.onerror = () => {
       if (element.getAttribute("src") !== url) return;
       element.removeAttribute("data-loaded-src");
       setImageVisualState(element, "error");
+      if (element === openingArtwork) notifyOpeningVisualReady();
     };
     element.setAttribute("src", url);
     if (element.complete && element.naturalWidth > 0) {
@@ -848,6 +853,18 @@ const setImageSource = (element, source) => {
     setImageVisualState(element, "loaded");
   }
   return url;
+};
+
+const notifyOpeningVisualReady = () => {
+  if (openingVisualReadySent || !hasReceivedPlayerControls) return;
+  const needsArtwork = Boolean(state.isLoading && state.showOpeningOverlay && state.openingArtwork);
+  if (needsArtwork && !openingArtwork.classList.contains("image-loaded") &&
+      !openingArtwork.classList.contains("image-error")) return;
+  openingVisualReadySent = true;
+  openingOverlay.classList.add("handoff-ready");
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => send("openingVisualReady", 0));
+  });
 };
 
 const resetPauseMetadataTimer = () => {
@@ -1982,6 +1999,8 @@ const renderOpeningOverlay = suppress => {
   openingStatus.hidden = !(messageText || showHorizontalProgress);
   openingProgressTrack.hidden = !showHorizontalProgress;
   openingProgressBar.style.width = `${(progress || 0) * 100}%`;
+
+  notifyOpeningVisualReady();
 
   return showOpening;
 };
