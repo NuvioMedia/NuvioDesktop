@@ -352,7 +352,20 @@ actual object P2pStreamingEngine {
                 return@withContext
             }
 
-            killOrphanedProcess()
+            process?.takeIf(Process::isAlive)?.let { existing ->
+                val deadline = System.currentTimeMillis() + STARTUP_TIMEOUT_MS
+                while (System.currentTimeMillis() < deadline && existing.isAlive) {
+                    if (isRunning()) {
+                        log.d { "TorrServer recovered after a health-check timeout" }
+                        return@withContext
+                    }
+                    delay(HEALTH_CHECK_INTERVAL_MS)
+                }
+                if (existing.isAlive) {
+                    throw P2pStreamingException("TorrServer is running but not responding")
+                }
+            }
+            process = null
 
             val binaryFile = resolveBinaryFile()
             if (!binaryFile.canExecute()) {
@@ -440,19 +453,6 @@ actual object P2pStreamingEngine {
             }
             process = null
             log.d { "TorrServer stopped" }
-        }
-
-        private fun killOrphanedProcess() {
-            try {
-                val request = HttpRequest.newBuilder(URI.create("$baseUrl/shutdown"))
-                    .timeout(Duration.ofSeconds(5))
-                    .GET()
-                    .build()
-                healthClient.send(request, HttpResponse.BodyHandlers.discarding())
-                Thread.sleep(1_000L)
-                log.d { "Shut down orphaned TorrServer instance" }
-            } catch (_: Exception) {
-            }
         }
 
         private fun isProcessAlive(proc: Process?): Boolean =
