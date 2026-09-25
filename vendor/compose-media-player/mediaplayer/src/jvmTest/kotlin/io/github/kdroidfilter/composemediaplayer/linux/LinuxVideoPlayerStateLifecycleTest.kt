@@ -1800,6 +1800,7 @@ class LinuxVideoPlayerStateLifecycleTest {
             val executor = Executors.newSingleThreadExecutor()
             var pollFuture: java.util.concurrent.Future<*>? = null
             try {
+                assertTrue(bridge.initialVolumeApplied.await(5, TimeUnit.SECONDS))
                 state.openUri("https://example.invalid/empty-loop-poll.mp4", InitialPlayerState.PAUSE)
                 assertTrue(sourceReady.await(5, TimeUnit.SECONDS))
                 assertTrue(openCompleted.await(5, TimeUnit.SECONDS))
