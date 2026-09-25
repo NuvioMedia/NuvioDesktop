@@ -1836,12 +1836,17 @@ class LinuxVideoPlayerStateLifecycleTest {
             val bridge = FakeBridge(blockSeek = true)
             val sourceReady = CountDownLatch(1)
             val openCompleted = CountDownLatch(1)
+            val secondPollReserved = CountDownLatch(1)
+            val secondPollThread = AtomicReference<Thread>()
             val restarted = AtomicInteger()
             val state =
                 LinuxVideoPlayerState(
                     bridge,
                     sourceReadyObserver = { _, _ -> sourceReady.countDown() },
                     sourceOpenCompletedForTest = { _, _ -> openCompleted.countDown() },
+                    loopEosPollReservedForTest = {
+                        if (Thread.currentThread() === secondPollThread.get()) secondPollReserved.countDown()
+                    },
                     frameRenderingEnabled = false,
                 )
             val executor = Executors.newFixedThreadPool(2)
@@ -1862,8 +1867,10 @@ class LinuxVideoPlayerStateLifecycleTest {
                 assertTrue(bridge.seekEntered.await(5, TimeUnit.SECONDS))
                 val secondPoll =
                     executor.submit {
+                        secondPollThread.set(Thread.currentThread())
                         runBlocking { state.checkLoopingForTest(current = 10.0, duration = 10.0) }
                     }
+                assertTrue(secondPollReserved.await(5, TimeUnit.SECONDS))
                 bridge.releaseSeek.countDown()
 
                 firstPoll.get(5, TimeUnit.SECONDS)

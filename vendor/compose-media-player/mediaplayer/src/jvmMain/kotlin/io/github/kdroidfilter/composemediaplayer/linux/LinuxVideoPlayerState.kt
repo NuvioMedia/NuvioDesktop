@@ -91,6 +91,7 @@ internal class LinuxSourcePlaybackContext(
     private val openingBarrier = CompletableDeferred<Unit>()
     private var commandTail: Deferred<Unit> = openingBarrier
     private var latestPublicationOwner: Deferred<Unit> = commandTail
+    private val loopRestartPending = AtomicBoolean(false)
     val resume = LinuxPlaybackResumeCoordinator(completion)
 
     fun requestPlaying(value: Boolean): Request =
@@ -246,6 +247,12 @@ internal class LinuxSourcePlaybackContext(
 
     fun isOpening(): Boolean = synchronized(intentCommandLock) { opening }
 
+    fun tryClaimLoopRestart(): Boolean = loopRestartPending.compareAndSet(false, true)
+
+    fun releaseLoopRestart() {
+        check(loopRestartPending.compareAndSet(true, false))
+    }
+
     internal fun desiredPlayingForTest(): Boolean = synchronized(intentCommandLock) { desiredPlaying }
 
     private fun reserveCommandLocked(
@@ -349,6 +356,7 @@ class LinuxVideoPlayerState internal constructor(
     private val beforeSeekWorkerInstallForTest: (() -> Unit)? = null,
     private val installationWaitingForDrainForTest: ((Long) -> Unit)? = null,
     private val commandAwaitingPredecessorForTest: ((Long) -> Unit)? = null,
+    private val loopEosPollReservedForTest: (() -> Unit)? = null,
     private val afterPlaybackEndedCallbackForTest: (() -> Unit)? = null,
     private val eosFinalizationCompletedForTest: (() -> Unit)? = null,
     private val updatePositionFailureForTest: ((Throwable) -> Unit)? = null,
@@ -1469,36 +1477,42 @@ class LinuxVideoPlayerState internal constructor(
     ) {
         if (!lifecycle.isCurrent(sourceGeneration)) return
         if (loop) {
-            if (seekInProgress) return
+            val ownsLoopPoll = playback.tryClaimLoopRestart()
             val eosPoll =
                 playback.reserveCommand(
                     requiresCurrentIntent = false,
                     claimsPublication = false,
                 )
-            val reachedEnd =
-                playback.runCommand(eosPoll) {
-                    if (!lifecycle.isCurrent(sourceGeneration) ||
-                        !playback.completion.isCurrent(playbackGeneration)
-                    ) {
-                        return@runCommand false
-                    }
-                    val consumed = withPlayer(sourceGeneration) { bridge.consumeDidPlayToEnd(it) } ?: false
-                    consumed || (duration > 0 && current >= duration - 0.5)
-                } ?: false
-            if (!reachedEnd) return
+            loopEosPollReservedForTest?.invoke()
+            try {
+                val reachedEnd =
+                    playback.runCommand(eosPoll) {
+                        if (!ownsLoopPoll ||
+                            !lifecycle.isCurrent(sourceGeneration) ||
+                            !playback.completion.isCurrent(playbackGeneration)
+                        ) {
+                            return@runCommand false
+                        }
+                        val consumed = withPlayer(sourceGeneration) { bridge.consumeDidPlayToEnd(it) } ?: false
+                        consumed || (duration > 0 && current >= duration - 0.5)
+                    } ?: false
+                if (!reachedEnd) return
 
-            // Empty polls participate in command ordering without taking managed-publication
-            // ownership. Promote an observed EOS only when no public command has superseded it.
-            val seekCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
-            seekToAsync(0f, sourceGeneration, playback, seekCommand, replaceFrameWorker = false) {
-                withContext(Dispatchers.Main) {
-                    lifecycle.invokeCallback(sourceGeneration) {
-                        playback.invokeCallbackIfLatest(it) {
-                            onRestart?.invoke()
-                            true
+                // Empty polls participate in command ordering without taking managed-publication
+                // ownership. Promote an observed EOS only when no public command has superseded it.
+                val seekCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
+                seekToAsync(0f, sourceGeneration, playback, seekCommand, replaceFrameWorker = false) {
+                    withContext(Dispatchers.Main) {
+                        lifecycle.invokeCallback(sourceGeneration) {
+                            playback.invokeCallbackIfLatest(it) {
+                                onRestart?.invoke()
+                                true
+                            }
                         }
                     }
                 }
+            } finally {
+                if (ownsLoopPoll) playback.releaseLoopRestart()
             }
             return
         }
