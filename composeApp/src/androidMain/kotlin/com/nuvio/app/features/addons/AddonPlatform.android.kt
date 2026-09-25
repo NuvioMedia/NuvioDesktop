@@ -158,12 +158,9 @@ private fun readAtMostBytes(stream: InputStream, maxBytes: Int): LimitedReadResu
     return LimitedReadResult(out.toByteArray(), truncated)
 }
 
-private fun readResponseBodyLimited(body: ResponseBody?, maxBytes: Int): String {
+private fun decodeResponseBodyLimited(body: ResponseBody?, readResult: LimitedReadResult): String {
     if (body == null) return ""
     val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
-    val readResult = body.byteStream().use { stream ->
-        readAtMostBytes(stream, maxBytes.coerceAtLeast(0))
-    }
 
     val decoded = try {
         String(readResult.bytes, charset)
@@ -270,6 +267,7 @@ actual suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean,
     maxResponseBodyBytes: Int,
+    bodyBytes: ByteArray?,
 ): RawHttpResponse =
     withContext(Dispatchers.IO) {
         val normalizedMethod = method.uppercase()
@@ -282,7 +280,7 @@ actual suspend fun httpRequestRaw(
         val request = if (requestAllowsBody(normalizedMethod)) {
             val contentType = sanitizedHeaders.getHeaderIgnoreCase("Content-Type")
                 ?: if (normalizedMethod == "POST") "application/x-www-form-urlencoded" else "application/json"
-            val requestBody = body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType())
+            val requestBody = (bodyBytes ?: body.toByteArray(Charsets.UTF_8)).toRequestBody(contentType.toMediaType())
             builder.method(normalizedMethod, requestBody)
         } else {
             builder.method(normalizedMethod, null)
@@ -305,16 +303,20 @@ actual suspend fun httpRequestRaw(
         }
         try {
             call.execute().use { response ->
+                val bodyResult = response.body?.byteStream()?.use { stream ->
+                    readAtMostBytes(stream, maxResponseBodyBytes.coerceAtLeast(0))
+                } ?: LimitedReadResult(ByteArray(0), false)
                 RawHttpResponse(
                     status = response.code,
                     statusText = response.message,
                     url = response.request.url.toString(),
-                    body = readResponseBodyLimited(response.body, maxResponseBodyBytes),
+                    body = decodeResponseBodyLimited(response.body, bodyResult),
                     headers = response.headers.toMultimap().mapValues { (_, values) ->
                         values.joinToString(",")
                     }.mapKeys { (name, _) ->
                         name.lowercase()
                     },
+                    bodyBytes = bodyResult.bytes,
                 )
             }
         } catch (error: IOException) {

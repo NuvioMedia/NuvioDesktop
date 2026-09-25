@@ -13,6 +13,7 @@ data class RawHttpResponse(
     val url: String,
     val body: String,
     val headers: Map<String, String>,
+    val bodyBytes: ByteArray? = null,
 )
 
 /** Default safety limit for generic and plugin-provided HTTP responses. */
@@ -40,4 +41,5 @@ expect suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean = true,
     maxResponseBodyBytes: Int = DefaultRawHttpResponseMaxBytes,
+    bodyBytes: ByteArray? = null,
 ): RawHttpResponse
