@@ -1469,6 +1469,7 @@ class LinuxVideoPlayerState internal constructor(
     ) {
         if (!lifecycle.isCurrent(sourceGeneration)) return
         if (loop) {
+            if (seekInProgress) return
             val eosPoll =
                 playback.reserveCommand(
                     requiresCurrentIntent = false,

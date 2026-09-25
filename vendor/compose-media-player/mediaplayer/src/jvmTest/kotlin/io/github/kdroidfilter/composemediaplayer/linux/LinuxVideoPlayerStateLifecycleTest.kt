@@ -1831,6 +1831,53 @@ class LinuxVideoPlayerStateLifecycleTest {
         }
 
     @Test
+    fun `overlapping looping EOS polls publish one restart`() =
+        lifecycleTest {
+            val bridge = FakeBridge(blockSeek = true)
+            val sourceReady = CountDownLatch(1)
+            val openCompleted = CountDownLatch(1)
+            val restarted = AtomicInteger()
+            val state =
+                LinuxVideoPlayerState(
+                    bridge,
+                    sourceReadyObserver = { _, _ -> sourceReady.countDown() },
+                    sourceOpenCompletedForTest = { _, _ -> openCompleted.countDown() },
+                    frameRenderingEnabled = false,
+                )
+            val executor = Executors.newFixedThreadPool(2)
+            try {
+                assertTrue(bridge.initialVolumeApplied.await(5, TimeUnit.SECONDS))
+                state.openUri("https://example.invalid/overlapping-loop-polls.mp4", InitialPlayerState.PAUSE)
+                assertTrue(sourceReady.await(5, TimeUnit.SECONDS))
+                assertTrue(openCompleted.await(5, TimeUnit.SECONDS))
+                state.loop = true
+                state.onRestart = { restarted.incrementAndGet() }
+                val seekCallsBefore = bridge.calls().count { it.name == "seek" }
+                bridge.signalEndForTest()
+
+                val firstPoll =
+                    executor.submit {
+                        runBlocking { state.checkLoopingForTest(current = 10.0, duration = 10.0) }
+                    }
+                assertTrue(bridge.seekEntered.await(5, TimeUnit.SECONDS))
+                val secondPoll =
+                    executor.submit {
+                        runBlocking { state.checkLoopingForTest(current = 10.0, duration = 10.0) }
+                    }
+                bridge.releaseSeek.countDown()
+
+                firstPoll.get(5, TimeUnit.SECONDS)
+                secondPoll.get(5, TimeUnit.SECONDS)
+                assertEquals(seekCallsBefore + 1, bridge.calls().count { it.name == "seek" })
+                assertEquals(1, restarted.get())
+            } finally {
+                bridge.releaseSeek.countDown()
+                executor.shutdownNow()
+                deferDisposal(state)
+            }
+        }
+
+    @Test
     fun `superseded loop restart does not seek or publish restart callback`() =
         lifecycleTest {
             val blockConsumeEnd = AtomicBoolean(false)
