@@ -104,7 +104,7 @@ if [[ -n "$update_information" ]]; then
     appimagetool_args=("-u" "$update_information" "${appimagetool_args[@]}")
 fi
 
-ARCH=x86_64 "$appimagetool_path" --appimage-extract-and-run "${appimagetool_args[@]}"
+APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$appimagetool_path" "${appimagetool_args[@]}"
 
 if [[ ! -f "$output_appimage" ]]; then
     echo "Expected AppImage output was not produced: $output_appimage" >&2
