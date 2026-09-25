@@ -18,6 +18,8 @@ internal data class DesktopWindowGeometry(
 )
 
 internal object DesktopWindowModeStorage {
+    private const val MinimumWindowedWidth = 640f
+    private const val MinimumWindowedHeight = 480f
     private const val WasFullscreenKey = "was_fullscreen"
     private const val WasMaximizedKey = "was_maximized"
     private const val WindowXKey = "window_x"
@@ -46,9 +48,11 @@ internal object DesktopWindowModeStorage {
         val width = store.getFloat(WindowWidthKey) ?: return null
         val height = store.getFloat(WindowHeightKey) ?: return null
         return DesktopWindowGeometry(x = x, y = y, width = width, height = height)
+            .takeIf { it.width >= MinimumWindowedWidth && it.height >= MinimumWindowedHeight }
     }
 
     fun saveWindowedGeometry(geometry: DesktopWindowGeometry) {
+        if (geometry.width < MinimumWindowedWidth || geometry.height < MinimumWindowedHeight) return
         store.putFloat(WindowXKey, geometry.x)
         store.putFloat(WindowYKey, geometry.y)
         store.putFloat(WindowWidthKey, geometry.width)

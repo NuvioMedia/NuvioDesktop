@@ -41,6 +41,7 @@ import com.nuvio.app.features.settings.AppIconRepository
 import com.nuvio.app.features.settings.applyDesktopRendererPreference
 import com.nuvio.app.features.settings.transparentPreviewResource
 import java.awt.Desktop
+import java.awt.Dimension
 import javax.imageio.ImageIO
 import java.awt.Color as AwtColor
 import javax.swing.JComponent
@@ -84,7 +85,7 @@ fun main(args: Array<String>) {
             wasFullscreenOnLastExit && DesktopHostOs.current != DesktopHostOs.WINDOWS -> {
                 WindowPlacement.Fullscreen
             }
-            wasMaximizedOnLastExit == false && savedGeometry != null -> {
+            wasMaximizedOnLastExit == false -> {
                 WindowPlacement.Floating
             }
             restoresMaximizedWindowPlacement -> {
@@ -149,6 +150,9 @@ fun main(args: Array<String>) {
             }
 
             LaunchedEffect(window) {
+                if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+                    window.minimumSize = Dimension(640, 480)
+                }
                 applyNativeDesktopWindowChrome(window)
                 installLinuxExtendedMouseButtons()
                 // Windows fullscreen is emulated natively and isn't reflected by
