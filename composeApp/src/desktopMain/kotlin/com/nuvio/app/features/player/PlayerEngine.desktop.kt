@@ -3,12 +3,10 @@ package com.nuvio.app.features.player
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.Button
@@ -245,9 +243,11 @@ private fun NativePlayerSurface(
         }
     }
 
-    LaunchedEffect(sourceUrl, openingVisualReady.value) {
-        if (DesktopHostOs.current == DesktopHostOs.WINDOWS && openingVisualReady.value) {
-            // Let the full-size native surface paint outside the window before moving it over Compose.
+    LaunchedEffect(sourceUrl, openingVisualReady.value, hostFirstFullSizePaintComplete.value) {
+        if (DesktopHostOs.current == DesktopHostOs.WINDOWS &&
+            openingVisualReady.value && hostFirstFullSizePaintComplete.value
+        ) {
+            // Keep the Compose loading artwork visible while the full-size native surface settles.
             delay(400L)
             openingVisualVisible.value = true
             latestOnPlayerControlsEvent.value("openingVisualReady", 0.0)
@@ -285,7 +285,7 @@ private fun NativePlayerSurface(
     val pipChanges by DesktopPlayerPictureInPicture.changes.collectAsState()
     val isInPip = pipChanges >= 0 && DesktopPlayerPictureInPicture.isEnabled
 
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black),
@@ -301,12 +301,7 @@ private fun NativePlayerSurface(
                         .align(Alignment.BottomEnd)
                         .requiredSize(1.dp)
                 } else if (hostFirstPaintComplete.value &&
-                    DesktopHostOs.current == DesktopHostOs.WINDOWS && openingVisualReady.value &&
-                    !openingVisualVisible.value
-                ) {
-                    Modifier.fillMaxSize().offset(x = maxWidth)
-                } else if (hostFirstPaintComplete.value &&
-                    (DesktopHostOs.current != DesktopHostOs.WINDOWS || openingVisualVisible.value)
+                    (DesktopHostOs.current != DesktopHostOs.WINDOWS || openingVisualReady.value)
                 ) {
                     Modifier.fillMaxSize()
                 } else {
