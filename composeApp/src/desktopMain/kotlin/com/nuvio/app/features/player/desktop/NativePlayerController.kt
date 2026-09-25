@@ -18,6 +18,7 @@ import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.player.PlayerPlaybackSnapshot
 import com.nuvio.app.features.player.PlayerResizeMode
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MAX_MS
+import com.nuvio.app.features.player.findPreferredAudioTrackIndex
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MIN_MS
 import com.nuvio.app.features.player.SubtitleColorSwatches
 import com.nuvio.app.features.player.SubtitleOutlineColorSwatches
@@ -965,22 +966,8 @@ internal class NativePlayerController(
         }
 
     override fun applyAudioLanguagePreferences(languages: List<String>) {
-        val preferredLanguages = languages
-            .map(String::trim)
-            .filter(String::isNotEmpty)
-            .map(String::lowercase)
-        if (preferredLanguages.isEmpty()) return
-        val audioTracks = getAudioTracks()
-        for(preferred in preferredLanguages){
-            val trackIndex = audioTracks.indexOfFirst { track ->
-                val language = track.language?.lowercase() ?: return@indexOfFirst false
-                language == preferred || language.startsWith("$preferred-")
-            }
-            if (trackIndex >= 0) {
-                selectAudioTrack(trackIndex)
-                return
-            }
-        }
+        val trackIndex = findPreferredAudioTrackIndex(getAudioTracks(), languages)
+        if (trackIndex >= 0) selectAudioTrack(trackIndex)
     }
 
     override fun selectAudioTrack(index: Int) {
