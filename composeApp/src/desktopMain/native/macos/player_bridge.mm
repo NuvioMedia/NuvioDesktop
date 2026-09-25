@@ -2455,7 +2455,7 @@ static void nuvioMpvWakeup(void *ctx) {
 
 - (NSString *)channelLayoutNameWithChannels:(NSString *)channels channelCount:(int)channelCount {
     NSString *normalized = [self ifNotBlank:channels];
-    if (normalized && ![normalized isEqualToString:@"unknown"]) {
+    if (normalized && ![normalized.lowercaseString hasPrefix:@"unknown"]) {
         NSString *lower = normalized.lowercaseString;
         if ([lower isEqualToString:@"mono"]) return @"Mono";
         if ([lower isEqualToString:@"stereo"]) return @"Stereo";
