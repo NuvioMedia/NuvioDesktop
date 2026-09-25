@@ -935,6 +935,7 @@ class LinuxVideoPlayerStateLifecycleTest {
             val sourceReady = CountDownLatch(1)
             val openCompleted = CountDownLatch(1)
             val pauseCompleted = CountDownLatch(1)
+            val observeSecondPoll = AtomicBoolean(false)
             val secondPollAwaitingFirst = CountDownLatch(1)
             val ended = AtomicInteger()
             val state =
@@ -942,7 +943,9 @@ class LinuxVideoPlayerStateLifecycleTest {
                     bridge,
                     sourceReadyObserver = { _, _ -> sourceReady.countDown() },
                     sourceOpenCompletedForTest = { _, _ -> openCompleted.countDown() },
-                    commandAwaitingPredecessorForTest = { secondPollAwaitingFirst.countDown() },
+                    commandAwaitingPredecessorForTest = {
+                        if (observeSecondPoll.get()) secondPollAwaitingFirst.countDown()
+                    },
                     asyncOperationCompletedForTest = { name, _ ->
                         if (name == "pause") pauseCompleted.countDown()
                     },
@@ -964,6 +967,7 @@ class LinuxVideoPlayerStateLifecycleTest {
                         runBlocking { state.checkLoopingForTest(current = 10.0, duration = 10.0) }
                     }
                 assertTrue(bridge.consumeEndEntered.await(5, TimeUnit.SECONDS))
+                observeSecondPoll.set(true)
                 val secondPoll =
                     executor.submit {
                         runBlocking { state.checkLoopingForTest(current = 10.0, duration = 10.0) }
