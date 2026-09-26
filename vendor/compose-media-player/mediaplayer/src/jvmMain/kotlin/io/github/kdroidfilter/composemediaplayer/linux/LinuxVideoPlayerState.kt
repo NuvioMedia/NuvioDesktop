@@ -91,7 +91,7 @@ internal class LinuxSourcePlaybackContext(
     private val openingBarrier = CompletableDeferred<Unit>()
     private var commandTail: Deferred<Unit> = openingBarrier
     private var latestPublicationOwner: Deferred<Unit> = commandTail
-    private val loopRestartPending = AtomicBoolean(false)
+    private val eosHandlingPending = AtomicBoolean(false)
     val resume = LinuxPlaybackResumeCoordinator(completion)
 
     fun requestPlaying(value: Boolean): Request =
@@ -247,10 +247,10 @@ internal class LinuxSourcePlaybackContext(
 
     fun isOpening(): Boolean = synchronized(intentCommandLock) { opening }
 
-    fun tryClaimLoopRestart(): Boolean = loopRestartPending.compareAndSet(false, true)
+    fun tryClaimEosHandling(): Boolean = eosHandlingPending.compareAndSet(false, true)
 
-    fun releaseLoopRestart() {
-        check(loopRestartPending.compareAndSet(true, false))
+    fun releaseEosHandling() {
+        check(eosHandlingPending.compareAndSet(true, false))
     }
 
     internal fun desiredPlayingForTest(): Boolean = synchronized(intentCommandLock) { desiredPlaying }
@@ -1477,7 +1477,7 @@ class LinuxVideoPlayerState internal constructor(
     ) {
         if (!lifecycle.isCurrent(sourceGeneration)) return
         if (loop) {
-            val ownsLoopPoll = playback.tryClaimLoopRestart()
+            val ownsLoopPoll = playback.tryClaimEosHandling()
             val eosPoll =
                 playback.reserveCommand(
                     requiresCurrentIntent = false,
@@ -1512,93 +1512,100 @@ class LinuxVideoPlayerState internal constructor(
                     }
                 }
             } finally {
-                if (ownsLoopPoll) playback.releaseLoopRestart()
+                if (ownsLoopPoll) playback.releaseEosHandling()
             }
             return
         }
 
+        var ownsEosPoll = false
         val eosPoll =
             playback.reserveCommand(
                 requiresCurrentIntent = false,
                 claimsPublication = false,
             )
-        val reachedEnd =
-            playback.runCommand(eosPoll) {
+        try {
+            val reachedEnd =
+                playback.runCommand(eosPoll) {
+                    ownsEosPoll = playback.tryClaimEosHandling()
+                    if (!ownsEosPoll ||
+                        !lifecycle.isCurrent(sourceGeneration) ||
+                        !playback.completion.isCurrent(playbackGeneration)
+                    ) {
+                        return@runCommand false
+                    }
+                    playback.resume.markEndedIfConsumed(playbackGeneration) {
+                        withPlayer(sourceGeneration) { bridge.consumeDidPlayToEnd(it) } ?: false
+                    }
+                } ?: false
+            if (!reachedEnd) return
+
+            val eosCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
+            playback.runCommand(
+                eosCommand,
+                { terminalizeLatestPublication(sourceGeneration, playback, it) },
+            ) {
                 if (!lifecycle.isCurrent(sourceGeneration) ||
                     !playback.completion.isCurrent(playbackGeneration)
                 ) {
-                    return@runCommand false
+                    return@runCommand
                 }
-                playback.resume.markEndedIfConsumed(playbackGeneration) {
-                    withPlayer(sourceGeneration) { bridge.consumeDidPlayToEnd(it) } ?: false
-                }
-            } ?: false
-        if (!reachedEnd) return
 
-        val eosCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
-        playback.runCommand(
-            eosCommand,
-            { terminalizeLatestPublication(sourceGeneration, playback, it) },
-        ) {
-            if (!lifecycle.isCurrent(sourceGeneration) ||
-                !playback.completion.isCurrent(playbackGeneration)
-            ) {
-                return@runCommand
-            }
+                val paused =
+                    withPlayer(sourceGeneration) { player ->
+                        bridge.pause(player)
+                        true
+                    } ?: false
+                if (!paused || !playback.completion.isCurrent(playbackGeneration)) return@runCommand
 
-            val paused =
-                withPlayer(sourceGeneration) { player ->
-                    bridge.pause(player)
-                    true
-                } ?: false
-            if (!paused || !playback.completion.isCurrent(playbackGeneration)) return@runCommand
-
-            withContext(Dispatchers.Main) {
-                playback.commitIfLatest(eosCommand) {
-                    lifecycle.publish(sourceGeneration) {
-                        if (playback.completion.isCurrent(playbackGeneration)) {
-                            isPlaying = false
-                            isLoading = false
-                        }
-                    }
-                }
-            }
-            if (!playback.ownsLatestPublication(eosCommand) ||
-                !playback.completion.isCurrent(playbackGeneration) ||
-                !lifecycle.isCurrent(sourceGeneration)
-            ) {
-                return@runCommand
-            }
-            val eosFrameOwner = frameUpdateJobs.capture(sourceGeneration)
-            val eosBufferingOwner = bufferingCheckJobs.capture(sourceGeneration)
-            try {
                 withContext(Dispatchers.Main) {
-                    invokeLifecycleCallbackIfLatestPublication(
-                        lifecycle,
-                        sourceGeneration,
-                        playback,
-                        eosCommand,
-                    ) {
-                        if (playback.completion.isCurrent(playbackGeneration)) {
-                            onPlaybackEnded?.invoke()
+                    playback.commitIfLatest(eosCommand) {
+                        lifecycle.publish(sourceGeneration) {
+                            if (playback.completion.isCurrent(playbackGeneration)) {
+                                isPlaying = false
+                                isLoading = false
+                            }
                         }
                     }
                 }
-            } finally {
+                if (!playback.ownsLatestPublication(eosCommand) ||
+                    !playback.completion.isCurrent(playbackGeneration) ||
+                    !lifecycle.isCurrent(sourceGeneration)
+                ) {
+                    return@runCommand
+                }
+                val eosFrameOwner = frameUpdateJobs.capture(sourceGeneration)
+                val eosBufferingOwner = bufferingCheckJobs.capture(sourceGeneration)
                 try {
-                    afterPlaybackEndedCallbackForTest?.invoke()
+                    withContext(Dispatchers.Main) {
+                        invokeLifecycleCallbackIfLatestPublication(
+                            lifecycle,
+                            sourceGeneration,
+                            playback,
+                            eosCommand,
+                        ) {
+                            if (playback.completion.isCurrent(playbackGeneration)) {
+                                onPlaybackEnded?.invoke()
+                            }
+                        }
+                    }
                 } finally {
                     try {
-                        frameUpdateJobs.cancel(eosFrameOwner)
+                        afterPlaybackEndedCallbackForTest?.invoke()
                     } finally {
                         try {
-                            bufferingCheckJobs.cancel(eosBufferingOwner)
+                            frameUpdateJobs.cancel(eosFrameOwner)
                         } finally {
-                            eosFinalizationCompletedForTest?.invoke()
+                            try {
+                                bufferingCheckJobs.cancel(eosBufferingOwner)
+                            } finally {
+                                eosFinalizationCompletedForTest?.invoke()
+                            }
                         }
                     }
                 }
             }
+        } finally {
+            if (ownsEosPoll) playback.releaseEosHandling()
         }
     }
 
