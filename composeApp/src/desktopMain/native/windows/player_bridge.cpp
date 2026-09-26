@@ -2558,6 +2558,54 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowBorderles
     );
 }
 
+// A plain SetForegroundWindow from a process that isn't already foreground is routinely denied by
+// Windows' focus-stealing prevention. AttachThreadInput alone (tried first) is often not enough
+// when the JVM was launched as a child of a long-lived build-tool process (e.g. the Gradle
+// daemon, via `:composeApp:run`) rather than directly by the user double-clicking an exe: Windows'
+// check also wants "recent real input" from this thread, which a build-tool-spawned process never
+// has. A synthesized, harmless Alt key tap satisfies that check - the standard combined technique
+// for reliably forcing a just-created window to the real foreground instead of merely flashing its
+// taskbar button.
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_forceForegroundWindow(
+    JNIEnv *,
+    jobject,
+    jlong windowHwnd
+) {
+    HWND hwnd = (HWND)(intptr_t)windowHwnd;
+    if (!hwnd || !IsWindow(hwnd)) return;
+
+    if (IsIconic(hwnd)) {
+        ShowWindow(hwnd, SW_RESTORE);
+    }
+
+    if (GetForegroundWindow() == hwnd) {
+        SetActiveWindow(hwnd);
+        BringWindowToTop(hwnd);
+        SetFocus(hwnd);
+        return;
+    }
+
+    HWND foregroundHwnd = GetForegroundWindow();
+    DWORD foregroundThreadId = foregroundHwnd ? GetWindowThreadProcessId(foregroundHwnd, nullptr) : 0;
+    DWORD currentThreadId = GetCurrentThreadId();
+    bool attached = foregroundThreadId != 0
+        && foregroundThreadId != currentThreadId
+        && AttachThreadInput(foregroundThreadId, currentThreadId, TRUE);
+
+    keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY, 0);
+    keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+
+    SetForegroundWindow(hwnd);
+    SetActiveWindow(hwnd);
+    BringWindowToTop(hwnd);
+    SetFocus(hwnd);
+
+    if (attached) {
+        AttachThreadInput(foregroundThreadId, currentThreadId, FALSE);
+    }
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSubtitleDelayMs(JNIEnv *, jobject, jlong handle, jint delayMs) {
     auto player = playerFromHandle(handle);

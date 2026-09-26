@@ -6,6 +6,7 @@ import androidx.compose.ui.awt.SwingWindow
 import androidx.compose.ui.configureSwingGlobalsForCompose
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -13,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.painterResource
+import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
@@ -31,6 +33,7 @@ import com.nuvio.app.features.player.desktop.DesktopWindowGeometry
 import com.nuvio.app.features.player.desktop.DesktopWindowModeStorage
 import com.nuvio.app.features.player.desktop.NativePlayerBridge
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
+import com.nuvio.app.features.player.desktop.forceDesktopWindowForeground
 import com.nuvio.app.features.player.desktop.configureMacosWindowBeforePeer
 import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcuts
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
@@ -120,6 +123,7 @@ fun main(args: Array<String>) {
         )
         val fullscreenController = remember { DesktopAppFullscreenController() }
 
+        Window(
         SwingWindow(
             onCloseRequest = {
                 P2pStreamingEngine.shutdown()
@@ -150,6 +154,16 @@ fun main(args: Array<String>) {
 
             LaunchedEffect(window) {
                 applyNativeDesktopWindowChrome(window)
+                forceDesktopWindowForeground(window)
+                installLinuxExtendedMouseButtons()
+                // Entering native borderless fullscreen this early can race Explorer's own,
+                // asynchronous first-time registration of the window with the taskbar - the same
+                // registration that runs (and works correctly, icon included) on a plain windowed
+                // boot. Give that a moment to finish normally before converting to fullscreen,
+                // instead of trying to fix the taskbar's state after the fact.
+                if (DesktopHostOs.current == DesktopHostOs.WINDOWS && wasFullscreenOnLastExit) {
+                    delay(300)
+                }
                 installLinuxExtendedMouseButtons()
                 // Windows fullscreen is emulated natively and isn't reflected by
                 // WindowPlacement, so it must be re-applied once the window peer exists.

@@ -40,3 +40,16 @@ private fun applyWindowsWindowChrome(window: Window) {
         )
     }
 }
+
+// AWT's own first-show activation attempt (java.desktop's AwtFrame::WmShowWindow) is routinely
+// denied by Windows' focus-stealing prevention once enough startup work has happened before the
+// window appears, leaving the window merely visible with its taskbar button flashing instead of
+// active. Force it to the foreground for real.
+internal fun forceDesktopWindowForeground(window: Window) {
+    if (DesktopHostOs.current != DesktopHostOs.WINDOWS || !window.isDisplayable) return
+
+    runCatching {
+        val hwnd = AwtNativeViewResolver.resolveNativeViewPointer(window)
+        NativePlayerBridge.forceForegroundWindow(hwnd)
+    }
+}
