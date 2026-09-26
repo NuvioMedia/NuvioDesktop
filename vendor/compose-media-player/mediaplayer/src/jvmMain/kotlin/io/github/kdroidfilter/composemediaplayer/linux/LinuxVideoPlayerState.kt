@@ -1483,6 +1483,7 @@ class LinuxVideoPlayerState internal constructor(
                     requiresCurrentIntent = false,
                     claimsPublication = false,
                 )
+            val positionSnapshotIsCurrent = eosPoll.predecessor.isCompleted
             loopEosPollReservedForTest?.invoke()
             try {
                 val reachedEnd =
@@ -1494,7 +1495,7 @@ class LinuxVideoPlayerState internal constructor(
                             return@runCommand false
                         }
                         val consumed = withPlayer(sourceGeneration) { bridge.consumeDidPlayToEnd(it) } ?: false
-                        consumed || (duration > 0 && current >= duration - 0.5)
+                        consumed || (positionSnapshotIsCurrent && duration > 0 && current >= duration - 0.5)
                     } ?: false
                 if (!reachedEnd) return
 

@@ -1777,7 +1777,7 @@ class LinuxVideoPlayerStateLifecycleTest {
         }
 
     @Test
-    fun `looping EOS poll waits for in-flight seek before consuming native end`() =
+    fun `looping EOS poll does not restart from stale position after in-flight seek`() =
         lifecycleTest {
             val bridge = FakeBridge()
             val sourceReady = CountDownLatch(1)
@@ -1786,6 +1786,7 @@ class LinuxVideoPlayerStateLifecycleTest {
             val releaseSeek = CountDownLatch(1)
             val pollAwaitingSeek = CountDownLatch(1)
             val seekCompleted = CountDownLatch(1)
+            val restarted = AtomicInteger()
             val state =
                 LinuxVideoPlayerState(
                     bridge,
@@ -1812,10 +1813,12 @@ class LinuxVideoPlayerStateLifecycleTest {
                 state.seekTo(500f)
                 assertTrue(seekAtTerminalReset.await(5, TimeUnit.SECONDS))
                 val consumeCallsBeforePoll = bridge.calls().count { it.name == "consumeEnd" }
+                val seekCallsBeforePoll = bridge.calls().count { it.name == "seek" }
                 state.loop = true
+                state.onRestart = { restarted.incrementAndGet() }
                 pollFuture =
                     executor.submit {
-                        runBlocking { state.checkLoopingForTest(current = 3.0, duration = 10.0) }
+                        runBlocking { state.checkLoopingForTest(current = 10.0, duration = 10.0) }
                     }
                 assertTrue(pollAwaitingSeek.await(5, TimeUnit.SECONDS))
                 assertEquals(consumeCallsBeforePoll, bridge.calls().count { it.name == "consumeEnd" })
@@ -1823,6 +1826,8 @@ class LinuxVideoPlayerStateLifecycleTest {
 
                 assertTrue(seekCompleted.await(5, TimeUnit.SECONDS))
                 assertNotNull(pollFuture).get(5, TimeUnit.SECONDS)
+                assertEquals(seekCallsBeforePoll, bridge.calls().count { it.name == "seek" })
+                assertEquals(0, restarted.get())
                 assertFalse(state.isLoading)
                 assertFalse(state.seekInProgressForTest())
                 assertNull(state.targetSeekTimeForTest())
