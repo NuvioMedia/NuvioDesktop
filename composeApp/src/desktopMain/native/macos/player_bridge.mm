@@ -1039,6 +1039,9 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     NSTimer *_resizeSettleTimer;
     NSTimer *_fullscreenTransitionTimer;
     id _mediaKeyMonitor;
+    id _mouseDownMonitor;
+    NSEvent *_lastLeftMouseDown;
+    CGFloat _controlsTitlebarHeight;
     JavaVM *_javaVm;
     jobject _eventSink;
     jmethodID _eventMethod;
@@ -1179,6 +1182,15 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         }
         return [strongSelf handleMediaKeyEvent:event];
     }];
+    _controlsTitlebarHeight = -1.0;
+    _mouseDownMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDown
+                                                             handler:^NSEvent *(NSEvent *event) {
+        MpvWebPlayer *strongSelf = weakSelf;
+        if (strongSelf) {
+            strongSelf->_lastLeftMouseDown = event.window == strongSelf->_webView.window ? event : nil;
+        }
+        return event;
+    }];
     [self layoutNativeSubviews];
     dispatch_async(dispatch_get_main_queue(), ^{
         [self focusControlsWebViewIfNeeded];
@@ -1213,8 +1225,36 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 }
 
 - (void)beginWindowDrag {
-    // AppKit requires the original mouse event for performWindowDragWithEvent:;
-    // the native view remains movable through the window manager on macOS.
+    // The controls web view covers the transparent title bar, so AppKit never sees a
+    // title-bar click while the window is key. The JS drag request arrives after the
+    // mouseDown was dispatched; replay that original event while the button is held.
+    NSEvent *mouseDown = _lastLeftMouseDown;
+    _lastLeftMouseDown = nil;
+    NSWindow *window = _webView.window;
+    if (!mouseDown || !window || mouseDown.window != window) return;
+    if (([NSEvent pressedMouseButtons] & 1) == 0) return;
+    // Title bar only: the borderless PiP window delivers the click after the drag,
+    // which its surface would treat as a play/pause tap.
+    if (!(window.styleMask & NSWindowStyleMaskTitled)) return;
+    if (window.styleMask & NSWindowStyleMaskFullScreen) return;
+    if (mouseDown.locationInWindow.y < NSMaxY(window.contentLayoutRect)) return;
+    [window performWindowDragWithEvent:mouseDown];
+}
+
+- (void)syncControlsTitlebarHeight {
+    NSWindow *window = _webView.window;
+    if (!_controlsWebReady || !window) return;
+    // Height of the title bar strip measured from the top of the controls web view.
+    CGFloat height = 0.0;
+    if ((window.styleMask & NSWindowStyleMaskTitled) && !(window.styleMask & NSWindowStyleMaskFullScreen)) {
+        NSPoint edge = [_webView convertPoint:NSMakePoint(0.0, NSMaxY(window.contentLayoutRect)) fromView:nil];
+        CGFloat fromTop = _webView.isFlipped ? edge.y : NSHeight(_webView.bounds) - edge.y;
+        height = MIN(MAX(0.0, fromTop), NSHeight(_webView.bounds));
+    }
+    if (height == _controlsTitlebarHeight) return;
+    _controlsTitlebarHeight = height;
+    NSString *script = [NSString stringWithFormat:@"window.nuvioTitlebarHeight = %0.1f;", height];
+    [_webView evaluateJavaScript:script completionHandler:nil];
 }
 
 - (void)reparentSurfaceToHostView:(NSView *)newHostView {
@@ -1560,6 +1600,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     }
     [self layoutNativeSubviews];
     [self focusControlsWebViewIfNeeded];
+    [self syncControlsTitlebarHeight];
     if (_controlsSyncInFlight || !_mpvEventQueue) {
         return;
     }
@@ -1821,6 +1862,11 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         [NSEvent removeMonitor:_mediaKeyMonitor];
         _mediaKeyMonitor = nil;
     }
+    if (_mouseDownMonitor) {
+        [NSEvent removeMonitor:_mouseDownMonitor];
+        _mouseDownMonitor = nil;
+    }
+    _lastLeftMouseDown = nil;
     _controlsWebReady = NO;
     _pendingControlsJson = nil;
     if (_mpvEventQueue) {
@@ -2513,8 +2559,13 @@ static void nuvioMpvWakeup(void *ctx) {
 
     id rawValue = message[@"value"];
     NSNumber *value = [rawValue isKindOfClass:[NSNumber class]] ? rawValue : nil;
+    if ([type isEqualToString:@"dragWindow"]) {
+        [self beginWindowDrag];
+        return;
+    }
     if ([type isEqualToString:@"controlsReady"]) {
         _controlsWebReady = YES;
+        _controlsTitlebarHeight = -1.0;
         [self flushPendingControlsJsonIfReady];
         [self syncControls];
         return;
