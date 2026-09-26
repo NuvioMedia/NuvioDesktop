@@ -185,7 +185,9 @@ private object SupportersContributorsRepository {
     private val json = CommunityContributorsJson
 
     suspend fun getContributors(): Result<List<CommunityContributor>> = runCatching {
-        val urls = listOf(CommunityConfig.CONTRIBUTIONS_URL, FallbackContributionsUrl)
+        // The public endpoint is tried first. A baked git host that never accepts
+        // TCP still consumes the full connect timeout before a later fallback runs.
+        val urls = listOf(FallbackContributionsUrl, CommunityConfig.CONTRIBUTIONS_URL)
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .distinct()
