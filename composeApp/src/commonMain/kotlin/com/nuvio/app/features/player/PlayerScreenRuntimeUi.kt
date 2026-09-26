@@ -419,7 +419,13 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         openingArtwork = background ?: poster,
         openingLogo = logo,
         openingTitle = title,
-        openingMessage = p2pInitialLoadingMessage,
+        openingMessage = if (playerSettingsUiState.showPlayerLoadingStatus) {
+            p2pInitialLoadingMessage ?: playerLoadingStatusMessage(
+                showStatus = true,
+                controllerReady = playerController != null,
+                buffering = playbackSnapshot.isLoading,
+            )
+        } else null,
         openingProgress = p2pInitialLoadingProgress,
         skipPromptVisible = nativeSkipInterval != null && !playerControlsLocked,
         skipPromptLabel = if (nativeSkipAction?.skipsToPostCredits == true) {
