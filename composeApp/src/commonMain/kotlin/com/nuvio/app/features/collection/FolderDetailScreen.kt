@@ -421,6 +421,7 @@ private fun TabbedGridContent(
                             contentPadding = PaddingValues(
                                 start = pageHorizontalPadding,
                                 end = pageHorizontalPadding,
+                                top = if (isDesktop) 8.dp else 4.dp,
                                 bottom = nuvioSafeBottomPadding(18.dp),
                             ),
                             horizontalArrangement = Arrangement.spacedBy(if (isDesktop) 12.dp else 10.dp),
