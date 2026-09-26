@@ -56,6 +56,8 @@ enum class PlayerControlsAction {
     KeyboardSeekBack,
     SeekForward,
     KeyboardSeekForward,
+    KeyboardFineSeekBack,
+    KeyboardFineSeekForward,
     KeyboardVolumeDown,
     KeyboardVolumeUp,
     PictureInPicture,

@@ -813,6 +813,14 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
             prepareSeekByForNativeFallback(10_000L, revealControls = false)
             return false
         }
+        PlayerControlsAction.KeyboardFineSeekBack -> {
+            prepareSeekByForNativeFallback(-1_000L, revealControls = false)
+            return false
+        }
+        PlayerControlsAction.KeyboardFineSeekForward -> {
+            prepareSeekByForNativeFallback(1_000L, revealControls = false)
+            return false
+        }
         PlayerControlsAction.KeyboardVolumeDown,
         PlayerControlsAction.KeyboardVolumeUp -> {
             return false

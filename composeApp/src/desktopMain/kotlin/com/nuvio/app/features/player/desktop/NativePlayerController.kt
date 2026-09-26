@@ -503,6 +503,14 @@ internal class NativePlayerController(
                     seekTo(value.toLong())
                 }
             }
+            "keyboardFineSeekBack",
+            "keyboardFineSeekForward" -> {
+                val handled = onScrubFinished(value.toLong())
+                log.d { "$type positionMs=${value.toLong()} handled=$handled handle=$handle" }
+                if (!handled) {
+                    seekTo(value.toLong())
+                }
+            }
             "toggleFullscreen" -> {
                 if (DesktopPlayerPictureInPicture.isEnabled) {
                     DesktopPlayerPictureInPicture.toggle()
@@ -561,6 +569,8 @@ internal class NativePlayerController(
             PlayerControlsAction.KeyboardSeekBack -> fallbackSeekBy(-10_000L)
             PlayerControlsAction.SeekForward,
             PlayerControlsAction.KeyboardSeekForward -> fallbackSeekBy(10_000L)
+            PlayerControlsAction.KeyboardFineSeekBack -> fallbackSeekBy(-1_000L)
+            PlayerControlsAction.KeyboardFineSeekForward -> fallbackSeekBy(1_000L)
             PlayerControlsAction.KeyboardVolumeDown -> adjustFallbackVolume(-10f)
             PlayerControlsAction.KeyboardVolumeUp -> adjustFallbackVolume(10f)
             PlayerControlsAction.PictureInPicture -> togglePictureInPictureFromShortcut()
@@ -1192,8 +1202,10 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
         "keyboardToggle" -> PlayerControlsAction.KeyboardTogglePlayback
         "seekBack" -> PlayerControlsAction.SeekBack
         "keyboardSeekBack" -> PlayerControlsAction.KeyboardSeekBack
+        "keyboardFineSeekBack" -> PlayerControlsAction.KeyboardFineSeekBack
         "seekForward" -> PlayerControlsAction.SeekForward
         "keyboardSeekForward" -> PlayerControlsAction.KeyboardSeekForward
+        "keyboardFineSeekForward" -> PlayerControlsAction.KeyboardFineSeekForward
         "keyboardVolumeDown" -> PlayerControlsAction.KeyboardVolumeDown
         "keyboardVolumeUp" -> PlayerControlsAction.KeyboardVolumeUp
         "pictureInPicture", "pip" -> PlayerControlsAction.PictureInPicture

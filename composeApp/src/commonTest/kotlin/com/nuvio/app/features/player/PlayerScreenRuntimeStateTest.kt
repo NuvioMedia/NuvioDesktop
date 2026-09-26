@@ -226,6 +226,19 @@ class PlayerScreenRuntimeStateTest {
         )
     }
 
+    @Test
+    fun fineSeekFallbackPreservesControlsVisibility() = kotlinx.coroutines.test.runTest {
+        val runtime = PlayerScreenRuntime(testPlayerScreenArgs())
+        runtime.scope = this
+        runtime.controlsVisible = false
+
+        runtime.prepareSeekByForNativeFallback(1_000L, revealControls = false)
+        assertFalse(runtime.controlsVisible)
+
+        runtime.prepareSeekByForNativeFallback(-1_000L, revealControls = false)
+        assertFalse(runtime.controlsVisible)
+    }
+
     private fun testPlayerScreenArgs() = PlayerScreenArgs(
         profileId = 1,
         title = "Title",

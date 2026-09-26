@@ -2468,21 +2468,22 @@ const keepChromeVisibleFromKeyboard = () => {
 let fineSeekTimer = 0;
 let fineSeekAccumulatedMs = 0;
 let fineSeekDirection = null;
+let fineSeekBasePosMs = null;
 
 const fineSeek = isForward => {
   const direction = isForward ? "forward" : "backward";
   const stepMs = isForward ? 1000 : -1000;
 
-  if (fineSeekDirection === direction) {
+  if (fineSeekDirection === direction && fineSeekBasePosMs !== null) {
     fineSeekAccumulatedMs += stepMs;
   } else {
     fineSeekDirection = direction;
     fineSeekAccumulatedMs = stepMs;
+    fineSeekBasePosMs = Math.max(0, Number(state.positionMs) || 0);
   }
 
-  const currentPosMs = Math.max(0, Number(state.positionMs) || 0);
   const durationMs = Math.max(0, Number(state.durationMs) || 0);
-  const targetPosMs = Math.max(0, durationMs > 0 ? Math.min(durationMs, currentPosMs + stepMs) : currentPosMs + stepMs);
+  const targetPosMs = Math.max(0, durationMs > 0 ? Math.min(durationMs, fineSeekBasePosMs + fineSeekAccumulatedMs) : fineSeekBasePosMs + fineSeekAccumulatedMs);
 
   state.positionMs = targetPosMs;
   setProgress(targetPosMs, durationMs);
@@ -2491,7 +2492,7 @@ const fineSeek = isForward => {
   const sign = deltaSec > 0 ? "+" : "";
   showPlayerToast(`${sign}${deltaSec}s`);
 
-  send("scrubFinish", targetPosMs);
+  send(isForward ? "keyboardFineSeekForward" : "keyboardFineSeekBack", targetPosMs);
 
   if (fineSeekTimer) {
     window.clearTimeout(fineSeekTimer);
@@ -2499,6 +2500,7 @@ const fineSeek = isForward => {
   fineSeekTimer = window.setTimeout(() => {
     fineSeekAccumulatedMs = 0;
     fineSeekDirection = null;
+    fineSeekBasePosMs = null;
   }, 800);
 };
 
@@ -2993,7 +2995,7 @@ window.playerUpdate = update => {
   state = {
     ...state,
     durationMs,
-    positionMs,
+    positionMs: fineSeekBasePosMs !== null ? state.positionMs : positionMs,
     isPlaying: pendingIsPlaying === null ? nativeIsPlaying : pendingIsPlaying,
     isLoading: Boolean(update.loading || update.isLoading),
     volumeLevel,
