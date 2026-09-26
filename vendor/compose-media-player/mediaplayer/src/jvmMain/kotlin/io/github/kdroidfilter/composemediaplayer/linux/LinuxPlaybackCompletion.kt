@@ -8,19 +8,22 @@ package io.github.kdroidfilter.composemediaplayer.linux
  * a cancelled job cannot mark replacement media as ended. No callback or native
  * operation is ever executed while [lock] is held.
  */
-internal class LinuxPlaybackCompletion {
+internal class LinuxPlaybackCompletion(
+    initialGeneration: Long = 0L,
+) {
     private val lock = Any()
-    private var generation = 0L
+    private var generation = initialGeneration
     private var endedGeneration: Long? = null
+    private var exhausted = false
 
     fun captureGeneration(): Long = synchronized(lock) { generation }
 
     fun isCurrent(observedGeneration: Long): Boolean =
-        synchronized(lock) { generation == observedGeneration }
+        synchronized(lock) { !exhausted && generation == observedGeneration }
 
     fun markEnded(observedGeneration: Long): Boolean =
         synchronized(lock) {
-            if (generation != observedGeneration) {
+            if (exhausted || generation != observedGeneration) {
                 false
             } else {
                 endedGeneration = observedGeneration
@@ -30,12 +33,19 @@ internal class LinuxPlaybackCompletion {
 
     fun replayGeneration(): Long? =
         synchronized(lock) {
-            endedGeneration?.takeIf { it == generation }
+            check(!exhausted) { "Playback completion epoch exhausted" }
+            val replay = endedGeneration?.takeIf { it == generation } ?: return@synchronized null
+            if (generation == Long.MAX_VALUE) {
+                endedGeneration = null
+                exhausted = true
+                error("Playback completion epoch exhausted")
+            }
+            replay
         }
 
     fun completeReplay(observedGeneration: Long): Boolean =
         synchronized(lock) {
-            if (generation != observedGeneration || endedGeneration != observedGeneration) {
+            if (exhausted || generation != observedGeneration || endedGeneration != observedGeneration) {
                 false
             } else {
                 endedGeneration = null
@@ -46,8 +56,13 @@ internal class LinuxPlaybackCompletion {
 
     fun reset() {
         synchronized(lock) {
-            generation += 1
             endedGeneration = null
+            if (exhausted) return
+            if (generation == Long.MAX_VALUE) {
+                exhausted = true
+            } else {
+                generation += 1
+            }
         }
     }
 }
@@ -59,55 +74,41 @@ internal class LinuxPlaybackCompletion {
 internal class LinuxPlaybackResumeCoordinator(
     private val completion: LinuxPlaybackCompletion,
 ) {
-    private val commandLock = Any()
-
     fun markEndedIfConsumed(
         observedGeneration: Long,
         consumeEnd: () -> Boolean,
-    ): Boolean =
-        synchronized(commandLock) {
-            if (!completion.isCurrent(observedGeneration) || !consumeEnd()) {
-                false
-            } else {
-                completion.markEnded(observedGeneration)
-            }
-        }
+    ): Boolean {
+        if (!completion.isCurrent(observedGeneration) || !consumeEnd()) return false
+        return completion.markEnded(observedGeneration)
+    }
 
     fun runIfCurrent(
         observedGeneration: Long,
         action: () -> Unit,
-    ): Boolean =
-        synchronized(commandLock) {
-            if (!completion.isCurrent(observedGeneration)) {
-                false
-            } else {
-                action()
-                true
-            }
-        }
-
-    fun runCommand(action: () -> Unit) {
-        synchronized(commandLock) { action() }
+    ): Boolean {
+        if (!completion.isCurrent(observedGeneration)) return false
+        action()
+        return completion.isCurrent(observedGeneration)
     }
+
+    fun runCommand(action: () -> Unit) = action()
 
     fun resume(
         seekToStart: () -> Unit,
         play: () -> Unit,
     ) {
-        synchronized(commandLock) {
-            val replayGeneration = completion.replayGeneration()
-            if (replayGeneration == null) {
-                play()
-                return
-            }
-
-            // Commit only after both native operations succeed. If either throws,
-            // the durable marker remains available for the next Play retry.
-            seekToStart()
+        val replayGeneration = completion.replayGeneration()
+        if (replayGeneration == null) {
             play()
-            check(completion.completeReplay(replayGeneration)) {
-                "Replay generation changed while playback commands were serialized"
-            }
+            return
+        }
+
+        // Source command tickets serialize these native operations without a
+        // bookkeeping monitor crossing JNI.
+        seekToStart()
+        play()
+        check(completion.completeReplay(replayGeneration)) {
+            "Replay generation changed while playback command was active"
         }
     }
 
@@ -116,9 +117,7 @@ internal class LinuxPlaybackResumeCoordinator(
     }
 
     fun resetAndRun(action: () -> Unit) {
-        synchronized(commandLock) {
-            completion.reset()
-            action()
-        }
+        completion.reset()
+        action()
     }
 }
