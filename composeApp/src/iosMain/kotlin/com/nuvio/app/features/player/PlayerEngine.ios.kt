@@ -200,6 +200,10 @@ actual fun PlatformPlayerSurface(
                 }
             }
 
+            override fun applyAudioLanguagePreferences(languages: List<String>) {
+                bridge.applyAudioLanguagePreferences(languages)
+            }
+
             override fun selectSubtitleTrack(index: Int) {
                 if (index < 0) {
                     bridge.selectSubtitleTrack(-1) // disable

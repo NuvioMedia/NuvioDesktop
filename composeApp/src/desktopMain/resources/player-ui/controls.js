@@ -26,6 +26,7 @@ const toggleLabel = document.getElementById("toggleLabel");
 const nextEpisodeButton = document.getElementById("nextEpisodeButton");
 const nextEpisodeButtonLabel = document.getElementById("nextEpisodeButtonLabel");
 const fullscreenButton = document.getElementById("fullscreenButton");
+const pipButton = document.getElementById("pipButton");
 const fullscreenIcon = document.getElementById("fullscreenIcon");
 const title = document.getElementById("title");
 const episode = document.getElementById("episode");
@@ -172,6 +173,7 @@ let state = {
   episodeText: "",
   streamTitle: "",
   providerName: "",
+  pauseOverlayEnabled: false,
   pauseOverlayWatchingLabel: "You're watching",
   pauseOverlayLogo: "",
   pauseOverlayEpisodeInfo: "",
@@ -189,6 +191,8 @@ let state = {
   playLabel: "Play",
   pauseLabel: "Pause",
   closeLabel: "Close player",
+  lockLabel: "Lock player controls",
+  unlockLabel: "Unlock player controls",
   submitIntroLabel: "Submit Intro",
   videoSettingsLabel: "Video settings",
   playbackErrorTitle: "Playback error",
@@ -248,6 +252,7 @@ let state = {
   onLabel: "On",
   offLabel: "Off",
   themeAccentColor: "#2f6fed",
+  themeAccentGradientColors: [],
   themeAccentStrongColor: "#3c7bff",
   themeOnAccentColor: "#fff",
   themeFocusColor: "#9ecaff",
@@ -370,6 +375,8 @@ let lastNativeIsPlaying = true;
 let suppressNextPointerToggleClick = false;
 let pendingCustomSubtitleStyling = null;
 let pendingCustomSubtitleStylingTimer = 0;
+let pendingSpeedIndex = null;
+let pendingSpeedTimer = 0;
 let submitIntroDraft = {
   contentKey: "",
   segmentType: "intro",
@@ -405,6 +412,40 @@ let playerToastTimer = 0;
 let playerToastToken = 0;
 let pendingSettingToastCommand = "";
 let pendingSettingToastToken = 0;
+let isPipLocked = false;
+const pipLockButton = document.getElementById("pipLockButton");
+const pipLockOverlay = document.getElementById("pipLockOverlay");
+const pipLockBadge = document.getElementById("pipLockBadge");
+const pipLockLabel = () => String(state.lockLabel || "Lock player controls").trim();
+const pipUnlockLabel = () => String(state.unlockLabel || "Unlock player controls").trim();
+const syncPipLockLabels = () => {
+  const lockLabel = isPipLocked ? pipUnlockLabel() : pipLockLabel();
+  if (pipLockButton) {
+    pipLockButton.setAttribute("aria-label", lockLabel);
+    pipLockButton.setAttribute("title", lockLabel);
+  }
+  if (pipLockBadge) {
+    const unlockLabel = pipUnlockLabel();
+    pipLockBadge.setAttribute("aria-label", unlockLabel);
+    pipLockBadge.setAttribute("title", unlockLabel);
+  }
+};
+const setPipLocked = locked => {
+  isPipLocked = locked;
+  root.classList.toggle("pip-locked", locked);
+  if (pipLockButton) {
+    pipLockButton.setAttribute("aria-pressed", String(locked));
+    const useEl = pipLockButton.querySelector("use");
+    if (useEl) useEl.setAttribute("href", locked ? "#icon-lock-open" : "#icon-lock");
+  }
+  if (pipLockOverlay) {
+    pipLockOverlay.setAttribute("aria-hidden", "true");
+  }
+  if (pipLockBadge) {
+    pipLockBadge.hidden = !locked;
+  }
+  syncPipLockLabels();
+};
 const prefersReducedMotion = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const modalTransitionMs = prefersReducedMotion ? 1 : 240;
@@ -498,9 +539,12 @@ const clampVolumeLevel = level => Math.max(0, Math.min(maxVolumeLevel, level));
 const volumeToastLabel = (fallbackDelta = 0) => {
   const volumeLevel = state.volumeLevel;
   if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
-    return `Volume ${Math.round(clampVolumeLevel(volumeLevel) * 100)}%`;
+    const percent = Math.round(clampVolumeLevel(volumeLevel) * 100);
+    const mutedStr = state.mutedLabel || "";
+    const volumeFormat = state.volumeLevelLabelFormat || "";
+    return percent === 0 ? mutedStr : volumeFormat.replace("%s", `${percent}%`).replace("%1$s", `${percent}%`);
   }
-  return fallbackDelta < 0 ? "Volume down" : "Volume up";
+  return "";
 };
 
 const syncVolumeControl = () => {
@@ -510,7 +554,9 @@ const syncVolumeControl = () => {
   const clampedLevel = hasLevel ? clampVolumeLevel(volumeLevel) : 1;
   const percent = Math.round(clampedLevel * 100);
   const sliderPosition = Math.round((clampedLevel / maxVolumeLevel) * 100);
-  const label = `Volume ${percent}%`;
+  const mutedStr = state.mutedLabel || "";
+  const volumeFormat = state.volumeLevelLabelFormat || "";
+  const label = percent === 0 ? mutedStr : volumeFormat.replace("%s", `${percent}%`).replace("%1$s", `${percent}%`);
   volumeControl.style.setProperty("--volume-position", `${sliderPosition}%`);
   volumeSlider.value = String(percent);
   volumeSlider.setAttribute("aria-label", label);
@@ -527,6 +573,7 @@ const syncVolumeControl = () => {
 const seekToastLabel = command => {
   if (command === "seekBack" || command === "keyboardSeekBack") return "-10s";
   if (command === "seekForward" || command === "keyboardSeekForward") return "+10s";
+  if (command === "pictureInPicture" || command === "pip") return state.pipLabel || "";
   return "";
 };
 
@@ -687,6 +734,16 @@ const cssColorOrFallback = (value, fallback) => {
 
 const applyTheme = () => {
   const style = document.documentElement.style;
+  const gradientColors = Array.isArray(state.themeAccentGradientColors)
+    ? state.themeAccentGradientColors.map(color => cssColorOrFallback(color, "")).filter(Boolean)
+    : [];
+  if (gradientColors.length > 1) {
+    style.setProperty("--theme-accent-gradient", `linear-gradient(to right, ${gradientColors.join(", ")})`);
+    style.setProperty("--theme-accent-gradient-vertical", `linear-gradient(to bottom, ${gradientColors.join(", ")})`);
+  } else {
+    style.removeProperty("--theme-accent-gradient");
+    style.removeProperty("--theme-accent-gradient-vertical");
+  }
   const setColor = (name, value, fallback) => {
     style.setProperty(name, cssColorOrFallback(value, fallback));
   };
@@ -1110,6 +1167,12 @@ const appendSubtitleLanguageRow = item => {
     pendingSubtitleOptionId = options.some(option => option.id === pendingSubtitleOptionId) ? pendingSubtitleOptionId : "";
     if (item.key === "__off__") send("selectBuiltInSubtitleTrack", -1);
     renderSubtitleModal();
+    if (event.detail === 0 && item.key !== "__off__") {
+      window.requestAnimationFrame(() => {
+        const firstOption = addonSubtitleList.querySelector('.track-row:not([disabled]):not([hidden])');
+        if (firstOption) firstOption.focus();
+      });
+    }
   });
   const label = document.createElement("span");
   label.className = "track-label";
@@ -2181,11 +2244,13 @@ const renderChrome = () => {
   const positionMs = isScrubbing ? scrubPositionMs : Math.max(0, Number(state.positionMs) || 0);
   const isPlaying = Boolean(state.isPlaying);
   const showError = renderPlaybackError();
+  root.classList.toggle("pip-mode", Boolean(state.isInPip));
+  if (!state.isInPip && isPipLocked) setPipLocked(false);
   root.classList.toggle("chrome-hidden", Boolean(showError || !state.controlsVisible));
   root.classList.toggle("source-visible", Boolean(!showError && !isPlaying && !state.isLoading && (state.streamTitle || state.providerName)));
   syncHiddenCursor();
   const showOpening = renderOpeningOverlay(showError);
-  renderPauseMetadataOverlay(showOpening || showError);
+  if (state.pauseOverlayEnabled || showError) renderPauseMetadataOverlay(showOpening || showError);
   syncParentalGuide(showOpening || showError);
 
   title.textContent = state.title || "";
@@ -2204,6 +2269,13 @@ const renderChrome = () => {
   setActionButtonLabel("audio", state.audioLabel || "Audio");
   setActionButtonLabel("sources", state.sourcesLabel || "Sources");
   setActionButtonLabel("episodes", state.episodesLabel || "Episodes");
+  if (pipButton) {
+    const pipLabel = String(state.pipLabel || "").trim();
+    pipButton.setAttribute("aria-label", pipLabel);
+    pipButton.setAttribute("title", pipLabel);
+    pipButton.hidden = !pipLabel;
+  }
+  syncPipLockLabels();
   const showBuffering = Boolean(!showError && state.isLoading && !activeModal && !showOpening);
   bufferingStatus.classList.toggle("visible", showBuffering);
   bufferingStatus.setAttribute("aria-hidden", showBuffering ? "false" : "true");
@@ -2384,8 +2456,6 @@ const actionShortcutCommandForEvent = event => {
       return "sources";
     case "KeyE":
       return "episodes";
-    case "KeyP":
-      return "keyboardToggle";
     default:
       return "";
   }
@@ -2874,7 +2944,8 @@ seek.addEventListener("change", () => {
   render();
 });
 
-volumeSlider.addEventListener("input", () => {
+volumeSlider.addEventListener("input", event => {
+  if (event && !event.isTrusted) return;
   noteChromeActivity();
   const percent = Math.max(0, Math.min(maxVolumeLevel * 100, Number(volumeSlider.value) || 0));
   const nextLevel = percent / 100;
@@ -2883,6 +2954,7 @@ volumeSlider.addEventListener("input", () => {
     preMuteVolumeLevel = nextLevel;
   }
   syncVolumeControl();
+  showPlayerToast(volumeToastLabel());
   send("volumeChange", nextLevel);
 });
 
@@ -2957,7 +3029,7 @@ window.playerControls = nextState => {
   const currentPlaybackState = pendingIsPlaying === null
     ? state.isPlaying
     : pendingIsPlaying;
-  const currentVolumeLevel = state.volumeLevel;
+  const currentVolumeLevel = hasReceivedPlayerControls ? state.volumeLevel : undefined;
   state = {
     ...state,
     ...nextState,
@@ -3131,7 +3203,7 @@ root.addEventListener("contextmenu", event => {
 });
 
 root.addEventListener("pointerdown", event => {
-  if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
+  if (state.isInPip || playbackErrorText() || isControlsSurfaceEvent(event)) return;
   if (event.button !== 0) return;
 
   rootPointerStartX = event.clientX;
@@ -3167,6 +3239,7 @@ window.addEventListener("pointercancel", () => {
 
 root.addEventListener("click", event => {
   if (event.button !== 0) return;
+  if (isPipLocked) return;
   if (suppressNextRootClick) {
     suppressNextRootClick = false;
     window.clearTimeout(tapTimer);
@@ -3181,11 +3254,40 @@ root.addEventListener("click", event => {
   }, 220);
 });
 
+root.addEventListener("pointerdown", event => {
+  if (!state.isInPip || event.button !== 0) return;
+  if (event.target.closest("button, input, select, textarea, [data-command], a, #seek, .volume-control, .pip-lock-badge")) return;
+  event.preventDefault();
+  if (event.target && event.target.releasePointerCapture) {
+    try { event.target.releasePointerCapture(event.pointerId); } catch (_) {}
+  }
+  send("dragWindow", 0);
+});
+
+if (pipLockButton) {
+  pipLockButton.addEventListener("click", () => {
+    setPipLocked(!isPipLocked);
+  });
+}
+
+if (pipLockBadge) {
+  pipLockBadge.addEventListener("click", event => {
+    event.stopPropagation();
+    setPipLocked(false);
+  });
+}
+
+
 root.addEventListener("dblclick", event => {
   if (event.button !== 0) return;
+  if (isPipLocked) return;
   if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
   event.preventDefault();
   window.clearTimeout(tapTimer);
+  if (state.isInPip) {
+    send("pictureInPicture", 0);
+    return;
+  }
   togglePlayerFullscreen();
 });
 
@@ -3235,7 +3337,9 @@ document.addEventListener("keydown", event => {
   if (event.key === "Escape") {
     clearSpaceHoldTimerAndStopSpeedBoost();
     event.preventDefault();
-    if (state.isFullscreen) {
+    if (state.isInPip) {
+      send("pictureInPicture", 0);
+    } else if (state.isFullscreen) {
       togglePlayerFullscreen();
     } else {
       send("back", 0);
@@ -3244,7 +3348,8 @@ document.addEventListener("keydown", event => {
   }
   if (playbackErrorText()) return;
   const isMacFullscreenShortcut = event.code === "KeyF" && event.metaKey && event.ctrlKey && !event.altKey;
-  if (event.code === "F11" || isMacFullscreenShortcut) {
+  const isPlainKeyF = event.code === "KeyF" && !event.metaKey && !event.ctrlKey && !event.altKey;
+  if (event.code === "F11" || isMacFullscreenShortcut || (isPlainKeyF && !isTextEntryTarget(event.target))) {
     clearSpaceHoldTimerAndStopSpeedBoost();
     event.preventDefault();
     focusShortcutRoot();
@@ -3255,9 +3360,292 @@ document.addEventListener("keydown", event => {
     clearSpaceHoldTimerAndStopSpeedBoost();
     return;
   }
-  if (activeModal || isTextEntryTarget(event.target)) {
+  if (isTextEntryTarget(event.target)) {
     return;
   }
+
+  if ((activeModal === "episodes" || activeModal === "sources") && (event.code === "ArrowLeft" || event.code === "ArrowRight")) {
+    const chips = Array.from(document.querySelectorAll('.filter-chip:not([hidden])')).filter(el => el.offsetWidth > 0 || el.offsetHeight > 0);
+    if (chips.length > 0) {
+      let selectedIndex = chips.findIndex(el => el.classList.contains('selected'));
+      if (selectedIndex === -1) selectedIndex = 0;
+      let nextIndex = selectedIndex;
+      if (event.code === "ArrowRight") {
+        nextIndex = selectedIndex < chips.length - 1 ? selectedIndex + 1 : 0;
+      } else {
+        nextIndex = selectedIndex > 0 ? selectedIndex - 1 : chips.length - 1;
+      }
+      if (nextIndex !== selectedIndex) {
+        event.preventDefault();
+        chips[nextIndex].click();
+      }
+      return;
+    }
+  }
+
+  if (activeModal === "audio" && (event.code === "ArrowUp" || event.code === "ArrowDown")) {
+    event.preventDefault();
+    if (state.audioTracks && state.audioTracks.length > 0) {
+      const currentIndex = state.audioTracks.findIndex(t => t.selected);
+      let nextIndex = currentIndex;
+      if (event.code === "ArrowUp") {
+        nextIndex = currentIndex > 0 ? currentIndex - 1 : state.audioTracks.length - 1;
+      } else {
+        nextIndex = currentIndex >= 0 && currentIndex < state.audioTracks.length - 1 ? currentIndex + 1 : 0;
+      }
+      if (nextIndex !== currentIndex && nextIndex >= 0) {
+        send("selectAudioTrack", trackIdValue(state.audioTracks[nextIndex]));
+      }
+    }
+    return;
+  }
+
+  if (activeModal === "speed" && (event.code === "ArrowUp" || event.code === "ArrowDown")) {
+    event.preventDefault();
+    const currentSpeedStr = String(state.playbackSpeedLabel || "1x");
+    let currentIndex = pendingSpeedIndex !== null ? pendingSpeedIndex : speedOptions.findIndex(o => currentSpeedStr.startsWith(o.label.split(" ")[0]));
+    if (currentIndex >= 0) {
+      if (event.code === "ArrowUp") {
+        currentIndex = currentIndex > 0 ? currentIndex - 1 : speedOptions.length - 1;
+      } else {
+        currentIndex = currentIndex < speedOptions.length - 1 ? currentIndex + 1 : 0;
+      }
+      pendingSpeedIndex = currentIndex;
+      window.clearTimeout(pendingSpeedTimer);
+      pendingSpeedTimer = window.setTimeout(() => pendingSpeedIndex = null, 1000);
+      queueSettingToast("speed");
+      send("setPlaybackSpeed", speedOptions[currentIndex].value);
+    }
+    return;
+  }
+
+  if (activeModal && event.code.startsWith("Arrow") && (!document.activeElement || document.activeElement.tagName === "BODY" || document.activeElement === root)) {
+    let items;
+    if (activeModal === "subtitles") {
+      items = Array.from(document.querySelectorAll('.subtitle-language-row:not([disabled]):not([hidden])'))
+        .filter(el => el.offsetWidth > 0 || el.offsetHeight > 0);
+    } else {
+      items = Array.from(document.querySelectorAll('.track-row:not([disabled]):not([hidden])'))
+        .filter(el => el.offsetWidth > 0 || el.offsetHeight > 0);
+    }
+    if (items.length) {
+      let selectedIndex = items.findIndex(el => el.classList.contains('selected'));
+      if (selectedIndex === -1) selectedIndex = 0;
+      let nextIndex = selectedIndex;
+      if (event.code === 'ArrowDown' || event.code === 'ArrowRight') {
+        nextIndex = selectedIndex < items.length - 1 ? selectedIndex + 1 : 0;
+      } else if (event.code === 'ArrowUp' || event.code === 'ArrowLeft') {
+        nextIndex = selectedIndex > 0 ? selectedIndex - 1 : items.length - 1;
+      }
+      event.preventDefault();
+      items[nextIndex].focus();
+      return;
+    }
+  }
+
+  if (activeModal && event.code.startsWith("Arrow") && document.activeElement && document.activeElement.tagName !== "BODY" && document.activeElement !== root) {
+    const modalEl = modalByName[activeModal];
+    if (!modalEl) return;
+    const focusable = Array.from(modalEl.querySelectorAll('button:not([disabled]):not([hidden]), input:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'))
+      .filter(el => el.offsetWidth > 0 || el.offsetHeight > 0);
+    if (focusable.length) {
+      const currentIndex = focusable.indexOf(document.activeElement);
+      if (currentIndex >= 0) {
+        if (event.code === 'ArrowRight' || event.code === 'ArrowDown') {
+          event.preventDefault();
+          const next = (currentIndex + 1) % focusable.length;
+          focusable[next].focus();
+          return;
+        }
+        if (event.code === 'ArrowLeft' || event.code === 'ArrowUp') {
+          event.preventDefault();
+          const next = currentIndex > 0 ? currentIndex - 1 : focusable.length - 1;
+          focusable[next].focus();
+          return;
+        }
+      }
+    }
+  }
+
+  if (event.code === "Backquote") {
+    event.preventDefault();
+    if (activeModal === "speed") closePlayerModal(true);
+    else openPlayerModal("speed");
+    return;
+  }
+
+  if (event.code === "KeyA") {
+    event.preventDefault();
+    if (activeModal === "audio") closePlayerModal(true);
+    else openPlayerModal("audio");
+    return;
+  }
+  if (event.code === "KeyS") {
+    event.preventDefault();
+    if (activeModal === "subtitles") closePlayerModal(true);
+    else openPlayerModal("subtitles");
+    return;
+  }
+  if (event.code === "KeyE") {
+    event.preventDefault();
+    if (activeModal === "episodes") {
+      closePlayerModal(true);
+    } else {
+      episodeStreamFilterId = "";
+      openPlayerModal("episodes");
+      send("episodes", 0);
+    }
+    return;
+  }
+  if (event.code === "KeyQ") {
+    event.preventDefault();
+    if (activeModal === "sources") {
+      closePlayerModal(true);
+    } else {
+      sourceFilterId = "";
+      openPlayerModal("sources");
+      send("sources", 0);
+    }
+    return;
+  }
+
+  if (activeModal) {
+    return;
+  }
+
+  if (event.code === "Enter" && state.skipPromptVisible) {
+    const activeEl = document.activeElement;
+    if (!activeEl || activeEl.tagName === "BODY" || activeEl === root) {
+      event.preventDefault();
+      send("skipInterval", 0);
+      return;
+    }
+  }
+  if (event.shiftKey && event.code === "KeyN") {
+    event.preventDefault();
+    send("playNextEpisode", 0);
+    return;
+  }
+  if (event.code === "KeyB") {
+    event.preventDefault();
+    if (state.audioTracks && state.audioTracks.length > 0) {
+      const currentIndex = state.audioTracks.findIndex(t => t.selected);
+      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % state.audioTracks.length : 0;
+      send("selectAudioTrack", trackIdValue(state.audioTracks[nextIndex]));
+    }
+    return;
+  }
+  if (event.code === "KeyV") {
+    event.preventDefault();
+    const isOff = !normalizeTracks(state.subtitleTracks).some(t => t.selected);
+    if (isOff) {
+      if (window.lastActiveSubtitle) {
+        if (window.lastActiveSubtitle.kind === "builtIn") send("selectBuiltInSubtitleTrack", window.lastActiveSubtitle.index);
+        else send("selectAddonSubtitle", window.lastActiveSubtitle.index);
+      } else {
+        const options = subtitleSelectionOptions();
+        if (options.length > 0) {
+          if (options[0].kind === "builtIn") send("selectBuiltInSubtitleTrack", options[0].index);
+          else send("selectAddonSubtitle", options[0].index);
+        } else if (state.subtitleTracks && state.subtitleTracks.length > 0) {
+          send("selectBuiltInSubtitleTrack", state.subtitleTracks[0].index);
+        }
+      }
+    } else {
+      const activeOption = selectedSubtitleOption(subtitleSelectionOptions());
+      if (activeOption) {
+        window.lastActiveSubtitle = activeOption;
+      } else {
+        const activeTrack = normalizeTracks(state.subtitleTracks).find(t => t.selected);
+        if (activeTrack) window.lastActiveSubtitle = { kind: "builtIn", index: activeTrack.index };
+      }
+      send("selectBuiltInSubtitleTrack", -1);
+    }
+    return;
+  }
+  if (event.code === "KeyG") {
+    event.preventDefault();
+    send("subtitleDelayDelta", -100);
+    return;
+  }
+  if (event.code === "KeyH") {
+    event.preventDefault();
+    send("subtitleDelayDelta", 100);
+    return;
+  }
+  if (event.code === "KeyM") {
+    event.preventDefault();
+    if (state.volumeLevel > 0) {
+      preMuteVolumeLevel = state.volumeLevel;
+      state.volumeLevel = 0;
+    } else {
+      state.volumeLevel = preMuteVolumeLevel > 0 ? preMuteVolumeLevel : 1.0;
+    }
+    syncVolumeControl();
+    send("volumeChangeTemporary", state.volumeLevel);
+    showPlayerToast(volumeToastLabel(0), { icon: state.volumeLevel > 0 ? "icon-volume" : "icon-volume-muted" });
+    return;
+  }
+  if (event.code === "KeyO") {
+    event.preventDefault();
+    const style = state.subtitleStyle || {};
+    const currentOpacity = Math.round((parseArgb(style.textColor).alpha / 255) * 100);
+    if (currentOpacity > 50) {
+      window.lastSubtitleOpacity = currentOpacity;
+      send("subtitleTextOpacity", 50);
+    } else {
+      send("subtitleTextOpacity", window.lastSubtitleOpacity && window.lastSubtitleOpacity > 50 ? window.lastSubtitleOpacity : 100);
+    }
+    return;
+  }
+  if (event.code === "KeyP") {
+    event.preventDefault();
+    send("pictureInPicture", 0);
+    return;
+  }
+  if (event.code === "KeyI") {
+    event.preventDefault();
+    const style = state.subtitleStyle || {};
+    const currentOpacity = Math.round((parseArgb(style.textColor).alpha / 255) * 100);
+    send("subtitleTextOpacity", Math.max(0, currentOpacity - 10));
+    return;
+  }
+  if (event.shiftKey && event.code === "Comma") {
+    event.preventDefault();
+    const currentSpeedStr = String(state.playbackSpeedLabel || "1x");
+    let currentIndex = pendingSpeedIndex !== null ? pendingSpeedIndex : speedOptions.findIndex(o => currentSpeedStr.startsWith(o.label.split(" ")[0]));
+    if (currentIndex > 0) {
+      pendingSpeedIndex = currentIndex - 1;
+      window.clearTimeout(pendingSpeedTimer);
+      pendingSpeedTimer = window.setTimeout(() => pendingSpeedIndex = null, 1000);
+      queueSettingToast("speed");
+      send("setPlaybackSpeed", speedOptions[pendingSpeedIndex].value);
+    }
+    return;
+  }
+  if (event.shiftKey && event.code === "Period") {
+    event.preventDefault();
+    const currentSpeedStr = String(state.playbackSpeedLabel || "1x");
+    let currentIndex = pendingSpeedIndex !== null ? pendingSpeedIndex : speedOptions.findIndex(o => currentSpeedStr.startsWith(o.label.split(" ")[0]));
+    if (currentIndex >= 0 && currentIndex < speedOptions.length - 1) {
+      pendingSpeedIndex = currentIndex + 1;
+      window.clearTimeout(pendingSpeedTimer);
+      pendingSpeedTimer = window.setTimeout(() => pendingSpeedIndex = null, 1000);
+      queueSettingToast("speed");
+      send("setPlaybackSpeed", speedOptions[pendingSpeedIndex].value);
+    }
+    return;
+  }
+  if (event.code === "Slash") {
+    event.preventDefault();
+    pendingSpeedIndex = speedOptions.findIndex(o => o.value === 1.0);
+    window.clearTimeout(pendingSpeedTimer);
+    pendingSpeedTimer = window.setTimeout(() => pendingSpeedIndex = null, 1000);
+    queueSettingToast("speed");
+    send("setPlaybackSpeed", 1.0);
+    return;
+  }
+
   if (event.code === "Space") {
     event.preventDefault();
     if (event.repeat) {

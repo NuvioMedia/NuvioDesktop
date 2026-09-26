@@ -1849,13 +1849,18 @@ JNIEXPORT jfloat JNICALL NP(speed)(JNIEnv *, jobject, jlong handle) {
 JNIEXPORT void JNICALL NP(setResizeMode)(JNIEnv *, jobject, jlong handle, jint mode) {
     Player *p = asPlayer(handle);
     if (!p) return;
-    // 0 fit, 1 fill/zoom, 2 fixed-width, 3 stretch (best-effort mpv mapping)
+    // 0 fit, 1 fill, 2 zoom, 3 stretch
     switch (mode) {
-        case 3: mpv_set_option_string(p->mpv, "keepaspect", "no"); break;
-        case 1: mpv_set_option_string(p->mpv, "keepaspect", "yes");
-                mpv_set_option_string(p->mpv, "panscan", "1.0"); break;
-        default: mpv_set_option_string(p->mpv, "keepaspect", "yes");
-                 mpv_set_option_string(p->mpv, "panscan", "0.0"); break;
+        case 3: mpv_set_property_string(p->mpv, "keepaspect", "no");
+                mpv_set_property_string(p->mpv, "panscan", "0.0");
+                mpv_set_property_string(p->mpv, "video-unscaled", "no"); break;
+        case 1:
+        case 2: mpv_set_property_string(p->mpv, "keepaspect", "yes");
+                mpv_set_property_string(p->mpv, "panscan", "1.0");
+                mpv_set_property_string(p->mpv, "video-unscaled", "no"); break;
+        default: mpv_set_property_string(p->mpv, "keepaspect", "yes");
+                 mpv_set_property_string(p->mpv, "panscan", "0.0");
+                 mpv_set_property_string(p->mpv, "video-unscaled", "no"); break;
     }
 }
 
@@ -2018,6 +2023,9 @@ JNIEXPORT void JNICALL NP(shutdownWebView2Warmup)(JNIEnv *, jobject) {
 JNIEXPORT jboolean JNICALL NP(setWindowsDisplaySleepInhibited)(JNIEnv *, jobject, jboolean) {
     return JNI_FALSE;
 }
+JNIEXPORT void JNICALL NP(beginWindowDrag)(JNIEnv *, jobject, jlong) {}
+JNIEXPORT void JNICALL NP(setWindowResizable)(JNIEnv *, jobject, jlong, jboolean) {}
+JNIEXPORT void JNICALL NP(reparentSurfaceNative)(JNIEnv *, jobject, jlong, jlong) {}
 
 #undef NP
 } // extern "C"

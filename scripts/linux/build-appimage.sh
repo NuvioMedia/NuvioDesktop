@@ -70,7 +70,7 @@ mkdir -p "$app_dir"
 cp -a "$app_root"/. "$app_dir/"
 
 desktop_file="$app_dir/${NUVIO_LINUX_SHORTCUT_NAME}.desktop"
-nuvio_linux_write_desktop_entry_file "$desktop_file" "AppRun" "$NUVIO_LINUX_SHORTCUT_NAME"
+nuvio_linux_write_desktop_entry_file "$desktop_file" "AppRun %u" "$NUVIO_LINUX_SHORTCUT_NAME"
 if [[ -n "$website_url" ]]; then
     printf 'X-AppImage-Website=%s\n' "$website_url" >> "$desktop_file"
 fi

@@ -52,6 +52,7 @@ import com.nuvio.app.core.ui.expandingWideArtworkWidthDp
 import com.nuvio.app.core.ui.dominantBackdropBlendColor
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.kmpalette.extensions.painter.rememberPainterDominantColorState
+import com.nuvio.app.core.ui.platformPhysicalTopInset
 import com.nuvio.app.isIos
 import com.nuvio.app.isDesktop
 import dev.chrisbanes.haze.HazeInputScale
@@ -409,7 +410,7 @@ private fun LegacyTabletStreamsLayout(
                     .weight(0.6f)
                     .fillMaxHeight()
                     .padding(
-                        top = if (isIos) 20.dp else 60.dp,
+                        top = if (isIos) platformPhysicalTopInset() + 60.dp else 60.dp,
                         end = 12.dp,
                         bottom = 12.dp,
                     ),

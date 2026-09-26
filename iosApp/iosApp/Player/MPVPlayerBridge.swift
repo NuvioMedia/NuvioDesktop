@@ -155,6 +155,9 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
     }
 
     func selectAudioTrack(trackId: Int32) { playerVC?.selectAudio(Int(trackId)) }
+    func applyAudioLanguagePreferences(languages: [String]) {
+        ensurePlayerViewController().applyAudioLanguagePreferences(languages)
+    }
     func selectSubtitleTrack(trackId: Int32) { playerVC?.selectSubtitle(Int(trackId)) }
     func setSubtitleUrl(url: String) { playerVC?.addSubtitleUrl(url) }
     func clearExternalSubtitle() { playerVC?.removeExternalSubtitles() }
@@ -268,6 +271,7 @@ final class MPVPlayerViewController: UIViewController {
     private lazy var eventQueue = DispatchQueue(label: "mpv-events", qos: .userInitiated)
     private var recentPlaybackLogs: [String] = []
     private var activeRequestHeaders: [String: String] = [:]
+    private var preferredAudioLanguages: [String] = []
 
     // Cached track lists
     var audioTracks: [TrackInfo] = []
@@ -344,12 +348,25 @@ final class MPVPlayerViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        SystemUI.shared.playerDidBecomeVisible(self)
         refreshImmersiveSystemUI()
         becomeFirstResponder()
         UIApplication.shared.beginReceivingRemoteControlEvents()
         publishCachedNowPlayingInfoIfNeeded()
         syncVideoSurfaceLayout()
         attemptStartPendingLoad()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        SystemUI.shared.playerDidBecomeHidden(self)
+        super.viewWillDisappear(animated)
+    }
+
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        if parent == nil {
+            SystemUI.shared.playerDidBecomeHidden(self)
+        }
     }
 
     override func viewSafeAreaInsetsDidChange() {
@@ -483,12 +500,14 @@ final class MPVPlayerViewController: UIViewController {
         checkError(mpv_set_option_string(mpv, "video-rotate", "no"))
         checkError(mpv_set_option_string(mpv, "subs-match-os-language", "yes"))
         checkError(mpv_set_option_string(mpv, "subs-fallback", "yes"))
+        configureBundledSubtitleFont()
         checkError(mpv_set_option_string(mpv, "keep-open", "yes"))
         checkError(mpv_set_option_string(mpv, "target-colorspace-hint", "yes"))
         checkError(mpv_set_option_string(mpv, "tone-mapping", "auto"))
         checkError(mpv_set_option_string(mpv, "hdr-compute-peak", "yes"))
 
         checkError(mpv_initialize(mpv))
+        applyAudioLanguagePreferences(preferredAudioLanguages)
 
         // Observe properties
         mpv_observe_property(mpv, 0, "pause", MPV_FORMAT_FLAG)
@@ -496,12 +515,30 @@ final class MPVPlayerViewController: UIViewController {
         mpv_observe_property(mpv, 0, "core-idle", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "eof-reached", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "seeking", MPV_FORMAT_FLAG)
-        mpv_observe_property(mpv, 0, "track-list/count", MPV_FORMAT_INT64)
+        mpv_observe_property(mpv, 0, "track-list", MPV_FORMAT_NODE)
+        mpv_observe_property(mpv, 0, "aid", MPV_FORMAT_INT64)
 
         mpv_set_wakeup_callback(mpv, { ctx in
             let vc = unsafeBitCast(ctx, to: MPVPlayerViewController.self)
             vc.readEvents()
         }, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
+    }
+
+    private func configureBundledSubtitleFont() {
+        guard let fontURL = Bundle.main.url(
+            forResource: "NotoSansCJKsc-Regular",
+            withExtension: "otf"
+        ) else {
+            print("[MPV] Bundled CJK subtitle font is missing")
+            return
+        }
+
+        let fontDirectory = fontURL.deletingLastPathComponent().path
+        fontDirectory.withCString { path in
+            checkError(mpv_set_option_string(mpv, "sub-fonts-dir", path))
+        }
+        checkError(mpv_set_option_string(mpv, "sub-font", "Noto Sans CJK SC"))
+        print("[MPV] Using bundled CJK subtitle font: \(fontURL.lastPathComponent)")
     }
 
     private func setupNotifications() {
@@ -572,6 +609,7 @@ final class MPVPlayerViewController: UIViewController {
         applyRequestHeaders(sanitizedHeaders)
         isPlayerLoading = true
         isPlayerEnded = false
+        applyAudioLanguagePreferences(preferredAudioLanguages)
         command("loadfile", args: [request.urlString, "replace"])
         if let audioUrl = request.audioUrl, !audioUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
@@ -725,6 +763,16 @@ final class MPVPlayerViewController: UIViewController {
         mpv_set_property(mpv, "aid", MPV_FORMAT_INT64, &id)
     }
 
+    func applyAudioLanguagePreferences(_ languages: [String]) {
+        preferredAudioLanguages = languages
+        guard mpv != nil else { return }
+        setStringProperty("alang", languages.joined(separator: ","))
+        if let currentId = getString("aid"), Int(currentId) != nil {
+            setStringProperty("aid", currentId)
+        }
+        setStringProperty("aid", "auto")
+    }
+
     func selectSubtitle(_ trackId: Int) {
         guard mpv != nil else { return }
         if trackId < 0 {
@@ -849,7 +897,7 @@ final class MPVPlayerViewController: UIViewController {
     private func activateAudioSessionForPlayback() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .moviePlayback)
+            try session.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
             try session.setActive(true)
         } catch {
             print("[NowPlaying] Failed to activate audio session: \(error)")

@@ -210,6 +210,13 @@ fun IosHardwareDecoderMode.localizedLabel(): String = when (this) {
     else -> label
 }
 
+internal data class PlaybackKey(
+    val sourceIdentity: String,
+    val videoId: String?,
+    val seasonNumber: Int?,
+    val episodeNumber: Int?,
+)
+
 data class PlayerPlaybackSnapshot(
     val isLoading: Boolean = true,
     val isPlaying: Boolean = false,

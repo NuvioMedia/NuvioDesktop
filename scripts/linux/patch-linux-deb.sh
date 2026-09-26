@@ -48,6 +48,8 @@ fi
 if ! nuvio_linux_desktop_entry_exists "$work_dir"; then
     nuvio_linux_write_desktop_entry "$work_dir"
 fi
+nuvio_linux_ensure_startup_wm_class "$work_dir"
+nuvio_linux_ensure_uri_handler "$work_dir"
 
 depends="$(dpkg-deb -f "$deb" Depends)"
 for dependency in "${NUVIO_LINUX_DEB_RUNTIME_DEPENDENCIES[@]}"; do

@@ -17,6 +17,7 @@ interface PlayerEngineController {
     fun setMuted(muted: Boolean) {}
     fun getAudioTracks(): List<AudioTrack>
     fun getSubtitleTracks(): List<SubtitleTrack>
+    fun applyAudioLanguagePreferences(languages: List<String>)
     fun selectAudioTrack(index: Int)
     fun selectSubtitleTrack(index: Int)
     fun setSubtitleUri(url: String)
@@ -57,6 +58,7 @@ enum class PlayerControlsAction {
     KeyboardSeekForward,
     KeyboardVolumeDown,
     KeyboardVolumeUp,
+    PictureInPicture,
     ResizeMode,
     Speed,
     Subtitles,
@@ -76,6 +78,7 @@ data class PlayerControlsState(
     val episodeText: String = "",
     val streamTitle: String = "",
     val providerName: String = "",
+    val pauseOverlayEnabled: Boolean = true,
     val pauseOverlayWatchingLabel: String = "You're watching",
     val pauseOverlayLogo: String? = null,
     val pauseOverlayEpisodeInfo: String = "",
@@ -92,11 +95,17 @@ data class PlayerControlsState(
     val playLabel: String = "Play",
     val pauseLabel: String = "Pause",
     val closeLabel: String = "Close player",
+    val mutedLabel: String = "",
+    val volumeLevelLabelFormat: String = "",
     val lockLabel: String = "Lock player controls",
     val unlockLabel: String = "Unlock player controls",
     val submitIntroLabel: String = "Submit Intro",
     val videoSettingsLabel: String = "Video settings",
     val tapToUnlockLabel: String = "Tap to unlock",
+    val pipLabel: String = "",
+    val pipPlaceholderTitle: String = "",
+    val pipRestoreLabel: String = "",
+    val pipWindowTitle: String = "",
     val playbackErrorTitle: String = "Playback error",
     val playbackErrorMessage: String = "",
     val playbackErrorActionLabel: String = "Go back",
@@ -155,6 +164,7 @@ data class PlayerControlsState(
     val onLabel: String = "On",
     val offLabel: String = "Off",
     val themeAccentColor: String = "#2f6fed",
+    val themeAccentGradientColors: List<String> = emptyList(),
     val themeAccentStrongColor: String = "#3c7bff",
     val themeOnAccentColor: String = "#ffffff",
     val themeFocusColor: String = "#9ecaff",

@@ -25,5 +25,6 @@ internal sealed interface PresenceSnapshot {
         val posterUrl: String?,
         val isPlaying: Boolean,
         val positionMs: Long,
+        val durationMs: Long,
     ) : PresenceSnapshot
 }

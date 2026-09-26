@@ -48,6 +48,7 @@ object StreamsRepository {
         "$type::$videoId::$season::$episode::$manualSelection"
 
     fun load(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
+        PluginRepository.setLocalPluginSearchPaused(false)
         load(
             type = type,
             videoId = videoId,
@@ -60,6 +61,7 @@ object StreamsRepository {
     }
 
     fun reload(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
+        PluginRepository.setLocalPluginSearchPaused(false)
         load(
             type = type,
             videoId = videoId,
@@ -128,6 +130,7 @@ object StreamsRepository {
             _uiState.value = StreamsUiState(
                 requestToken = requestToken,
                 isDirectAutoPlayFlow = true,
+                autoPlayDecided = true,
                 showDirectAutoPlayOverlay = true,
             )
         }
@@ -148,6 +151,7 @@ object StreamsRepository {
             _uiState.value = StreamsUiState(
                 requestToken = requestToken,
                 groups = listOf(presentedGroup),
+                autoPlayDecided = true,
                 activeAddonIds = setOf("embedded"),
                 isAnyLoading = false,
             )
@@ -170,6 +174,7 @@ object StreamsRepository {
                 requestToken = requestToken,
                 isAnyLoading = false,
                 emptyStateReason = StreamsEmptyStateReason.NoAddonsInstalled,
+                autoPlayDecided = true,
             )
             return
         }
@@ -177,13 +182,7 @@ object StreamsRepository {
         val streamAddons = installedAddons
             .mapNotNull { addon ->
                 val manifest = addon.manifest ?: return@mapNotNull null
-                val supportsRequestedStream = manifest.resources.any { resource ->
-                    resource.name == "stream" &&
-                        resource.types.contains(type) &&
-                        (resource.idPrefixes.isEmpty() ||
-                            resource.idPrefixes.any { videoId.startsWith(it) })
-                }
-                if (!supportsRequestedStream) return@mapNotNull null
+                if (!manifest.supportsStream(type, videoId)) return@mapNotNull null
 
                 InstalledStreamAddonTarget(
                     addonName = addon.displayTitle.ifBlank { manifest.name },
@@ -199,6 +198,7 @@ object StreamsRepository {
                 requestToken = requestToken,
                 isAnyLoading = false,
                 emptyStateReason = StreamsEmptyStateReason.NoCompatibleAddons,
+                autoPlayDecided = true,
             )
             return
         }
@@ -228,6 +228,7 @@ object StreamsRepository {
             isAnyLoading = isInitiallyLoading,
             emptyStateReason = null,
             isDirectAutoPlayFlow = isDirectAutoPlayFlow,
+            autoPlayDecided = true,
             showDirectAutoPlayOverlay = isDirectAutoPlayFlow,
         )
 
@@ -623,12 +624,14 @@ object StreamsRepository {
                 autoPlayCandidates = remaining,
                 isDirectAutoPlayFlow = remaining.isNotEmpty(),
                 showDirectAutoPlayOverlay = remaining.isNotEmpty(),
+                overlayMessage = null,
             )
         }
         return hasNext
     }
 
     fun cancelLoading() {
+        PluginRepository.setLocalPluginSearchPaused(true)
         activeJob?.cancel()
         activeJob = null
         _uiState.update { current ->
@@ -652,6 +655,7 @@ object StreamsRepository {
     }
 
     fun clear() {
+        PluginRepository.setLocalPluginSearchPaused(true)
         activeJob?.cancel()
         activeJob = null
         activeRequestKey = null
