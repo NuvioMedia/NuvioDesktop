@@ -3264,6 +3264,15 @@ root.addEventListener("pointerdown", event => {
   send("dragWindow", 0);
 });
 
+// macOS draws the video under a transparent title bar (native reports its height);
+// the controls web view covers it, so drags there must move the window explicitly.
+root.addEventListener("pointerdown", event => {
+  if (state.isInPip || event.button !== 0 || activeModal) return;
+  if (event.clientY >= (Number(window.nuvioTitlebarHeight) || 0)) return;
+  if (isChromeInteractionTarget(event.target)) return;
+  send("dragWindow", 0);
+});
+
 if (pipLockButton) {
   pipLockButton.addEventListener("click", () => {
     setPipLocked(!isPipLocked);
