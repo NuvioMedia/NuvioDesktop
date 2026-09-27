@@ -2191,6 +2191,53 @@ class LinuxVideoPlayerStateLifecycleTest {
         }
 
     @Test
+    fun `looping EOS poll preserves blocked public pause publication`() =
+        lifecycleTest {
+            val bridge = FakeBridge(blockPause = true)
+            val sourceReady = CountDownLatch(1)
+            val openCompleted = CountDownLatch(1)
+            val pauseCompleted = CountDownLatch(1)
+            val loopPollReserved = CountDownLatch(1)
+            val state =
+                LinuxVideoPlayerState(
+                    bridge,
+                    sourceReadyObserver = { _, _ -> sourceReady.countDown() },
+                    sourceOpenCompletedForTest = { _, _ -> openCompleted.countDown() },
+                    asyncOperationCompletedForTest = { name, _ ->
+                        if (name == "pause") pauseCompleted.countDown()
+                    },
+                    loopEosPollReservedForTest = { loopPollReserved.countDown() },
+                    frameRenderingEnabled = false,
+                )
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                assertTrue(bridge.initialVolumeApplied.await(5, TimeUnit.SECONDS))
+                state.openUri("https://example.invalid/loop-poll-behind-pause.mp4", InitialPlayerState.PAUSE)
+                assertTrue(sourceReady.await(5, TimeUnit.SECONDS))
+                assertTrue(openCompleted.await(5, TimeUnit.SECONDS))
+                state.loop = true
+
+                state.pause()
+                assertTrue(bridge.pauseEntered.await(5, TimeUnit.SECONDS))
+                val loopPoll =
+                    executor.submit {
+                        runBlocking { state.checkLoopingForTest(current = 5.0, duration = 10.0) }
+                    }
+                assertTrue(loopPollReserved.await(5, TimeUnit.SECONDS))
+                assertFalse(loopPoll.isDone)
+                bridge.releasePause.countDown()
+
+                loopPoll.get(5, TimeUnit.SECONDS)
+                assertTrue(pauseCompleted.await(5, TimeUnit.SECONDS))
+                assertFalse(state.isPlaying)
+            } finally {
+                bridge.releasePause.countDown()
+                executor.shutdownNow()
+                deferDisposal(state)
+            }
+        }
+
+    @Test
     fun `superseded loop restart does not seek or publish restart callback`() =
         lifecycleTest {
             val blockConsumeEnd = AtomicBoolean(false)
