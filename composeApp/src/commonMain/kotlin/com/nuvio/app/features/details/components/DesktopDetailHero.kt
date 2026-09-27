@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -347,6 +348,7 @@ fun DesktopDetailHero(
                 enabled = heroTrailerReady,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .statusBarsPadding()
                     .padding(
                         top = space.s32,
                         end = actionHorizontalInset + if (isFullscreenActionSupported) 60.dp else 0.dp,
@@ -378,6 +380,7 @@ fun DesktopDetailHero(
             FullscreenActionButton(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .statusBarsPadding()
                     .padding(top = space.s32, end = actionHorizontalInset),
                 buttonSize = 48.dp,
                 iconSize = 24.dp,

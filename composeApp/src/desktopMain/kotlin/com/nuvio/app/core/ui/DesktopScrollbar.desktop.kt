@@ -3,6 +3,8 @@ package com.nuvio.app.core.ui
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.ScrollbarStyle
 import androidx.compose.foundation.VerticalScrollbar
+import androidx.compose.foundation.layout.recalculateWindowInsets
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.rememberScrollbarAdapter
@@ -22,7 +24,7 @@ internal actual fun NuvioDesktopVerticalScrollbar(
 ) {
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
-        modifier = modifier,
+        modifier = modifier.recalculateWindowInsets().statusBarsPadding(),
         style = nuvioDesktopScrollbarStyle(backgroundColor),
     )
 }
@@ -35,7 +37,7 @@ internal actual fun NuvioDesktopVerticalScrollbar(
 ) {
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
-        modifier = modifier,
+        modifier = modifier.recalculateWindowInsets().statusBarsPadding(),
         style = nuvioDesktopScrollbarStyle(backgroundColor),
     )
 }
@@ -48,7 +50,7 @@ internal actual fun NuvioDesktopVerticalScrollbar(
 ) {
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
-        modifier = modifier,
+        modifier = modifier.recalculateWindowInsets().statusBarsPadding(),
         style = nuvioDesktopScrollbarStyle(backgroundColor),
     )
 }

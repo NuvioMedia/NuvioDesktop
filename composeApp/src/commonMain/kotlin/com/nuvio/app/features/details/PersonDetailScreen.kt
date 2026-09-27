@@ -167,6 +167,7 @@ fun PersonDetailScreen(
                     NuvioBackButton(
                         onClick = onBack,
                         modifier = Modifier
+                            .windowInsetsPadding(WindowInsets.statusBars)
                             .padding(
                                 start = desktopPageHorizontalPaddingForWidth(maxWidth.value),
                                 top = 32.dp,

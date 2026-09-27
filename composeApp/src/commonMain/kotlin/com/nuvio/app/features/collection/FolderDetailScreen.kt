@@ -159,7 +159,7 @@ fun FolderDetailScreen(
                         modifier = Modifier.padding(horizontal = desktopPagePadding),
                         backgroundColor = Color.Transparent,
                         includeStatusBarPadding = false,
-                        topPadding = 32.dp,
+                        topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 32.dp,
                         onBack = onBack,
                     )
                 }

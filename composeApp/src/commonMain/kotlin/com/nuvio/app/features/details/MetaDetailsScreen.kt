@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -1484,6 +1485,7 @@ fun MetaDetailsScreen(
                             NuvioBackButton(
                                 onClick = onBackFromDetails,
                                 modifier = Modifier
+                                    .statusBarsPadding()
                                     .padding(start = desktopPageHorizontalPadding, top = 32.dp)
                                     .zIndex(2f),
                                 containerColor = Color.Black.copy(alpha = 0.34f),
@@ -1780,10 +1782,10 @@ fun MetaDetailsScreen(
                 } else {
                     12.dp
                 }
-                val loadingBackButtonTopPadding = if (isDesktop) {
+                val loadingBackButtonTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + if (isDesktop) {
                     32.dp
                 } else {
-                    WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp
+                    8.dp
                 }
                 NuvioBackButton(
                     onClick = onBack,
