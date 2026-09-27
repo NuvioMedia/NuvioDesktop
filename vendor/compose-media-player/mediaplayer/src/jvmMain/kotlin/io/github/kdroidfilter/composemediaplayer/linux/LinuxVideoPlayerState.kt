@@ -1500,6 +1500,12 @@ class LinuxVideoPlayerState internal constructor(
                     } ?: false
                 if (!reachedEnd) return
 
+                if (!loop) {
+                    if (!playback.resume.markEndedIfConsumed(playbackGeneration) { true }) return
+                    publishTerminalEos(eosPoll, sourceGeneration, playback, playbackGeneration)
+                    return
+                }
+
                 // Empty polls participate in command ordering without taking managed-publication
                 // ownership. Promote an observed EOS only when no public command has superseded it.
                 val seekCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
@@ -1541,73 +1547,82 @@ class LinuxVideoPlayerState internal constructor(
                 } ?: false
             if (!reachedEnd) return
 
-            val eosCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
-            playback.runCommand(
-                eosCommand,
-                { terminalizeLatestPublication(sourceGeneration, playback, it) },
+            publishTerminalEos(eosPoll, sourceGeneration, playback, playbackGeneration)
+        } finally {
+            if (ownsEosPoll) playback.releaseEosHandling()
+        }
+    }
+
+    private suspend fun publishTerminalEos(
+        eosPoll: LinuxSourcePlaybackContext.CommandTicket,
+        sourceGeneration: Long,
+        playback: LinuxSourcePlaybackContext,
+        playbackGeneration: Long,
+    ) {
+        val eosCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
+        playback.runCommand(
+            eosCommand,
+            { terminalizeLatestPublication(sourceGeneration, playback, it) },
+        ) {
+            if (!lifecycle.isCurrent(sourceGeneration) ||
+                !playback.completion.isCurrent(playbackGeneration)
             ) {
-                if (!lifecycle.isCurrent(sourceGeneration) ||
-                    !playback.completion.isCurrent(playbackGeneration)
-                ) {
-                    return@runCommand
-                }
+                return@runCommand
+            }
 
-                val paused =
-                    withPlayer(sourceGeneration) { player ->
-                        bridge.pause(player)
-                        true
-                    } ?: false
-                if (!paused || !playback.completion.isCurrent(playbackGeneration)) return@runCommand
+            val paused =
+                withPlayer(sourceGeneration) { player ->
+                    bridge.pause(player)
+                    true
+                } ?: false
+            if (!paused || !playback.completion.isCurrent(playbackGeneration)) return@runCommand
 
-                withContext(Dispatchers.Main) {
-                    playback.commitIfLatest(eosCommand) {
-                        lifecycle.publish(sourceGeneration) {
-                            if (playback.completion.isCurrent(playbackGeneration)) {
-                                isPlaying = false
-                                isLoading = false
-                            }
-                        }
-                    }
-                }
-                if (!playback.ownsLatestPublication(eosCommand) ||
-                    !playback.completion.isCurrent(playbackGeneration) ||
-                    !lifecycle.isCurrent(sourceGeneration)
-                ) {
-                    return@runCommand
-                }
-                val eosFrameOwner = frameUpdateJobs.capture(sourceGeneration)
-                val eosBufferingOwner = bufferingCheckJobs.capture(sourceGeneration)
-                try {
-                    withContext(Dispatchers.Main) {
-                        invokeLifecycleCallbackIfLatestPublication(
-                            lifecycle,
-                            sourceGeneration,
-                            playback,
-                            eosCommand,
-                        ) {
-                            if (playback.completion.isCurrent(playbackGeneration)) {
-                                onPlaybackEnded?.invoke()
-                            }
-                        }
-                    }
-                } finally {
-                    try {
-                        afterPlaybackEndedCallbackForTest?.invoke()
-                    } finally {
-                        try {
-                            frameUpdateJobs.cancel(eosFrameOwner)
-                        } finally {
-                            try {
-                                bufferingCheckJobs.cancel(eosBufferingOwner)
-                            } finally {
-                                eosFinalizationCompletedForTest?.invoke()
-                            }
+            withContext(Dispatchers.Main) {
+                playback.commitIfLatest(eosCommand) {
+                    lifecycle.publish(sourceGeneration) {
+                        if (playback.completion.isCurrent(playbackGeneration)) {
+                            isPlaying = false
+                            isLoading = false
                         }
                     }
                 }
             }
-        } finally {
-            if (ownsEosPoll) playback.releaseEosHandling()
+            if (!playback.ownsLatestPublication(eosCommand) ||
+                !playback.completion.isCurrent(playbackGeneration) ||
+                !lifecycle.isCurrent(sourceGeneration)
+            ) {
+                return@runCommand
+            }
+            val eosFrameOwner = frameUpdateJobs.capture(sourceGeneration)
+            val eosBufferingOwner = bufferingCheckJobs.capture(sourceGeneration)
+            try {
+                withContext(Dispatchers.Main) {
+                    invokeLifecycleCallbackIfLatestPublication(
+                        lifecycle,
+                        sourceGeneration,
+                        playback,
+                        eosCommand,
+                    ) {
+                        if (playback.completion.isCurrent(playbackGeneration)) {
+                            onPlaybackEnded?.invoke()
+                        }
+                    }
+                }
+            } finally {
+                try {
+                    afterPlaybackEndedCallbackForTest?.invoke()
+                } finally {
+                    try {
+                        frameUpdateJobs.cancel(eosFrameOwner)
+                    } finally {
+                        try {
+                            bufferingCheckJobs.cancel(eosBufferingOwner)
+                        } finally {
+                            eosFinalizationCompletedForTest?.invoke()
+                        }
+                    }
+                }
+            }
         }
     }
 
