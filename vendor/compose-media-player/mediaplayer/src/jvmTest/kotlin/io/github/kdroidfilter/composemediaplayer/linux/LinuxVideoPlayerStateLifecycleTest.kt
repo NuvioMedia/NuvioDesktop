@@ -1992,6 +1992,56 @@ class LinuxVideoPlayerStateLifecycleTest {
         }
 
     @Test
+    fun `throwing loop restart callback surfaces after successful restart`() =
+        lifecycleTest {
+            val bridge = FakeBridge()
+            val sourceOpened = CountDownLatch(1)
+            val pauseCompleted = CountDownLatch(1)
+            val ended = AtomicInteger()
+            val restarted = AtomicInteger()
+            val state =
+                LinuxVideoPlayerState(
+                    bridge,
+                    sourceOpenCompletedForTest = { _, failure ->
+                        check(failure == null)
+                        sourceOpened.countDown()
+                    },
+                    asyncOperationCompletedForTest = { operation, _ ->
+                        if (operation == "pause") pauseCompleted.countDown()
+                    },
+                    frameRenderingEnabled = false,
+                )
+            try {
+                assertTrue(bridge.initialVolumeApplied.await(5, TimeUnit.SECONDS))
+                state.openUri("https://example.invalid/throwing-loop-restart.mp4", InitialPlayerState.PAUSE)
+                assertTrue(sourceOpened.await(5, TimeUnit.SECONDS))
+                state.pause()
+                assertTrue(pauseCompleted.await(5, TimeUnit.SECONDS))
+                state.loop = true
+                state.onRestart = {
+                    restarted.incrementAndGet()
+                    error("restart callback failure")
+                }
+                state.onPlaybackEnded = { ended.incrementAndGet() }
+                val pauseCallsBeforePoll = bridge.calls().count { it.name == "pause" }
+                val seekCallsBeforePoll = bridge.calls().count { it.name == "seek" }
+                bridge.signalEndForTest()
+
+                val outcome = runCatching { state.checkLoopingForTest(current = 10.0, duration = 10.0) }
+                assertEquals(1, restarted.get())
+                val failure = assertNotNull(outcome.exceptionOrNull())
+
+                assertTrue(failure is IllegalStateException)
+                assertEquals("restart callback failure", failure.message)
+                assertEquals(0, ended.get())
+                assertEquals(seekCallsBeforePoll + 1, bridge.calls().count { it.name == "seek" })
+                assertEquals(pauseCallsBeforePoll, bridge.calls().count { it.name == "pause" })
+            } finally {
+                deferDisposal(state)
+            }
+        }
+
+    @Test
     fun `failed loop restart after non-looping EOS consumption publishes terminal state`() =
         lifecycleTest {
             val bridge = FakeBridge(consumeEnd = true, blockConsumeEnd = true, duration = 0.0)
