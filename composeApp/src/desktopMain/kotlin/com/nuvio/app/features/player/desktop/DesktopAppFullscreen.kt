@@ -123,7 +123,9 @@ internal class DesktopAppFullscreenController {
     fun applyRestoredFullscreenState(window: Window, windowState: WindowState, fullscreen: Boolean) {
         if (!fullscreen) return
         if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
-            enterWindowsFullscreen(window, windowState)
+            SwingUtilities.invokeLater {
+                enterWindowsFullscreen(window, windowState)
+            }
         } else {
             restoreWindowPlacement = windowState.placement
                 .takeUnless { it == WindowPlacement.Fullscreen }
