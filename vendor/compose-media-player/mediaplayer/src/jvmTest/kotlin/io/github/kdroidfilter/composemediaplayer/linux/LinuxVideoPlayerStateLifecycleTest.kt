@@ -2087,6 +2087,56 @@ class LinuxVideoPlayerStateLifecycleTest {
         }
 
     @Test
+    fun `public play superseding failed loop restart does not inherit ended state`() =
+        lifecycleTest {
+            val bridge = FakeBridge(duration = 0.0)
+            val sourceOpened = CountDownLatch(1)
+            val playReserved = CountDownLatch(1)
+            val playCompleted = CountDownLatch(1)
+            val ended = AtomicInteger()
+            val armSupersedingPlay = AtomicBoolean(false)
+            lateinit var state: LinuxVideoPlayerState
+            state =
+                LinuxVideoPlayerState(
+                    bridge,
+                    sourceOpenCompletedForTest = { _, failure ->
+                        check(failure == null)
+                        sourceOpened.countDown()
+                    },
+                    commandReservedBeforeLaunchForTest = { operation, _ ->
+                        if (operation == "play") playReserved.countDown()
+                    },
+                    asyncOperationCompletedForTest = { operation, _ ->
+                        if (operation == "play") playCompleted.countDown()
+                    },
+                    commandTerminalizedForTest = {
+                        if (armSupersedingPlay.compareAndSet(true, false)) state.play()
+                    },
+                    frameRenderingEnabled = false,
+                )
+            try {
+                assertTrue(bridge.initialVolumeApplied.await(5, TimeUnit.SECONDS))
+                state.openUri("https://example.invalid/superseded-failed-loop-restart.mp4", InitialPlayerState.PAUSE)
+                assertTrue(sourceOpened.await(5, TimeUnit.SECONDS))
+                state.loop = true
+                state.onPlaybackEnded = { ended.incrementAndGet() }
+                val seekCallsBeforePoll = bridge.calls().count { it.name == "seek" }
+                bridge.signalEndForTest()
+                armSupersedingPlay.set(true)
+
+                state.checkLoopingForTest(current = 10.0, duration = 10.0)
+
+                assertTrue(playReserved.await(5, TimeUnit.SECONDS))
+                assertTrue(playCompleted.await(5, TimeUnit.SECONDS))
+                assertEquals(seekCallsBeforePoll, bridge.calls().count { it.name == "seek" })
+                assertEquals(0, ended.get())
+                assertTrue(state.isPlaying)
+            } finally {
+                deferDisposal(state)
+            }
+        }
+
+    @Test
     fun `overlapping looping EOS polls publish one restart`() =
         lifecycleTest {
             val bridge = FakeBridge(blockSeek = true)

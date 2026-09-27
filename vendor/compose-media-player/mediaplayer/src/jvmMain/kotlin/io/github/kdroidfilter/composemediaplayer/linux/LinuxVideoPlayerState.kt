@@ -1569,9 +1569,11 @@ class LinuxVideoPlayerState internal constructor(
             }
             return
         }
-        if (playback.resume.markEndedIfConsumed(playbackGeneration) { true }) {
-            publishTerminalEos(seekCommand, sourceGeneration, playback, playbackGeneration)
-        }
+        val markedEnded =
+            playback.commitIfLatest(seekCommand) {
+                playback.resume.markEndedIfConsumed(playbackGeneration) { true }
+            }
+        if (markedEnded) publishTerminalEos(seekCommand, sourceGeneration, playback, playbackGeneration)
     }
 
     private suspend fun publishTerminalEos(
