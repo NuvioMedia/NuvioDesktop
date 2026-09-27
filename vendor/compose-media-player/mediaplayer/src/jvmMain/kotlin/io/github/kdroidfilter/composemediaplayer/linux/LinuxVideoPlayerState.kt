@@ -141,7 +141,9 @@ internal class LinuxSourcePlaybackContext(
     fun reservePublicationCommandIfUnchanged(observed: CommandTicket): CommandTicket? =
         synchronized(publicationCallbackLock) publication@{
             synchronized(intentCommandLock) {
-                if (latestPublicationOwner !== observed.publicationPredecessor) return@publication null
+                val observedPublicationOwner =
+                    if (observed.claimsPublication) observed.completion else observed.publicationPredecessor
+                if (latestPublicationOwner !== observedPublicationOwner) return@publication null
                 reserveCommandLocked(
                     Intent(desiredPlaying, intentSerial),
                     requiresCurrentIntent = false,
@@ -1508,17 +1510,7 @@ class LinuxVideoPlayerState internal constructor(
 
                 // Empty polls participate in command ordering without taking managed-publication
                 // ownership. Promote an observed EOS only when no public command has superseded it.
-                val seekCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
-                seekToAsync(0f, sourceGeneration, playback, seekCommand, replaceFrameWorker = false) {
-                    withContext(Dispatchers.Main) {
-                        lifecycle.invokeCallback(sourceGeneration) {
-                            playback.invokeCallbackIfLatest(it) {
-                                onRestart?.invoke()
-                                true
-                            }
-                        }
-                    }
-                }
+                restartLoopOrPublishTerminal(eosPoll, sourceGeneration, playback, playbackGeneration)
             } finally {
                 if (ownsLoopPoll) playback.releaseEosHandling()
             }
@@ -1548,23 +1540,36 @@ class LinuxVideoPlayerState internal constructor(
             if (!reachedEnd) return
 
             if (loop) {
-                val seekCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
-                seekToAsync(0f, sourceGeneration, playback, seekCommand, replaceFrameWorker = false) {
-                    withContext(Dispatchers.Main) {
-                        lifecycle.invokeCallback(sourceGeneration) {
-                            playback.invokeCallbackIfLatest(it) {
-                                onRestart?.invoke()
-                                true
-                            }
-                        }
-                    }
-                }
+                restartLoopOrPublishTerminal(eosPoll, sourceGeneration, playback, playbackGeneration)
                 return
             }
 
             publishTerminalEos(eosPoll, sourceGeneration, playback, playbackGeneration)
         } finally {
             if (ownsEosPoll) playback.releaseEosHandling()
+        }
+    }
+
+    private suspend fun restartLoopOrPublishTerminal(
+        eosPoll: LinuxSourcePlaybackContext.CommandTicket,
+        sourceGeneration: Long,
+        playback: LinuxSourcePlaybackContext,
+        playbackGeneration: Long,
+    ) {
+        val seekCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
+        val restarted =
+            seekToAsync(0f, sourceGeneration, playback, seekCommand, replaceFrameWorker = false) {
+                withContext(Dispatchers.Main) {
+                    lifecycle.invokeCallback(sourceGeneration) {
+                        playback.invokeCallbackIfLatest(it) {
+                            onRestart?.invoke()
+                            true
+                        }
+                    }
+                }
+            }
+        if (!restarted && playback.resume.markEndedIfConsumed(playbackGeneration) { true }) {
+            publishTerminalEos(seekCommand, sourceGeneration, playback, playbackGeneration)
         }
     }
 
