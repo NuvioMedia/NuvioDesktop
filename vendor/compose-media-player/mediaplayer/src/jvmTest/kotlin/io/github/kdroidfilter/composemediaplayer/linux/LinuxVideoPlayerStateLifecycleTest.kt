@@ -1840,6 +1840,64 @@ class LinuxVideoPlayerStateLifecycleTest {
         }
 
     @Test
+    fun `looping EOS poll does not consume native end after loop is disabled while awaiting seek`() =
+        lifecycleTest {
+            val bridge = FakeBridge()
+            val sourceReady = CountDownLatch(1)
+            val openCompleted = CountDownLatch(1)
+            val seekAtTerminalReset = CountDownLatch(1)
+            val releaseSeek = CountDownLatch(1)
+            val pollAwaitingSeek = CountDownLatch(1)
+            val restarted = AtomicInteger()
+            val ended = CountDownLatch(1)
+            val state =
+                LinuxVideoPlayerState(
+                    bridge,
+                    sourceReadyObserver = { _, _ -> sourceReady.countDown() },
+                    sourceOpenCompletedForTest = { _, _ -> openCompleted.countDown() },
+                    afterSeekNativeCommandForTest = {
+                        seekAtTerminalReset.countDown()
+                        check(releaseSeek.await(5, TimeUnit.SECONDS))
+                    },
+                    commandAwaitingPredecessorForTest = { pollAwaitingSeek.countDown() },
+                    frameRenderingEnabled = false,
+                )
+            val executor = Executors.newSingleThreadExecutor()
+            var pollFuture: java.util.concurrent.Future<*>? = null
+            try {
+                assertTrue(bridge.initialVolumeApplied.await(5, TimeUnit.SECONDS))
+                state.openUri("https://example.invalid/disabled-loop-poll.mp4", InitialPlayerState.PAUSE)
+                assertTrue(sourceReady.await(5, TimeUnit.SECONDS))
+                assertTrue(openCompleted.await(5, TimeUnit.SECONDS))
+
+                state.seekTo(500f)
+                assertTrue(seekAtTerminalReset.await(5, TimeUnit.SECONDS))
+                state.loop = true
+                state.onRestart = { restarted.incrementAndGet() }
+                state.onPlaybackEnded = { ended.countDown() }
+                bridge.signalEndForTest()
+                val consumeCallsBeforePoll = bridge.calls().count { it.name == "consumeEnd" }
+                pollFuture =
+                    executor.submit {
+                        runBlocking { state.checkLoopingForTest(current = 10.0, duration = 10.0) }
+                    }
+                assertTrue(pollAwaitingSeek.await(5, TimeUnit.SECONDS))
+                state.loop = false
+                releaseSeek.countDown()
+
+                assertNotNull(pollFuture).get(5, TimeUnit.SECONDS)
+                assertTrue(ended.await(5, TimeUnit.SECONDS))
+                assertEquals(consumeCallsBeforePoll + 1, bridge.calls().count { it.name == "consumeEnd" })
+                assertEquals(0, restarted.get())
+            } finally {
+                releaseSeek.countDown()
+                runCatching { pollFuture?.get(5, TimeUnit.SECONDS) }
+                executor.shutdownNow()
+                deferDisposal(state)
+            }
+        }
+
+    @Test
     fun `overlapping looping EOS polls publish one restart`() =
         lifecycleTest {
             val bridge = FakeBridge(blockSeek = true)

@@ -1489,6 +1489,7 @@ class LinuxVideoPlayerState internal constructor(
                 val reachedEnd =
                     playback.runCommand(eosPoll) {
                         if (!ownsLoopPoll ||
+                            !loop ||
                             !lifecycle.isCurrent(sourceGeneration) ||
                             !playback.completion.isCurrent(playbackGeneration)
                         ) {
