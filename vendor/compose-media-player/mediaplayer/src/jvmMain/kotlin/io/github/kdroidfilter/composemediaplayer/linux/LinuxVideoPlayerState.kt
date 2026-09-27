@@ -1547,6 +1547,21 @@ class LinuxVideoPlayerState internal constructor(
                 } ?: false
             if (!reachedEnd) return
 
+            if (loop) {
+                val seekCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
+                seekToAsync(0f, sourceGeneration, playback, seekCommand, replaceFrameWorker = false) {
+                    withContext(Dispatchers.Main) {
+                        lifecycle.invokeCallback(sourceGeneration) {
+                            playback.invokeCallbackIfLatest(it) {
+                                onRestart?.invoke()
+                                true
+                            }
+                        }
+                    }
+                }
+                return
+            }
+
             publishTerminalEos(eosPoll, sourceGeneration, playback, playbackGeneration)
         } finally {
             if (ownsEosPoll) playback.releaseEosHandling()
