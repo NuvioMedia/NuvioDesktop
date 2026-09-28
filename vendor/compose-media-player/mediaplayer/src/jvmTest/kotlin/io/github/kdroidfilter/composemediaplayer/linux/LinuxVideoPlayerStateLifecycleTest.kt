@@ -2341,6 +2341,55 @@ class LinuxVideoPlayerStateLifecycleTest {
         }
 
     @Test
+    fun `looping EOS poll preserves blocked public seek publication`() =
+        lifecycleTest {
+            val bridge = FakeBridge(blockSeek = true)
+            val sourceReady = CountDownLatch(1)
+            val openCompleted = CountDownLatch(1)
+            val seekCompleted = CountDownLatch(1)
+            val loopPollReserved = CountDownLatch(1)
+            val state =
+                LinuxVideoPlayerState(
+                    bridge,
+                    sourceReadyObserver = { _, _ -> sourceReady.countDown() },
+                    sourceOpenCompletedForTest = { _, _ -> openCompleted.countDown() },
+                    asyncOperationCompletedForTest = { name, _ ->
+                        if (name == "seek") seekCompleted.countDown()
+                    },
+                    loopEosPollReservedForTest = { loopPollReserved.countDown() },
+                    frameRenderingEnabled = false,
+                )
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                assertTrue(bridge.initialVolumeApplied.await(5, TimeUnit.SECONDS))
+                state.openUri("https://example.invalid/loop-poll-behind-seek.mp4", InitialPlayerState.PAUSE)
+                assertTrue(sourceReady.await(5, TimeUnit.SECONDS))
+                assertTrue(openCompleted.await(5, TimeUnit.SECONDS))
+                state.loop = true
+
+                state.seekTo(500f)
+                assertTrue(bridge.seekEntered.await(5, TimeUnit.SECONDS))
+                val loopPoll =
+                    executor.submit {
+                        runBlocking { state.checkLoopingForTest(current = 5.0, duration = 10.0) }
+                    }
+                assertTrue(loopPollReserved.await(5, TimeUnit.SECONDS))
+                assertFalse(loopPoll.isDone)
+                bridge.releaseSeek.countDown()
+
+                loopPoll.get(5, TimeUnit.SECONDS)
+                assertTrue(seekCompleted.await(5, TimeUnit.SECONDS))
+                assertEquals(500f, state.sliderPos)
+                assertNull(state.targetSeekTimeForTest())
+                assertFalse(state.isLoading)
+            } finally {
+                bridge.releaseSeek.countDown()
+                executor.shutdownNow()
+                deferDisposal(state)
+            }
+        }
+
+    @Test
     fun `superseded loop restart does not seek or publish restart callback`() =
         lifecycleTest {
             val blockConsumeEnd = AtomicBoolean(false)
