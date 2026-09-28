@@ -2390,7 +2390,7 @@ class LinuxVideoPlayerStateLifecycleTest {
         }
 
     @Test
-    fun `superseded loop restart does not seek or publish restart callback`() =
+    fun `play reserved during looping EOS consume suppresses stale restart publication`() =
         lifecycleTest {
             val blockConsumeEnd = AtomicBoolean(false)
             val bridge = FakeBridge(blockConsumeEndFlag = blockConsumeEnd)
@@ -2440,6 +2440,7 @@ class LinuxVideoPlayerStateLifecycleTest {
                 assertTrue(playCompleted.await(5, TimeUnit.SECONDS))
                 assertEquals(seekCallsBefore, bridge.calls().count { it.name == "seek" })
                 assertEquals(0, restartCount.get())
+                assertTrue(state.isPlaying)
             } finally {
                 bridge.releaseConsumeEnd.countDown()
                 executor.shutdownNow()
