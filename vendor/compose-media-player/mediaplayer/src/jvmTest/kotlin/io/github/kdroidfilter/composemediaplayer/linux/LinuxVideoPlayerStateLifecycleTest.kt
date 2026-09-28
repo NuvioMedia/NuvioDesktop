@@ -977,6 +977,7 @@ class LinuxVideoPlayerStateLifecycleTest {
 
                 firstPoll.get(5, TimeUnit.SECONDS)
                 secondPoll.get(5, TimeUnit.SECONDS)
+                assertEquals(1, bridge.calls().count { it.name == "consumeEnd" })
                 assertEquals(1, ended.get())
                 assertFalse(state.isPlaying)
             } finally {
