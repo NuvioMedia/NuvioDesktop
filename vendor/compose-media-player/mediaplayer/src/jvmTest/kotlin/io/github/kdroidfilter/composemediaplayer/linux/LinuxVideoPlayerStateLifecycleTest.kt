@@ -2559,6 +2559,63 @@ class LinuxVideoPlayerStateLifecycleTest {
         }
 
     @Test
+    fun `seek reserved during looping EOS consume suppresses stale restart publication`() =
+        lifecycleTest {
+            val blockConsumeEnd = AtomicBoolean(false)
+            val bridge = FakeBridge(blockConsumeEndFlag = blockConsumeEnd)
+            val sourceReady = CountDownLatch(1)
+            val openCompleted = CountDownLatch(1)
+            val seekReserved = CountDownLatch(1)
+            val seekCompleted = CountDownLatch(1)
+            val restartCount = AtomicInteger()
+            val state =
+                LinuxVideoPlayerState(
+                    bridge,
+                    sourceReadyObserver = { _, _ -> sourceReady.countDown() },
+                    sourceOpenCompletedForTest = { _, _ -> openCompleted.countDown() },
+                    commandReservedBeforeLaunchForTest = { name, _ ->
+                        if (name == "seek") seekReserved.countDown()
+                    },
+                    asyncOperationCompletedForTest = { name, _ ->
+                        if (name == "seek") seekCompleted.countDown()
+                    },
+                    frameRenderingEnabled = false,
+                )
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                state.openUri("https://example.invalid/loop-superseded-by-seek.mp4", InitialPlayerState.PAUSE)
+                assertTrue(sourceReady.await(5, TimeUnit.SECONDS))
+                assertTrue(openCompleted.await(5, TimeUnit.SECONDS))
+                state.loop = true
+                state.onRestart = { restartCount.incrementAndGet() }
+                val seekCallsBefore = bridge.calls().count { it.name == "seek" }
+                bridge.signalEndForTest()
+                blockConsumeEnd.set(true)
+
+                val loopFuture =
+                    executor.submit {
+                        runBlocking { state.checkLoopingForTest(current = 10.0, duration = 10.0) }
+                    }
+                assertTrue(bridge.consumeEndEntered.await(5, TimeUnit.SECONDS))
+                state.seekTo(500f)
+                assertTrue(seekReserved.await(5, TimeUnit.SECONDS))
+                bridge.releaseConsumeEnd.countDown()
+
+                loopFuture.get(5, TimeUnit.SECONDS)
+                assertTrue(seekCompleted.await(5, TimeUnit.SECONDS))
+                assertEquals(seekCallsBefore + 1, bridge.calls().count { it.name == "seek" })
+                assertEquals(0, restartCount.get())
+                assertEquals(500f, state.sliderPos)
+                assertNull(state.targetSeekTimeForTest())
+                assertFalse(state.isLoading)
+            } finally {
+                bridge.releaseConsumeEnd.countDown()
+                executor.shutdownNow()
+                deferDisposal(state)
+            }
+        }
+
+    @Test
     fun `frame worker successful loop restart preserves owner and publishes callback`() =
         lifecycleTest {
             val bridge = FakeBridge()
