@@ -2238,6 +2238,61 @@ class LinuxVideoPlayerStateLifecycleTest {
         }
 
     @Test
+    fun `looping EOS poll preserves blocked public play publication`() =
+        lifecycleTest {
+            val playEntered = CountDownLatch(1)
+            val releasePlay = CountDownLatch(1)
+            val sourceReady = CountDownLatch(1)
+            val openCompleted = CountDownLatch(1)
+            val playCompleted = CountDownLatch(1)
+            val loopPollReserved = CountDownLatch(1)
+            val bridge =
+                FakeBridge(
+                    onPlay = {
+                        playEntered.countDown()
+                        check(releasePlay.await(5, TimeUnit.SECONDS))
+                    },
+                )
+            val state =
+                LinuxVideoPlayerState(
+                    bridge,
+                    sourceReadyObserver = { _, _ -> sourceReady.countDown() },
+                    sourceOpenCompletedForTest = { _, _ -> openCompleted.countDown() },
+                    asyncOperationCompletedForTest = { name, _ ->
+                        if (name == "play") playCompleted.countDown()
+                    },
+                    loopEosPollReservedForTest = { loopPollReserved.countDown() },
+                    frameRenderingEnabled = false,
+                )
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                assertTrue(bridge.initialVolumeApplied.await(5, TimeUnit.SECONDS))
+                state.openUri("https://example.invalid/loop-poll-behind-play.mp4", InitialPlayerState.PAUSE)
+                assertTrue(sourceReady.await(5, TimeUnit.SECONDS))
+                assertTrue(openCompleted.await(5, TimeUnit.SECONDS))
+                state.loop = true
+
+                state.play()
+                assertTrue(playEntered.await(5, TimeUnit.SECONDS))
+                val loopPoll =
+                    executor.submit {
+                        runBlocking { state.checkLoopingForTest(current = 5.0, duration = 10.0) }
+                    }
+                assertTrue(loopPollReserved.await(5, TimeUnit.SECONDS))
+                assertFalse(loopPoll.isDone)
+                releasePlay.countDown()
+
+                loopPoll.get(5, TimeUnit.SECONDS)
+                assertTrue(playCompleted.await(5, TimeUnit.SECONDS))
+                assertTrue(state.isPlaying)
+            } finally {
+                releasePlay.countDown()
+                executor.shutdownNow()
+                deferDisposal(state)
+            }
+        }
+
+    @Test
     fun `superseded loop restart does not seek or publish restart callback`() =
         lifecycleTest {
             val blockConsumeEnd = AtomicBoolean(false)
