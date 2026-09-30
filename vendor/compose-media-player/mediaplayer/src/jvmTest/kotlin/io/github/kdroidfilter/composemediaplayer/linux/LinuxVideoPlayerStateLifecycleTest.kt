@@ -959,6 +959,7 @@ class LinuxVideoPlayerStateLifecycleTest {
                 state.pause()
                 assertTrue(pauseCompleted.await(5, TimeUnit.SECONDS))
                 state.onPlaybackEnded = { ended.incrementAndGet() }
+                val consumeCallsBeforeEos = bridge.calls().count { it.name == "consumeEnd" }
                 bridge.signalEndForTest()
                 blockConsumeEnd.set(true)
 
@@ -977,7 +978,10 @@ class LinuxVideoPlayerStateLifecycleTest {
 
                 firstPoll.get(5, TimeUnit.SECONDS)
                 secondPoll.get(5, TimeUnit.SECONDS)
-                assertEquals(1, bridge.calls().count { it.name == "consumeEnd" })
+                assertEquals(
+                    consumeCallsBeforeEos + 1,
+                    bridge.calls().count { it.name == "consumeEnd" },
+                )
                 assertEquals(1, ended.get())
                 assertFalse(state.isPlaying)
             } finally {

@@ -21,6 +21,16 @@ internal class LinuxPlaybackCompletion(
     fun isCurrent(observedGeneration: Long): Boolean =
         synchronized(lock) { !exhausted && generation == observedGeneration }
 
+    fun canMarkEnded(observedGeneration: Long): Boolean =
+        synchronized(lock) {
+            !exhausted && generation == observedGeneration && endedGeneration != observedGeneration
+        }
+
+    fun isEnded(observedGeneration: Long): Boolean =
+        synchronized(lock) {
+            !exhausted && generation == observedGeneration && endedGeneration == observedGeneration
+        }
+
     fun markEnded(observedGeneration: Long): Boolean =
         synchronized(lock) {
             if (exhausted || generation != observedGeneration) {
@@ -78,7 +88,8 @@ internal class LinuxPlaybackResumeCoordinator(
         observedGeneration: Long,
         consumeEnd: () -> Boolean,
     ): Boolean {
-        if (!completion.isCurrent(observedGeneration) || !consumeEnd()) return false
+        if (completion.isEnded(observedGeneration)) return true
+        if (!completion.canMarkEnded(observedGeneration) || !consumeEnd()) return false
         return completion.markEnded(observedGeneration)
     }
 
