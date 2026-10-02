@@ -110,10 +110,17 @@ internal fun sortLibraryItems(
 ): List<LibraryItem> =
     when (effectiveLibrarySortOption(selected, sourceMode)) {
         LibrarySortOption.DEFAULT -> items.sortedWith(
-            compareBy<LibraryItem> { it.listRanks[listKey] ?: it.traktRank ?: Int.MAX_VALUE }
-                .thenByDescending { it.savedAtEpochMs }
-                .thenBy { libraryTitleTieBreakKey(it) }
-                .thenBy { it.id },
+            if (sourceMode == LibrarySourceMode.MDBLIST) {
+                compareByDescending<LibraryItem> { it.savedAtEpochMs }
+                    .thenByDescending { it.listRanks[listKey] ?: Int.MIN_VALUE }
+                    .thenBy { libraryTitleTieBreakKey(it) }
+                    .thenBy { it.id }
+            } else {
+                compareBy<LibraryItem> { it.listRanks[listKey] ?: it.traktRank ?: Int.MAX_VALUE }
+                    .thenByDescending { it.savedAtEpochMs }
+                    .thenBy { libraryTitleTieBreakKey(it) }
+                    .thenBy { it.id }
+            },
         )
         LibrarySortOption.ADDED_DESC -> items.sortedWith(
             providerOrder?.let(::libraryProviderOrderComparator) ?: compareByDescending<LibraryItem> { it.savedAtEpochMs }

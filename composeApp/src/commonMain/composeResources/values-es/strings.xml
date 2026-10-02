@@ -428,8 +428,8 @@
     <string name="compose_player_color">Color</string>
     <string name="compose_player_currently_playing">Reproduciendo ahora</string>
     <string name="compose_player_episode_code_episode_only">E%1$d</string>
-    <string name="compose_player_episode_code_full">T%1$dE%2$d</string>
-    <string name="compose_player_episode_title_format">T%1$dE%2$d • %3$s</string>
+    <string name="compose_player_episode_code_full">T%1$d E%2$d</string>
+    <string name="compose_player_episode_title_format">T%1$d E%2$d • %3$s</string>
     <string name="compose_player_episodes">Episodios</string>
     <string name="compose_player_font_size">Tamaño de fuente</string>
     <string name="compose_player_font_size_value">%1$dsp</string>
@@ -1380,7 +1380,7 @@
     <string name="custom_theme_preview_accent">Tu color de acento</string>
     <string name="player_next_episode">Siguiente episodio</string>
     <string name="player_next_episode_finding_source">Buscando fuente…</string>
-    <string name="player_next_episode_playing_via_countdown">Reproduciendo vía %1$s en %2$d…</string>
+    <string name="player_next_episode_playing_via_countdown">Reproduciendo vía %1$s en %2$ds…</string>
     <string name="player_next_episode_thumbnail">Miniatura del siguiente episodio</string>
     <string name="player_next_episode_unaired">No emitido</string>
     <string name="player_skip">Saltar</string>
@@ -1615,7 +1615,7 @@
     <string name="streams_empty_no_streams_message">Ninguno de tus addons instalados devolvió streams para este título.</string>
     <string name="streams_episode_badge">T%1$d E%2$d</string>
     <string name="streams_episode_fallback_title">Episodio</string>
-    <string name="streams_episode_title_with_name">T%1$dE%2$d - %3$s</string>
+    <string name="streams_episode_title_with_name">T%1$d E%2$d - %3$s</string>
     <string name="streams_fetching">Obteniendo…</string>
     <string name="streams_finding_source">Buscando fuente…</string>
     <string name="playback_show_loading_status">Mostrar estado de carga</string>
@@ -1690,7 +1690,7 @@
     <string name="auth_sign_up_failed">Error al registrarse</string>
     <string name="catalog_load_failed">No se pudieron cargar los elementos del catálogo.</string>
     <string name="continue_watching_up_next">A continuación</string>
-    <string name="continue_watching_up_next_episode">A continuación • T%1$dE%2$d</string>
+    <string name="continue_watching_up_next_episode">A continuación • T%1$d E%2$d</string>
     <string name="detail_logo_content_description">logotipo de %1$s</string>
     <string name="details_comments_load_failed">No se pudieron cargar los comentarios</string>
     <string name="details_load_failed_all_addons">No se pudieron cargar los detalles desde ningún complemento.</string>
@@ -2317,4 +2317,22 @@ Utilizas esta función bajo tu propia responsabilidad. P2P se puede desactivar e
     <string name="compose_player_show_remaining_time">Mostrar tiempo restante</string>
     <string name="compose_player_brightness">Brillo</string>
     <string name="compose_player_volume">Volumen</string>
+    <string name="series_status_ended">Finalizada</string>
+    <string name="series_status_continuing">En emisión</string>
+    <string name="series_status_current">Actual</string>
+    <string name="series_status_cancelled">Cancelada</string>
+    <string name="series_status_released">Estrenada</string>
+    <string name="series_status_planned">Planeada</string>
+    <string name="series_status_rumored">Rumoreada</string>
+    <string name="series_status_in_production">En producción</string>
+    <string name="series_status_post_production">Posproducción</string>
+    <string name="movie_status_ended">Finalizada</string>
+    <string name="movie_status_continuing">En emisión</string>
+    <string name="movie_status_current">Actual</string>
+    <string name="movie_status_cancelled">Cancelada</string>
+    <string name="movie_status_released">Estrenada</string>
+    <string name="movie_status_planned">Planeada</string>
+    <string name="movie_status_rumored">Rumoreada</string>
+    <string name="movie_status_in_production">En producción</string>
+    <string name="movie_status_post_production">Posproducción</string>
 </resources>

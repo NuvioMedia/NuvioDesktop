@@ -70,7 +70,7 @@ internal fun PlayerTimelineDetails(
             overflow = TextOverflow.Ellipsis,
         )
         if (seasonNumber != null && episodeNumber != null) {
-            val episodeCode = stringResource(Res.string.compose_player_episode_code, seasonNumber, episodeNumber)
+            val episodeCode = stringResource(Res.string.compose_player_episode_code_full, seasonNumber, episodeNumber)
             Text(
                 text = if (episodeTitle.isNullOrBlank()) episodeCode else "$episodeCode • $episodeTitle",
                 style = typeScale.bodyMd.copy(fontSize = metrics.episodeInfoSize),

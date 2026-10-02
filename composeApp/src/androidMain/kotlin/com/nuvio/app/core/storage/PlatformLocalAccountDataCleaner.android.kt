@@ -4,6 +4,7 @@ import android.content.Context
 
 internal actual object PlatformLocalAccountDataCleaner {
     private val preferenceNames = listOf(
+        "episode_shuffle",
         "nuvio_addons",
         "nuvio_library",
         "nuvio_library_display_settings",

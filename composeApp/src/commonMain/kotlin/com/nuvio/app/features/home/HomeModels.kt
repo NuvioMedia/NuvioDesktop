@@ -20,6 +20,7 @@ data class MetaPreview(
     val genres: List<String> = emptyList(),
     val rawPosterUrl: String? = null,
     val landscapePoster: String? = null,
+    val rawLandscapePosterUrl: String? = null,
 )
 
 fun MetaPreview.stableKey(): String = "$type:$id"

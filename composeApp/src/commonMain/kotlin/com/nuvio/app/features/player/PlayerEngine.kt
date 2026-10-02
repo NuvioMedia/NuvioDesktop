@@ -205,6 +205,7 @@ data class PlayerControlsState(
     val nextEpisodeHeaderLabel: String = "Next episode",
     val nextEpisodeTitle: String = "",
     val nextEpisodeThumbnail: String = "",
+    val nextEpisodeThumbnailBlurred: Boolean = false,
     val nextEpisodeStatus: String = "",
     val nextEpisodeActionLabel: String = "Play",
     val nextEpisodePlayable: Boolean = false,

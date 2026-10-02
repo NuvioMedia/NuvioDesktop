@@ -36,7 +36,7 @@ internal object MetaDetailsParser {
             name = meta.requiredString("name"),
             imdbId = meta.string("imdb_id"),
             poster = meta.string("poster"),
-            background = meta.string("background"),
+            background = meta.string("background") ?: meta.string("landscapePoster")?.takeIf(String::isNotBlank),
             logo = meta.string("logo"),
             description = meta.string("description"),
             releaseInfo = meta.string("releaseInfo"),

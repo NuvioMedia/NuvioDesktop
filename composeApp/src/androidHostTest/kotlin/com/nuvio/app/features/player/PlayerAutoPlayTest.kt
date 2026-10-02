@@ -8,6 +8,7 @@ import com.nuvio.app.features.details.MetaDetailsUiState
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.player.skip.NextEpisodeThresholdMode
 import com.nuvio.app.features.player.skip.PlayerNextEpisodeRules
+import com.nuvio.app.features.player.skip.SkipInterval
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
@@ -199,7 +200,7 @@ class PlayerAutoPlayTest {
     }
 
     @Test
-    fun shortEpisodesStartAutoPlayAtZeroWithMinutesThreshold() {
+    fun shortErrorClipsDoNotStartAutoPlayWithMinutesThreshold() {
         val runtime = startRuntime(PlayerSettingsUiState(
             skipIntroEnabled = false,
             streamAutoPlayNextEpisodeEnabled = true,
@@ -216,8 +217,63 @@ class PlayerAutoPlayTest {
             }
             compose.runOnIdle {
                 assertEquals(episode + 1, runtime.nextEpisodeInfo?.episode)
-                assertTrue(runtime.nextEpisodeAutoPlaySearching)
+                assertFalse(runtime.nextEpisodeAutoPlaySearching)
+                assertFalse(runtime.showNextEpisodeCard)
             }
+        }
+    }
+
+    @Test
+    fun shortErrorClipsDoNotTrackProgressScrobbleSkipOrAutoPlay() {
+        val runtime = startRuntime()
+        for (durationMs in listOf(8_000L, 30_000L, 120_999L)) {
+            for (isEnded in listOf(false, true)) {
+                compose.runOnIdle {
+                    runtime.skipIntervals = listOf(SkipInterval(0.0, 60.0, "recap", "test"))
+                    runtime.updatePlaybackSnapshot(PlayerPlaybackSnapshot(
+                        isLoading = false,
+                        isPlaying = !isEnded,
+                        isEnded = isEnded,
+                        positionMs = if (isEnded) durationMs else durationMs * 99 / 100,
+                        durationMs = durationMs,
+                    ))
+                }
+                compose.runOnIdle {
+                    assertFalse(runtime.hasRequestedScrobbleStartForCurrentItem)
+                    assertFalse(runtime.hasSentCompletionScrobbleForCurrentItem)
+                    assertTrue(WatchProgressRepository.uiState.value.entries.isEmpty())
+                    assertFalse(runtime.nextEpisodeAutoPlaySearching)
+                    assertFalse(runtime.showNextEpisodeCard)
+                    assertNull(runtime.activeSkipInterval)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun errorClipDoesNotOverwriteExistingEpisodeProgressWhenEndingWithoutDuration() {
+        val runtime = startRuntime()
+        compose.runOnIdle {
+            WatchProgressRepository.upsertPlaybackProgress(
+                session = runtime.playbackSession,
+                snapshot = nearEnd.copy(positionMs = 300_000L),
+                syncRemote = false,
+            )
+            runtime.updatePlaybackSnapshot(PlayerPlaybackSnapshot(
+                isLoading = false, isPlaying = true, positionMs = 29_000L, durationMs = 30_000L,
+            ))
+        }
+        compose.runOnIdle {
+            runtime.updatePlaybackSnapshot(PlayerPlaybackSnapshot(
+                isLoading = false, isEnded = true, positionMs = 30_000L,
+            ))
+        }
+        compose.runOnIdle {
+            val progress = WatchProgressRepository.uiState.value.entries.single()
+            assertEquals(300_000L, progress.lastPositionMs)
+            assertEquals(1_200_000L, progress.durationMs)
+            assertFalse(progress.isCompleted)
+            assertFalse(runtime.nextEpisodeAutoPlaySearching)
         }
     }
 

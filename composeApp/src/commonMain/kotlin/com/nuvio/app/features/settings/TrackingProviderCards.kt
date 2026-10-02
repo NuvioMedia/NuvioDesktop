@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,11 +17,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Sync
-import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,6 +51,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.core.ui.DialogButton
+import com.nuvio.app.core.ui.DialogButtons
+import com.nuvio.app.core.ui.DialogButtonStyle
+import com.nuvio.app.core.ui.DialogSurface
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
@@ -715,61 +716,37 @@ private fun TrackingDisconnectDialog(
     onDismiss: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
-    BasicAlertDialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = tokens.components.dialogMaxWidth),
-            shape = tokens.shapes.dialog,
-            color = tokens.colors.surfaceDialog,
-        ) {
-            Column(
-                modifier = Modifier.padding(tokens.spacing.dialogPadding),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = stringResource(Res.string.settings_tracking_disconnect_title, brand.displayName),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = tokens.colors.textPrimary,
-                    fontWeight = FontWeight.SemiBold,
+    DialogSurface(
+        onDismissRequest = onDismiss,
+        title = stringResource(Res.string.settings_tracking_disconnect_title, brand.displayName),
+    ) {
+        Text(
+            text = when (brand) {
+                TrackingBrand.TRAKT ->
+                    stringResource(Res.string.settings_trakt_disconnect_description)
+                TrackingBrand.SIMKL ->
+                    stringResource(Res.string.settings_simkl_disconnect_description)
+                TrackingBrand.MDBLIST -> stringResource(Res.string.settings_mdblist_disconnect_description)
+                TrackingBrand.NUVIO,
+                TrackingBrand.TMDB,
+                -> stringResource(
+                    Res.string.settings_tracking_disconnect_description,
+                    brand.displayName,
                 )
-                Text(
-                    text = when (brand) {
-                        TrackingBrand.TRAKT ->
-                            stringResource(Res.string.settings_trakt_disconnect_description)
-                        TrackingBrand.SIMKL ->
-                            stringResource(Res.string.settings_simkl_disconnect_description)
-                        TrackingBrand.MDBLIST ->
-                            stringResource(Res.string.settings_mdblist_disconnect_description)
-                        TrackingBrand.NUVIO,
-                        TrackingBrand.TMDB,
-                        -> stringResource(
-                            Res.string.settings_tracking_disconnect_description,
-                            brand.displayName,
-                        )
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = tokens.colors.textMuted,
-                )
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(stringResource(Res.string.action_cancel))
-                    }
-                    Button(
-                        onClick = onConfirm,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError,
-                        ),
-                    ) {
-                        Text(stringResource(Res.string.settings_trakt_disconnect))
-                    }
-                }
-            }
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = tokens.colors.textMuted,
+        )
+        DialogButtons {
+            DialogButton(
+                text = stringResource(Res.string.action_cancel),
+                onClick = onDismiss,
+            )
+            DialogButton(
+                text = stringResource(Res.string.settings_trakt_disconnect),
+                onClick = onConfirm,
+                style = DialogButtonStyle.Destructive,
+            )
         }
     }
 }

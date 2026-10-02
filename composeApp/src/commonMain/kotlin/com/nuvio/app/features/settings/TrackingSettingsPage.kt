@@ -412,7 +412,6 @@ private fun TrackingPreferenceActionRow(
             ) {
                 if (isLoading) {
                     NuvioLoadingIndicator(
-                        color = tokens.colors.accent,
                         modifier = Modifier.size(16.dp),
                     )
                 }

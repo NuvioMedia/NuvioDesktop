@@ -143,7 +143,6 @@ fun SettingsScreen(
     onContinueWatchingClick: () -> Unit = {},
     onAddonsClick: () -> Unit = {},
     onPluginsClick: () -> Unit = {},
-    onDownloadsClick: () -> Unit = {},
     onAccountClick: () -> Unit = {},
     onSupportersContributorsClick: () -> Unit = {},
     onLicensesAttributionsClick: () -> Unit = {},
@@ -403,7 +402,6 @@ fun SettingsScreen(
                 continueWatchingPreferencesUiState = continueWatchingPreferencesUiState,
                 posterCardStyleUiState = posterCardStyleUiState,
                 onSwitchProfile = onSwitchProfile,
-                onDownloadsClick = onDownloadsClick,
                 onSupportersContributorsClick = openSupportersContributors,
                 onLicensesAttributionsClick = openLicensesAttributions,
                 onCheckForUpdatesClick = onCheckForUpdatesClick,
@@ -476,7 +474,6 @@ fun SettingsScreen(
                 onContinueWatchingClick = openContinueWatching,
                 onAddonsClick = openAddons,
                 onPluginsClick = openPlugins,
-                onDownloadsClick = onDownloadsClick,
                 onAccountClick = openAccount,
                 onSupportersContributorsClick = openSupportersContributors,
                 onLicensesAttributionsClick = openLicensesAttributions,
@@ -556,7 +553,6 @@ private fun MobileSettingsScreen(
     onContinueWatchingClick: () -> Unit = {},
     onAddonsClick: () -> Unit = {},
     onPluginsClick: () -> Unit = {},
-    onDownloadsClick: () -> Unit = {},
     onAccountClick: () -> Unit = {},
     onSupportersContributorsClick: () -> Unit = {},
     onLicensesAttributionsClick: () -> Unit = {},
@@ -609,11 +605,6 @@ private fun MobileSettingsScreen(
                     SettingsPage.MetaScreen -> onMetaScreenClick()
                     else -> onPageChange(target.page)
                 }
-                SettingsSearchTarget.Downloads -> {
-                    if (AppFeaturePolicy.downloadsEnabled) {
-                        onDownloadsClick()
-                    }
-                }
                 SettingsSearchTarget.Collections -> onCollectionsClick()
                 SettingsSearchTarget.SwitchProfile -> onSwitchProfile?.invoke()
                 SettingsSearchTarget.CheckForUpdates -> onCheckForUpdatesClick?.invoke()
@@ -663,7 +654,6 @@ private fun MobileSettingsScreen(
                             settingsSearchEntries(
                                 isTablet = false,
                                 pluginsEnabled = AppFeaturePolicy.pluginsEnabled,
-                                downloadsEnabled = AppFeaturePolicy.downloadsEnabled,
                                 notificationsEnabled = AppFeaturePolicy.notificationsEnabled,
                                 externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported,
                                 supportersContributorsPageEnabled = AppFeaturePolicy.supportersContributorsPageEnabled,
@@ -694,10 +684,8 @@ private fun MobileSettingsScreen(
                             onLicensesAttributionsClick = onLicensesAttributionsClick,
                             onCheckForUpdatesClick = onCheckForUpdatesClick,
                             onTestUpdateBannerClick = onTestUpdateBannerClick,
-                            onDownloadsClick = onDownloadsClick,
                             onAccountClick = onAccountClick,
                             onSwitchProfileClick = onSwitchProfile,
-                            showDownloadsEntry = AppFeaturePolicy.downloadsEnabled,
                             showNotificationsEntry = AppFeaturePolicy.notificationsEnabled,
                             showSupportersContributorsPage = AppFeaturePolicy.supportersContributorsPageEnabled,
                         )
@@ -946,7 +934,6 @@ private fun TabletSettingsScreen(
     continueWatchingPreferencesUiState: ContinueWatchingPreferencesUiState,
     posterCardStyleUiState: PosterCardStyleUiState,
     onSwitchProfile: (() -> Unit)? = null,
-    onDownloadsClick: () -> Unit = {},
     onSupportersContributorsClick: () -> Unit = {},
     onLicensesAttributionsClick: () -> Unit = {},
     onCheckForUpdatesClick: (() -> Unit)? = null,
@@ -1028,7 +1015,6 @@ private fun TabletSettingsScreen(
                     settingsSearchEntries(
                         isTablet = true,
                         pluginsEnabled = AppFeaturePolicy.pluginsEnabled,
-                        downloadsEnabled = AppFeaturePolicy.downloadsEnabled,
                         notificationsEnabled = AppFeaturePolicy.notificationsEnabled,
                         externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported,
                         supportersContributorsPageEnabled = AppFeaturePolicy.supportersContributorsPageEnabled,
@@ -1044,11 +1030,6 @@ private fun TabletSettingsScreen(
                         is SettingsSearchTarget.Page -> {
                             if (target.page.isEnabledByPolicy()) {
                                 openInlinePage(target.page)
-                            }
-                        }
-                        SettingsSearchTarget.Downloads -> {
-                            if (AppFeaturePolicy.downloadsEnabled) {
-                                onDownloadsClick()
                             }
                         }
                         SettingsSearchTarget.Collections -> onCollectionsClick()
@@ -1153,10 +1134,8 @@ private fun TabletSettingsScreen(
                                         onLicensesAttributionsClick = { openInlinePage(SettingsPage.LicensesAttributions) },
                                         onCheckForUpdatesClick = onCheckForUpdatesClick,
                                         onTestUpdateBannerClick = onTestUpdateBannerClick,
-                                        onDownloadsClick = onDownloadsClick,
                                         onAccountClick = { openInlinePage(SettingsPage.Account) },
                                         onSwitchProfileClick = onSwitchProfile,
-                                        showDownloadsEntry = AppFeaturePolicy.downloadsEnabled,
                                         showNotificationsEntry = AppFeaturePolicy.notificationsEnabled,
                                         showAccountSection = activeCategory == SettingsCategory.Account,
                                         showGeneralSection = activeCategory == SettingsCategory.General,

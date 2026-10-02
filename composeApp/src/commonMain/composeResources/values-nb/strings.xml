@@ -548,8 +548,8 @@
     <string name="compose_player_downloaded">Lastet ned</string>
     <string name="compose_player_episode_code">S%1$d E%2$d</string>
     <string name="compose_player_episode_code_episode_only">E%1$d</string>
-    <string name="compose_player_episode_code_full">S%1$dE%2$d</string>
-    <string name="compose_player_episode_title_format">S%1$dE%2$d • %3$s</string>
+    <string name="compose_player_episode_code_full">S%1$d E%2$d</string>
+    <string name="compose_player_episode_title_format">S%1$d E%2$d • %3$s</string>
     <string name="compose_player_episodes">Episoder</string>
     <string name="compose_player_fetch_subtitles">Trykk for å hente undertekster</string>
     <string name="compose_player_fewer_actions">Færre kontroller</string>
@@ -671,7 +671,7 @@
     <string name="compose_trakt_list_picker_loading">Laster Trakt-listene dine…</string>
     <string name="compose_trakt_list_picker_subtitle">Velg hvor du vil lagre denne tittelen på Trakt</string>
     <string name="continue_watching_up_next">Neste</string>
-    <string name="continue_watching_up_next_episode">Neste • S%1$dE%2$d</string>
+    <string name="continue_watching_up_next_episode">Neste • S%1$d E%2$d</string>
     <string name="custom_theme_brightness">Lysstyrke</string>
     <string name="custom_theme_color_number">Farge %1$d</string>
     <string name="custom_theme_edit">Rediger tilpasset tema</string>
@@ -1110,7 +1110,7 @@ Du bruker denne funksjonen helt på eget ansvar. P2P kan deaktiveres når som he
     <string name="player_loading_subtitles_progress">Henter undertekster… (%1$d / %2$d)</string>
     <string name="player_next_episode">Neste episode</string>
     <string name="player_next_episode_finding_source">Finner kilde…</string>
-    <string name="player_next_episode_playing_via_countdown">Spiller via %1$s om %2$d…</string>
+    <string name="player_next_episode_playing_via_countdown">Spiller via %1$s om %2$ds…</string>
     <string name="player_next_episode_thumbnail">Neste episode miniatyr</string>
     <string name="player_next_episode_unaired">Ikke sendt</string>
     <string name="player_seek_position">Avspillingsposisjon</string>
@@ -2103,7 +2103,7 @@ Du bruker denne funksjonen helt på eget ansvar. P2P kan deaktiveres når som he
     <string name="streams_empty_no_streams_message">Ingen av de installerte tilleggene returnerte strømmer for denne tittelen.</string>
     <string name="streams_episode_badge">S%1$d E%2$d</string>
     <string name="streams_episode_fallback_title">Episode</string>
-    <string name="streams_episode_title_with_name">S%1$dE%2$d - %3$s</string>
+    <string name="streams_episode_title_with_name">S%1$d E%2$d - %3$s</string>
     <string name="streams_failed_to_load_scraper">Kunne ikke laste %1$s</string>
     <string name="streams_fetching">Henter…</string>
     <string name="streams_finding_source">Finner kilde…</string>
@@ -2310,4 +2310,22 @@ Du bruker denne funksjonen helt på eget ansvar. P2P kan deaktiveres når som he
     <string name="compose_nav_settings">Innstillinger</string>
     <string name="cw_airs_in_days_format">Sendes om %1$d dager</string>
     <string name="cw_airs_in_days_short_format">Om %1$d dager</string>
+    <string name="series_status_ended">Avsluttet</string>
+    <string name="series_status_continuing">Pågår</string>
+    <string name="series_status_current">Gjeldende</string>
+    <string name="series_status_cancelled">Kansellert</string>
+    <string name="series_status_released">Utgitt</string>
+    <string name="series_status_planned">Planlagt</string>
+    <string name="series_status_rumored">Ryktet</string>
+    <string name="series_status_in_production">I produksjon</string>
+    <string name="series_status_post_production">Postproduksjon</string>
+    <string name="movie_status_ended">Avsluttet</string>
+    <string name="movie_status_continuing">Pågår</string>
+    <string name="movie_status_current">Gjeldende</string>
+    <string name="movie_status_cancelled">Kansellert</string>
+    <string name="movie_status_released">Utgitt</string>
+    <string name="movie_status_planned">Planlagt</string>
+    <string name="movie_status_rumored">Ryktet</string>
+    <string name="movie_status_in_production">I produksjon</string>
+    <string name="movie_status_post_production">Postproduksjon</string>
 </resources>

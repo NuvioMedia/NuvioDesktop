@@ -676,6 +676,11 @@ button:disabled {
   display: none;
 }
 
+.next-episode-card:is(.blur-thumb) .next-episode-thumb img {
+  filter: blur(15px);
+  transform: scale(1.15);
+}
+
 .next-episode-thumb::after {
   content: "";
   position: absolute;

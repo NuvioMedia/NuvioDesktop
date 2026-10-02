@@ -20,6 +20,26 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "0.5.4",
+          "buildVersion": "136",
+          "date": "2026-09-28T09:23:38Z",
+          "localizedDescription": "- 80860602 fix(player): ignore short clips for tracking @tapframe  \n- cd4572e2 fix(ios): update quickjs to 1.0.15 @tapframe  \n- 9980d643 fix(player): reduce buffer durations @tapframe  \n- 75296263 fix(details): keep custom posters when returning to a title @tapframe  \n- 4bdcfa3a fix(settings): use shared chip on detail page @tapframe  \n- 2b8be69c fix(details): replay watched series from first episode @tapframe  \n- c69b643a fix(player): resume restored player from current position @tapframe  \n- c3920d40 fix(i18n): align episode labels and metadata with tv @tapframe  \n- 24c7c89c fix(streams): prevent rotation during binge group lookup @tapframe  \n- a1a43416 fix(profiles): center pin dialog content @tapframe  \n- [Plugin timeout (#2091)](https://github.com/NuvioMedia/NuvioMobile/pull/2091) @paregi12  \n",
+          "downloadURL": "https://github.com/NuvioMedia/NuvioMobile/releases/download/0.5.4-beta/nuvio-0.5.4-full-release.ipa",
+          "size": 66389579,
+          "sha256": "f605463d51f304564833e82a2fc1478a326c2bea7fa15519d99e854eebb50b94",
+          "minOSVersion": "16.1"
+        },
+        {
+          "version": "0.5.3",
+          "buildVersion": "135",
+          "date": "2026-09-27T01:18:47Z",
+          "localizedDescription": "- 0b7ab892 feat(poster): support addon landscape posters @tapframe  \r\n- 60a0f4b3 feat(library): move downloads to library\r\n- 5ebb8ee5 feat(spinner): change indicator @tapframe  \r\n- [i18n(ur): add Urdu localization (#2067)](https://github.com/NuvioMedia/NuvioMobile/pull/2067) @muzii9  \r\n- 23b048c3 feat(player): add episode shuffle @tapframe  \r\n",
+          "downloadURL": "https://github.com/NuvioMedia/NuvioMobile/releases/download/0.5.3-beta/nuvio-0.5.3-full-release.ipa",
+          "size": 66299682,
+          "sha256": "7ee79b969d904893f3656ab99de0f9611fb9b70141c72f8094d4c04d74f4a72a",
+          "minOSVersion": "16.1"
+        },
+        {
           "version": "0.5.2",
           "buildVersion": "134",
           "date": "2026-09-25T18:03:57Z",

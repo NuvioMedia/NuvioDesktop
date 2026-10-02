@@ -441,6 +441,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             )
         }.orEmpty(),
         nextEpisodeThumbnail = nextEpisodeForControls?.thumbnail.orEmpty(),
+        nextEpisodeThumbnailBlurred = metaScreenSettingsUiState.blurUnwatchedEpisodes && nextEpisodeInfo?.isWatched == false,
         nextEpisodeStatus = nextEpisodeStatus,
         nextEpisodeActionLabel = if (nextEpisodeForControls?.hasAired == true) {
             stringResource(Res.string.detail_btn_play)

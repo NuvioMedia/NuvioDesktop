@@ -329,8 +329,8 @@
     <string name="compose_player_color">Kolor</string>
     <string name="compose_player_currently_playing">Aktualnie odtwarzane</string>
     <string name="compose_player_episode_code_episode_only">E%1$d</string>
-    <string name="compose_player_episode_code_full">S%1$dE%2$d</string>
-    <string name="compose_player_episode_title_format">S%1$dE%2$d • %3$s</string>
+    <string name="compose_player_episode_code_full">S%1$d E%2$d</string>
+    <string name="compose_player_episode_title_format">S%1$d E%2$d • %3$s</string>
     <string name="compose_player_episodes">Odcinki</string>
     <string name="compose_player_font_size">Rozmiar czcionki</string>
     <string name="compose_player_font_size_value">%1$dsp</string>
@@ -559,6 +559,7 @@
     <string name="settings_poster_custom">Niestandardowy</string>
     <string name="settings_poster_description">Dostosuj szerokość i zaokrąglenie rogów kart plakatów w całej aplikacji.</string>
     <string name="settings_poster_hide_labels">Ukryj etykiety</string>
+    <string name="settings_poster_always_show_landscape_clearlogo">Zawsze tło z logo dla poziomych plakatów</string>
     <string name="settings_poster_landscape_mode">Tryb poziomy dla plakatów na półce</string>
     <string name="settings_poster_live_preview">Podgląd na żywo</string>
     <string name="settings_poster_option_with_value">%1$s (%2$s)</string>
@@ -1007,7 +1008,7 @@
     <string name="theme_white">Biały</string>
     <string name="player_next_episode">Następny odcinek</string>
     <string name="player_next_episode_finding_source">Szukanie źródła…</string>
-    <string name="player_next_episode_playing_via_countdown">Odtwarzanie przez %1$s za %2$d…</string>
+    <string name="player_next_episode_playing_via_countdown">Odtwarzanie przez %1$s za %2$ds…</string>
     <string name="player_next_episode_thumbnail">Miniatura następnego odcinka</string>
     <string name="player_next_episode_unaired">Niewyemitowany</string>
     <string name="player_skip">Pomiń</string>
@@ -1230,7 +1231,7 @@
     <string name="streams_empty_no_streams_message">Żaden z zainstalowanych dodatków nie zwrócił strumieni dla tego tytułu.</string>
     <string name="streams_episode_badge">S%1$d E%2$d</string>
     <string name="streams_episode_fallback_title">Odcinek</string>
-    <string name="streams_episode_title_with_name">S%1$dE%2$d - %3$s</string>
+    <string name="streams_episode_title_with_name">S%1$d E%2$d - %3$s</string>
     <string name="streams_fetching">Pobieranie…</string>
     <string name="streams_finding_source">Szukanie źródła…</string>
     <string name="streams_loading_subtitles">Pobieranie napisów z dodatków…</string>
@@ -1280,7 +1281,7 @@
     <string name="auth_sign_up_failed">Rejestracja nie powiodła się</string>
     <string name="catalog_load_failed">Nie można załadować elementów katalogu.</string>
     <string name="continue_watching_up_next">Następny</string>
-    <string name="continue_watching_up_next_episode">Następny • S%1$dE%2$d</string>
+    <string name="continue_watching_up_next_episode">Następny • S%1$d E%2$d</string>
     <string name="detail_logo_content_description">Logo %1$s</string>
     <string name="details_comments_load_failed">Nie udało się załadować komentarzy</string>
     <string name="details_load_failed_all_addons">Nie można załadować szczegółów z żadnego dodatku.</string>
@@ -2297,4 +2298,22 @@
     <string name="layout_ratings_show">Pokaż</string>
     <string name="layout_ratings_hide">Ukryj</string>
     <string name="layout_ratings_hide_unwatched">Ukryj nieobejrzane</string>
+    <string name="series_status_ended">Zakończony</string>
+    <string name="series_status_continuing">W trakcie</string>
+    <string name="series_status_current">Na żywo</string>
+    <string name="series_status_cancelled">Anulowany</string>
+    <string name="series_status_released">Wydany</string>
+    <string name="series_status_planned">Planowany</string>
+    <string name="series_status_rumored">Plotki</string>
+    <string name="series_status_in_production">W produkcji</string>
+    <string name="series_status_post_production">Postprodukcja</string>
+    <string name="movie_status_ended">Zakończony</string>
+    <string name="movie_status_continuing">W trakcie</string>
+    <string name="movie_status_current">Na żywo</string>
+    <string name="movie_status_cancelled">Anulowany</string>
+    <string name="movie_status_released">Wydany</string>
+    <string name="movie_status_planned">Planowany</string>
+    <string name="movie_status_rumored">Plotki</string>
+    <string name="movie_status_in_production">W produkcji</string>
+    <string name="movie_status_post_production">Postprodukcja</string>
 </resources>

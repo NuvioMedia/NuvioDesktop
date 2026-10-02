@@ -318,8 +318,8 @@
     <string name="compose_player_color">Szín</string>
     <string name="compose_player_currently_playing">Most játszott tartalom</string>
     <string name="compose_player_episode_code_episode_only">%1$d. rész</string>
-    <string name="compose_player_episode_code_full">S%1$dE%2$d</string>
-    <string name="compose_player_episode_title_format">S%1$dE%2$d • %3$s</string>
+    <string name="compose_player_episode_code_full">S%1$d E%2$d</string>
+    <string name="compose_player_episode_title_format">S%1$d E%2$d • %3$s</string>
     <string name="compose_player_episodes">Epizódok</string>
     <string name="compose_player_font_size">Betűméret</string>
     <string name="compose_player_font_size_value">%1$dsp</string>
@@ -1135,7 +1135,7 @@
     <string name="streams_empty_no_streams_message">Egyetlen telepített kiegészítő sem adott vissza streamet ehhez a tartalomhoz.</string>
     <string name="streams_episode_badge">S%1$d E%2$d</string>
     <string name="streams_episode_fallback_title">Epizód</string>
-    <string name="streams_episode_title_with_name">S%1$dE%2$d - %3$s</string>
+    <string name="streams_episode_title_with_name">S%1$d E%2$d - %3$s</string>
     <string name="streams_fetching">Lekérés…</string>
     <string name="streams_finding_source">Forrás keresése…</string>
     <string name="streams_finding_streams">Streamek keresése…</string>
@@ -1183,7 +1183,7 @@
     <string name="auth_sign_up_failed">Regisztráció sikertelen</string>
     <string name="catalog_load_failed">Nem sikerült betölteni a katalóguselemeket.</string>
     <string name="continue_watching_up_next">Következő epizód</string>
-    <string name="continue_watching_up_next_episode">Következő • S%1$dE%2$d</string>
+    <string name="continue_watching_up_next_episode">Következő • S%1$d E%2$d</string>
     <string name="detail_logo_content_description">%1$s logó</string>
     <string name="details_comments_load_failed">Nem sikerült betölteni a hozzászólásokat</string>
     <string name="details_load_failed_all_addons">Egyetlen kiegészítőből sem sikerült betölteni a részleteket.</string>
@@ -2130,4 +2130,22 @@
     <string name="layout_ratings_show">Megjelenítés</string>
     <string name="layout_ratings_hide">Elrejtés</string>
     <string name="layout_ratings_hide_unwatched">Nem látottak elrejtése</string>
+    <string name="series_status_ended">Befejezett</string>
+    <string name="series_status_continuing">Folyamatban</string>
+    <string name="series_status_current">Jelenlegi</string>
+    <string name="series_status_cancelled">Törölve</string>
+    <string name="series_status_released">Megjelent</string>
+    <string name="series_status_planned">Tervezett</string>
+    <string name="series_status_rumored">Lehetséges</string>
+    <string name="series_status_in_production">Gyártás alatt</string>
+    <string name="series_status_post_production">Utómunka alatt</string>
+    <string name="movie_status_ended">Befejezve</string>
+    <string name="movie_status_continuing">Folyamatban</string>
+    <string name="movie_status_current">Aktuális</string>
+    <string name="movie_status_cancelled">Törölve</string>
+    <string name="movie_status_released">Megjelent</string>
+    <string name="movie_status_planned">Tervezett</string>
+    <string name="movie_status_rumored">Pletyka</string>
+    <string name="movie_status_in_production">Gyártás alatt</string>
+    <string name="movie_status_post_production">Utómunka</string>
 </resources>

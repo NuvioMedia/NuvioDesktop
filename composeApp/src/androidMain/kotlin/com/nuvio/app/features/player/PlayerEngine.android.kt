@@ -389,10 +389,10 @@ private fun ExoPlayerSurface(
         }
 
         val loadControl = DefaultLoadControl.Builder()
-            .setBackBuffer(30_000, true)
+            .setBackBuffer(10_000, true)
             .setBufferDurationsMs(
                 DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-                70_000,
+                50_000,
                 DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
                 DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
             )

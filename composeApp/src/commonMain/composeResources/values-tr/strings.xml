@@ -350,8 +350,8 @@
     <string name="compose_player_color">Renk</string>
     <string name="compose_player_currently_playing">Şu an oynatılıyor</string>
     <string name="compose_player_episode_code_episode_only">B%1$d</string>
-    <string name="compose_player_episode_code_full">S%1$dB%2$d</string>
-    <string name="compose_player_episode_title_format">S%1$dB%2$d • %3$s</string>
+    <string name="compose_player_episode_code_full">S%1$d B%2$d</string>
+    <string name="compose_player_episode_title_format">S%1$d B%2$d • %3$s</string>
     <string name="compose_player_episodes">Bölümler</string>
     <string name="compose_player_font_size">Yazı boyutu</string>
     <string name="compose_player_font_size_value">%1$dsp</string>
@@ -1232,7 +1232,7 @@
     <string name="theme_white">Beyaz</string>
     <string name="player_next_episode">Sonraki bölüm</string>
     <string name="player_next_episode_finding_source">Kaynak bulunuyor…</string>
-    <string name="player_next_episode_playing_via_countdown">%1$s üzerinden %2$d içinde oynatılıyor…</string>
+    <string name="player_next_episode_playing_via_countdown">%1$s üzerinden %2$d sn içinde oynatılıyor…</string>
     <string name="player_next_episode_thumbnail">Sonraki bölüm küçük görseli</string>
     <string name="player_next_episode_unaired">Yayınlanmadı</string>
     <string name="player_skip">Geç</string>
@@ -1462,7 +1462,7 @@
     <string name="streams_empty_no_streams_message">Kurulu eklentilerinin hiçbiri bu içerik için yayın döndürmedi.</string>
     <string name="streams_episode_badge">S%1$d B%2$d</string>
     <string name="streams_episode_fallback_title">Bölüm</string>
-    <string name="streams_episode_title_with_name">S%1$dB%2$d - %3$s</string>
+    <string name="streams_episode_title_with_name">S%1$d B%2$d - %3$s</string>
     <string name="streams_fetching">Alınıyor…</string>
     <string name="streams_finding_source">Kaynak bulunuyor…</string>
     <string name="streams_loading_subtitles">Eklentilerden altyazılar yükleniyor…</string>
@@ -1526,7 +1526,7 @@
     <string name="auth_sign_up_failed">Kayıt olunamadı</string>
     <string name="catalog_load_failed">Katalog öğeleri yüklenemiyor.</string>
     <string name="continue_watching_up_next">Sıradaki</string>
-    <string name="continue_watching_up_next_episode">Sıradaki • S%1$dB%2$d</string>
+    <string name="continue_watching_up_next_episode">Sıradaki • S%1$d B%2$d</string>
     <string name="detail_logo_content_description">%1$s logosu</string>
     <string name="details_comments_load_failed">Yorumlar yüklenemedi</string>
     <string name="details_load_failed_all_addons">Detaylar hiçbir eklentiden yüklenemedi.</string>
@@ -2153,4 +2153,22 @@ Bu özelliği tamamen kendi sorumluluğunuzda kullanırsınız. P2P istediğiniz
     <string name="layout_ratings_show">Göster</string>
     <string name="layout_ratings_hide">Gizle</string>
     <string name="layout_ratings_hide_unwatched">İzlenmeyenleri Gizle</string>
+    <string name="series_status_ended">Sona Erdi</string>
+    <string name="series_status_continuing">Devam Ediyor</string>
+    <string name="series_status_current">Güncel</string>
+    <string name="series_status_cancelled">İptal Edildi</string>
+    <string name="series_status_released">Yayınlandı</string>
+    <string name="series_status_planned">Planlanıyor</string>
+    <string name="series_status_rumored">Söylenti</string>
+    <string name="series_status_in_production">Yapım Aşamasında</string>
+    <string name="series_status_post_production">Post Prodüksiyon</string>
+    <string name="movie_status_ended">Sona Erdi</string>
+    <string name="movie_status_continuing">Devam Ediyor</string>
+    <string name="movie_status_current">Güncel</string>
+    <string name="movie_status_cancelled">İptal Edildi</string>
+    <string name="movie_status_released">Yayınlandı</string>
+    <string name="movie_status_planned">Planlanıyor</string>
+    <string name="movie_status_rumored">Söylenti</string>
+    <string name="movie_status_in_production">Yapım Aşamasında</string>
+    <string name="movie_status_post_production">Post Prodüksiyon</string>
 </resources>

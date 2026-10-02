@@ -32,8 +32,6 @@ import nuvio.composeapp.generated.resources.compose_settings_root_appearance_des
 import nuvio.composeapp.generated.resources.compose_settings_root_check_updates_description
 import nuvio.composeapp.generated.resources.compose_settings_root_check_updates_title
 import nuvio.composeapp.generated.resources.compose_settings_root_content_discovery_description
-import nuvio.composeapp.generated.resources.compose_settings_root_downloads_description
-import nuvio.composeapp.generated.resources.compose_settings_root_downloads_title
 import nuvio.composeapp.generated.resources.compose_settings_root_general_section
 import nuvio.composeapp.generated.resources.compose_settings_root_integrations_description
 import nuvio.composeapp.generated.resources.compose_settings_root_notifications_description
@@ -69,10 +67,8 @@ internal fun LazyListScope.settingsRootContent(
     onLicensesAttributionsClick: () -> Unit,
     onCheckForUpdatesClick: (() -> Unit)? = null,
     onTestUpdateBannerClick: (() -> Unit)? = null,
-    onDownloadsClick: () -> Unit,
     onAccountClick: () -> Unit,
     onSwitchProfileClick: (() -> Unit)? = null,
-    showDownloadsEntry: Boolean = true,
     showNotificationsEntry: Boolean = true,
     showAccountSection: Boolean = true,
     showGeneralSection: Boolean = true,
@@ -139,16 +135,6 @@ internal fun LazyListScope.settingsRootContent(
                         isTablet = isTablet,
                         onClick = onContentDiscoveryClick,
                     )
-                    if (showDownloadsEntry) {
-                        SettingsGroupDivider(isTablet = isTablet)
-                        SettingsNavigationRow(
-                            title = stringResource(Res.string.compose_settings_root_downloads_title),
-                            description = stringResource(Res.string.compose_settings_root_downloads_description),
-                            icon = Icons.Rounded.CloudDownload,
-                            isTablet = isTablet,
-                            onClick = onDownloadsClick,
-                        )
-                    }
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(
                         title = stringResource(Res.string.compose_settings_page_playback),

@@ -40,7 +40,8 @@ fun MetaPreview.withCustomPosterUrl(pattern: String): MetaPreview {
     return copy(
         poster = resolvedPoster ?: poster,
         rawPosterUrl = rawPosterUrl ?: poster,
-        landscapePoster = resolvedLandscape ?: landscapePoster
+        landscapePoster = resolvedLandscape ?: landscapePoster,
+        rawLandscapePosterUrl = if (rawPosterUrl == null) landscapePoster else rawLandscapePosterUrl,
     )
 }
 
@@ -51,7 +52,7 @@ fun MetaPreview.withCustomPosterUrl(pattern: String): MetaPreview {
  */
 fun MetaPreview.reapplyCustomPosterUrl(pattern: String): MetaPreview {
     val restored = if (rawPosterUrl != null) {
-        copy(poster = rawPosterUrl, landscapePoster = null)
+        copy(poster = rawPosterUrl, landscapePoster = rawLandscapePosterUrl)
     } else {
         this
     }

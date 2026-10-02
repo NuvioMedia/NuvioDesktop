@@ -1,5 +1,6 @@
 package com.nuvio.app.features.watchprogress
 
+import com.nuvio.app.core.i18n.localizedSeasonEpisodeCode
 import com.nuvio.app.features.cloud.CloudLibraryContentType
 import com.nuvio.app.features.cloud.cloudLibraryProviderPosterUrl
 import com.nuvio.app.features.details.MetaVideo
@@ -222,6 +223,8 @@ data class ContinueWatchingItem(
     val isNewSeasonRelease: Boolean = false,
     val rawPosterUrl: String? = null,
     val rawBackgroundUrl: String? = null,
+    val shufflePlayback: Boolean = false,
+    val isWatched: Boolean = false,
 )
 
 internal fun continueWatchingItemKey(item: ContinueWatchingItem): String {
@@ -366,11 +369,7 @@ internal fun buildContinueWatchingEpisodeSubtitle(
     episodeNumber: Int?,
     episodeTitle: String?,
 ): String {
-    val episodeCode = when {
-        seasonNumber != null && episodeNumber != null -> "S${seasonNumber}E${episodeNumber}"
-        episodeNumber != null -> "E${episodeNumber}"
-        else -> null
-    }
+    val episodeCode = localizedSeasonEpisodeCode(seasonNumber, episodeNumber)
     val title = episodeTitle.orEmpty()
     return listOfNotNull(episodeCode, title.takeIf { it.isNotBlank() }).joinToString(" • ")
 }

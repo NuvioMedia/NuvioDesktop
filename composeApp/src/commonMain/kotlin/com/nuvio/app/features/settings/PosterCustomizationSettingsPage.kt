@@ -109,6 +109,7 @@ import nuvio.composeapp.generated.resources.settings_poster_card_width
 import nuvio.composeapp.generated.resources.settings_poster_custom
 import nuvio.composeapp.generated.resources.settings_poster_description
 import nuvio.composeapp.generated.resources.settings_poster_hide_labels
+import nuvio.composeapp.generated.resources.settings_poster_always_show_landscape_clearlogo
 import nuvio.composeapp.generated.resources.settings_poster_landscape_mode
 import nuvio.composeapp.generated.resources.settings_poster_live_preview
 import nuvio.composeapp.generated.resources.settings_poster_option_with_value
@@ -163,10 +164,12 @@ internal fun LazyListScope.posterCustomizationSettingsContent(
                     cornerRadiusDp = uiState.cornerRadiusDp,
                     catalogLandscapeModeEnabled = uiState.catalogLandscapeModeEnabled,
                     hideLabelsEnabled = uiState.hideLabelsEnabled,
+                    alwaysShowLandscapeClearlogo = uiState.alwaysShowLandscapeClearlogo,
                     onWidthSelected = PosterCardStyleRepository::setWidthDp,
                     onCornerRadiusSelected = PosterCardStyleRepository::setCornerRadiusDp,
                     onCatalogLandscapeModeChange = PosterCardStyleRepository::setCatalogLandscapeModeEnabled,
                     onHideLabelsChange = PosterCardStyleRepository::setHideLabelsEnabled,
+                    onAlwaysShowLandscapeClearlogoChange = PosterCardStyleRepository::setAlwaysShowLandscapeClearlogo,
                 )
             }
         }
@@ -722,10 +725,12 @@ private fun PosterCardStyleControls(
     cornerRadiusDp: Int,
     catalogLandscapeModeEnabled: Boolean,
     hideLabelsEnabled: Boolean,
+    alwaysShowLandscapeClearlogo: Boolean,
     onWidthSelected: (Int) -> Unit,
     onCornerRadiusSelected: (Int) -> Unit,
     onCatalogLandscapeModeChange: (Boolean) -> Unit,
     onHideLabelsChange: (Boolean) -> Unit,
+    onAlwaysShowLandscapeClearlogoChange: (Boolean) -> Unit,
 ) {
     val widthOptions = listOf(
         PresetOption(stringResource(Res.string.settings_poster_width_compact), 104),
@@ -778,6 +783,11 @@ private fun PosterCardStyleControls(
             title = stringResource(Res.string.settings_poster_hide_labels),
             checked = hideLabelsEnabled,
             onCheckedChange = onHideLabelsChange,
+        )
+        PosterToggleRow(
+            title = stringResource(Res.string.settings_poster_always_show_landscape_clearlogo),
+            checked = alwaysShowLandscapeClearlogo,
+            onCheckedChange = onAlwaysShowLandscapeClearlogoChange,
         )
     }
 }

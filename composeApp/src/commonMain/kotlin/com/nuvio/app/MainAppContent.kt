@@ -358,7 +358,7 @@ internal fun MainAppContent(
     val metaScreenSettingsTitle = stringResource(Res.string.compose_settings_page_meta_screen)
     val continueWatchingSettingsTitle = stringResource(Res.string.compose_settings_page_continue_watching)
     val debridSettingsTitle = stringResource(Res.string.compose_settings_page_debrid)
-    val downloadsSettingsTitle = stringResource(Res.string.compose_settings_root_downloads_title)
+    val downloadsTitle = stringResource(Res.string.compose_settings_root_downloads_title)
     val addonsSettingsTitle = stringResource(Res.string.compose_settings_page_addons)
     val pluginsSettingsTitle = stringResource(Res.string.compose_settings_page_plugins)
     val accountSettingsTitle = stringResource(Res.string.compose_settings_page_account)
@@ -646,8 +646,8 @@ internal fun MainAppContent(
                     DownloadsRepository.playableLocalFileUri(it) != null
                 }
                 if (hasPlayableDownload) {
-                    activateTab(AppScreenTab.Settings)
-                    navController.navigate(DownloadsSettingsRoute(downloadsSettingsTitle)) {
+                    activateTab(AppScreenTab.Library)
+                    navController.navigate(DownloadsRoute(downloadsTitle)) {
                         launchSingleTop = true
                     }
                 }
@@ -767,8 +767,8 @@ internal fun MainAppContent(
 
                     AppDeepLink.Downloads -> {
                         if (AppFeaturePolicy.downloadsEnabled) {
-                            activateTab(AppScreenTab.Settings)
-                            navController.navigate(DownloadsSettingsRoute(downloadsSettingsTitle)) {
+                            activateTab(AppScreenTab.Library)
+                            navController.navigate(DownloadsRoute(downloadsTitle)) {
                                 launchSingleTop = true
                             }
                         }
@@ -1384,6 +1384,7 @@ internal fun MainAppContent(
                                         activateTab(AppScreenTab.Settings)
                                     }
                                 },
+                                onDownloadsClick = { navController.navigate(DownloadsRoute(downloadsTitle)) },
                                 onContinueWatchingClick = onContinueWatchingClick,
                                 onContinueWatchingLongPress = onContinueWatchingLongPress,
                                 onSwitchProfile = onSwitchProfile,
@@ -1397,7 +1398,6 @@ internal fun MainAppContent(
                                 onHomescreenSettingsClick = { navController.navigate(HomescreenSettingsRoute(homescreenSettingsTitle)) },
                                 onMetaScreenSettingsClick = { navController.navigate(MetaScreenSettingsRoute(metaScreenSettingsTitle)) },
                                 onContinueWatchingSettingsClick = { navController.navigate(ContinueWatchingSettingsRoute(continueWatchingSettingsTitle)) },
-                                onDownloadsSettingsClick = { navController.navigate(DownloadsSettingsRoute(downloadsSettingsTitle)) },
                                 onAddonsSettingsClick = { navController.navigate(AddonsSettingsRoute(addonsSettingsTitle)) },
                                 onPluginsSettingsClick = {
                                     if (AppFeaturePolicy.pluginsEnabled) {
@@ -1591,7 +1591,6 @@ internal fun MainAppContent(
                         route = route,
                         navController = navController,
                         useNativeNavigation = useNativeNavigation,
-                        downloadsTitle = downloadsSettingsTitle,
                         collectionsTitle = collectionsTitle,
                         onCheckForUpdates = if (AppFeaturePolicy.inAppUpdaterEnabled) {
                             { appUpdaterController.checkForUpdates(force = true, showNoUpdateFeedback = true) }
@@ -1601,7 +1600,7 @@ internal fun MainAppContent(
                         ) appUpdaterController::showDebugTestUpdate else null,
                     )
                 }
-                entry<DownloadsSettingsRoute> { route ->
+                entry<DownloadsRoute> { route ->
                     DownloadsDestination(
                         route = route,
                         navController = navController,

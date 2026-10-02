@@ -478,7 +478,7 @@ internal fun AppGate(
                             .background(MaterialTheme.nuvio.colors.background),
                         contentAlignment = Alignment.Center,
                     ) {
-                        NuvioLoadingIndicator(color = MaterialTheme.nuvio.colors.accent)
+                        NuvioLoadingIndicator()
                     }
                 }
                 AppGateScreen.Auth.name -> {

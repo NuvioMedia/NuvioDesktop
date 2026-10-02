@@ -425,8 +425,8 @@
     <string name="compose_player_color">Kleur</string>
     <string name="compose_player_currently_playing">Nu aan het afspelen</string>
     <string name="compose_player_episode_code_episode_only">E%1$d</string>
-    <string name="compose_player_episode_code_full">S%1$dE%2$d</string>
-    <string name="compose_player_episode_title_format">S%1$dE%2$d • %3$s</string>
+    <string name="compose_player_episode_code_full">S%1$d E%2$d</string>
+    <string name="compose_player_episode_title_format">S%1$d E%2$d • %3$s</string>
     <string name="compose_player_episodes">Afleveringen</string>
     <string name="compose_player_font_size">Lettergrootte</string>
     <string name="compose_player_font_size_value">%1$dsp</string>
@@ -1344,7 +1344,7 @@
     <string name="custom_theme_preview_accent">Je accentkleur</string>
     <string name="player_next_episode">Volgende aflevering</string>
     <string name="player_next_episode_finding_source">Bron zoeken...</string>
-    <string name="player_next_episode_playing_via_countdown">Afspelen via %1$s over %2$d...</string>
+    <string name="player_next_episode_playing_via_countdown">Afspelen via %1$s over %2$ds...</string>
     <string name="player_next_episode_thumbnail">Miniatuur volgende aflevering</string>
     <string name="player_next_episode_unaired">Nog niet uitgezonden</string>
     <string name="player_skip">Overslaan</string>
@@ -1578,7 +1578,7 @@
     <string name="streams_empty_no_streams_message">Geen van je geïnstalleerde add-ons gaf streams terug voor deze titel.</string>
     <string name="streams_episode_badge">S%1$d E%2$d</string>
     <string name="streams_episode_fallback_title">Aflevering</string>
-    <string name="streams_episode_title_with_name">S%1$dE%2$d - %3$s</string>
+    <string name="streams_episode_title_with_name">S%1$d E%2$d - %3$s</string>
     <string name="streams_fetching">Ophalen...</string>
     <string name="streams_finding_source">Bron zoeken...</string>
     <string name="streams_loading_subtitles">Ondertitels van add-ons laden...</string>
@@ -1642,7 +1642,7 @@
     <string name="auth_sign_up_failed">Registreren mislukt</string>
     <string name="catalog_load_failed">Kan catalogusitems niet laden.</string>
     <string name="continue_watching_up_next">Volgende</string>
-    <string name="continue_watching_up_next_episode">Volgende • S%1$dE%2$d</string>
+    <string name="continue_watching_up_next_episode">Volgende • S%1$d E%2$d</string>
     <string name="detail_logo_content_description">%1$s-logo</string>
     <string name="details_comments_load_failed">Laden van reacties mislukt</string>
     <string name="details_load_failed_all_addons">Kon details van geen enkele add-on laden.</string>
@@ -2261,4 +2261,22 @@
     <string name="layout_ratings_show">Tonen</string>
     <string name="layout_ratings_hide">Verbergen</string>
     <string name="layout_ratings_hide_unwatched">Onbekeken verbergen</string>
+    <string name="series_status_ended">Afgelopen</string>
+    <string name="series_status_continuing">Lopend</string>
+    <string name="series_status_current">Actueel</string>
+    <string name="series_status_cancelled">Geannuleerd</string>
+    <string name="series_status_released">Uitgebracht</string>
+    <string name="series_status_planned">Gepland</string>
+    <string name="series_status_rumored">Gerucht</string>
+    <string name="series_status_in_production">In productie</string>
+    <string name="series_status_post_production">Postproductie</string>
+    <string name="movie_status_ended">Afgelopen</string>
+    <string name="movie_status_continuing">Lopend</string>
+    <string name="movie_status_current">Actueel</string>
+    <string name="movie_status_cancelled">Geannuleerd</string>
+    <string name="movie_status_released">Uitgebracht</string>
+    <string name="movie_status_planned">Gepland</string>
+    <string name="movie_status_rumored">Gerucht</string>
+    <string name="movie_status_in_production">In productie</string>
+    <string name="movie_status_post_production">Postproductie</string>
 </resources>

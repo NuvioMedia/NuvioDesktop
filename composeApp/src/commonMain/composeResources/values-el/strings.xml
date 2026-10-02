@@ -208,8 +208,8 @@
     <string name="compose_player_color">Χρώμα</string>
     <string name="compose_player_currently_playing">Παίζουν τώρα</string>
     <string name="compose_player_episode_code_episode_only">E%1$d</string>
-    <string name="compose_player_episode_code_full">S%1$dE%2$d</string>
-    <string name="compose_player_episode_title_format">S%1$dE%2$d • %3$s</string>
+    <string name="compose_player_episode_code_full">S%1$d E%2$d</string>
+    <string name="compose_player_episode_title_format">S%1$d E%2$d • %3$s</string>
     <string name="compose_player_episodes">Επεισόδια</string>
     <string name="compose_player_font_size">Μέγεθος γραμματοσειράς</string>
     <string name="compose_player_font_size_value">%1$dsp</string>
@@ -885,7 +885,7 @@
     <string name="custom_theme_preview_accent">Το χρώμα έμφασής σας</string>
     <string name="player_next_episode">Επόμενο επεισόδιο</string>
     <string name="player_next_episode_finding_source">Εύρεση πηγής…</string>
-    <string name="player_next_episode_playing_via_countdown">Αναπαραγωγή μέσω %1$s σε %2$d…</string>
+    <string name="player_next_episode_playing_via_countdown">Αναπαραγωγή μέσω %1$s σε %2$ds…</string>
     <string name="player_next_episode_thumbnail">Μικρογραφία επόμενου επεισοδίου</string>
     <string name="player_next_episode_unaired">Δεν έχει προβληθεί</string>
     <string name="player_seek_position">Θέση αναπαραγωγής</string>
@@ -1110,7 +1110,7 @@
     <string name="streams_empty_no_streams_message">Κανένα από τα εγκατεστημένα πρόσθετα δεν επέστρεψε ροές για αυτόν τον τίτλο.</string>
     <string name="streams_episode_badge">S%1$d E%2$d</string>
     <string name="streams_episode_fallback_title">Επεισόδιο</string>
-    <string name="streams_episode_title_with_name">S%1$dE%2$d - %3$s</string>
+    <string name="streams_episode_title_with_name">S%1$d E%2$d - %3$s</string>
     <string name="streams_fetching">Αναζήτηση…</string>
     <string name="streams_finding_source">Εύρεση πηγής ροής…</string>
     <string name="playback_show_loading_status">Εμφάνιση κατάστασης φόρτωσης</string>
@@ -1175,7 +1175,7 @@
     <string name="auth_sign_up_failed">Η εγγραφή απέτυχε</string>
     <string name="catalog_load_failed">Αδυναμία φόρτωσης στοιχείων καταλόγου.</string>
     <string name="continue_watching_up_next">Επόμενο</string>
-    <string name="continue_watching_up_next_episode">Επόμενο • S%1$dE%2$d</string>
+    <string name="continue_watching_up_next_episode">Επόμενο • S%1$d E%2$d</string>
     <string name="detail_logo_content_description">Λογότυπο %1$s</string>
     <string name="details_comments_load_failed">Αποτυχία φόρτωσης σχολίων</string>
     <string name="details_load_failed_all_addons">Αδυναμία φόρτωσης λεπτομερειών από οποιοδήποτε πρόσθετο.</string>
@@ -2305,4 +2305,22 @@
     <string name="compose_player_show_remaining_time">Εμφάνιση χρόνου που απομένει</string>
     <string name="compose_player_brightness">Φωτεινότητα</string>
     <string name="compose_player_volume">Ένταση ήχου</string>
+    <string name="series_status_ended">Τελείωσε</string>
+    <string name="series_status_continuing">Ανανεώθηκε</string>
+    <string name="series_status_current">Τρέχον</string>
+    <string name="series_status_cancelled">Ακυρώθηκε</string>
+    <string name="series_status_released">Κυκλοφόρησε</string>
+    <string name="series_status_planned">Σχεδιαζόμενο</string>
+    <string name="series_status_rumored">Φημολογούμενο</string>
+    <string name="series_status_in_production">Σε παραγωγή</string>
+    <string name="series_status_post_production">Μετά την παραγωγή</string>
+    <string name="movie_status_ended">Τελείωσε</string>
+    <string name="movie_status_continuing">Ανανεώθηκε</string>
+    <string name="movie_status_current">Τρέχον</string>
+    <string name="movie_status_cancelled">Ακυρώθηκε</string>
+    <string name="movie_status_released">Κυκλοφόρησε</string>
+    <string name="movie_status_planned">Σχεδιαζόμενο</string>
+    <string name="movie_status_rumored">Φημολογούμενο</string>
+    <string name="movie_status_in_production">Σε παραγωγή</string>
+    <string name="movie_status_post_production">Μετά την παραγωγή</string>
 </resources>

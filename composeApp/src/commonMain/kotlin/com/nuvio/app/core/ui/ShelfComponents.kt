@@ -44,6 +44,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -312,6 +315,21 @@ fun NuvioPosterCard(
             }
 
             if (!bottomLeftLogoUrl.isNullOrBlank() || !bottomLeftText.isNullOrBlank()) {
+                // Gradient scrim for readability — matching NuvioTV Modern Home style
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .drawWithCache {
+                            val gradient = Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Transparent,
+                                    0.58f to Color.Transparent,
+                                    1.0f to Color.Black.copy(alpha = 0.75f)
+                                )
+                            )
+                            onDrawBehind { drawRect(gradient) }
+                        }
+                )
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -325,6 +343,7 @@ fun NuvioPosterCard(
                                 .width(catalogLogoOverlaySize.width)
                                 .height(catalogLogoOverlaySize.height),
                             contentScale = ContentScale.Fit,
+                            alignment = Alignment.CenterStart,
                         )
                     } else {
                         Text(

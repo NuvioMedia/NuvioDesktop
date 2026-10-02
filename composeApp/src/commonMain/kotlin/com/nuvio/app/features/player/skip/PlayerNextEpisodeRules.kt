@@ -1,6 +1,7 @@
 package com.nuvio.app.features.player.skip
 
 import com.nuvio.app.features.details.MetaVideo
+import com.nuvio.app.features.watching.domain.isShortPlaceholderDuration
 
 object PlayerNextEpisodeRules {
 
@@ -32,6 +33,7 @@ object PlayerNextEpisodeRules {
         thresholdPercent: Float,
         thresholdMinutesBeforeEnd: Float,
     ): Boolean {
+        if (isShortPlaceholderDuration(durationMs)) return false
         val outroSegments = skipIntervals.filter { it.type in OUTRO_SEGMENT_TYPES }
 
         if (outroSegments.isNotEmpty()) {

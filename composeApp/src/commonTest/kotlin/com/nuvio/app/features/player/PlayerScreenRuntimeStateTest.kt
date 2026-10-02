@@ -4,6 +4,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Modifier
 import com.nuvio.app.features.streams.StreamsUiState
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -16,6 +17,41 @@ class PlayerScreenRuntimeStateTest {
     @Test
     fun controlsStartHidden() {
         assertFalse(PlayerScreenRuntime(testPlayerScreenArgs()).controlsVisible)
+    }
+
+    @Test
+    fun endedSnapshotRetainsDurationOnlyForTheSamePlayback() {
+        val runtime = PlayerScreenRuntime(testPlayerScreenArgs())
+        runtime.updatePlaybackSnapshot(PlayerPlaybackSnapshot(durationMs = 30_000L))
+        runtime.updatePlaybackSnapshot(PlayerPlaybackSnapshot(isLoading = false, isEnded = true))
+        assertEquals(30_000L, runtime.playbackSnapshot.durationMs)
+        assertFalse(runtime.isAtNextEpisodeThreshold())
+
+        runtime.activeSourceUrl = "https://example.com/another.mp4"
+        runtime.updatePlaybackSnapshot(PlayerPlaybackSnapshot())
+        assertEquals(0L, runtime.playbackSnapshot.durationMs)
+
+        runtime.updatePlaybackSnapshot(PlayerPlaybackSnapshot(durationMs = 121_000L))
+        runtime.updatePlaybackSnapshot(PlayerPlaybackSnapshot(isLoading = false, isEnded = true))
+        assertTrue(runtime.isAtNextEpisodeThreshold())
+    }
+
+    @Test
+    fun shortErrorClipsDoNotStartOrCompleteScrobbling() = runTest {
+        val runtime = PlayerScreenRuntime(testPlayerScreenArgs()).apply { scope = backgroundScope }
+        runtime.updatePlaybackSnapshot(PlayerPlaybackSnapshot(
+            isLoading = false, isPlaying = true, positionMs = 29_000L, durationMs = 30_000L,
+        ))
+        runtime.emitTrackingScrobbleStart()
+        assertFalse(runtime.hasRequestedScrobbleStartForCurrentItem)
+        runtime.emitStopScrobbleForCurrentProgress()
+        assertFalse(runtime.hasSentCompletionScrobbleForCurrentItem)
+
+        runtime.hasRequestedScrobbleStartForCurrentItem = true
+        runtime.scrobbleStartRequestGeneration = 1L
+        runtime.emitTrackingScrobblePause()
+        runtime.emitTrackingScrobbleStop()
+        assertEquals(1L, runtime.scrobbleStartRequestGeneration)
     }
 
     @Test
@@ -157,6 +193,41 @@ class PlayerScreenRuntimeStateTest {
     }
 
     @Test
+    fun restoredLaunchResumesFromTheCurrentPosition() {
+        val runtime = PlayerScreenRuntime(testPlayerScreenArgs().copy(initialPositionMs = 351_000L))
+
+        assertEquals(351_000L, runtime.currentLaunch(testPlayerLaunch()).initialPositionMs)
+
+        runtime.initialSeekApplied = true
+        runtime.updatePlaybackSnapshot(
+            PlayerPlaybackSnapshot(isPlaying = true, positionMs = 442_000L, durationMs = 1_200_000L),
+        )
+
+        assertEquals(442_000L, runtime.currentLaunch(testPlayerLaunch()).initialPositionMs)
+    }
+
+    @Test
+    fun restoredLaunchFollowsTheActiveEpisode() {
+        val runtime = PlayerScreenRuntime(testPlayerScreenArgs())
+        runtime.updatePlaybackSnapshot(
+            PlayerPlaybackSnapshot(isPlaying = true, positionMs = 442_000L, durationMs = 1_200_000L),
+        )
+        runtime.activeSourceUrl = "https://example.com/episode-2.mp4"
+        runtime.activeVideoId = "tt1234567:1:2"
+        runtime.activeSeasonNumber = 1
+        runtime.activeEpisodeNumber = 2
+        runtime.activeInitialPositionMs = 60_000L
+
+        val launch = runtime.currentLaunch(testPlayerLaunch())
+
+        assertEquals("https://example.com/episode-2.mp4", launch.sourceUrl)
+        assertEquals("tt1234567:1:2", launch.videoId)
+        assertEquals(1, launch.seasonNumber)
+        assertEquals(2, launch.episodeNumber)
+        assertEquals(60_000L, launch.initialPositionMs)
+    }
+
+    @Test
     fun seekScrobbleUpdate_requiresActiveIncompletePlayback() {
         assertTrue(
             shouldUpdateTrackingScrobbleAfterSeek(
@@ -261,5 +332,17 @@ class PlayerScreenRuntimeStateTest {
         torrentTrackers = emptyList(),
         initialPositionMs = 0L,
         initialProgressFraction = null,
+    )
+
+    private fun testPlayerLaunch() = PlayerLaunch(
+        profileId = 1,
+        title = "Title",
+        sourceUrl = "https://example.com/video.mp4",
+        streamTitle = "Source",
+        providerName = "Provider",
+        contentType = "movie",
+        videoId = "tt1234567",
+        parentMetaId = "tt1234567",
+        parentMetaType = "movie",
     )
 }
