@@ -98,6 +98,8 @@ actual object PlayerSettingsStorage {
     private const val iosSaturationKey = "ios_saturation"
     private const val iosGammaKey = "ios_gamma"
     private const val nvidiaRtxSuperResolutionEnabledKey = "nvidia_rtx_super_resolution_enabled"
+    private const val seekForwardIntervalSecondsKey = "seek_forward_interval_seconds"
+    private const val seekBackwardIntervalSecondsKey = "seek_backward_interval_seconds"
     private val syncKeys = listOf(
         showLoadingOverlayKey,
         showPlayerLoadingStatusKey,
@@ -107,6 +109,8 @@ actual object PlayerSettingsStorage {
         holdToSpeedEnabledKey,
         holdToSpeedValueKey,
         nvidiaRtxSuperResolutionEnabledKey,
+        seekForwardIntervalSecondsKey,
+        seekBackwardIntervalSecondsKey,
 
         touchGesturesEnabledKey,
         externalPlayerEnabledKey,
@@ -1246,6 +1250,40 @@ actual object PlayerSettingsStorage {
             ?.apply()
     }
 
+    actual fun loadSeekForwardIntervalSeconds(): Int? =
+        preferences?.let { sharedPreferences ->
+            val key = ProfileScopedKey.of(seekForwardIntervalSecondsKey)
+            if (sharedPreferences.contains(key)) {
+                sharedPreferences.getInt(key, 10)
+            } else {
+                null
+            }
+        }
+
+    actual fun saveSeekForwardIntervalSeconds(seconds: Int) {
+        preferences
+            ?.edit()
+            ?.putInt(ProfileScopedKey.of(seekForwardIntervalSecondsKey), seconds)
+            ?.apply()
+    }
+
+    actual fun loadSeekBackwardIntervalSeconds(): Int? =
+        preferences?.let { sharedPreferences ->
+            val key = ProfileScopedKey.of(seekBackwardIntervalSecondsKey)
+            if (sharedPreferences.contains(key)) {
+                sharedPreferences.getInt(key, 10)
+            } else {
+                null
+            }
+        }
+
+    actual fun saveSeekBackwardIntervalSeconds(seconds: Int) {
+        preferences
+            ?.edit()
+            ?.putInt(ProfileScopedKey.of(seekBackwardIntervalSecondsKey), seconds)
+            ?.apply()
+    }
+
 
     actual fun exportToSyncPayload(): JsonObject = buildJsonObject {
         loadShowLoadingOverlay()?.let { put(showLoadingOverlayKey, encodeSyncBoolean(it)) }
@@ -1324,6 +1362,8 @@ actual object PlayerSettingsStorage {
         loadIosSaturation()?.let { put(iosSaturationKey, encodeSyncInt(it)) }
         loadIosGamma()?.let { put(iosGammaKey, encodeSyncInt(it)) }
         loadNvidiaRtxSuperResolutionEnabled()?.let { put(nvidiaRtxSuperResolutionEnabledKey, encodeSyncBoolean(it)) }
+        loadSeekForwardIntervalSeconds()?.let { put(seekForwardIntervalSecondsKey, encodeSyncInt(it)) }
+        loadSeekBackwardIntervalSeconds()?.let { put(seekBackwardIntervalSecondsKey, encodeSyncInt(it)) }
     }
 
     actual fun replaceFromSyncPayload(payload: JsonObject) {
@@ -1408,5 +1448,7 @@ actual object PlayerSettingsStorage {
         payload.decodeSyncInt(iosSaturationKey)?.let(::saveIosSaturation)
         payload.decodeSyncInt(iosGammaKey)?.let(::saveIosGamma)
         payload.decodeSyncBoolean(nvidiaRtxSuperResolutionEnabledKey)?.let(::saveNvidiaRtxSuperResolutionEnabled)
+        payload.decodeSyncInt(seekForwardIntervalSecondsKey)?.let(::saveSeekForwardIntervalSeconds)
+        payload.decodeSyncInt(seekBackwardIntervalSecondsKey)?.let(::saveSeekBackwardIntervalSeconds)
     }
 }

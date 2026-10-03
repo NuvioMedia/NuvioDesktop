@@ -255,6 +255,8 @@ data class PlayerControlsState(
     val submitIntroSuccessToken: Long = 0L,
     val notificationMessage: String = "",
     val notificationToken: Long = 0L,
+    val seekForwardIntervalSeconds: Int = 10,
+    val seekBackwardIntervalSeconds: Int = 10,
 )
 
 data class PlayerControlFilterItem(

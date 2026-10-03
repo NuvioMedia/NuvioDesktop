@@ -474,6 +474,12 @@
     <string name="compose_player_seek_feedback_backward">-%1$ds</string>
     <string name="compose_player_seek_feedback_forward">+%1$ds</string>
     <string name="compose_player_seek_forward_10">Seek forward 10 seconds</string>
+    <string name="settings_playback_seek_forward_interval">Forward Seek Interval</string>
+    <string name="settings_playback_seek_forward_interval_description">Duration in seconds to skip forward when using seek buttons or double-tap gestures.</string>
+    <string name="settings_playback_seek_forward_interval_value">%1$ds</string>
+    <string name="settings_playback_seek_backward_interval">Backward Seek Interval</string>
+    <string name="settings_playback_seek_backward_interval_description">Duration in seconds to skip backward when using seek buttons or double-tap gestures.</string>
+    <string name="settings_playback_seek_backward_interval_value">%1$ds</string>
     <string name="compose_player_sources">Sources</string>
     <string name="compose_player_style">Style</string>
     <string name="compose_player_use_custom_styling">Use custom styling</string>

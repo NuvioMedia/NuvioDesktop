@@ -415,6 +415,8 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         submitIntroSuccessToken = playerControlsSubmitIntroSuccessToken,
         notificationMessage = playerNotificationMessage,
         notificationToken = playerNotificationToken,
+        seekForwardIntervalSeconds = playerSettingsUiState.seekForwardIntervalSeconds,
+        seekBackwardIntervalSeconds = playerSettingsUiState.seekBackwardIntervalSeconds,
         showOpeningOverlay = openingOverlayWanted,
         openingArtwork = background ?: poster,
         openingLogo = logo,
@@ -653,8 +655,8 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             },
             onBack = { requestBack() },
             onTogglePlayback = { togglePlayback() },
-            onSeekBack = { seekBy(-10_000L) },
-            onSeekForward = { seekBy(10_000L) },
+            onSeekBack = { seekBy(-(playerSettingsUiState.seekBackwardIntervalSeconds * 1000L)) },
+            onSeekForward = { seekBy(playerSettingsUiState.seekForwardIntervalSeconds * 1000L) },
             onResizeModeClick = { cycleResizeMode() },
             onSpeedClick = { cyclePlaybackSpeed() },
             onSubtitleClick = {
@@ -813,19 +815,19 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
             return false
         }
         PlayerControlsAction.SeekBack -> {
-            prepareSeekByForNativeFallback(-10_000L)
+            prepareSeekByForNativeFallback(-(playerSettingsUiState.seekBackwardIntervalSeconds * 1000L))
             return false
         }
         PlayerControlsAction.KeyboardSeekBack -> {
-            prepareSeekByForNativeFallback(-10_000L, revealControls = false)
+            prepareSeekByForNativeFallback(-(playerSettingsUiState.seekBackwardIntervalSeconds * 1000L), revealControls = false)
             return false
         }
         PlayerControlsAction.SeekForward -> {
-            prepareSeekByForNativeFallback(10_000L)
+            prepareSeekByForNativeFallback(playerSettingsUiState.seekForwardIntervalSeconds * 1000L)
             return false
         }
         PlayerControlsAction.KeyboardSeekForward -> {
-            prepareSeekByForNativeFallback(10_000L, revealControls = false)
+            prepareSeekByForNativeFallback(playerSettingsUiState.seekForwardIntervalSeconds * 1000L, revealControls = false)
             return false
         }
         PlayerControlsAction.KeyboardVolumeDown,

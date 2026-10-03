@@ -98,6 +98,8 @@ data class PlayerSettingsUiState(
     val iosSaturation: Int = 0,
     val iosGamma: Int = 0,
     val nvidiaRtxSuperResolutionEnabled: Boolean = false,
+    val seekForwardIntervalSeconds: Int = 10,
+    val seekBackwardIntervalSeconds: Int = 10,
 )
 
 object PlayerSettingsRepository {
@@ -170,6 +172,8 @@ object PlayerSettingsRepository {
     private var iosSaturation = 0
     private var iosGamma = 0
     private var nvidiaRtxSuperResolutionEnabled = false
+    private var seekForwardIntervalSeconds = 10
+    private var seekBackwardIntervalSeconds = 10
 
     fun ensureLoaded() {
         if (hasLoaded) return
@@ -247,6 +251,8 @@ object PlayerSettingsRepository {
         iosSaturation = 0
         iosGamma = 0
         nvidiaRtxSuperResolutionEnabled = false
+        seekForwardIntervalSeconds = 10
+        seekBackwardIntervalSeconds = 10
         publish()
     }
 
@@ -399,6 +405,8 @@ object PlayerSettingsRepository {
         iosSaturation = PlayerSettingsStorage.loadIosSaturation() ?: 0
         iosGamma = PlayerSettingsStorage.loadIosGamma() ?: 0
         nvidiaRtxSuperResolutionEnabled = PlayerSettingsStorage.loadNvidiaRtxSuperResolutionEnabled() ?: false
+        seekForwardIntervalSeconds = (PlayerSettingsStorage.loadSeekForwardIntervalSeconds() ?: 10).coerceIn(5, 120)
+        seekBackwardIntervalSeconds = (PlayerSettingsStorage.loadSeekBackwardIntervalSeconds() ?: 10).coerceIn(5, 120)
         publish()
     }
 
@@ -1068,7 +1076,27 @@ object PlayerSettingsRepository {
             iosSaturation = iosSaturation,
             iosGamma = iosGamma,
             nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
+            seekForwardIntervalSeconds = seekForwardIntervalSeconds,
+            seekBackwardIntervalSeconds = seekBackwardIntervalSeconds,
         )
+    }
+
+    fun setSeekForwardIntervalSeconds(seconds: Int) {
+        ensureLoaded()
+        val normalized = seconds.coerceIn(5, 120)
+        if (seekForwardIntervalSeconds == normalized) return
+        seekForwardIntervalSeconds = normalized
+        publish()
+        PlayerSettingsStorage.saveSeekForwardIntervalSeconds(normalized)
+    }
+
+    fun setSeekBackwardIntervalSeconds(seconds: Int) {
+        ensureLoaded()
+        val normalized = seconds.coerceIn(5, 120)
+        if (seekBackwardIntervalSeconds == normalized) return
+        seekBackwardIntervalSeconds = normalized
+        publish()
+        PlayerSettingsStorage.saveSeekBackwardIntervalSeconds(normalized)
     }
 
     private fun normalizeStreamAutoPlaySource(source: StreamAutoPlaySource): StreamAutoPlaySource {

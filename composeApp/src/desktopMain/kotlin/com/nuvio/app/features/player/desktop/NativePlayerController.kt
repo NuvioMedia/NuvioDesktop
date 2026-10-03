@@ -17,6 +17,7 @@ import com.nuvio.app.features.player.PlayerControlsState
 import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.player.PlayerPlaybackSnapshot
 import com.nuvio.app.features.player.PlayerResizeMode
+import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MAX_MS
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MIN_MS
 import com.nuvio.app.features.player.SubtitleColorSwatches
@@ -589,9 +590,9 @@ internal class NativePlayerController(
                 }
             }
             PlayerControlsAction.SeekBack,
-            PlayerControlsAction.KeyboardSeekBack -> fallbackSeekBy(-10_000L)
+            PlayerControlsAction.KeyboardSeekBack -> fallbackSeekBy(-(PlayerSettingsRepository.uiState.value.seekBackwardIntervalSeconds * 1000L))
             PlayerControlsAction.SeekForward,
-            PlayerControlsAction.KeyboardSeekForward -> fallbackSeekBy(10_000L)
+            PlayerControlsAction.KeyboardSeekForward -> fallbackSeekBy(PlayerSettingsRepository.uiState.value.seekForwardIntervalSeconds * 1000L)
             PlayerControlsAction.KeyboardVolumeDown -> adjustFallbackVolume(-10f)
             PlayerControlsAction.KeyboardVolumeUp -> adjustFallbackVolume(10f)
             PlayerControlsAction.PictureInPicture -> togglePictureInPictureFromShortcut()
@@ -1615,6 +1616,10 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("notificationMessage", notificationMessage)
         append(',')
         appendJsonField("notificationToken", notificationToken)
+        append(',')
+        appendJsonField("seekForwardIntervalSeconds", seekForwardIntervalSeconds)
+        append(',')
+        appendJsonField("seekBackwardIntervalSeconds", seekBackwardIntervalSeconds)
         append('}')
     }
 
