@@ -48,6 +48,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
+import com.nuvio.app.core.ui.PlatformBackDispatcher
 import com.nuvio.app.core.ui.LocalPosterClickAnchor
 import com.nuvio.app.navigation.PosterNavigationState
 import com.nuvio.app.navigation.posterNavigationEntry
@@ -1251,7 +1252,9 @@ internal fun MainAppContent(
                                     if (!event.changes.any { it.isConsumed }) {
                                         if (event.button == PointerButton.Back) {
                                             event.changes.forEach { it.consume() }
-                                            navController.popBackStack()
+                                            if (!PlatformBackDispatcher.dispatch()) {
+                                                navController.popBackStack()
+                                            }
                                         }
                                     }
                                 }
