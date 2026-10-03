@@ -37,13 +37,17 @@ actual fun createVideoPlayerState(
  * - `dispose()`: Releases resources used by the video player and disposes of the state.
  */
 @Stable
-open class DefaultVideoPlayerState : VideoPlayerState {
-    val delegate: VideoPlayerState =
-        when (CurrentPlatform.os) {
-            CurrentPlatform.OS.WINDOWS -> WindowsVideoPlayerState()
-            CurrentPlatform.OS.MAC -> MacVideoPlayerState()
-            CurrentPlatform.OS.LINUX -> LinuxVideoPlayerState()
-        }
+open class DefaultVideoPlayerState internal constructor(
+    val delegate: VideoPlayerState,
+) : VideoPlayerState {
+    constructor() :
+        this(
+            when (CurrentPlatform.os) {
+                CurrentPlatform.OS.WINDOWS -> WindowsVideoPlayerState()
+                CurrentPlatform.OS.MAC -> MacVideoPlayerState()
+                CurrentPlatform.OS.LINUX -> LinuxVideoPlayerState()
+            },
+        )
 
     override val hasMedia: Boolean get() = delegate.hasMedia
     override val isPlaying: Boolean get() = delegate.isPlaying
@@ -135,6 +139,8 @@ open class DefaultVideoPlayerState : VideoPlayerState {
     override fun toggleFullscreen() = delegate.toggleFullscreen()
 
     override fun dispose() = delegate.dispose()
+
+    override suspend fun disposeAndAwait() = delegate.disposeAndAwait()
 
     override var onPlaybackEnded: (() -> Unit)?
         get() = delegate.onPlaybackEnded

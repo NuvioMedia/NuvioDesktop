@@ -1,16 +1,140 @@
 package io.github.kdroidfilter.composemediaplayer.linux
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import java.util.Collections
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.Collections
-import kotlin.concurrent.thread
 
 class LinuxPlaybackCompletionTest {
+    @Test
+    fun serializationOnlyCommandDoesNotInvalidateManagedPublicationOwner() {
+        val commands = LinuxSourcePlaybackContext(1L)
+        commands.finishOpening()
+        val explicitSeek = commands.reserveCommand(requiresCurrentIntent = false)
+        commands.reserveCommand(claimsPublication = false)
+        var commits = 0
+
+        assertTrue(
+            commands.commitIfLatest(explicitSeek) {
+                commits += 1
+                true
+            },
+        )
+
+        commands.reserveCommand()
+        assertFalse(
+            commands.commitIfLatest(explicitSeek) {
+                commits += 1
+                true
+            },
+        )
+        assertEquals(1, commits)
+    }
+
+    @Test
+    fun cancelledCommandAwaitingPredecessorDoesNotStrandSuccessors() {
+        runBlocking {
+            val commands = LinuxSourcePlaybackContext(1L)
+            commands.finishOpening()
+            val predecessor = commands.reserveCommand()
+            val cancelled = commands.reserveCommand()
+            val successor = commands.reserveCommand()
+
+            val waiting =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    commands.runCommand(cancelled) { error("cancelled command executed") }
+                }
+            waiting.cancel()
+            commands.runCommand(predecessor) { }
+            waiting.join()
+
+            withTimeout(1_000) {
+                commands.runCommand(successor) { }
+            }
+        }
+    }
+
+    @Test
+    fun cancelledCommandCannotReleaseSuccessorBeforeItsPredecessor() {
+        runBlocking {
+            val successorAwaitingPredecessor = CountDownLatch(1)
+            val awaitEntries = AtomicInteger()
+            val commands =
+                LinuxSourcePlaybackContext(
+                    1L,
+                    predecessorAwaitRegisteredForTest = {
+                        if (awaitEntries.incrementAndGet() == 2) successorAwaitingPredecessor.countDown()
+                    },
+                )
+            commands.finishOpening()
+            val predecessor = commands.reserveCommand()
+            val cancelled = commands.reserveCommand()
+            val successor = commands.reserveCommand()
+
+            val cancelledJob =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    commands.runCommand(cancelled) { error("cancelled command executed") }
+                }
+            cancelledJob.cancel()
+            val successorRan = AtomicBoolean(false)
+            val successorJob =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    commands.runCommand(successor) { successorRan.set(true) }
+                }
+
+            assertTrue(successorAwaitingPredecessor.await(2, TimeUnit.SECONDS))
+            assertFalse(successorRan.get())
+            commands.runCommand(predecessor) {}
+            cancelledJob.join()
+            successorJob.await()
+            assertTrue(successorRan.get())
+        }
+    }
+
+    @Test
+    fun abandonedCommandFallbackPreservesPredecessorOrder() {
+        runBlocking {
+            val successorAwaitingAbandoned = CountDownLatch(1)
+            val commands =
+                LinuxSourcePlaybackContext(
+                    1L,
+                    predecessorAwaitRegisteredForTest = { successorAwaitingAbandoned.countDown() },
+                )
+            commands.finishOpening()
+            val predecessor = commands.reserveCommand()
+            val abandoned = commands.reserveCommand()
+            val successor = commands.reserveCommand()
+
+            commands.settleIfExecutionNeverStarted(abandoned)
+            val successorRan = AtomicBoolean(false)
+            val successorJob =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    commands.runCommand(successor) { successorRan.set(true) }
+                }
+
+            assertTrue(successorAwaitingAbandoned.await(2, TimeUnit.SECONDS))
+            assertFalse(abandoned.completion.isCompleted)
+            assertFalse(successorRan.get())
+
+            commands.runCommand(predecessor) {}
+            successorJob.await()
+            assertTrue(abandoned.completion.isCompleted)
+            assertTrue(successorRan.get())
+        }
+    }
+
     @Test
     fun ordinaryPlayDoesNotSeek() {
         val completion = LinuxPlaybackCompletion()
@@ -38,6 +162,25 @@ class LinuxPlaybackCompletionTest {
         )
 
         assertEquals(listOf("seek:0", "play"), commands)
+    }
+
+    @Test
+    fun playbackEpochExhaustionFailsClosedBeforeReplayNativeCalls() {
+        val completion = LinuxPlaybackCompletion(initialGeneration = Long.MAX_VALUE)
+        val coordinator = LinuxPlaybackResumeCoordinator(completion)
+        val calls = mutableListOf<String>()
+        val generation = completion.captureGeneration()
+
+        assertTrue(completion.markEnded(generation))
+        assertFailsWith<IllegalStateException> {
+            coordinator.resume(
+                seekToStart = { calls += "seek" },
+                play = { calls += "play" },
+            )
+        }
+
+        assertEquals(emptyList(), calls)
+        assertFalse(completion.isCurrent(generation))
     }
 
     @Test
@@ -131,181 +274,265 @@ class LinuxPlaybackCompletionTest {
     fun nativeEndConsumptionAndMarkerPublicationAreAtomicWithoutBlockingStateReaders() {
         val completion = LinuxPlaybackCompletion()
         val coordinator = LinuxPlaybackResumeCoordinator(completion)
+        val replayAwaitEntered = CountDownLatch(1)
+        val awaitEntries = AtomicInteger()
+        val commands =
+            LinuxSourcePlaybackContext(
+                1L,
+                predecessorAwaitRegisteredForTest = {
+                    if (awaitEntries.incrementAndGet() == 1) replayAwaitEntered.countDown()
+                },
+            )
+        commands.finishOpening()
         val generation = completion.captureGeneration()
         val consumeEntered = CountDownLatch(1)
         val allowConsume = CountDownLatch(1)
-        val stateReadReturned = CountDownLatch(1)
-        val replayReturned = CountDownLatch(1)
-        var endAccepted = false
-        var replayFromEnd = false
+        val endAccepted = AtomicBoolean()
+        val replayFromEnd = AtomicBoolean()
+        val endTicket = commands.reserveCommand()
+        val replayTicket = commands.reserveCommand()
+        val executor = Executors.newFixedThreadPool(3)
+        try {
+            val endFuture =
+                executor.submit {
+                    runBlocking {
+                        commands.runCommand(endTicket) {
+                            endAccepted.set(
+                                coordinator.markEndedIfConsumed(generation) {
+                                    consumeEntered.countDown()
+                                    check(allowConsume.await(2, TimeUnit.SECONDS))
+                                    true
+                                },
+                            )
+                        }
+                    }
+                }
+            assertTrue(consumeEntered.await(2, TimeUnit.SECONDS))
 
-        val endThread = thread(isDaemon = true) {
-            endAccepted = coordinator.markEndedIfConsumed(generation) {
-                consumeEntered.countDown()
-                allowConsume.await()
-                true
-            }
+            val stateReadFuture = executor.submit<Long> { completion.captureGeneration() }
+            assertEquals(generation, stateReadFuture.get(2, TimeUnit.SECONDS))
+
+            val replayFuture =
+                executor.submit {
+                    runBlocking {
+                        commands.runCommand(replayTicket) {
+                            coordinator.resume(
+                                seekToStart = { replayFromEnd.set(true) },
+                                play = {},
+                            )
+                        }
+                    }
+                }
+            assertTrue(replayAwaitEntered.await(2, TimeUnit.SECONDS))
+            assertFalse(replayFromEnd.get())
+
+            allowConsume.countDown()
+            endFuture.get(2, TimeUnit.SECONDS)
+            replayFuture.get(2, TimeUnit.SECONDS)
+
+            assertTrue(endAccepted.get())
+            assertTrue(replayFromEnd.get())
+        } finally {
+            allowConsume.countDown()
+            executor.shutdownNow()
         }
-        assertTrue(consumeEntered.await(2, TimeUnit.SECONDS))
-
-        val stateReader = thread(isDaemon = true) {
-            completion.captureGeneration()
-            stateReadReturned.countDown()
-        }
-        assertTrue(stateReadReturned.await(2, TimeUnit.SECONDS))
-
-        val replayThread = thread(isDaemon = true) {
-            coordinator.resume(
-                seekToStart = { replayFromEnd = true },
-                play = {},
-            )
-            replayReturned.countDown()
-        }
-        assertFalse(replayReturned.await(100, TimeUnit.MILLISECONDS))
-
-        allowConsume.countDown()
-        endThread.join(2_000)
-        stateReader.join(2_000)
-        replayThread.join(2_000)
-
-        assertFalse(endThread.isAlive)
-        assertFalse(stateReader.isAlive)
-        assertFalse(replayThread.isAlive)
-        assertTrue(endAccepted)
-        assertTrue(replayFromEnd)
     }
 
     @Test
     fun concurrentPlayCannotPassReplaySeek() {
         val completion = LinuxPlaybackCompletion()
         val coordinator = LinuxPlaybackResumeCoordinator(completion)
+        val successorAwaitEntered = CountDownLatch(1)
+        val awaitEntries = AtomicInteger()
+        val serialization =
+            LinuxSourcePlaybackContext(
+                1L,
+                predecessorAwaitRegisteredForTest = {
+                    if (awaitEntries.incrementAndGet() == 1) successorAwaitEntered.countDown()
+                },
+            )
+        serialization.finishOpening()
         val commands = Collections.synchronizedList(mutableListOf<String>())
         val seekEntered = CountDownLatch(1)
         val allowSeek = CountDownLatch(1)
-        val secondPlayReturned = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            completion.markEnded(completion.captureGeneration())
+            val replayTicket = serialization.reserveCommand()
+            val ordinaryTicket = serialization.reserveCommand()
+            val replayFuture =
+                executor.submit {
+                    runBlocking {
+                        serialization.runCommand(replayTicket) {
+                            coordinator.resume(
+                                seekToStart = {
+                                    commands += "seek:0"
+                                    seekEntered.countDown()
+                                    check(allowSeek.await(2, TimeUnit.SECONDS))
+                                },
+                                play = { commands += "play:replay" },
+                            )
+                        }
+                    }
+                }
+            assertTrue(seekEntered.await(2, TimeUnit.SECONDS))
 
-        completion.markEnded(completion.captureGeneration())
-        val replayThread = thread(isDaemon = true) {
-            coordinator.resume(
-                seekToStart = {
-                    commands += "seek:0"
-                    seekEntered.countDown()
-                    allowSeek.await()
-                },
-                play = { commands += "play:replay" },
-            )
+            val ordinaryPlayFuture =
+                executor.submit {
+                    runBlocking {
+                        serialization.runCommand(ordinaryTicket) {
+                            coordinator.resume(
+                                seekToStart = { commands += "unexpected-seek" },
+                                play = { commands += "play:ordinary" },
+                            )
+                        }
+                    }
+                }
+            assertTrue(successorAwaitEntered.await(2, TimeUnit.SECONDS))
+            assertEquals(listOf("seek:0"), synchronized(commands) { commands.toList() })
+
+            allowSeek.countDown()
+            replayFuture.get(2, TimeUnit.SECONDS)
+            ordinaryPlayFuture.get(2, TimeUnit.SECONDS)
+
+            assertEquals(listOf("seek:0", "play:replay", "play:ordinary"), synchronized(commands) { commands.toList() })
+        } finally {
+            allowSeek.countDown()
+            executor.shutdownNow()
         }
-        assertTrue(seekEntered.await(2, TimeUnit.SECONDS))
-
-        val ordinaryPlayThread = thread(isDaemon = true) {
-            coordinator.resume(
-                seekToStart = { commands += "unexpected-seek" },
-                play = { commands += "play:ordinary" },
-            )
-            secondPlayReturned.countDown()
-        }
-        assertFalse(secondPlayReturned.await(100, TimeUnit.MILLISECONDS))
-        assertEquals(listOf("seek:0"), commands.toList())
-
-        allowSeek.countDown()
-        replayThread.join(2_000)
-        ordinaryPlayThread.join(2_000)
-
-        assertFalse(replayThread.isAlive)
-        assertFalse(ordinaryPlayThread.isAlive)
-        assertEquals(listOf("seek:0", "play:replay", "play:ordinary"), commands.toList())
     }
 
     @Test
     fun explicitResetAndSeekCannotSplitReplayCommands() {
         val completion = LinuxPlaybackCompletion()
         val coordinator = LinuxPlaybackResumeCoordinator(completion)
+        val successorAwaitEntered = CountDownLatch(1)
+        val awaitEntries = AtomicInteger()
+        val serialization =
+            LinuxSourcePlaybackContext(
+                1L,
+                predecessorAwaitRegisteredForTest = {
+                    if (awaitEntries.incrementAndGet() == 1) successorAwaitEntered.countDown()
+                },
+            )
+        serialization.finishOpening()
         val commands = Collections.synchronizedList(mutableListOf<String>())
         val replaySeekEntered = CountDownLatch(1)
         val allowReplaySeek = CountDownLatch(1)
-        val explicitSeekReturned = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            completion.markEnded(completion.captureGeneration())
+            val replayTicket = serialization.reserveCommand()
+            val resetTicket = serialization.reserveCommand()
+            val replayFuture =
+                executor.submit {
+                    runBlocking {
+                        serialization.runCommand(replayTicket) {
+                            coordinator.resume(
+                                seekToStart = {
+                                    commands += "seek:0"
+                                    replaySeekEntered.countDown()
+                                    check(allowReplaySeek.await(2, TimeUnit.SECONDS))
+                                },
+                                play = { commands += "play:replay" },
+                            )
+                        }
+                    }
+                }
+            assertTrue(replaySeekEntered.await(2, TimeUnit.SECONDS))
 
-        completion.markEnded(completion.captureGeneration())
-        val replayThread = thread(isDaemon = true) {
+            val explicitSeekFuture =
+                executor.submit {
+                    runBlocking {
+                        serialization.runCommand(resetTicket) {
+                            coordinator.resetAndRun { commands += "seek:explicit" }
+                        }
+                    }
+                }
+            assertTrue(successorAwaitEntered.await(2, TimeUnit.SECONDS))
+            assertEquals(listOf("seek:0"), synchronized(commands) { commands.toList() })
+
+            allowReplaySeek.countDown()
+            replayFuture.get(2, TimeUnit.SECONDS)
+            explicitSeekFuture.get(2, TimeUnit.SECONDS)
+
             coordinator.resume(
-                seekToStart = {
-                    commands += "seek:0"
-                    replaySeekEntered.countDown()
-                    allowReplaySeek.await()
-                },
-                play = { commands += "play:replay" },
+                seekToStart = { commands += "unexpected-seek" },
+                play = { commands += "play:ordinary" },
             )
+            assertEquals(
+                listOf("seek:0", "play:replay", "seek:explicit", "play:ordinary"),
+                synchronized(commands) { commands.toList() },
+            )
+        } finally {
+            allowReplaySeek.countDown()
+            executor.shutdownNow()
         }
-        assertTrue(replaySeekEntered.await(2, TimeUnit.SECONDS))
-
-        val explicitSeekThread = thread(isDaemon = true) {
-            coordinator.resetAndRun { commands += "seek:explicit" }
-            explicitSeekReturned.countDown()
-        }
-        assertFalse(explicitSeekReturned.await(100, TimeUnit.MILLISECONDS))
-        assertEquals(listOf("seek:0"), commands.toList())
-
-        allowReplaySeek.countDown()
-        replayThread.join(2_000)
-        explicitSeekThread.join(2_000)
-
-        assertFalse(replayThread.isAlive)
-        assertFalse(explicitSeekThread.isAlive)
-        coordinator.resume(
-            seekToStart = { commands += "unexpected-seek" },
-            play = { commands += "play:ordinary" },
-        )
-        assertEquals(
-            listOf("seek:0", "play:replay", "seek:explicit", "play:ordinary"),
-            commands.toList(),
-        )
     }
 
     @Test
     fun finalizerNativeWorkDoesNotBlockStateReadersAndCompletesBeforeReplay() {
         val completion = LinuxPlaybackCompletion()
         val coordinator = LinuxPlaybackResumeCoordinator(completion)
+        val replayAwaitEntered = CountDownLatch(1)
+        val awaitEntries = AtomicInteger()
+        val commands =
+            LinuxSourcePlaybackContext(
+                1L,
+                predecessorAwaitRegisteredForTest = {
+                    if (awaitEntries.incrementAndGet() == 1) replayAwaitEntered.countDown()
+                },
+            )
+        commands.finishOpening()
         val generation = completion.captureGeneration()
         val events = Collections.synchronizedList(mutableListOf<String>())
         val finalizerEntered = CountDownLatch(1)
         val allowFinalizer = CountDownLatch(1)
-        val stateReadReturned = CountDownLatch(1)
-        val replayReturned = CountDownLatch(1)
+        val finalizerTicket = commands.reserveCommand()
+        val replayTicket = commands.reserveCommand()
+        val executor = Executors.newFixedThreadPool(3)
+        try {
+            completion.markEnded(generation)
+            val finalizerFuture =
+                executor.submit {
+                    runBlocking {
+                        commands.runCommand(finalizerTicket) {
+                            coordinator.runIfCurrent(generation) {
+                                finalizerEntered.countDown()
+                                check(allowFinalizer.await(2, TimeUnit.SECONDS))
+                                events += "callback"
+                            }
+                        }
+                    }
+                }
+            assertTrue(finalizerEntered.await(2, TimeUnit.SECONDS))
 
-        completion.markEnded(generation)
-        val finalizerThread = thread(isDaemon = true) {
-            coordinator.runIfCurrent(generation) {
-                finalizerEntered.countDown()
-                allowFinalizer.await()
-                events += "callback"
-            }
+            val stateReadFuture = executor.submit<Long> { completion.captureGeneration() }
+            assertEquals(generation, stateReadFuture.get(2, TimeUnit.SECONDS))
+
+            val replayFuture =
+                executor.submit {
+                    runBlocking {
+                        commands.runCommand(replayTicket) {
+                            coordinator.resume(
+                                seekToStart = { events += "seek:0" },
+                                play = { events += "play" },
+                            )
+                        }
+                    }
+                }
+            assertTrue(replayAwaitEntered.await(2, TimeUnit.SECONDS))
+            assertEquals(emptyList(), synchronized(events) { events.toList() })
+
+            allowFinalizer.countDown()
+            finalizerFuture.get(2, TimeUnit.SECONDS)
+            replayFuture.get(2, TimeUnit.SECONDS)
+
+            assertEquals(listOf("callback", "seek:0", "play"), synchronized(events) { events.toList() })
+        } finally {
+            allowFinalizer.countDown()
+            executor.shutdownNow()
         }
-        assertTrue(finalizerEntered.await(2, TimeUnit.SECONDS))
-
-        val stateReader = thread(isDaemon = true) {
-            completion.captureGeneration()
-            stateReadReturned.countDown()
-        }
-        assertTrue(stateReadReturned.await(2, TimeUnit.SECONDS))
-
-        val replayThread = thread(isDaemon = true) {
-            coordinator.resume(
-                seekToStart = { events += "seek:0" },
-                play = { events += "play" },
-            )
-            replayReturned.countDown()
-        }
-        assertFalse(replayReturned.await(100, TimeUnit.MILLISECONDS))
-
-        allowFinalizer.countDown()
-        finalizerThread.join(2_000)
-        stateReader.join(2_000)
-        replayThread.join(2_000)
-
-        assertFalse(finalizerThread.isAlive)
-        assertFalse(stateReader.isAlive)
-        assertFalse(replayThread.isAlive)
-        assertEquals(listOf("callback", "seek:0", "play"), events.toList())
     }
 
     @Test

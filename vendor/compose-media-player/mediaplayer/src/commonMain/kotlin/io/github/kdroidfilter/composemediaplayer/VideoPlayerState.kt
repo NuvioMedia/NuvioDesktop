@@ -239,6 +239,13 @@ interface VideoPlayerState {
      * After calling [dispose], the state should not be reused.
      */
     fun dispose()
+
+    /**
+     * Releases resources by calling [dispose]. The default implementation waits only for that
+     * synchronous call to return; implementations with a stronger asynchronous completion boundary
+     * may override this method.
+     */
+    suspend fun disposeAndAwait() = dispose()
 }
 
 /**
