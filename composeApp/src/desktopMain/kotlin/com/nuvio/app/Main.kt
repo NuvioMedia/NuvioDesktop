@@ -30,6 +30,7 @@ import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopWindowGeometry
 import com.nuvio.app.features.player.desktop.DesktopWindowModeStorage
+import com.nuvio.app.features.player.desktop.MprisBridge
 import com.nuvio.app.features.player.desktop.NativePlayerBridge
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
 import com.nuvio.app.features.player.desktop.configureMacosWindowBeforePeer
@@ -64,6 +65,7 @@ fun main(args: Array<String>) {
     installDesktopOpenUriHandler()
     handleDesktopLaunchArgs(args)
     preloadNativePlayerBridgeAsync()
+    MprisBridge.start()
     // Load cached profile data synchronously so the profile color is available
     // on the very first Compose frame (matching Android's SharedPreferences behavior).
     ProfileRepository.loadCachedProfiles()
@@ -124,6 +126,7 @@ fun main(args: Array<String>) {
         SwingWindow(
             onCloseRequest = {
                 P2pStreamingEngine.shutdown()
+                MprisBridge.stop()
                 DiscordPresenceManager.shutdown()
                 SentryInitializer.close()
                 exitApplication()
