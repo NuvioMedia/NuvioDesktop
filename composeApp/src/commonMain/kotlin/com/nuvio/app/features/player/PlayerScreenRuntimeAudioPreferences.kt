@@ -32,7 +32,14 @@ internal fun PlayerScreenRuntime.applyPreferredAudioTrack(targets: List<String>)
         languages = targets,
         tracks = audioTracks.map { it.copy(isSelected = false) },
     )
-    if (appliedAudioPreferences != preferences) {
+    // The next episode often brings an identical track list, so the cached
+    // preferences match although the new player sits on its default track.
+    // Re-apply whenever the preferred track isn't the selected one.
+    val preferredTrack = targets.firstNotNullOfOrNull { target ->
+        audioTracks.firstOrNull { languageMatchesPreference(it.language, target) }
+    }
+    val preferredTrackNotSelected = preferredTrack != null && !preferredTrack.isSelected
+    if (appliedAudioPreferences != preferences || preferredTrackNotSelected) {
         controller.applyAudioLanguagePreferences(targets)
         appliedAudioPreferences = preferences
         preferredAudioSelectionApplied = false
