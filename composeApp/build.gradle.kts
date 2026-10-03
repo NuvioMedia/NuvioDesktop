@@ -1538,6 +1538,63 @@ tasks.matching { it.name == "packageReleaseMsi" }.configureEach {
 }
 
 if (isLinuxHost) {
+    // Workaround for JDK-8380085: keep the launcher config below the pipe
+    // capacity by replacing the generated per-jar classpath with a wildcard.
+    fun patchLinuxLauncherClasspath(task: AbstractJPackageTask) {
+        val appImageDir = task.destinationDir.get().asFile.resolve(task.packageName.get())
+        val configs = appImageDir.walkTopDown()
+            .filter { it.isFile && it.extension == "cfg" }
+            .toList()
+        check(configs.isNotEmpty()) { "Missing launcher config in ${appImageDir.absolutePath}" }
+        configs.forEach { cfg ->
+            val lines = cfg.readLines()
+            val firstClasspathIndex = lines.indexOfFirst { it.startsWith("app.classpath=") }
+            if (firstClasspathIndex >= 0) {
+                val rewritten = lines
+                    .filterNot { it.startsWith("app.classpath=") }
+                    .toMutableList()
+                rewritten.add(firstClasspathIndex, "app.classpath=\$APPDIR/*")
+                val contents = rewritten.joinToString(separator = "\n", postfix = "\n")
+                if (cfg.readText() != contents) {
+                    cfg.writeText(contents)
+                    task.logger.lifecycle("Flattened jpackage classpath in ${cfg.absolutePath}")
+                }
+            }
+        }
+    }
+
+    tasks.withType<AbstractJPackageTask>()
+        .matching { it.name in setOf("createDistributable", "createReleaseDistributable", "packageAppImage", "packageReleaseAppImage") }
+        .configureEach {
+            inputs.property("linuxLauncherClasspathPatchVersion", 1)
+            doLast { patchLinuxLauncherClasspath(this as AbstractJPackageTask) }
+        }
+
+    // Compose assigns these properties in its own afterEvaluate callback.
+    afterEvaluate {
+        tasks.withType<AbstractJPackageTask>().configureEach {
+            when (name) {
+                "packageDeb", "packageRpm", "packageReleaseDeb", "packageReleaseRpm" -> {
+                    val creator = tasks.named<AbstractJPackageTask>(
+                        if (name.startsWith("packageRelease")) "createReleaseDistributable" else "createDistributable"
+                    )
+                    dependsOn(creator)
+                    appImage.set(creator.flatMap { producer ->
+                        producer.destinationDir.map { it.dir(producer.packageName.get()) }
+                    })
+                }
+                "packageAppImage", "packageReleaseAppImage" -> {
+                    val release = name == "packageReleaseAppImage"
+                    val distributionName = if (release) "main-release" else "main"
+                    destinationDir.set(layout.buildDirectory.dir("compose/binaries/$distributionName/appimage-staging"))
+                    dependsOn(if (release) "createReleaseDistributable" else "createDistributable")
+                }
+            }
+        }
+    }
+}
+
+if (isLinuxHost) {
     val linuxDebPatchScript = rootProject.layout.projectDirectory.file("scripts/linux/patch-linux-deb.sh")
     val linuxDebVerifyScript = rootProject.layout.projectDirectory.file("scripts/linux/verify-linux-deb.sh")
     val linuxRpmPatchScript = rootProject.layout.projectDirectory.file("scripts/linux/patch-linux-rpm.sh")
