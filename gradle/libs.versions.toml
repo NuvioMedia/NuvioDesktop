@@ -30,6 +30,7 @@ mpv-android-lib = "0.1.12"
 supabase = "3.4.1"
 quickjsKt = "1.0.15"
 ksoup = "0.2.6"
+jna = "5.19.1"
 reorderable = "3.0.0"
 desugarJdkLibs = "2.1.5"
 sentry = "8.47.0"
@@ -94,6 +95,7 @@ supabase-functions = { module = "io.github.jan-tennert.supabase:functions-kt", v
 supabase-storage = { module = "io.github.jan-tennert.supabase:storage-kt", version.ref = "supabase" }
 quickjs-kt = { module = "io.github.dokar3:quickjs-kt", version.ref = "quickjsKt" }
 ksoup = { module = "com.fleeksoft.ksoup:ksoup", version.ref = "ksoup" }
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentry" }
