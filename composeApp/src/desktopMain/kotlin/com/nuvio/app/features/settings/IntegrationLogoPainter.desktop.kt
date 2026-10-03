@@ -5,8 +5,11 @@ import androidx.compose.ui.graphics.painter.Painter
 import com.nuvio.app.features.simkl.SimklBrandAsset
 import com.nuvio.app.features.simkl.simklBrandPainter
 import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.haze_logo
+import nuvio.composeapp.generated.resources.imdb_data_logo
 import nuvio.composeapp.generated.resources.introdb_favicon
 import nuvio.composeapp.generated.resources.mdblist_logo
+import nuvio.composeapp.generated.resources.mpv_logo
 import nuvio.composeapp.generated.resources.rating_tmdb
 import nuvio.composeapp.generated.resources.trakt_tv_favicon
 import org.jetbrains.compose.resources.painterResource
@@ -19,4 +22,7 @@ internal actual fun integrationLogoPainter(logo: IntegrationLogo): Painter =
         IntegrationLogo.Simkl -> simklBrandPainter(SimklBrandAsset.Glyph)
         IntegrationLogo.MdbList -> painterResource(Res.drawable.mdblist_logo)
         IntegrationLogo.IntroDb -> painterResource(Res.drawable.introdb_favicon)
+        IntegrationLogo.ImdbData -> painterResource(Res.drawable.imdb_data_logo)
+        IntegrationLogo.Mpv -> painterResource(Res.drawable.mpv_logo)
+        IntegrationLogo.Haze -> painterResource(Res.drawable.haze_logo)
     }
