@@ -480,26 +480,3 @@ private fun DesktopHeroMetaRow(meta: MetaDetails, showOverallRatings: Boolean) {
         }
     }
 }
-
-@Composable
-private fun ImdbRatingSourceLabel(
-    storeTextStyle: TextStyle,
-    storeTextColor: Color,
-) {
-    if (AppFeaturePolicy.imdbRatingLogoEnabled) {
-        Image(
-            painter = painterResource(Res.drawable.rating_imdb),
-            contentDescription = stringResource(Res.string.source_imdb),
-            modifier = Modifier.size(width = 30.dp, height = 16.dp),
-        )
-    } else {
-        Text(
-            text = stringResource(Res.string.source_imdb),
-            style = storeTextStyle,
-            color = storeTextColor,
-            maxLines = 1,
-        )
-    }
-}
-
-private val ImdbYellow = Color(0xFFF5C518)

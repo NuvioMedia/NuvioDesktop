@@ -136,14 +136,20 @@ object PlayerStreamsRepository {
         val job = episodeStreamsJob ?: return
         job.cancel()
         episodeStreamsJob = null
-        episodeStreamsRequestKey = null
-        _episodeStreamsState.update { current ->
-            current.copy(
-                isAnyLoading = false,
-                groups = current.groups.map { group ->
-                    if (group.isLoading) group.copy(isLoading = false) else group
-                },
-            )
+        // Keep requestKey and loaded results intact so that a preloaded next
+        // episode cache hit is not discarded when the current episode starts
+        // playback (pauseSearchForPlayback). Only clear if still loading.
+        val current = _episodeStreamsState.value
+        if (current.isAnyLoading) {
+            episodeStreamsRequestKey = null
+            _episodeStreamsState.update {
+                it.copy(
+                    isAnyLoading = false,
+                    groups = it.groups.map { group ->
+                        if (group.isLoading) group.copy(isLoading = false) else group
+                    },
+                )
+            }
         }
     }
 
@@ -192,9 +198,10 @@ object PlayerStreamsRepository {
         val requestKey = "$type::$videoId::$season::$episode::pluginsGrouped=${pluginUiState.groupStreamsByRepository}"
         PluginRepository.setLocalPluginSearchPaused(false)
         val current = stateFlow.value
+        val cachedKey = requestKeyHolder()
         if (
             !forceRefresh &&
-            requestKeyHolder() == requestKey &&
+            cachedKey == requestKey &&
             (current.groups.isNotEmpty() || current.emptyStateReason != null || current.isAnyLoading)
         ) {
             log.d { "skip $panelName request=$requestKey reason=already-active ${current.streamDiagnostics()}" }

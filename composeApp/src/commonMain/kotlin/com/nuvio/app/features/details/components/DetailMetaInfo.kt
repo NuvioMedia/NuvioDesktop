@@ -237,7 +237,7 @@ internal fun DetailRatingsRow(
 }
 
 @Composable
-private fun ImdbRatingSourceLabel(
+internal fun ImdbRatingSourceLabel(
     storeTextStyle: TextStyle,
     storeTextColor: Color,
 ) {
@@ -276,7 +276,7 @@ private fun ImdbRatingSourceLabel(
 }
 
 @Composable
-private fun MetaLabelValueRow(
+internal fun MetaLabelValueRow(
     label: String,
     value: String,
 ) {
@@ -296,7 +296,7 @@ private fun MetaLabelValueRow(
 }
 
 @Composable
-private fun DetailHeroMetaBadge(
+internal fun DetailHeroMetaBadge(
     text: String,
     contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
@@ -319,7 +319,7 @@ private fun DetailHeroMetaBadge(
     }
 }
 
-private val ImdbYellow = Color(0xFFF5C518)
+internal val ImdbYellow = Color(0xFFF5C518)
 private val ImdbBlack = Color(0xFF000000)
 
 private data class RatingVisuals(

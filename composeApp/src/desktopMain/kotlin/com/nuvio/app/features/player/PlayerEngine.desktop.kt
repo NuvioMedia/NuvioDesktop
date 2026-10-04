@@ -28,7 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.AppPresenceState
 import com.nuvio.app.core.ui.LocalNuvioPlatformDensity
+import com.nuvio.app.core.ui.PresenceSnapshot
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopPlayerPictureInPicture
 import com.nuvio.app.features.player.desktop.NativePlayerController
@@ -239,6 +241,13 @@ private fun NativePlayerSurface(
     LaunchedEffect(controller) {
         DesktopPlayerPictureInPicture.changes.drop(1).collect {
             controller.updateControls(latestPlayerControlsState.value)
+        }
+    }
+
+    LaunchedEffect(controller) {
+        AppPresenceState.current.collect { snapshot ->
+            val player = snapshot as? PresenceSnapshot.Player
+            controller.setNowPlayingMetadata(player?.title, player?.episodeLabel, player?.posterUrl)
         }
     }
 

@@ -78,6 +78,9 @@ internal class NativePlayerController(
     )
 
     private val lifecycleLock = Any()
+    private var currentNowPlayingTitle: String = ""
+    private var currentNowPlayingSubtitle: String = ""
+    private var currentArtworkUrl: String = ""
 
     @Volatile
     private var handle: Long = 0L
@@ -340,6 +343,9 @@ internal class NativePlayerController(
                         applyRememberedVolume()
                         updateControls(controlsState)
                         setResizeMode(rememberedResizeMode)
+                        if (currentNowPlayingTitle.isNotEmpty() || currentArtworkUrl.isNotEmpty()) {
+                            setNowPlayingMetadata(currentNowPlayingTitle, currentNowPlayingSubtitle, currentArtworkUrl)
+                        }
                         applyPendingSubtitleSettings()
                     }
                 }.onFailure { error ->
@@ -459,12 +465,37 @@ internal class NativePlayerController(
         return NativePlayerBridge.reparentSurface(current, pointer)
     }
 
-    private fun requestKeyboardFocus() {
+    fun layoutNativeSubviews() {
+        val current = handle.takeIf { it != 0L } ?: return
+        NativePlayerBridge.layoutNativeSubviews(current)
+    }
+
+    fun requestKeyboardFocus() {
         SwingUtilities.invokeLater {
+            val current = handle.takeIf { it != 0L } ?: return@invokeLater
+            if (DesktopPlayerPictureInPicture.isEnabled) {
+                DesktopPlayerPictureInPicture.pipWindow?.videoHolderPanel?.requestFocusInWindow()
+                NativePlayerBridge.requestFocus(current)
+                return@invokeLater
+            }
             if (!isHostDisplayable()) return@invokeLater
             host.requestFocusInWindow()
-            val current = handle.takeIf { it != 0L } ?: return@invokeLater
             NativePlayerBridge.requestFocus(current)
+        }
+    }
+
+    fun setNowPlayingMetadata(title: String?, subtitle: String?, artworkUrl: String?) {
+        if (DesktopHostOs.current != DesktopHostOs.MACOS) return
+        currentNowPlayingTitle = title.orEmpty()
+        currentNowPlayingSubtitle = subtitle.orEmpty()
+        currentArtworkUrl = artworkUrl.orEmpty()
+        handle.takeIf { it != 0L }?.let { current ->
+            NativePlayerBridge.setNowPlayingMetadata(
+                current,
+                currentNowPlayingTitle,
+                currentNowPlayingSubtitle,
+                currentArtworkUrl,
+            )
         }
     }
 

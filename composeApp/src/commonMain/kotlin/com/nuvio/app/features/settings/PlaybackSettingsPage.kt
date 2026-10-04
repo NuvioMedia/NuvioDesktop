@@ -1194,6 +1194,14 @@ private fun PlaybackSettingsSection(
                     )
                 }
                 SettingsGroupDivider(isTablet = isTablet)
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_playback_preload_next_episode),
+                    description = stringResource(Res.string.settings_playback_preload_next_episode_description),
+                    checked = autoPlayPlayerSettings.preloadNextEpisodeSources,
+                    isTablet = isTablet,
+                    onCheckedChange = PlayerSettingsRepository::setPreloadNextEpisodeSources,
+                )
+                SettingsGroupDivider(isTablet = isTablet)
                 var showThresholdModeDialog by remember { mutableStateOf(false) }
                 SettingsNavigationRow(
                     title = stringResource(Res.string.settings_playback_threshold_mode),

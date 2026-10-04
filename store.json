@@ -20,6 +20,26 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "0.5.6",
+          "buildVersion": "138",
+          "date": "2026-10-02T12:45:05Z",
+          "localizedDescription": "- 312f7399 feat(details): use desktop hero layout on tablets @tapframe  \n- b3d7c5b6 feat(settings): show restart prompt when layout direction changes @tapframe  \n- a984b390 fix(ios): declare supported localizations @tapframe  \n- f0f980b3 fix(player): auto-play next episode on end after dismissing prompt @tapframe  \n- [i18n(vi): update latest Vietnamese strings (#2146)](https://github.com/NuvioMedia/NuvioMobile/pull/2146) @blueocean2308  \n- [Preload next episode sources (#2140)](https://github.com/NuvioMedia/NuvioMobile/pull/2140) @skoruppa  \n- [Fix mising poster fallback in Catalog Screen (#2139)](https://github.com/NuvioMedia/NuvioMobile/pull/2139) @skoruppa  \n- [fix(player): backport automatic skip notifications from Desktop (#2137)](https://github.com/NuvioMedia/NuvioMobile/pull/2137) @Laskco  \n",
+          "downloadURL": "https://github.com/NuvioMedia/NuvioMobile/releases/download/0.5.6-beta/nuvio-0.5.6-full-release.ipa",
+          "size": 66690752,
+          "sha256": "503a38bb00d29c05d4d6b89443faf9c5004fbd0cd6496e177e0cb1b4dcd0ce4c",
+          "minOSVersion": "16.1"
+        },
+        {
+          "version": "0.5.5",
+          "buildVersion": "137",
+          "date": "2026-09-30T19:22:54Z",
+          "localizedDescription": "- [feat(i18n): add Bengali (বাংলা) language support and UI localization (#2113)](https://github.com/NuvioMedia/NuvioMobile/pull/2113) @TanvirSdq  \n- [i18n(el): sync Greek translations and remove remaining English loanwords (#2132)](https://github.com/NuvioMedia/NuvioMobile/pull/2132) @nosvasedis  \n- [Landscape clearlogo toggle, Simkl type hint, TMDB source priority, folder TMDB ID resolution (#2084)](https://github.com/NuvioMedia/NuvioMobile/pull/2084) @skoruppa  \n- [fix(UI): Fix hero section sometimes shifting (#2128)](https://github.com/NuvioMedia/NuvioMobile/pull/2128) @ThEgIGN  \n- [fix(player): show the swipe-to-seek preview in the new player layout (#2122)](https://github.com/NuvioMedia/NuvioMobile/pull/2122) @deejay189393  \n- 6aa42153 fix(debrid): select requested episode files @tapframe  \n- [i18n(vi): update latest Vietnamese strings (#2096)](https://github.com/NuvioMedia/NuvioMobile/pull/2096) @blueocean2308  \n- [Translation improvements and adjustments for Slovak language (#2104)](https://github.com/NuvioMedia/NuvioMobile/pull/2104) @mmsw91  \n- [fix(mdblist): show newest library additions first (#2103)](https://github.com/NuvioMedia/NuvioMobile/pull/2103) @halibiram  \n",
+          "downloadURL": "https://github.com/NuvioMedia/NuvioMobile/releases/download/0.5.5-beta/nuvio-0.5.5-full-release.ipa",
+          "size": 66647562,
+          "sha256": "ae4da6ce2738ea36e700b3774e0137dae5b0885d7d88ac46c6720b3be3c82433",
+          "minOSVersion": "16.1"
+        },
+        {
           "version": "0.5.4",
           "buildVersion": "136",
           "date": "2026-09-28T09:23:38Z",

@@ -25,7 +25,7 @@ internal object DesktopPlayerPictureInPicture {
 
     private var host: NativePlayerHost? = null
     private var controller: NativePlayerController? = null
-    private var pipWindow: DesktopPlayerPipWindow? = null
+    internal var pipWindow: DesktopPlayerPipWindow? = null
     private var windowTitle = ""
     private var lastVideoSize = IntSize.Zero
     private var transition = false
@@ -48,7 +48,12 @@ internal object DesktopPlayerPictureInPicture {
         lastVideoSize = videoSize
         pipWindow?.let { window ->
             if (videoSize.width > 0 && videoSize.height > 0) {
-                window.aspectRatio = videoSize.width.toFloat() / videoSize.height.toFloat()
+                val ratio = videoSize.width.toFloat() / videoSize.height.toFloat()
+                window.aspectRatio = ratio
+                runCatching {
+                    val windowPointer = AwtNativeViewResolver.resolveNativeViewPointer(window)
+                    NativePlayerBridge.setWindowAspectRatio(windowPointer, ratio)
+                }
                 window.revalidate()
             }
         }
@@ -91,6 +96,8 @@ internal object DesktopPlayerPictureInPicture {
         val window = DesktopPlayerPipWindow(
             ownerWindow = null,
             onCloseRequested = ::clear,
+            onResized = { controller?.layoutNativeSubviews() },
+            onFocusGained = { controller?.requestKeyboardFocus() },
         ).apply {
             aspectRatio = videoAspectRatio()
             updateWindowTitle(windowTitle)
@@ -109,7 +116,9 @@ internal object DesktopPlayerPictureInPicture {
 
         runCatching {
             val windowPointer = AwtNativeViewResolver.resolveNativeViewPointer(window)
+            NativePlayerBridge.setWindowAspectRatio(windowPointer, window.aspectRatio)
             NativePlayerBridge.setWindowResizable(windowPointer, true)
+            window.validate()
         }.onFailure { error -> log.w(error) { "failed to enable PiP native resize" } }
 
         val pipHost = window.videoHolderPanel
@@ -145,6 +154,10 @@ internal object DesktopPlayerPictureInPicture {
             val restored = player.reparentSurface(mainHost)
             log.d { "restoring PiP native surface success=$restored" }
             mainHost.requestFocusInWindow()
+        }
+        runCatching {
+            val windowPointer = AwtNativeViewResolver.resolveNativeViewPointer(window)
+            NativePlayerBridge.setWindowResizable(windowPointer, false)
         }
         window.isVisible = false
         window.dispose()

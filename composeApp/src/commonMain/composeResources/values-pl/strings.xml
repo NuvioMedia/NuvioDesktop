@@ -837,6 +837,8 @@
     <string name="settings_playback_prefer_binge_group_description">Przy automatycznym odtwarzaniu preferuj strumień z tej samej grupy binge co bieżący.</string>
     <string name="settings_playback_reuse_binge_group">Ponownie użyj grupy binge</string>
     <string name="settings_playback_reuse_binge_group_description">Zapamiętaj i ponownie użyj ostatniej grupy binge między sesjami (Kontynuuj oglądanie, Szczegóły itp.).</string>
+    <string name="settings_playback_preload_next_episode">Wstępne ładowanie źródeł następnego odcinka</string>
+    <string name="settings_playback_preload_next_episode_description">Rozpocznij wyszukiwanie źródeł w tle zanim pojawi się przycisk następnego odcinka.</string>
     <string name="settings_playback_preferred_audio_language">Preferowany język audio</string>
     <string name="settings_playback_preferred_subtitle_language">Preferowany język napisów</string>
     <string name="settings_playback_presets">Szablony</string>

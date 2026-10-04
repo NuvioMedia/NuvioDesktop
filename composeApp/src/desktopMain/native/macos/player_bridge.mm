@@ -1,6 +1,7 @@
 #import <Cocoa/Cocoa.h>
 #import <IOKit/IOKitLib.h>
 #import <IOKit/hidsystem/ev_keymap.h>
+#import <MediaPlayer/MediaPlayer.h>
 #define GL_SILENCE_DEPRECATION
 #import <OpenGL/OpenGL.h>
 #import <OpenGL/gl3.h>
@@ -138,6 +139,15 @@ static constexpr double kMaxVolumePercent = 200.0;
 - (void)focusControlsWebViewIfNeeded;
 - (void)layoutNativeSubviews;
 - (void)dispatchMediaKeyPlayerEvent:(NSString *)type;
+- (void)activateRemoteCommands;
+- (void)deactivateRemoteCommands;
+- (void)setNowPlayingArtworkUrlString:(NSString *)urlString;
+- (void)setNowPlayingTitle:(NSString *)title subtitle:(NSString *)subtitle artworkUrl:(NSString *)artworkUrl;
+- (void)updateNowPlayingWithTitle:(NSString *)title
+                         duration:(double)duration
+                         position:(double)position
+                           paused:(BOOL)paused
+                            speed:(double)speed;
 - (void)layoutControlsWebViewToBounds:(NSRect)bounds immediate:(BOOL)immediate;
 - (void)hostViewBoundsDidChange:(NSNotification *)notification;
 - (void)hostViewFrameDidChange:(NSNotification *)notification;
@@ -1039,6 +1049,19 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     NSTimer *_resizeSettleTimer;
     NSTimer *_fullscreenTransitionTimer;
     id _mediaKeyMonitor;
+    BOOL _remoteCommandsActive;
+    NSString *_lastNowPlayingTitle;
+    BOOL _lastNowPlayingPaused;
+    double _lastNowPlayingDuration;
+    double _lastNowPlayingPosition;
+    double _lastNowPlayingSpeed;
+    NSTimeInterval _lastNowPlayingPushedAt;
+    NSString *_nowPlayingArtworkUrl;
+    MPMediaItemArtwork *_nowPlayingArtwork;
+    NSURLSessionDataTask *_nowPlayingArtworkTask;
+    NSString *_nowPlayingTitleOverride;
+    NSString *_nowPlayingSubtitle;
+    BOOL _nowPlayingMetadataDirty;
     JavaVM *_javaVm;
     jobject _eventSink;
     jmethodID _eventMethod;
@@ -1179,6 +1202,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         }
         return [strongSelf handleMediaKeyEvent:event];
     }];
+    [self activateRemoteCommands];
     [self layoutNativeSubviews];
     dispatch_async(dispatch_get_main_queue(), ^{
         [self focusControlsWebViewIfNeeded];
@@ -1585,6 +1609,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
             double speed = [self rawSpeed];
             NSString *audioTracks = [self audioTracksJson] ?: @"[]";
             NSString *subtitleTracks = [self subtitleTracksJson] ?: @"[]";
+            NSString *mediaTitle = [self stringProperty:"media-title" fallback:@""];
             NSString *gamma = [[self stringProperty:"video-params/gamma" fallback:@""] lowercaseString];
             NSString *primaries = [[self stringProperty:"video-params/primaries" fallback:@""] lowercaseString];
             [self updateCachedDuration:duration
@@ -1601,6 +1626,11 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                     return;
                 }
                 [self applyHdrForPolledGamma:gamma primaries:primaries reason:@"sync" force:NO];
+                [self updateNowPlayingWithTitle:mediaTitle
+                                       duration:duration
+                                       position:position
+                                         paused:paused
+                                          speed:speed];
                 NSString *script = [NSString stringWithFormat:
                     @"window.playerUpdate({duration:%0.3f,position:%0.3f,volumeLevel:%0.3f,paused:%@,loading:%@,audioTracks:%@,subtitleTracks:%@})",
                     duration,
@@ -1821,6 +1851,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         [NSEvent removeMonitor:_mediaKeyMonitor];
         _mediaKeyMonitor = nil;
     }
+    [self deactivateRemoteCommands];
     _controlsWebReady = NO;
     _pendingControlsJson = nil;
     if (_mpvEventQueue) {
@@ -2598,10 +2629,195 @@ static void nuvioMpvWakeup(void *ctx) {
     int keyState = (keyFlags & 0x0000FF00) >> 8;
     BOOL isKeyDown = keyState == 0x0A;
     BOOL isRepeat = (keyFlags & 0x1) != 0;
-    if (isKeyDown && !isRepeat) {
+    if (isKeyDown && !isRepeat && !_remoteCommandsActive) {
         [self dispatchMediaKeyPlayerEvent:eventType];
     }
     return nil;
+}
+
+// Registers with the system's now-playing infrastructure so macOS (rcd) routes
+// hardware media keys here instead of launching the default media app (Music).
+// While registration is active, the local NSSystemDefined monitor only swallows
+// the raw key events; playback commands arrive through these handlers.
+- (void)activateRemoteCommands {
+    if (_remoteCommandsActive) {
+        return;
+    }
+    _remoteCommandsActive = YES;
+    __weak MpvWebPlayer *weakSelf = self;
+    MPRemoteCommandCenter *center = [MPRemoteCommandCenter sharedCommandCenter];
+    [center.togglePlayPauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+        [weakSelf dispatchMediaKeyPlayerEvent:@"keyboardToggle"];
+        return MPRemoteCommandHandlerStatusSuccess;
+    }];
+    [center.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+        MpvWebPlayer *strongSelf = weakSelf;
+        if (strongSelf && strongSelf->_cachedPaused.load()) {
+            [strongSelf dispatchMediaKeyPlayerEvent:@"keyboardToggle"];
+        }
+        return MPRemoteCommandHandlerStatusSuccess;
+    }];
+    [center.pauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+        MpvWebPlayer *strongSelf = weakSelf;
+        if (strongSelf && !strongSelf->_cachedPaused.load()) {
+            [strongSelf dispatchMediaKeyPlayerEvent:@"keyboardToggle"];
+        }
+        return MPRemoteCommandHandlerStatusSuccess;
+    }];
+    [center.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+        [weakSelf dispatchMediaKeyPlayerEvent:@"keyboardSeekForward"];
+        return MPRemoteCommandHandlerStatusSuccess;
+    }];
+    [center.previousTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+        [weakSelf dispatchMediaKeyPlayerEvent:@"keyboardSeekBack"];
+        return MPRemoteCommandHandlerStatusSuccess;
+    }];
+    MPNowPlayingInfoCenter *info = [MPNowPlayingInfoCenter defaultCenter];
+    info.playbackState = MPNowPlayingPlaybackStatePlaying;
+}
+
+- (void)deactivateRemoteCommands {
+    if (!_remoteCommandsActive) {
+        return;
+    }
+    _remoteCommandsActive = NO;
+    MPRemoteCommandCenter *center = [MPRemoteCommandCenter sharedCommandCenter];
+    [center.togglePlayPauseCommand removeTarget:nil];
+    [center.playCommand removeTarget:nil];
+    [center.pauseCommand removeTarget:nil];
+    [center.nextTrackCommand removeTarget:nil];
+    [center.previousTrackCommand removeTarget:nil];
+    MPNowPlayingInfoCenter *info = [MPNowPlayingInfoCenter defaultCenter];
+    info.playbackState = MPNowPlayingPlaybackStateStopped;
+    info.nowPlayingInfo = nil;
+    _lastNowPlayingTitle = nil;
+    [_nowPlayingArtworkTask cancel];
+    _nowPlayingArtworkTask = nil;
+    _nowPlayingArtwork = nil;
+    _nowPlayingArtworkUrl = nil;
+    _nowPlayingTitleOverride = nil;
+    _nowPlayingSubtitle = nil;
+}
+
+- (void)setNowPlayingArtworkUrlString:(NSString *)urlString {
+    NSString *cleaned = urlString ?: @"";
+    if ([cleaned isEqualToString:_nowPlayingArtworkUrl ?: @""]) {
+        return;
+    }
+    _nowPlayingArtworkUrl = cleaned;
+    [_nowPlayingArtworkTask cancel];
+    _nowPlayingArtworkTask = nil;
+    _nowPlayingArtwork = nil;
+    NSURL *url = (cleaned.length > 0) ? [NSURL URLWithString:cleaned] : nil;
+    if (!url) {
+        [self pushNowPlayingArtwork];
+        return;
+    }
+    __weak MpvWebPlayer *weakSelf = self;
+    _nowPlayingArtworkTask = [[NSURLSession sharedSession] dataTaskWithURL:url
+                                                         completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (error || !data) {
+            return;
+        }
+        NSImage *image = [[NSImage alloc] initWithData:data];
+        if (!image) {
+            return;
+        }
+        MPMediaItemArtwork *artwork = [[MPMediaItemArtwork alloc] initWithBoundsSize:image.size
+                                                                      requestHandler:^NSImage *(CGSize size) {
+            return image;
+        }];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            MpvWebPlayer *strongSelf = weakSelf;
+            if (!strongSelf || ![cleaned isEqualToString:strongSelf->_nowPlayingArtworkUrl ?: @""]) {
+                return;
+            }
+            strongSelf->_nowPlayingArtwork = artwork;
+            strongSelf->_nowPlayingArtworkTask = nil;
+            [strongSelf pushNowPlayingArtwork];
+        });
+    }];
+    [_nowPlayingArtworkTask resume];
+}
+
+// Title/subtitle come from the app's own metadata (show name, "S1E4 - Episode")
+// rather than mpv's media-title, which for streams is just the file name.
+- (void)setNowPlayingTitle:(NSString *)title subtitle:(NSString *)subtitle artworkUrl:(NSString *)artworkUrl {
+    NSString *cleanTitle = title ?: @"";
+    NSString *cleanSubtitle = subtitle ?: @"";
+    if (![cleanTitle isEqualToString:_nowPlayingTitleOverride ?: @""]
+        || ![cleanSubtitle isEqualToString:_nowPlayingSubtitle ?: @""]) {
+        _nowPlayingTitleOverride = cleanTitle;
+        _nowPlayingSubtitle = cleanSubtitle;
+        _nowPlayingMetadataDirty = YES;
+    }
+    [self setNowPlayingArtworkUrlString:artworkUrl];
+}
+
+// Merges the artwork into whatever now-playing info is currently published,
+// without waiting for the next periodic update.
+- (void)pushNowPlayingArtwork {
+    if (!_remoteCommandsActive) {
+        return;
+    }
+    MPNowPlayingInfoCenter *info = [MPNowPlayingInfoCenter defaultCenter];
+    NSMutableDictionary *nowPlaying = [info.nowPlayingInfo mutableCopy] ?: [NSMutableDictionary dictionary];
+    if (_nowPlayingArtwork) {
+        nowPlaying[MPMediaItemPropertyArtwork] = _nowPlayingArtwork;
+    } else {
+        [nowPlaying removeObjectForKey:MPMediaItemPropertyArtwork];
+    }
+    info.nowPlayingInfo = nowPlaying;
+}
+
+- (void)updateNowPlayingWithTitle:(NSString *)title
+                         duration:(double)duration
+                         position:(double)position
+                           paused:(BOOL)paused
+                            speed:(double)speed {
+    if (!_remoteCommandsActive) {
+        return;
+    }
+    // The system extrapolates elapsed time from rate, so only push an update on
+    // a real change (state, title, duration, speed, or a seek).
+    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
+    double expectedPosition = _lastNowPlayingPosition
+        + (_lastNowPlayingPaused ? 0.0 : (now - _lastNowPlayingPushedAt) * _lastNowPlayingSpeed);
+    BOOL seeked = fabs(position - expectedPosition) > 3.0;
+    NSString *displayTitle = (_nowPlayingTitleOverride.length > 0) ? _nowPlayingTitleOverride : title;
+    BOOL changed = _nowPlayingMetadataDirty
+        || paused != _lastNowPlayingPaused
+        || fabs(duration - _lastNowPlayingDuration) > 0.5
+        || fabs(speed - _lastNowPlayingSpeed) > 0.01
+        || seeked
+        || (displayTitle && ![displayTitle isEqualToString:_lastNowPlayingTitle ?: @""]);
+    if (!changed) {
+        return;
+    }
+    _nowPlayingMetadataDirty = NO;
+    _lastNowPlayingPaused = paused;
+    _lastNowPlayingDuration = duration;
+    _lastNowPlayingPosition = position;
+    _lastNowPlayingSpeed = speed;
+    _lastNowPlayingTitle = displayTitle;
+    _lastNowPlayingPushedAt = now;
+    NSMutableDictionary *nowPlaying = [NSMutableDictionary dictionary];
+    nowPlaying[MPNowPlayingInfoPropertyMediaType] = @(MPNowPlayingInfoMediaTypeVideo);
+    nowPlaying[MPMediaItemPropertyTitle] = (displayTitle.length > 0) ? displayTitle : @"Nuvio";
+    if (_nowPlayingSubtitle.length > 0) {
+        nowPlaying[MPMediaItemPropertyArtist] = _nowPlayingSubtitle;
+    }
+    if (duration > 0.0) {
+        nowPlaying[MPMediaItemPropertyPlaybackDuration] = @(duration);
+    }
+    nowPlaying[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(position);
+    nowPlaying[MPNowPlayingInfoPropertyPlaybackRate] = @(paused ? 0.0 : speed);
+    if (_nowPlayingArtwork) {
+        nowPlaying[MPMediaItemPropertyArtwork] = _nowPlayingArtwork;
+    }
+    MPNowPlayingInfoCenter *info = [MPNowPlayingInfoCenter defaultCenter];
+    info.nowPlayingInfo = nowPlaying;
+    info.playbackState = paused ? MPNowPlayingPlaybackStatePaused : MPNowPlayingPlaybackStatePlaying;
 }
 
 - (void)dispatchMediaKeyPlayerEvent:(NSString *)type {
@@ -2803,6 +3019,27 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_updateControls(
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setNowPlayingMetadata(
+    JNIEnv *env,
+    jobject /* bridge */,
+    jlong handle,
+    jstring title,
+    jstring subtitle,
+    jstring artworkUrl
+) {
+    if (handle == 0) return;
+    std::string titleText = jstringToString(env, title);
+    std::string subtitleText = jstringToString(env, subtitle);
+    std::string url = jstringToString(env, artworkUrl);
+    MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
+    runOnMainAsync(^{
+        [player setNowPlayingTitle:[NSString stringWithUTF8String:titleText.c_str()]
+                          subtitle:[NSString stringWithUTF8String:subtitleText.c_str()]
+                        artworkUrl:[NSString stringWithUTF8String:url.c_str()]];
+    });
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_requestFocus(
     JNIEnv *,
     jobject,
@@ -2829,15 +3066,32 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowResizable
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowAspectRatio(
+    JNIEnv *, jobject, jlong, jfloat
+) {
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_layoutNativeSubviews(
+    JNIEnv *, jobject, jlong
+) {
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_reparentSurfaceNative(
     JNIEnv *, jobject, jlong handle, jlong hostViewPtr
 ) {
     if (handle == 0 || hostViewPtr == 0) return;
     MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
     NSView *hostView = (__bridge NSView *)(void *)(intptr_t)hostViewPtr;
-    runOnMainSync(^{
-        [player reparentSurfaceToHostView:hostView];
-    });
+    // AWT can query Java focus while the PiP window becomes key. Its main thread
+    // then waits in AWTRunLoopMode for the EDT, which is waiting here. GCD's main
+    // queue is not serviced in that mode; schedule the move in AWT's loop too.
+    // Keep the move synchronous so the old window is not disposed before it ends.
+    [player performSelectorOnMainThread:@selector(reparentSurfaceToHostView:)
+                            withObject:hostView
+                         waitUntilDone:YES
+                                 modes:@[NSRunLoopCommonModes, @"AWTRunLoopMode"]];
 }
 
 extern "C" JNIEXPORT void JNICALL

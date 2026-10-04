@@ -703,6 +703,8 @@
     <string name="settings_appearance_app_language">App Language</string>
     <string name="settings_appearance_app_language_device">Device language</string>
     <string name="settings_appearance_app_language_sheet_title">Choose Language</string>
+    <string name="settings_appearance_app_language_restart_title">Restart required</string>
+    <string name="settings_appearance_app_language_restart_message">Close and reopen the app to update the layout for this language.</string>
     <string name="settings_appearance_nav_bar_style">Navigation Bar</string>
     <string name="settings_appearance_sidebar_style">Sidebar Style</string>
     <string name="settings_appearance_top_bar_style">Top Bar Style</string>
@@ -1168,6 +1170,8 @@
     <string name="settings_playback_prefer_binge_group_description">Try the same source profile first (same addon/quality group) before normal auto-play rules.</string>
     <string name="settings_playback_reuse_binge_group">Reuse Binge Group</string>
     <string name="settings_playback_reuse_binge_group_description">Remember and reuse the last binge group across sessions (Continue Watching, Details, etc.).</string>
+    <string name="settings_playback_preload_next_episode">Preload Next Episode Sources</string>
+    <string name="settings_playback_preload_next_episode_description">Start searching for sources in the background before the next episode button appears.</string>
     <string name="settings_playback_preferred_audio_language">Preferred Audio Language</string>
     <string name="settings_playback_preferred_subtitle_language">Preferred Language</string>
     <string name="settings_playback_presets">Presets</string>
@@ -1471,6 +1475,7 @@
     <string name="player_auto_skip_intro_notification">Intro skipped to %1$s</string>
     <string name="player_auto_skip_recap_notification">Recap skipped to %1$s</string>
     <string name="player_auto_skip_outro_notification">Outro skipped to %1$s</string>
+    <string name="player_auto_skip_movie_credits_notification">Credits skipped to %1$s</string>
     <string name="compose_player_no_subtitles_found">No subtitles found</string>
     <string name="lang_afrikaans">Afrikaans</string>
     <string name="lang_albanian">Albanian</string>
@@ -1572,6 +1577,10 @@
     <string name="detail_more_like_this_powered_by_trakt">Powered by Trakt</string>
     <string name="detail_more_like_this_powered_by_simkl">Powered by Simkl</string>
     <string name="details_seasons">Seasons</string>
+    <plurals name="details_season_count">
+        <item quantity="one">%1$d Season</item>
+        <item quantity="other">%1$d Seasons</item>
+    </plurals>
     <string name="details_series_missing_numbers">This addon returned videos for the series, but none included season or episode numbers.</string>
     <string name="details_series_no_metadata">This addon did not provide episode metadata for this series.</string>
     <string name="details_series_unpublished">Episodes have not been published by this addon yet.</string>

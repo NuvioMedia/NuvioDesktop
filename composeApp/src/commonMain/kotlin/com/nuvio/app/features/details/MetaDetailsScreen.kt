@@ -101,8 +101,7 @@ import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.core.ui.rememberHeroStretchState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
-import com.nuvio.app.features.details.components.DetailActionButtons
-import com.nuvio.app.features.details.components.DetailSecondaryAction
+import com.nuvio.app.features.details.components.DetailActions
 import com.nuvio.app.features.details.components.CommentDetailSheet
 import com.nuvio.app.features.details.components.DetailAdditionalInfoSection
 import com.nuvio.app.features.details.components.DetailCastSection
@@ -120,6 +119,8 @@ import com.nuvio.app.features.details.components.DetailSeriesListHeader
 import com.nuvio.app.features.details.components.DetailTrailersSection
 import com.nuvio.app.features.details.components.EpisodeWatchedActionSheet
 import com.nuvio.app.features.details.components.SeasonWatchedActionSheet
+import com.nuvio.app.features.details.components.TabletDetailBackdrop
+import com.nuvio.app.features.details.components.TabletDetailHero
 import com.nuvio.app.features.details.components.TrailerPlayerPopup
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.mdblist.MdbListSettingsRepository
@@ -1075,10 +1076,22 @@ fun MetaDetailsScreen(
                     derivedStateOf { headerProgressState.value > 0.05f }
                 }
 
+                val onShuffleClick: (() -> Unit)? = if (showShuffleButton) {
+                    {
+                        if (shuffleSettings.enabled) saveShuffle(shuffleSettings.copy(enabled = false)) else showShuffle = true
+                    }
+                } else {
+                    null
+                }
+
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                     val colorScheme = MaterialTheme.colorScheme
                     val screenMaxWidth = maxWidth
-                    val isTablet = screenMaxWidth >= 720.dp
+                    val useTabletLayout = !isDesktop && minOf(maxWidth, maxHeight) >= 600.dp
+                    val isTablet = useTabletLayout || screenMaxWidth >= 720.dp
+                    val isSectionEnabled = { key: MetaScreenSectionKey ->
+                        metaScreenSettingsUiState.items.any { it.key == key && it.enabled }
+                    }
                     val useDesktopDetailLayout = isDesktop && screenMaxWidth >= 1000.dp
                     val viewportHeight = maxHeight
                     val desktopPageHorizontalPadding = desktopPageHorizontalPaddingForWidth(screenMaxWidth.value)
@@ -1151,7 +1164,31 @@ fun MetaDetailsScreen(
                             .fillMaxSize()
                             .detailsContentReveal(metaScreenSettingsUiState.posterTransitionEnabled),
                     ) {
-                        when (backgroundMode) {
+                        if (useTabletLayout) {
+                            TabletDetailBackdrop(
+                                meta = meta,
+                                cinematic = backgroundMode == MetaScreenBackgroundMode.Cinematic,
+                                scrollOffsetPx = detailScrollOffsetPx,
+                                heroHeightPx = { heroHeightPx.intValue },
+                                heroTrailerSourceUrl = heroTrailerSourceUrl,
+                                heroTrailerSourceAudioUrl = heroTrailerSourceAudioUrl,
+                                heroTrailerReady = heroTrailerReady,
+                                heroTrailerPlayWhenReady = { heroTrailerPlayWhenReady },
+                                heroTrailerMuted = heroTrailerMuted,
+                                heroGradientColor = dominantBackdropColor.takeIf { dominantColorEnabled },
+                                onBackdropLoaded = { painter, imageBitmap ->
+                                    dominantBackdropPainter = painter
+                                    dominantBackdropImageBitmap = imageBitmap
+                                },
+                                onHeroTrailerReady = {
+                                    if (!heroTrailerFinished) heroTrailerReady = true
+                                },
+                                onHeroTrailerFinished = {
+                                    heroTrailerReady = false
+                                    heroTrailerFinished = true
+                                },
+                            )
+                        } else when (backgroundMode) {
                             MetaScreenBackgroundMode.Normal -> Unit
                             MetaScreenBackgroundMode.Cinematic -> if (deferredMetaWorkAllowed && backdropUrl != null) {
                                 AsyncImage(
@@ -1387,7 +1424,41 @@ fun MetaDetailsScreen(
                                     key = "detail-hero",
                                     contentType = "detail-hero",
                                 ) {
-                                    DetailHero(
+                                    if (useTabletLayout) {
+                                        TabletDetailHero(
+                                            meta = meta,
+                                            showOverview = isSectionEnabled(MetaScreenSectionKey.OVERVIEW),
+                                            showOverallRatings = metaScreenSettingsUiState.showOverallRatings,
+                                            isMdbListActive = mdbListSettings.isActive,
+                                            horizontalPadding = contentHorizontalPadding,
+                                            heroTrailerSourceUrl = heroTrailerSourceUrl,
+                                            heroTrailerReady = heroTrailerReady,
+                                            heroTrailerMuted = heroTrailerMuted,
+                                            onHeroTrailerMuteToggle = HeroTrailerAudioState::toggleMuted,
+                                            onHeightChanged = { heroHeightPx.intValue = it },
+                                            actions = if (isSectionEnabled(MetaScreenSectionKey.ACTIONS)) {
+                                                {
+                                                    DetailActions(
+                                                        playLabel = playButtonLabel,
+                                                        playEnabled = isPrimaryPlayEnabled,
+                                                        isSaved = isSaved,
+                                                        isWatched = isWatched,
+                                                        isTablet = true,
+                                                        shuffleEnabled = shuffleSettings.enabled,
+                                                        onPlayClick = onPrimaryPlayClick,
+                                                        onPlayLongClick = if (showManualPlayOption) onPrimaryPlayLongClick else null,
+                                                        onShuffleClick = onShuffleClick,
+                                                        onWatchedClick = toggleWatched,
+                                                        onSaveClick = toggleSaved,
+                                                        onSaveLongClick = openLibraryListPicker,
+                                                    )
+                                                }
+                                            } else {
+                                                null
+                                            },
+                                        )
+                                    } else {
+                                        DetailHero(
                                         meta = meta,
                                         isTablet = isTablet,
                                         contentMaxWidth = contentMaxWidth,
@@ -1422,15 +1493,22 @@ fun MetaDetailsScreen(
                                             heroTrailerFinished = true
                                         },
                                     )
+                                    }
                                 }
 
                                 configuredMetaSectionItems(
-                                    settings = metaScreenSettingsUiState,
+                                    settings = if (useTabletLayout) {
+                                        metaScreenSettingsUiState.copy(
+                                            items = metaScreenSettingsUiState.items.filterNot { it.key in tabletHeroSectionKeys },
+                                        )
+                                    } else {
+                                        metaScreenSettingsUiState
+                                    },
                                     isMdbListActive = mdbListSettings.enabled && mdbListSettings.hasApiKey,
                                     meta = meta,
                                     isTablet = isTablet,
                                     contentHorizontalPadding = contentHorizontalPadding,
-                                    contentMaxWidth = if (isTablet) contentMaxWidth else Dp.Unspecified,
+                                    contentMaxWidth = if (isTablet && !useTabletLayout) contentMaxWidth else Dp.Unspecified,
                                     playButtonLabel = playButtonLabel,
                                     isPrimaryPlayEnabled = isPrimaryPlayEnabled,
                                     isSaved = isSaved,
@@ -1528,7 +1606,7 @@ fun MetaDetailsScreen(
                                 .zIndex(2f),
                         )
 
-                        if (!useDesktopDetailLayout && backgroundMode.usesBackdropBackground &&
+                        if (!useDesktopDetailLayout && !useTabletLayout && backgroundMode.usesBackdropBackground &&
                             deferredMetaWorkAllowed && heroHeightPx.intValue > 0
                         ) {
                             val blendColor = dominantBackdropColor.takeIf { dominantColorEnabled }
@@ -2274,7 +2352,7 @@ private fun LazyListScope.configuredMetaSectionItems(
             DetailSectionContainer(
                 horizontalPadding = contentHorizontalPadding,
                 contentMaxWidth = contentMaxWidth,
-                bottomPadding = 12.dp,
+                bottomPadding = if (isDesktop) 8.dp else 12.dp,
             ) {
                 DetailSeriesListHeader(
                     meta = meta,
@@ -2509,53 +2587,19 @@ private fun ConfiguredMetaSections(
     fun RenderSection(key: MetaScreenSectionKey, showHeader: Boolean = true) {
         when (key) {
             MetaScreenSectionKey.ACTIONS -> {
-                val shuffleAction = onShuffleClick?.let { onClick ->
-                    DetailSecondaryAction(
-                        label = stringResource(if (shuffleEnabled) Res.string.shuffle_stop else Res.string.random_episode_title),
-                        icon = Icons.Default.Shuffle,
-                        isActive = shuffleEnabled,
-                        onClick = onClick,
-                    )
-                }
-                DetailActionButtons(
-                    playLabel = if (isPrimaryPlayEnabled) playButtonLabel else stringResource(Res.string.playback_unavailable),
+                DetailActions(
+                    playLabel = playButtonLabel,
                     playEnabled = isPrimaryPlayEnabled,
-                    pinnedAction = shuffleAction?.takeIf { shuffleEnabled },
-                    secondaryActions = buildList {
-                        if (!shuffleEnabled) shuffleAction?.let(::add)
-                        add(DetailSecondaryAction(
-                            label = if (isWatched) {
-                                stringResource(Res.string.hero_mark_unwatched)
-                            } else {
-                                stringResource(Res.string.hero_mark_watched)
-                            },
-                            icon = if (isWatched) {
-                                Icons.Default.CheckCircle
-                            } else {
-                                Icons.Default.CheckCircleOutline
-                            },
-                            isActive = isWatched,
-                            onClick = onWatchedClick,
-                        ))
-                        add(DetailSecondaryAction(
-                            label = if (isSaved) {
-                                stringResource(Res.string.hero_remove_from_library)
-                            } else {
-                                stringResource(Res.string.hero_add_to_library)
-                            },
-                            icon = if (isSaved) {
-                                Icons.Default.Check
-                            } else {
-                                Icons.Default.Add
-                            },
-                            isActive = isSaved,
-                            onClick = onSaveClick,
-                            onLongClick = onSaveLongClick,
-                        ))
-                    },
+                    isSaved = isSaved,
+                    isWatched = isWatched,
                     isTablet = isTablet,
+                    shuffleEnabled = shuffleEnabled,
                     onPlayClick = onPrimaryPlayClick,
                     onPlayLongClick = if (showManualPlayOption) onPrimaryPlayLongClick else null,
+                    onShuffleClick = onShuffleClick,
+                    onWatchedClick = onWatchedClick,
+                    onSaveClick = onSaveClick,
+                    onSaveLongClick = onSaveLongClick,
                 )
             }
             MetaScreenSectionKey.OVERVIEW -> {
@@ -2767,6 +2811,11 @@ private fun TabbedSectionGroup(
         }
     }
 }
+
+private val tabletHeroSectionKeys = setOf(
+    MetaScreenSectionKey.ACTIONS,
+    MetaScreenSectionKey.OVERVIEW,
+)
 
 private fun detailTabletContentMaxWidth(maxWidth: Dp, isTablet: Boolean): Dp =
     if (!isTablet) {

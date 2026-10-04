@@ -712,6 +712,12 @@ private fun ContinueWatchingCard(
 
     Box(
         modifier = Modifier
+            .posterCardClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                zoomImageUrl = imageUrl,
+                zoomCornerRadius = cardMetrics.cornerRadius,
+            )
             .width(cardMetrics.width)
             .aspectRatio(PosterLandscapeAspectRatio)
             .clip(RoundedCornerShape(cardMetrics.cornerRadius))
@@ -719,12 +725,6 @@ private fun ContinueWatchingCard(
             .nuvioCardDepth(
                 shape = RoundedCornerShape(cardMetrics.cornerRadius),
                 surface = NuvioCardDepthSurface.ContinueWatching,
-            )
-            .posterCardClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-                zoomImageUrl = imageUrl,
-                zoomCornerRadius = cardMetrics.cornerRadius,
             ),
     ) {
         if (imageUrl != null) {
