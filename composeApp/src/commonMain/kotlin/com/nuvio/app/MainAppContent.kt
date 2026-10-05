@@ -835,6 +835,26 @@ internal fun MainAppContent(
             }
         }
 
+        fun openVideoLink(url: String) {
+            if (navController.currentRoute !is TabsRoute) return
+            val link = com.nuvio.app.features.search.parseDirectVideoLink(url) ?: return
+            val playerLaunch = PlayerLaunch(
+                profileId = activePlaybackProfileId,
+                title = link.title,
+                sourceUrl = link.url,
+                streamTitle = link.title,
+                providerName = "",
+                parentMetaId = "",
+                parentMetaType = "",
+            )
+            if (playerSettingsUiState.externalPlayerEnabled) {
+                coroutineScope.launch { openExternalPlayback(playerLaunch) }
+                return
+            }
+            val launchId = PlayerLaunchStore.put(playerLaunch)
+            navController.navigate(PlayerRoute(launchId = launchId, title = playerLaunch.title))
+        }
+
         fun openDownloadedItem(item: DownloadItem) {
             val sourceUrl = DownloadsRepository.playableLocalFileUri(item) ?: return
             val resumeEntry = item.videoId
@@ -1326,6 +1346,7 @@ internal fun MainAppContent(
                         actions = { isTabletLayout ->
                             AppTabActions(
                                 onCatalogClick = onCatalogClick,
+                                onPlayLink = ::openVideoLink,
                                 onPosterClick = { meta ->
                                     navController.navigate(
                                         DetailRoute(type = meta.type, id = meta.id, title = meta.name),

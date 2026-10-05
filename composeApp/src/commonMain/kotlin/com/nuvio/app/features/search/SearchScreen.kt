@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +38,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -86,6 +92,9 @@ import nuvio.composeapp.generated.resources.compose_search_empty_no_results_titl
 import nuvio.composeapp.generated.resources.compose_search_empty_no_search_catalogs_message
 import nuvio.composeapp.generated.resources.compose_search_empty_no_search_catalogs_title
 import nuvio.composeapp.generated.resources.compose_search_placeholder
+import nuvio.composeapp.generated.resources.compose_search_play_link
+import nuvio.composeapp.generated.resources.compose_search_link_description
+import nuvio.composeapp.generated.resources.compose_search_link_invalid
 import nuvio.composeapp.generated.resources.compose_search_recent_searches
 import nuvio.composeapp.generated.resources.compose_search_remove_recent_search
 import org.jetbrains.compose.resources.stringResource
@@ -99,6 +108,7 @@ fun SearchScreen(
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
     searchFocusRequestCount: Int = 0,
     scrollToTopRequests: Flow<Unit> = emptyFlow(),
+    onPlayLink: ((String) -> Unit)? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
     var isSearchFocused by remember { mutableStateOf(false) }
@@ -137,6 +147,16 @@ fun SearchScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var lastRequestedQuery by rememberSaveable { mutableStateOf<String?>(null) }
     var observedOfflineState by remember { mutableStateOf(false) }
+    val isLinkQuery = onPlayLink != null && isVideoLinkQuery(query)
+    val videoLink = remember(query, onPlayLink != null) {
+        if (onPlayLink != null) parseDirectVideoLink(query) else null
+    }
+    val playLink: () -> Unit = {
+        videoLink?.let {
+            focusRequester.freeFocus()
+            onPlayLink?.invoke(it.url)
+        }
+    }
     val discoverInFocus by remember(query, listState) {
         derivedStateOf {
             query.isBlank() && listState.firstVisibleItemIndex > 0
@@ -163,7 +183,7 @@ fun SearchScreen(
     ScreenActivityEffect(query, addonRefreshKey, homeCatalogSettingsUiState.hideUnreleasedContent) { screenActive ->
         if (!screenActive) return@ScreenActivityEffect
         val normalizedQuery = query.trim()
-        if (normalizedQuery.isBlank()) {
+        if (normalizedQuery.isBlank() || isLinkQuery) {
             lastRequestedQuery = null
             SearchRepository.clear()
         } else {
@@ -194,7 +214,7 @@ fun SearchScreen(
     ScreenActivityEffect(query, lastRequestedQuery, uiState.isLoading, uiState.sections) { screenActive ->
         if (!screenActive) return@ScreenActivityEffect
         val normalizedQuery = query.trim()
-        if (normalizedQuery.isBlank()) return@ScreenActivityEffect
+        if (normalizedQuery.isBlank() || isLinkQuery) return@ScreenActivityEffect
         if (lastRequestedQuery != normalizedQuery) return@ScreenActivityEffect
         if (uiState.isLoading || uiState.sections.isEmpty()) return@ScreenActivityEffect
         SearchHistoryRepository.recordSearch(normalizedQuery)
@@ -219,7 +239,7 @@ fun SearchScreen(
                         addons = addonsUiState.addons,
                         forceRefresh = true,
                     )
-                } else {
+                } else if (!isLinkQuery) {
                     SearchRepository.search(
                         query = normalizedQuery,
                         addons = addonsUiState.addons,
@@ -290,18 +310,36 @@ fun SearchScreen(
                             placeholder = stringResource(Res.string.compose_search_placeholder),
                             modifier = Modifier
                                 .focusRequester(focusRequester)
+                                .onPreviewKeyEvent { event ->
+                                    if (videoLink != null && event.key == Key.Enter) {
+                                        if (event.type == KeyEventType.KeyUp) playLink()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
                                 .onFocusChanged {
                                     isSearchFocused = it.isFocused
                                     if (query.isNotBlank()) focusRequester.captureFocus()
                                 },
                             trailingContent = if (query.isNotBlank()) {
                                 {
-                                    IconButton(onClick = { query = "" }) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Close,
-                                            contentDescription = stringResource(Res.string.compose_search_clear),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                    Row {
+                                        if (videoLink != null) {
+                                            IconButton(onClick = playLink) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.PlayArrow,
+                                                    contentDescription = stringResource(Res.string.compose_search_play_link),
+                                                )
+                                            }
+                                        }
+                                        IconButton(onClick = { query = "" }) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Close,
+                                                contentDescription = stringResource(Res.string.compose_search_clear),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                 }
                             } else {
@@ -349,6 +387,19 @@ fun SearchScreen(
                     onPosterClick = onPosterClick,
                     onPosterLongClick = onPosterLongClick,
                 )
+            } else if (isLinkQuery) {
+                item(key = "direct_video_link") {
+                    HomeEmptyStateCard(
+                        title = videoLink?.title ?: stringResource(Res.string.compose_search_play_link),
+                        message = stringResource(
+                            if (videoLink != null) Res.string.compose_search_link_description
+                            else Res.string.compose_search_link_invalid,
+                        ),
+                        actionLabel = if (videoLink != null) stringResource(Res.string.compose_search_play_link) else null,
+                        onActionClick = if (videoLink != null) playLink else null,
+                        modifier = Modifier.padding(horizontal = homeSectionPadding),
+                    )
+                }
             } else {
                 val normalizedQuery = query.trim()
                 val isWaitingForSearch = normalizedQuery.isNotBlank() && lastRequestedQuery != normalizedQuery
