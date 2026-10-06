@@ -18,8 +18,10 @@ import javax.swing.JTextField
 import javax.swing.Scrollable
 
 @Composable
-actual fun PlatformKeyboardNavigation() {
+actual fun PlatformKeyboardNavigationHost() {
     val focusManager = LocalFocusManager.current
+
+    DesktopKeyboardShortcutHost()
 
     DisposableEffect(Unit) {
         val dispatcher = KeyEventDispatcher { event: KeyEvent ->

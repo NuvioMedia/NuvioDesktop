@@ -151,7 +151,9 @@ private fun CastItem(
             .width(sizing.itemWidth)
             .then(
                 if (onClick != null) {
-                    Modifier.clickable(
+                    Modifier
+                        .nuvioFocusBorder(CircleShape)
+                        .clickable(
                         interactionSource = clickInteractionSource,
                         indication = null,
                         onClick = onClick,
@@ -175,8 +177,7 @@ private fun CastItem(
                 .nuvioCardDepth(
                     shape = CircleShape,
                     surface = NuvioCardDepthSurface.Cast,
-                )
-                .nuvioFocusBorder(CircleShape),
+                ),
             contentAlignment = Alignment.Center,
         ) {
             if (person.photo != null) {

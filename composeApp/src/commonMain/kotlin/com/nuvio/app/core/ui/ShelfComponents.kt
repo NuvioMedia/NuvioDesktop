@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -114,7 +115,9 @@ fun <T> NuvioShelfSection(
         }
         LazyRow(
             state = state,
-            modifier = rowModifier.nuvioDesktopDragScroll(state),
+            modifier = rowModifier
+                .nuvioDesktopDragScroll(state)
+                .focusProperties { canFocus = false },
             contentPadding = rowContentPadding,
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {

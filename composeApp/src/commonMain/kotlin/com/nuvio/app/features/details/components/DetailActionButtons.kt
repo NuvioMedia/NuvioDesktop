@@ -208,8 +208,7 @@ fun DetailActionButtons(
             if (hasSecondaryActions) {
                 Surface(
                     modifier = Modifier
-                        .size(iconButtonSize)
-                        .nuvioFocusBorder(CircleShape),
+                        .size(iconButtonSize),
                     shape = CircleShape,
                     color = if (actionsExpanded) {
                         MaterialTheme.colorScheme.onBackground
@@ -225,6 +224,7 @@ fun DetailActionButtons(
                     Box(
                         modifier = Modifier
                             .size(iconButtonSize)
+                            .nuvioFocusBorder(CircleShape)
                             .clickable(role = Role.Button) {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 actionsExpanded = !actionsExpanded
