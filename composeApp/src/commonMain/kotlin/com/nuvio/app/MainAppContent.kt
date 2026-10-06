@@ -835,17 +835,13 @@ internal fun MainAppContent(
             }
         }
 
-        fun openVideoLink(url: String) {
+        fun openVideoLink(url: String, startFromBeginning: Boolean = false) {
             if (navController.currentRoute !is TabsRoute) return
             val link = com.nuvio.app.features.search.parseDirectVideoLink(url) ?: return
-            val playerLaunch = PlayerLaunch(
+            val playerLaunch = com.nuvio.app.features.search.DirectLinkHistoryRepository.shared.playerLaunch(
+                link = link,
                 profileId = activePlaybackProfileId,
-                title = link.title,
-                sourceUrl = link.url,
-                streamTitle = link.title,
-                providerName = "",
-                parentMetaId = "",
-                parentMetaType = "",
+                startFromBeginning = startFromBeginning,
             )
             if (playerSettingsUiState.externalPlayerEnabled) {
                 coroutineScope.launch { openExternalPlayback(playerLaunch) }
@@ -1144,7 +1140,8 @@ internal fun MainAppContent(
         }
 
         fun canPlayContinueWatching(item: ContinueWatchingItem): Boolean =
-            item.isCloudLibraryContinueWatchingItem() || playbackAvailability.canPlay(
+            item.parentMetaType == com.nuvio.app.features.search.DirectLinkContentType ||
+                item.isCloudLibraryContinueWatchingItem() || playbackAvailability.canPlay(
                 type = item.parentMetaType,
                 videoId = item.videoId,
                 parentMetaId = item.parentMetaId,
@@ -1153,12 +1150,17 @@ internal fun MainAppContent(
             )
 
         fun canSelectContinueWatchingStreams(item: ContinueWatchingItem): Boolean =
-            !item.isCloudLibraryContinueWatchingItem() &&
+            item.parentMetaType != com.nuvio.app.features.search.DirectLinkContentType &&
+                !item.isCloudLibraryContinueWatchingItem() &&
                 playbackAvailability.canStream(item.parentMetaType, item.videoId)
 
         val openContinueWatching: (ContinueWatchingItem, Boolean, Boolean) -> Unit = { item, manualSelection, startFromBeginning ->
             resumePromptItem = null
-            if (item.isCloudLibraryContinueWatchingItem()) {
+            if (item.parentMetaType == com.nuvio.app.features.search.DirectLinkContentType) {
+                com.nuvio.app.features.search.DirectLinkHistoryRepository.shared.uiState.value
+                    .firstOrNull { it.videoId == item.videoId }?.lastSourceUrl
+                    ?.let { openVideoLink(it, startFromBeginning) }
+            } else if (item.isCloudLibraryContinueWatchingItem()) {
                 coroutineScope.launch {
                     when (
                         val lookup = CloudLibraryRepository.findPlaybackTargetForProgressResult(
@@ -1235,7 +1237,9 @@ internal fun MainAppContent(
 
         val onContinueWatchingRemove: (ContinueWatchingItem) -> Unit = { item ->
             continueWatchingDisintegrationRequests.arm(continueWatchingItemKey(item))
-            if (item.isNextUp) {
+            if (item.parentMetaType == com.nuvio.app.features.search.DirectLinkContentType) {
+                com.nuvio.app.features.search.DirectLinkHistoryRepository.shared.remove(item.videoId)
+            } else if (item.isNextUp) {
                 ContinueWatchingPreferencesRepository.addDismissedNextUpKey(
                     nextUpDismissKey(
                         item.parentMetaId,
@@ -1346,7 +1350,7 @@ internal fun MainAppContent(
                         actions = { isTabletLayout ->
                             AppTabActions(
                                 onCatalogClick = onCatalogClick,
-                                onPlayLink = ::openVideoLink,
+                                onPlayLink = { openVideoLink(it) },
                                 onPosterClick = { meta ->
                                     navController.navigate(
                                         DetailRoute(type = meta.type, id = meta.id, title = meta.name),
@@ -1878,7 +1882,8 @@ internal fun MainAppContent(
                 selectedContinueWatchingZoomAnchor?.let { anchor ->
                     key(item.videoId, anchor) {
                         val showManualPlayOption = StreamAutoPlayPolicy.isEffectivelyEnabled(playerSettingsUiState) && canSelectContinueWatchingStreams(item)
-                        val showDetailsOption = !item.isCloudLibraryContinueWatchingItem()
+                        val showDetailsOption = !item.isCloudLibraryContinueWatchingItem() &&
+                            item.parentMetaType != com.nuvio.app.features.search.DirectLinkContentType
                         NuvioPosterZoomActionOverlay(
                             imageUrl = cloudLibraryDisplayArtworkUrl(anchor.imageUrl ?: item.poster ?: item.imageUrl),
                             title = item.title,
@@ -1949,7 +1954,8 @@ internal fun MainAppContent(
                 item = selectedContinueWatchingForActions.takeIf { selectedContinueWatchingZoomAnchor == null },
                 showManualPlayOption = StreamAutoPlayPolicy.isEffectivelyEnabled(playerSettingsUiState) &&
                     selectedContinueWatchingForActions?.let(::canSelectContinueWatchingStreams) == true,
-                showDetailsOption = selectedContinueWatchingForActions?.isCloudLibraryContinueWatchingItem() != true,
+                showDetailsOption = selectedContinueWatchingForActions?.isCloudLibraryContinueWatchingItem() != true &&
+                    selectedContinueWatchingForActions?.parentMetaType != com.nuvio.app.features.search.DirectLinkContentType,
                 onDismiss = { selectedContinueWatchingForActions = null },
                 onOpenDetails = {
                     selectedContinueWatchingForActions?.let { item ->

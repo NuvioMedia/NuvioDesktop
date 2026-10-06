@@ -30,6 +30,7 @@ object SearchHistoryRepository {
     }
 
     fun onProfileChanged() {
+        DirectLinkHistoryRepository.shared.ensureLoaded()
         loadFromDisk()
     }
 

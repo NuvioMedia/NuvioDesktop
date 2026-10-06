@@ -163,6 +163,10 @@ fun HomeScreen(
     val watchedUiState by WatchedRepository.uiState.collectAsStateWithLifecycle()
     val fullyWatchedSeriesKeys by WatchedRepository.fullyWatchedSeriesKeys.collectAsStateWithLifecycle()
     val watchProgressUiState by WatchProgressRepository.uiState.collectAsStateWithLifecycle()
+    val directLinkHistory by remember {
+        com.nuvio.app.features.search.DirectLinkHistoryRepository.shared.ensureLoaded()
+        com.nuvio.app.features.search.DirectLinkHistoryRepository.shared.uiState
+    }.collectAsStateWithLifecycle()
     val effectiveWatchProgressSource = watchProgressUiState.source
     val cloudLibraryUiState by CloudLibraryRepository.uiState.collectAsStateWithLifecycle()
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
@@ -547,10 +551,12 @@ fun HomeScreen(
     ).withCustomPosterUrls(cwPosterPattern)
     val (continueWatchingItems, upcomingItems) = remember(
         shuffledContinueWatchingItems,
+        directLinkHistory,
         continueWatchingPreferences.sortMode,
     ) {
         splitUpcomingItems(
-            items = shuffledContinueWatchingItems,
+            items = directLinkHistory.filter { it.isResumable }.map { it.toContinueWatchingItem() } +
+                shuffledContinueWatchingItems,
             mode = continueWatchingPreferences.sortMode,
         )
     }

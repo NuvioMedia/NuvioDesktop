@@ -7,6 +7,13 @@ actual object SearchHistoryStorage {
     private const val payloadKey = "search_history_payload"
     private const val enabledKey = "recent_searches_enabled"
 
+    actual fun loadDirectLinkHistory(profileId: Int): String? =
+        NSUserDefaults.standardUserDefaults.stringForKey(ProfileScopedKey.of("direct_link_history", profileId))
+
+    actual fun saveDirectLinkHistory(profileId: Int, payload: String) {
+        NSUserDefaults.standardUserDefaults.setObject(payload, forKey = ProfileScopedKey.of("direct_link_history", profileId))
+    }
+
     actual fun loadPayload(): String? =
         NSUserDefaults.standardUserDefaults.stringForKey(ProfileScopedKey.of(payloadKey))
 

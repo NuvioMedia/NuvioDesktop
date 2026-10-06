@@ -96,6 +96,8 @@ import nuvio.composeapp.generated.resources.compose_search_play_link
 import nuvio.composeapp.generated.resources.compose_search_link_description
 import nuvio.composeapp.generated.resources.compose_search_link_invalid
 import nuvio.composeapp.generated.resources.compose_search_recent_searches
+import nuvio.composeapp.generated.resources.compose_search_recent_links
+import nuvio.composeapp.generated.resources.compose_search_remove_recent_link
 import nuvio.composeapp.generated.resources.compose_search_remove_recent_search
 import org.jetbrains.compose.resources.stringResource
 
@@ -139,6 +141,10 @@ fun SearchScreen(
     val homeCatalogSettingsUiState by remember {
         HomeCatalogSettingsRepository.snapshot()
         HomeCatalogSettingsRepository.uiState
+    }.collectAsStateWithLifecycle()
+    val directLinkHistory by remember {
+        DirectLinkHistoryRepository.shared.ensureLoaded()
+        DirectLinkHistoryRepository.shared.uiState
     }.collectAsStateWithLifecycle()
     val recentSearches by SearchHistoryRepository.uiState.collectAsStateWithLifecycle()
     val watchedUiState by WatchedRepository.uiState.collectAsStateWithLifecycle()
@@ -353,6 +359,31 @@ fun SearchScreen(
         }
 
         if (query.isBlank()) {
+            if (onPlayLink != null && directLinkHistory.isNotEmpty()) {
+                item(key = "recent_video_links") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = homeSectionPadding, vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(Res.string.compose_search_recent_links),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        directLinkHistory.forEach { entry ->
+                            SearchRecentRow(
+                                query = entry.title,
+                                onSearchPress = {
+                                    focusRequester.freeFocus()
+                                    entry.lastSourceUrl?.let(onPlayLink)
+                                },
+                                onRemovePress = { DirectLinkHistoryRepository.shared.remove(entry.videoId) },
+                                removeDescription = stringResource(Res.string.compose_search_remove_recent_link),
+                            )
+                        }
+                    }
+                }
+            }
             if (isSearchFocused && recentSearches.isNotEmpty()) {
                 focusRequester.captureFocus()
                 item(key = "recent_searches") {
@@ -568,6 +599,7 @@ private fun SearchRecentRow(
     onSearchPress: () -> Unit,
     onRemovePress: () -> Unit,
     modifier: Modifier = Modifier,
+    removeDescription: String = stringResource(Res.string.compose_search_remove_recent_search),
 ) {
     Row(
         modifier = modifier
@@ -593,7 +625,7 @@ private fun SearchRecentRow(
         IconButton(onClick = onRemovePress) {
             Icon(
                 imageVector = Icons.Rounded.Close,
-                contentDescription = stringResource(Res.string.compose_search_remove_recent_search),
+                contentDescription = removeDescription,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
