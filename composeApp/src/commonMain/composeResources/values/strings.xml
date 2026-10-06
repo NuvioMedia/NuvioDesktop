@@ -504,8 +504,6 @@
     <string name="compose_search_empty_no_search_catalogs_message">Your enabled addons do not support catalog search.</string>
     <string name="compose_search_empty_no_search_catalogs_title">No searchable catalogs</string>
     <string name="compose_search_placeholder">Search movies, shows or paste a video link...</string>
-    <string name="compose_search_recent_links">Recently watched links</string>
-    <string name="compose_search_remove_recent_link">Remove watched link</string>
     <string name="compose_search_play_link">Play link</string>
     <string name="compose_search_link_description">Stream a direct video file or HLS/DASH link. Press Enter or select Play link.</string>
     <string name="compose_search_link_invalid">Paste a complete HTTP or HTTPS video link without spaces.</string>
