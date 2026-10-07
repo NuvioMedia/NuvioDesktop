@@ -95,6 +95,18 @@ class LinuxScreenSaverInhibitorDbusTest {
     }
 
     @Test
+    fun timedOutUninhibitDisconnectsAndReleasesTheCookieAnyway() {
+        reset(mode = "timeout-release")
+        val inhibitor = LinuxScreenSaverInhibitor.acquire()
+        val started = System.nanoTime()
+        assertFailsWith<IllegalStateException> { inhibitor.close() }
+        assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started) < 6000)
+        inhibitor.close()
+        awaitState("active", 0)
+        assertEquals(1, state("autoRemoved"))
+    }
+
+    @Test
     fun malformedCookieReplyDoesNotLeakTheConnectionOrInhibition() {
         reset(mode = "bad-cookie")
         assertFailsWith<IllegalStateException> { LinuxScreenSaverInhibitor.acquire() }

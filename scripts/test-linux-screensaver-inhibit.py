@@ -5,6 +5,7 @@ python -m pip install dbus-next==0.2.3
 dbus-run-session -- python3 scripts/test-linux-screensaver-inhibit.py -- \
     ./gradlew :composeApp:desktopTest --no-daemon --rerun-tasks \
     --tests '*LinuxKeepAwakeControllerTest' --tests '*LinuxScreenSaverDbusMarshallingTest' \
+    --tests '*LinuxScreenSaverConnectionTest' \
     --tests '*LinuxScreenSaverInhibitorDbusTest'
 Never run this mock against the desktop's real session bus.
 """
@@ -104,6 +105,8 @@ async def main():
                     return Message.new_error(message, "org.freedesktop.DBus.Error.AccessDenied", "wrong cookie owner")
                 if mode == "fail-release":
                     return Message.new_error(message, "org.freedesktop.DBus.Error.Failed", "simulated failure")
+                if mode == "timeout-release":
+                    return True  # Disconnect must release the cookie after UnInhibit times out.
                 del active[token]
                 return Message.new_method_return(message)
         return False

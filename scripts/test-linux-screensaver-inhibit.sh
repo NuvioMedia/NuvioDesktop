@@ -43,10 +43,12 @@ java -cp "$classpath" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
     "$main_dir/LinuxKeepAwakeController.kt" "$main_dir/LinuxScreenSaverInhibitor.kt" \
     "$test_dir/LinuxKeepAwakeControllerTest.kt" \
     "$test_dir/LinuxScreenSaverDbusMarshallingTest.kt" \
+    "$test_dir/LinuxScreenSaverConnectionTest.kt" \
     "$test_dir/LinuxScreenSaverInhibitorDbusTest.kt" 2>&1 | tee "$work_dir/compile.log"
 runner=(java -cp "$work_dir/classes:$classpath" org.junit.runner.JUnitCore
     com.nuvio.app.features.player.LinuxKeepAwakeControllerTest
-    com.nuvio.app.features.player.LinuxScreenSaverDbusMarshallingTest)
+    com.nuvio.app.features.player.LinuxScreenSaverDbusMarshallingTest
+    com.nuvio.app.features.player.LinuxScreenSaverConnectionTest)
 if [[ "$mode" == --dbus ]]; then
     command -v dbus-run-session >/dev/null
     command -v python3 >/dev/null
