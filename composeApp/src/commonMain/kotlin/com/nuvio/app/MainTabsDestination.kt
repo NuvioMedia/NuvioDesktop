@@ -81,7 +81,7 @@ internal fun MainTabsDestination(
     onProfileSelected: (NuvioProfile) -> Unit,
     onAddProfileRequested: () -> Unit,
 ) {
-    PlatformBackHandler(enabled = rootRouteActive, onBack = onBack)
+    PlatformBackHandler(enabled = rootRouteActive && !isDesktop, onBack = onBack)
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val screenWidth = maxWidth

@@ -83,6 +83,40 @@ static constexpr double kMaxVolumePercent = 200.0;
 @property(nonatomic, weak) MpvWebPlayer *player;
 @end
 
+@interface PlayerControlsWebView : WKWebView
+@end
+
+@implementation PlayerControlsWebView
+
+- (BOOL)isTitleBarPoint:(NSPoint)point {
+    NSWindow *window = self.window;
+    if (!window
+        || !(window.styleMask & NSWindowStyleMaskTitled)
+        || !(window.styleMask & NSWindowStyleMaskFullSizeContentView)
+        || (window.styleMask & NSWindowStyleMaskFullScreen)) {
+        return NO;
+    }
+    NSRect boundsInWindow = [self convertRect:self.bounds toView:nil];
+    return NSPointInRect(point, boundsInWindow)
+        && point.y >= NSMaxY(window.contentLayoutRect);
+}
+
+- (NSView *)hitTest:(NSPoint)point {
+    NSView *view = [super hitTest:point];
+    NSPoint pointInWindow = [self.superview convertPoint:point toView:nil];
+    return view && [self isTitleBarPoint:pointInWindow] ? self : view;
+}
+
+- (void)mouseDown:(NSEvent *)event {
+    if ([self isTitleBarPoint:event.locationInWindow]) {
+        [self.window performWindowDragWithEvent:event];
+        return;
+    }
+    [super mouseDown:event];
+}
+
+@end
+
 @interface MpvWebPlayer : NSObject
 - (instancetype)initWithHostView:(NSView *)hostView
                        sourceUrl:(NSString *)sourceUrl
@@ -161,6 +195,12 @@ static constexpr double kMaxVolumePercent = 200.0;
 - (void)handleFullscreenTransitionTimer:(NSTimer *)timer;
 - (void)schedulePostResizeRefreshWithReason:(NSString *)reason;
 - (void)handleResizeSettleTimer:(NSTimer *)timer;
+- (void)scheduleControlsResizeEnded;
+- (void)handleControlsResizeEndTimer:(NSTimer *)timer;
+- (void)beginWindowTrackingWithEdge:(NSInteger)edge;
+- (void)trackWindowToMouse:(NSPoint)mouse;
+- (void)endWindowTracking;
+- (BOOL)isNativeLiveResize;
 - (void)configureHdrForCurrentScreenWithReason:(NSString *)reason force:(BOOL)force;
 - (void)applyHdrForPolledGamma:(NSString *)gamma primaries:(NSString *)primaries reason:(NSString *)reason force:(BOOL)force;
 - (NSEvent *)handleMediaKeyEvent:(NSEvent *)event;
@@ -1048,7 +1088,13 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     NSTimer *_timer;
     NSTimer *_resizeSettleTimer;
     NSTimer *_fullscreenTransitionTimer;
+    NSTimer *_controlsResizeEndTimer;
     id _mediaKeyMonitor;
+    id _windowTrackingMonitor;
+    __weak NSWindow *_windowTrackingWindow;
+    NSInteger _windowTrackingEdge;
+    NSPoint _windowTrackingStartMouse;
+    NSRect _windowTrackingStartFrame;
     BOOL _remoteCommandsActive;
     NSString *_lastNowPlayingTitle;
     BOOL _lastNowPlayingPaused;
@@ -1153,7 +1199,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
     WKWebViewConfiguration *configuration = [WKWebViewConfiguration new];
     configuration.userContentController = contentController;
-    _webView = [[WKWebView alloc] initWithFrame:_hostView.bounds configuration:configuration];
+    _webView = [[PlayerControlsWebView alloc] initWithFrame:_hostView.bounds configuration:configuration];
     _webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     _webView.wantsLayer = YES;
     [_webView setValue:@NO forKey:@"drawsBackground"];
@@ -1243,6 +1289,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
 - (void)reparentSurfaceToHostView:(NSView *)newHostView {
     if (!newHostView || !newHostView.window) return;
+    [self endWindowTracking];
     NSView *oldHostView = _hostView;
     [[NSNotificationCenter defaultCenter] removeObserver:self
                                                       name:NSViewFrameDidChangeNotification
@@ -1268,8 +1315,18 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                                                  name:NSViewBoundsDidChangeNotification
                                                object:_hostView];
     _didFocusControlsWebView = NO;
+    // A reparent is a discrete move, not an animated resize. Without this reset the
+    // size difference reads as a layout jump and holds the layer in resize mode for
+    // the 1.25 s transition plus settle delay; while paused, nothing draws until then.
+    _lastAppliedNativeLayoutBounds = NSZeroRect;
+    _lastAppliedNativeLayoutWasLiveResize = NO;
+    _lightweightResizeSettleUntil = 0.0;
+    if (!_fullscreenTransitionActive) {
+        [_videoView setFullscreenTransitionActive:NO];
+    }
     [self layoutNativeSubviews];
     [_videoView updateMetalLayerLayout];
+    [_videoView scheduleRenderUpdate];
     [self requestFocus];
 }
 
@@ -1299,6 +1356,157 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     _lastControlsViewportNudgeAt = now;
     NSString *script = @"window.nuvioNativeViewportChanged ? window.nuvioNativeViewportChanged() : window.dispatchEvent(new Event('resize'));";
     [_webView evaluateJavaScript:script completionHandler:nil];
+    [self scheduleControlsResizeEnded];
+}
+
+// The controls page hides PiP chrome between viewport-changed and resize-ended.
+// Windows reports the end of its modal size loop; AppKit has no equivalent for
+// programmatic and reparent-driven size changes, so close the pair once layout is quiet.
+- (void)scheduleControlsResizeEnded {
+    [_controlsResizeEndTimer invalidate];
+    _controlsResizeEndTimer = [NSTimer scheduledTimerWithTimeInterval:0.25
+                                                               target:self
+                                                             selector:@selector(handleControlsResizeEndTimer:)
+                                                             userInfo:nil
+                                                              repeats:NO];
+}
+
+- (void)handleControlsResizeEndTimer:(NSTimer *)timer {
+    _controlsResizeEndTimer = nil;
+    if (!_webView) {
+        return;
+    }
+    if (_windowTrackingMonitor && ([NSEvent pressedMouseButtons] & 1) == 0) {
+        // Deactivation can swallow the mouse-up the monitor waits for.
+        [self endWindowTracking];
+    }
+    if (_windowTrackingMonitor || [self isNativeLiveResize] || _fullscreenTransitionActive) {
+        [self scheduleControlsResizeEnded];
+        return;
+    }
+    NSString *script = @"window.nuvioNativeResizeEnded ? window.nuvioNativeResizeEnded() : document.getElementById('playerRoot')?.classList.remove('native-resizing');";
+    [_webView evaluateJavaScript:script completionHandler:nil];
+}
+
+// The PiP window is a borderless AWT window, which AppKit neither moves nor resizes.
+// The controls page detects the gesture and asks for it here while the button is
+// still down; follow the mouse with a monitor so WebKit still sees the mouse-up.
+- (void)beginWindowTrackingWithEdge:(NSInteger)edge {
+    NSWindow *window = _hostView.window;
+    if (!window || ([NSEvent pressedMouseButtons] & 1) == 0) {
+        if (edge != 0) {
+            [self scheduleControlsResizeEnded];
+        }
+        return;
+    }
+    [self endWindowTracking];
+    _windowTrackingWindow = window;
+    _windowTrackingEdge = edge;
+    _windowTrackingStartMouse = [NSEvent mouseLocation];
+    _windowTrackingStartFrame = window.frame;
+    __weak MpvWebPlayer *weakSelf = self;
+    __weak NSWindow *weakWindow = window;
+    _windowTrackingMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDragged | NSEventMaskLeftMouseUp
+                                                                   handler:^NSEvent *(NSEvent *event) {
+        MpvWebPlayer *player = weakSelf;
+        if (!player) {
+            return event;
+        }
+        if (event.window != weakWindow || event.type == NSEventTypeLeftMouseUp) {
+            [player endWindowTracking];
+        } else {
+            [player trackWindowToMouse:[NSEvent mouseLocation]];
+        }
+        return event;
+    }];
+    if (edge != 0) {
+        // Arm the lost-mouse-up check now; live layout does not schedule it.
+        [self scheduleControlsResizeEnded];
+    }
+}
+
+- (void)trackWindowToMouse:(NSPoint)mouse {
+    NSWindow *window = _windowTrackingWindow;
+    // Leaving PiP mid-gesture reparents the player; never apply PiP geometry elsewhere.
+    if (!window || window != _hostView.window) {
+        [self endWindowTracking];
+        return;
+    }
+    CGFloat dx = mouse.x - _windowTrackingStartMouse.x;
+    CGFloat dy = mouse.y - _windowTrackingStartMouse.y;
+    NSRect start = _windowTrackingStartFrame;
+    if (_windowTrackingEdge == 0) {
+        [window setFrameOrigin:NSMakePoint(start.origin.x + dx, start.origin.y + dy)];
+        return;
+    }
+
+    // Edge codes match Win32 hit tests: 10 left, 11 right, 12 top, 13 top-left,
+    // 14 top-right, 15 bottom, 16 bottom-left, 17 bottom-right.
+    NSInteger edge = _windowTrackingEdge;
+    BOOL left = edge == 10 || edge == 13 || edge == 16;
+    BOOL right = edge == 11 || edge == 14 || edge == 17;
+    BOOL top = edge == 12 || edge == 13 || edge == 14;
+    BOOL bottom = edge == 15 || edge == 16 || edge == 17;
+
+    NSSize aspect = window.contentAspectRatio;
+    float ratio = aspect.width > 0.0 && aspect.height > 0.0
+        ? (float)(aspect.width / aspect.height)
+        : (float)(start.size.width / MAX(start.size.height, 1.0));
+    CGFloat widthDelta = left ? -dx : (right ? dx : 0.0);
+    CGFloat heightDelta = top ? dy : (bottom ? -dy : 0.0);
+    CGFloat width;
+    if ((left || right) && (top || bottom)) {
+        // Project the drag onto the aspect diagonal. Picking whichever axis moved
+        // further flips between two sizes on diagonal drags, which reads as jitter.
+        // Project the displacement, not the start size, whose height was truncated.
+        CGFloat r = (CGFloat)ratio;
+        width = start.size.width + (widthDelta * r * r + heightDelta * r) / (r * r + 1.0);
+    } else if (left || right) {
+        width = start.size.width + widthDelta;
+    } else {
+        width = (start.size.height + heightDelta) * ratio;
+    }
+
+    // Keep the edges opposite the drag fixed and stop the moving edges at the visible frame.
+    NSRect visible = (window.screen ?: NSScreen.mainScreen).visibleFrame;
+    if (visible.size.width > 0.0 && visible.size.height > 0.0) {
+        CGFloat widthLimit = left ? NSMaxX(start) - NSMinX(visible) : NSMaxX(visible) - NSMinX(start);
+        CGFloat heightLimit = top ? NSMaxY(visible) - NSMinY(start) : NSMaxY(start) - NSMinY(visible);
+        CGFloat maxWidth = MIN(widthLimit, heightLimit * ratio);
+        width = MIN(width, MAX(maxWidth, start.size.width));
+    }
+    NSSize minSize = window.minSize;
+    width = floor(MAX(width, MAX(minSize.width, minSize.height * ratio)));
+    // Match the PiP window's default bounds, (width / aspectRatio).toInt() in float.
+    CGFloat height = MAX((CGFloat)(int)((float)width / ratio), minSize.height);
+
+    CGFloat x = left ? NSMaxX(start) - width : NSMinX(start);
+    CGFloat y = top ? NSMinY(start) : NSMaxY(start) - height;
+    [window setFrame:NSMakeRect(x, y, width, height) display:YES];
+}
+
+- (void)endWindowTracking {
+    if (!_windowTrackingMonitor) {
+        return;
+    }
+    [NSEvent removeMonitor:_windowTrackingMonitor];
+    _windowTrackingMonitor = nil;
+    _windowTrackingWindow = nil;
+    if (_windowTrackingEdge != 0) {
+        _windowTrackingEdge = 0;
+        // Leave resize mode through the same settle path as an AppKit live resize.
+        [self layoutNativeSubviews];
+        [self scheduleControlsResizeEnded];
+    }
+}
+
+// AppKit only reports live resize for its own resize loop. Treat the PiP resize
+// tracked above the same way so each step skips the full WebKit and synchronous
+// GL layout, which cannot keep up with mouse-drag frame changes.
+- (BOOL)isNativeLiveResize {
+    return _hostView.inLiveResize
+        || _hostView.window.inLiveResize
+        || (_windowTrackingMonitor && _windowTrackingEdge != 0);
 }
 
 - (void)layoutNativeSubviews {
@@ -1311,7 +1519,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     }
 
     NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
-    BOOL nativeLiveResize = _hostView.inLiveResize || _hostView.window.inLiveResize;
+    BOOL nativeLiveResize = [self isNativeLiveResize];
     BOOL wasResizeLikeLayout = _lastAppliedNativeLayoutWasLiveResize
         || _fullscreenTransitionActive
         || (_lightweightResizeSettleUntil > now);
@@ -1363,6 +1571,9 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     [CATransaction commit];
 
     if (liveResize || settlingFromResize) {
+        // The resize-mode layer only draws when asked. A paused player gets no
+        // mpv frame callbacks, so redraw the current frame at the new size here.
+        [_videoView scheduleRenderUpdate];
         if (_mpv) {
             [self schedulePostResizeRefreshWithReason:liveResize ? @"live-layout" : @"settle-layout"];
         }
@@ -1479,7 +1690,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     if (!_mpv || !_videoView) {
         return;
     }
-    if (_hostView.inLiveResize || _hostView.window.inLiveResize || _fullscreenTransitionActive) {
+    if ([self isNativeLiveResize] || _fullscreenTransitionActive) {
         [self schedulePostResizeRefreshWithReason:timer.userInfo ?: @"unknown"];
         return;
     }
@@ -1847,6 +2058,9 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     _resizeSettleTimer = nil;
     [_fullscreenTransitionTimer invalidate];
     _fullscreenTransitionTimer = nil;
+    [_controlsResizeEndTimer invalidate];
+    _controlsResizeEndTimer = nil;
+    [self endWindowTracking];
     if (_mediaKeyMonitor) {
         [NSEvent removeMonitor:_mediaKeyMonitor];
         _mediaKeyMonitor = nil;
@@ -2550,11 +2764,6 @@ static void nuvioMpvWakeup(void *ctx) {
         [self syncControls];
         return;
     }
-    if ([type isEqualToString:@"selectAudioTrack"] && value) {
-        [self selectAudioTrackId:(int)llround(value.doubleValue)];
-        [self syncControls];
-        return;
-    }
     if ([type isEqualToString:@"selectSubtitleTrack"] && value) {
         [self selectSubtitleTrackId:(int)llround(value.doubleValue)];
         [self syncControls];
@@ -2573,6 +2782,17 @@ static void nuvioMpvWakeup(void *ctx) {
     }
     if ([type isEqualToString:@"toggleFullscreen"]) {
         [self beginFullscreenTransitionWithReason:@"control-toggle"];
+    }
+    if ([type isEqualToString:@"dragWindow"]) {
+        [self beginWindowTrackingWithEdge:0];
+        return;
+    }
+    if ([type isEqualToString:@"resizeWindow"] && value) {
+        NSInteger edge = (NSInteger)llround(value.doubleValue);
+        if (edge >= 10 && edge <= 17) {
+            [self beginWindowTrackingWithEdge:edge];
+        }
+        return;
     }
 
     if (_eventSink && _eventMethod) {
@@ -3067,8 +3287,13 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowResizable
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowAspectRatio(
-    JNIEnv *, jobject, jlong, jfloat
+    JNIEnv *, jobject, jlong windowViewPtr, jfloat ratio
 ) {
+    if (windowViewPtr == 0 || !(ratio > 0.0f)) return;
+    NSView *view = (__bridge NSView *)(void *)(intptr_t)windowViewPtr;
+    runOnMainAsync(^{
+        view.window.contentAspectRatio = NSMakeSize(ratio, 1.0);
+    });
 }
 
 extern "C" JNIEXPORT void JNICALL

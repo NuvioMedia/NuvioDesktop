@@ -53,6 +53,8 @@ const openingLogoFillClip = document.getElementById("openingLogoFillClip");
 const openingLogoFill = document.getElementById("openingLogoFill");
 const openingTitle = document.getElementById("openingTitle");
 const openingSpinner = document.getElementById("openingSpinner");
+const openingLoadingIndicator = window.createLoadingIndicator(openingSpinner);
+const bufferingLoadingIndicator = window.createLoadingIndicator(bufferingStatus.querySelector("canvas"));
 const openingStatus = document.getElementById("openingStatus");
 const openingMessage = document.getElementById("openingMessage");
 const openingProgressTrack = document.getElementById("openingProgressTrack");
@@ -367,6 +369,7 @@ let sourceVirtualTotalHeight = 0;
 let sourceVirtualSpacer = null;
 let sourceVirtualRenderRaf = 0;
 let appliedRememberedVolume = false;
+let rememberedEpisodeSeason = null;
 let selectedEpisodeSeason = null;
 let episodeStreamFilterId = "";
 let activeSubtitleLanguageKey = "";
@@ -743,6 +746,11 @@ const applyTheme = () => {
   const gradientColors = Array.isArray(state.themeAccentGradientColors)
     ? state.themeAccentGradientColors.map(color => cssColorOrFallback(color, "")).filter(Boolean)
     : [];
+  const loadingColors = gradientColors.length > 0
+    ? gradientColors
+    : [cssColorOrFallback(state.themeAccentColor, "#2f6fed")];
+  openingLoadingIndicator.setColors(loadingColors);
+  bufferingLoadingIndicator.setColors(loadingColors);
   if (gradientColors.length > 1) {
     style.setProperty("--theme-accent-gradient", `linear-gradient(to right, ${gradientColors.join(", ")})`);
     style.setProperty("--theme-accent-gradient-vertical", `linear-gradient(to bottom, ${gradientColors.join(", ")})`);
@@ -1412,6 +1420,63 @@ const renderSubtitleModal = () => {
   renderSubtitleSelectionRails();
 };
 
+const filterRows = document.querySelectorAll(".filter-row");
+let filterRowPointerId = null;
+let filterRowStartX = null;
+let filterRowStartY = null;
+let filterRowDragging = false;
+
+const resetFilterRowDragHelpers = () => {
+  filterRowPointerId = null;
+  filterRowStartX = null;
+  filterRowStartY = null;
+  filterRowDragging = false;
+};
+
+const releaseFilterRowPointerCaptures = () => {
+  filterRows.forEach(filterRow => {
+    if (filterRow?.hasPointerCapture(filterRowPointerId)) {
+      filterRow.releasePointerCapture(filterRowPointerId);
+      resetFilterRowDragHelpers();
+    }
+  });
+};
+
+filterRows.forEach(filterRow => {
+  const setXYValues = (event) => {
+    filterRowStartX = event.screenX;
+    filterRowStartY = event.screenY;
+  };
+  const prepareDrag = (event) => {
+    resetFilterRowDragHelpers();
+    setXYValues(event);
+  }
+  const shouldDragStart = (event) => {
+    const dx = Math.abs(event.screenX - filterRowStartX);
+    const dy = Math.abs(event.screenY - filterRowStartY);
+    if (dx > 8 || dy > 8) {
+      filterRow.setPointerCapture(event.pointerId);
+      filterRowPointerId = event.pointerId;
+      filterRowDragging = true;
+    }
+  };
+  const clearDrag = (event) => {
+    filterRow.releasePointerCapture(event.pointerId);
+    resetFilterRowDragHelpers();
+  };
+  const drag = (event) => {
+    if (filterRowStartX && !filterRowDragging) shouldDragStart(event);
+    if (filterRow.hasPointerCapture(event.pointerId)) filterRow.scrollLeft -= event.movementX;
+  };
+
+  filterRow.addEventListener("pointerdown", (event) => {
+    if (event.button == 0) prepareDrag(event);
+  });
+  filterRow.addEventListener("pointermove", drag);
+  filterRow.addEventListener("pointerup", clearDrag);
+  filterRow.addEventListener("pointercancel", clearDrag);
+});
+
 const normalizeItems = items =>
   Array.isArray(items) ? items.filter(item => item && typeof item === "object") : [];
 
@@ -1429,7 +1494,10 @@ const appendFilterChip = (container, label, selected, onSelect, isLoading = fals
   chip.appendChild(text);
   chip.addEventListener("click", event => {
     event.stopPropagation();
-    onSelect();
+    if (!selected) {
+      chip.scrollIntoView({ behavior: "smooth", container: "nearest", inline: "start" });
+      onSelect();
+    }
   });
   container.appendChild(chip);
 };
@@ -1694,7 +1762,7 @@ const requestSourceVirtualRender = () => {
   sourceVirtualRenderRaf = window.requestAnimationFrame(renderSourceVirtualRows);
 };
 
-const renderSourceModal = () => {
+const renderSourceModal = (modalOpened = false) => {
   sourcePanelTitle.textContent = state.sourcesPanelTitle || "Sources";
   sourceReloadButton.textContent = state.reloadLabel || "Reload";
   sourceCloseButton.textContent = state.panelCloseLabel || "Close";
@@ -1708,8 +1776,15 @@ const renderSourceModal = () => {
   renderFilterRow(sourceFilterList, filters, sourceFilterId, id => {
     sourceFilterId = id;
     sourceList.scrollTop = 0;
-    renderSourceModal();
+    renderSourceModal(true);
   });
+
+  if (!modalOpened) {
+    window.requestAnimationFrame(() => {
+      sourceFilterList.querySelector(".filter-chip.selected")
+        ?.scrollIntoView({ behavior: "instant", container: "nearest", inline: "start" });
+    });
+  }
 
   sourceList.textContent = "";
   sourceList.classList.remove("virtualized");
@@ -1798,10 +1873,11 @@ const appendEpisodeRow = (container, item) => {
   container.appendChild(row);
 };
 
-const ensureEpisodeSeason = () => {
+const ensureEpisodeSeason = (modalOpened) => {
   const seasons = normalizeItems(state.episodeSeasons);
   if (seasons.length === 0) {
     selectedEpisodeSeason = null;
+    rememberedEpisodeSeason = null;
     return null;
   }
   if (
@@ -1810,15 +1886,16 @@ const ensureEpisodeSeason = () => {
   ) {
     const preferred = seasons.find(season => Boolean(season.isSelected)) || seasons[0];
     selectedEpisodeSeason = Number(preferred.season) || 0;
+    rememberedEpisodeSeason = selectedEpisodeSeason;
   }
-  return selectedEpisodeSeason;
+  return modalOpened ? selectedEpisodeSeason : rememberedEpisodeSeason;
 };
 
-const renderEpisodeList = () => {
+const renderEpisodeList = (modalOpened = false) => {
   episodesPanelTitle.textContent = state.episodesPanelTitle || "Episodes";
   episodesCloseButton.textContent = state.panelCloseLabel || "Close";
 
-  const selectedSeason = ensureEpisodeSeason();
+  const selectedSeason = ensureEpisodeSeason(modalOpened);
   const seasons = normalizeItems(state.episodeSeasons);
   renderFilterRow(
     seasonFilterList,
@@ -1826,9 +1903,16 @@ const renderEpisodeList = () => {
     selectedSeason == null ? "" : String(selectedSeason),
     id => {
       selectedEpisodeSeason = Number(id);
-      renderEpisodeList();
+      renderEpisodeList(true);
     },
   );
+
+  if (!modalOpened) {
+    window.requestAnimationFrame(() => {
+      seasonFilterList.querySelector(".filter-chip.selected")
+        ?.scrollIntoView({ behavior: "instant", container: "nearest", inline: "start" });
+    });
+  }
 
   episodeList.textContent = "";
   let items = normalizeItems(state.episodeItems);
@@ -1840,9 +1924,18 @@ const renderEpisodeList = () => {
     return;
   }
   items.forEach(item => appendEpisodeRow(episodeList, item));
+
+  window.requestAnimationFrame(() => {
+    const selectedEpisode = episodeList.querySelector(".track-row.episode-row.selected");
+    if (selectedEpisode) {
+      selectedEpisode.scrollIntoView({ behavior: "instant", container: "nearest", block: "start" });
+    } else {
+      episodeList.scrollTop = 0;
+    }
+  });
 };
 
-const renderEpisodeStreams = () => {
+const renderEpisodeStreams = (modalOpened = false) => {
   streamsPanelTitle.textContent = state.streamsPanelTitle || "Streams";
   episodeBackButton.textContent = state.backLabel || "Back";
   episodeReloadButton.textContent = state.reloadLabel || "Reload";
@@ -1856,8 +1949,16 @@ const renderEpisodeStreams = () => {
   }
   renderFilterRow(episodeStreamFilterList, filters, episodeStreamFilterId, id => {
     episodeStreamFilterId = id;
-    renderEpisodeStreams();
+    episodeStreamList.scrollTop = 0;
+    renderEpisodeStreams(true);
   });
+
+  if (!modalOpened) {
+    window.requestAnimationFrame(() => {
+      episodeStreamFilterList.querySelector(".filter-chip.selected")
+        ?.scrollIntoView({ behavior: "instant", container: "nearest", inline: "start" });
+    });
+  }
 
   episodeStreamList.textContent = "";
   let items = normalizeItems(state.episodeStreamItems);
@@ -1997,6 +2098,7 @@ const renderOpeningOverlay = suppress => {
   openingTitle.textContent = titleText;
   openingTitle.hidden = Boolean(logoUrl || !titleText);
   openingSpinner.hidden = Boolean(logoUrl || titleText);
+  openingLoadingIndicator.setActive(showOpening && !openingSpinner.hidden);
 
   openingMessage.textContent = messageText;
   openingStatus.hidden = !(messageText || showHorizontalProgress);
@@ -2301,6 +2403,7 @@ const renderChrome = () => {
   const showBuffering = Boolean(!showError && state.isLoading && !activeModal && !showOpening);
   bufferingStatus.classList.toggle("visible", showBuffering);
   bufferingStatus.setAttribute("aria-hidden", showBuffering ? "false" : "true");
+  bufferingLoadingIndicator.setActive(showBuffering);
 
   setVisible(submitIntroButton, Boolean(state.showSubmitIntro));
   setVisible(videoSettingsButton, Boolean(state.showVideoSettings));
@@ -2651,6 +2754,7 @@ window.addEventListener("blur", () => {
   clearPressedButton();
   syncChromeAutoHideTimer(isOpeningOverlayActive());
   clearSpeedBoostTimers();
+  releaseFilterRowPointerCaptures();
   if (isHoldSpeedActive || isSpaceBoosting || isSpeedBoosting) {
     suppressNextRootClick = true;
     stopSpeedBoost();

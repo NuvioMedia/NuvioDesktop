@@ -377,7 +377,6 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_DESKTOP_DSN: ${{ secrets.SENTRY_DESKTOP_DSN }}
       WEBVIEW2_VERSION: 1.0.4078.44
-      TORRSERVER_WINDOWS_SHA256: 13031185a54abe0f729f9f3bdb7271a349a89ac8c559327d773c66007ed604f4
 
     steps:
       - name: Check out release source
@@ -386,7 +385,7 @@ jobs:
       - name: Fetch Windows runtime
         shell: bash
         run: |
-          git lfs pull --include="composeApp/src/desktopMain/native/windows/runtime/**,composeApp/src/desktopMain/resources/torrserver/windows-amd64/TorrServer.exe" --exclude=""
+          git lfs pull --include="composeApp/src/desktopMain/native/windows/runtime/**" --exclude=""
           runtime_path="composeApp/src/desktopMain/native/windows/runtime/libmpv-2.dll"
           if [[ ! -f "${runtime_path}" ]]; then
             echo "The bundled Windows libmpv runtime is missing." >&2
@@ -395,16 +394,6 @@ jobs:
           runtime_size="$(wc -c < "${runtime_path}")"
           if (( runtime_size < 1000000 )); then
             echo "The bundled Windows libmpv runtime was not materialized from Git LFS." >&2
-            exit 1
-          fi
-          torrserver_path="composeApp/src/desktopMain/resources/torrserver/windows-amd64/TorrServer.exe"
-          if [[ ! -f "${torrserver_path}" ]]; then
-            echo "The bundled Windows TorrServer executable is missing." >&2
-            exit 1
-          fi
-          torrserver_sha256="$(sha256sum "${torrserver_path}" | awk '{print $1}')"
-          if [[ "${torrserver_sha256}" != "${TORRSERVER_WINDOWS_SHA256}" ]]; then
-            echo "The bundled Windows TorrServer executable checksum does not match." >&2
             exit 1
           fi
 
@@ -532,7 +521,7 @@ jobs:
             "native/windows/vcruntime140.dll",
             "native/windows/msvcp140.dll",
             "native/windows/runtime-files.txt",
-            "torrserver/windows-amd64/TorrServer.exe"
+            "native/windows/nuvio_engine.dll"
           )
           foreach ($entry in $requiredEntries) {
             if ($jarEntries -notcontains $entry) {

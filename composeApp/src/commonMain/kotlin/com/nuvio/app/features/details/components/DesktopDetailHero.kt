@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -230,7 +231,7 @@ fun DesktopDetailHero(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(660.dp)
+            .heightIn(min = 660.dp)
             .onSizeChanged { onHeightChanged(it.height) },
     ) {
         val actionHorizontalInset = fullscreenActionHorizontalInsetForWidth(maxWidth.value)
@@ -296,16 +297,15 @@ fun DesktopDetailHero(
             }
             meta.description?.takeIf { it.isNotBlank() }?.let { synopsis ->
                 Spacer(modifier = Modifier.height(space.s16))
-                Text(
+                ExpandableDescription(
                     text = synopsis,
+                    collapsedMaxLines = 4,
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontSize = NuvioTokens.Type.bodyLg,
                         lineHeight = NuvioTokens.LineHeight.bodyLg,
                         letterSpacing = NuvioTokens.LetterSpacing.none,
                     ),
                     color = colorScheme.onSurface,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Spacer(modifier = Modifier.height(space.s28))

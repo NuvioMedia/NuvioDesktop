@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "composeApp/src/desktopMain/resources/player-ui/controls.html"
+        ],
+        "createdAt": "2026-10-04T20:55:56.220Z",
+        "reason": "Agent reviewed: these five image elements receive media URLs from setImageSource in controls.js; their artwork, logo, and thumbnail visibility is controlled by playback state and image-loading classes"
+      }
+    ]
+  }
+}

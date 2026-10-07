@@ -123,7 +123,7 @@
           </div>
         </div>
         <h1 class="opening-title" id="openingTitle" hidden></h1>
-        <div class="opening-spinner" id="openingSpinner" aria-hidden="true"></div>
+        <canvas class="opening-spinner" id="openingSpinner" aria-hidden="true"></canvas>
         <div class="opening-status" id="openingStatus" hidden>
           <span id="openingMessage"></span>
         </div>
@@ -150,7 +150,7 @@
       </section>
 
       <section class="center-status" id="bufferingStatus" aria-label="Buffering" aria-hidden="true">
-        <span class="center-spinner" aria-hidden="true"></span>
+        <canvas class="center-spinner" aria-hidden="true"></canvas>
       </section>
 
       <section class="playback-error" id="playbackError" aria-label="Playback error" aria-hidden="true">
@@ -444,6 +444,7 @@
     </div>
   </div>
 
+  <script src="loading-indicator.js"></script>
   <script src="controls.js"></script>
 </body>
 </html>

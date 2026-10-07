@@ -629,7 +629,14 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
                 autoSkippedIntervals.add(current)
                 scheduleProgressSyncAfterSeek()
                 skipIntervalDismissed = true
-                notification?.let { NuvioToastController.show(it, AUTO_SKIP_NOTIFICATION_DURATION_MS) }
+                notification?.let {
+                    if (isDesktop) {
+                        playerNotificationMessage = it
+                        playerNotificationToken += 1L
+                    } else {
+                        NuvioToastController.show(it, AUTO_SKIP_NOTIFICATION_DURATION_MS)
+                    }
+                }
             }
         }
     }

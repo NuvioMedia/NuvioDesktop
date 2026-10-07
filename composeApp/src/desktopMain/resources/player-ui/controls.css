@@ -1089,12 +1089,8 @@ button:disabled {
 }
 
 .center-spinner {
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  border: 3px solid var(--theme-buffering-track);
-  border-top-color: var(--theme-buffering);
-  animation: center-spin 760ms linear infinite;
+  width: var(--play-icon);
+  height: var(--play-icon);
 }
 
 .playback-error {
@@ -1480,10 +1476,6 @@ button:disabled {
 .opening-spinner {
   width: 54px;
   height: 54px;
-  border-radius: 999px;
-  border: 3px solid var(--theme-buffering-track);
-  border-top-color: var(--theme-buffering);
-  animation: center-spin 760ms linear infinite;
 }
 
 .opening-status {
@@ -1527,12 +1519,6 @@ button:disabled {
 @keyframes opening-logo-pulse {
   to {
     transform: scale(1.04);
-  }
-}
-
-@keyframes center-spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 
@@ -2179,6 +2165,7 @@ button:disabled {
   padding: 4px 8px;
   flex: 0 0 auto;
   scrollbar-width: none;
+  scroll-padding-left: 6px;
 }
 
 .filter-row::-webkit-scrollbar {
