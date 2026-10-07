@@ -1249,16 +1249,6 @@ internal fun MainAppContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.nuvio.colors.background)
-                    .onKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
-                            if (!PlatformBackDispatcher.dispatch()) {
-                                navController.popBackStack()
-                            }
-                            true
-                        } else {
-                            false
-                        }
-                    }
                     .pointerInput(Unit) {
                         awaitPointerEventScope {
                             while (true) {
@@ -1277,6 +1267,9 @@ internal fun MainAppContent(
                         }
                     },
             ) {
+            com.nuvio.app.core.ui.PlatformBackHandler(enabled = true) {
+                navController.popBackStack()
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
