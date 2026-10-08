@@ -751,6 +751,22 @@ button:disabled {
   color: inherit;
 }
 
+.next-episode-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.next-episode-exit {
+  opacity: .72;
+}
+
+.next-episode-exit[hidden] {
+  display: none;
+}
+
 @media (min-width: 768px) {
   .next-episode-card {
     width: min(clamp(380px, 30vw, 460px), calc(100vw - (var(--hp) * 2)));

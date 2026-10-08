@@ -1507,6 +1507,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonField("nextEpisodePlayable", nextEpisodePlayable)
         append(',')
+        appendJsonField("nextEpisodeExitLabel", nextEpisodeExitLabel)
+        append(',')
         appendJsonField("showSubmitIntro", showSubmitIntro)
         append(',')
         appendJsonField("showVideoSettings", showVideoSettings)
