@@ -7,7 +7,9 @@ import com.nuvio.app.R
 import com.nuvio.app.features.simkl.SimklBrandAsset
 import com.nuvio.app.features.simkl.simklBrandPainter
 import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.haze_logo
 import nuvio.composeapp.generated.resources.introdb_favicon
+import nuvio.composeapp.generated.resources.mpv_logo
 import nuvio.composeapp.generated.resources.rating_tmdb
 import org.jetbrains.compose.resources.painterResource as composePainterResource
 
@@ -19,4 +21,7 @@ internal actual fun integrationLogoPainter(logo: IntegrationLogo): Painter =
         IntegrationLogo.Simkl -> simklBrandPainter(SimklBrandAsset.Glyph)
         IntegrationLogo.MdbList -> painterResource(id = R.drawable.mdblist_logo)
         IntegrationLogo.IntroDb -> composePainterResource(Res.drawable.introdb_favicon)
+        IntegrationLogo.ImdbData -> painterResource(id = R.drawable.imdb_data_logo)
+        IntegrationLogo.Mpv -> composePainterResource(Res.drawable.mpv_logo)
+        IntegrationLogo.Haze -> composePainterResource(Res.drawable.haze_logo)
     }
