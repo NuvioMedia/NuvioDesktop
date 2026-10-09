@@ -33,7 +33,7 @@ internal class LinuxPlaybackCompletion(
 
     fun markEnded(observedGeneration: Long): Boolean =
         synchronized(lock) {
-            if (exhausted || generation != observedGeneration) {
+            if (exhausted || generation != observedGeneration || endedGeneration == observedGeneration) {
                 false
             } else {
                 endedGeneration = observedGeneration

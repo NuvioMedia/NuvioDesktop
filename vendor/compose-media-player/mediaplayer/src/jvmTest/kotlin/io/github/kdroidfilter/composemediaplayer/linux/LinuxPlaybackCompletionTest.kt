@@ -217,6 +217,15 @@ class LinuxPlaybackCompletionTest {
     }
 
     @Test
+    fun duplicateEndMarkerIsRejected() {
+        val completion = LinuxPlaybackCompletion()
+        val generation = completion.captureGeneration()
+
+        assertTrue(completion.markEnded(generation))
+        assertFalse(completion.markEnded(generation))
+    }
+
+    @Test
     fun staleEndFromPreviousGenerationCannotRewindCurrentPlayback() {
         val completion = LinuxPlaybackCompletion()
         val coordinator = LinuxPlaybackResumeCoordinator(completion)
