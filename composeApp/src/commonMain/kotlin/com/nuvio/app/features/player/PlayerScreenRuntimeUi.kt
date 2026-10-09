@@ -986,8 +986,7 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         "playNextEpisode" -> {
             if (stillWatchingCountdown != null) {
                 onStillWatchingContinue()
-            } else if (nextEpisodeInfo?.hasAired == true) {
-                nextEpisodeAutoPlayJob?.cancel()
+            } else if (nextEpisodeInfo?.hasAired == true && !nextEpisodeAutoPlaySearching && nextEpisodeAutoPlayCountdown == null) {
                 playNextEpisode()
             }
         }

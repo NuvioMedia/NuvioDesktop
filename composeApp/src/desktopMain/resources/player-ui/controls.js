@@ -373,6 +373,8 @@ let sourceVirtualSpacer = null;
 let sourceVirtualRenderRaf = 0;
 let appliedRememberedVolume = false;
 let rememberedEpisodeSeason = null;
+let currentEpisodeStreamItems = [];
+let currentEpisodeItems = [];
 let selectedEpisodeSeason = null;
 let episodeStreamFilterId = "";
 let activeSubtitleLanguageKey = "";
@@ -997,6 +999,7 @@ const closePlayerModal = (notifyDismiss = false, animated = true) => {
   if (notifyDismiss && closingModal === "p2pConsent") {
     send("cancelP2pForPlayerControls", 0);
   }
+  if (closingModal === "episodes") onEpisodesModalClosed();
   renderChrome();
 };
 
@@ -1027,6 +1030,14 @@ const openPlayerModal = modal => {
     setModalVisibility(modalElement, modalElement === targetModal);
   });
   renderChrome();
+};
+
+const onEpisodesModalClosed = () => {
+  currentEpisodeItems = [];
+  currentEpisodeStreamItems = [];
+  selectedEpisodeSeason = null;
+  episodeStreamFilterId = "";
+  send("backToEpisodes", 0);
 };
 
 const normalizeTracks = tracks =>
@@ -1782,7 +1793,7 @@ const renderSourceModal = (modalOpened = false) => {
     renderSourceModal(true);
   });
 
-  if (!modalOpened) {
+  if (!modalOpened || !sourceVirtualSpacer) {
     window.requestAnimationFrame(() => {
       sourceFilterList.querySelector(".filter-chip.selected")
         ?.scrollIntoView({ behavior: "instant", container: "nearest", inline: "start" });
@@ -1894,6 +1905,13 @@ const ensureEpisodeSeason = (modalOpened) => {
   return modalOpened ? selectedEpisodeSeason : rememberedEpisodeSeason;
 };
 
+const compareArrays = (prevArray, currArray) => {
+  if (prevArray === null || currArray === null) return false;
+  if (!Array.isArray(prevArray) || !Array.isArray(currArray)) return false;
+  if (prevArray.length !== currArray.length) return false;
+  return (JSON.stringify(currArray) === JSON.stringify(prevArray));
+};
+
 const renderEpisodeList = (modalOpened = false) => {
   episodesPanelTitle.textContent = state.episodesPanelTitle || "Episodes";
   episodesCloseButton.textContent = state.panelCloseLabel || "Close";
@@ -1906,6 +1924,7 @@ const renderEpisodeList = (modalOpened = false) => {
     selectedSeason == null ? "" : String(selectedSeason),
     id => {
       selectedEpisodeSeason = Number(id);
+      currentEpisodeItems = [];
       renderEpisodeList(true);
     },
   );
@@ -1917,25 +1936,30 @@ const renderEpisodeList = (modalOpened = false) => {
     });
   }
 
-  episodeList.textContent = "";
   let items = normalizeItems(state.episodeItems);
   if (selectedSeason != null) {
     items = items.filter(item => Number(item.season) === Number(selectedSeason));
   }
   if (items.length === 0) {
+    episodeList.textContent = "";
     appendEmptyTrackState(episodeList, state.noEpisodesLabel || "No episodes available");
     return;
   }
-  items.forEach(item => appendEpisodeRow(episodeList, item));
 
-  window.requestAnimationFrame(() => {
-    const selectedEpisode = episodeList.querySelector(".track-row.episode-row.selected");
-    if (selectedEpisode) {
-      selectedEpisode.scrollIntoView({ behavior: "instant", container: "nearest", block: "start" });
-    } else {
-      episodeList.scrollTop = 0;
-    }
-  });
+  if (!compareArrays(currentEpisodeItems, items)) {
+    episodeList.textContent = "";
+    items.forEach(item => appendEpisodeRow(episodeList, item));
+    currentEpisodeItems = items;
+
+    window.requestAnimationFrame(() => {
+      const selectedEpisode = episodeList.querySelector(".track-row.episode-row.selected");
+      if (selectedEpisode) {
+        selectedEpisode.scrollIntoView({ behavior: "instant", container: "nearest", block: "start" });
+      } else {
+        episodeList.scrollTop = 0;
+      }
+    });
+  }
 };
 
 const renderEpisodeStreams = (modalOpened = false) => {
@@ -1953,44 +1977,49 @@ const renderEpisodeStreams = (modalOpened = false) => {
   renderFilterRow(episodeStreamFilterList, filters, episodeStreamFilterId, id => {
     episodeStreamFilterId = id;
     episodeStreamList.scrollTop = 0;
+    currentEpisodeStreamItems = [];
     renderEpisodeStreams(true);
   });
 
-  if (!modalOpened) {
+  if (!modalOpened && currentEpisodeStreamItems?.length === 0) {
     window.requestAnimationFrame(() => {
       episodeStreamFilterList.querySelector(".filter-chip.selected")
         ?.scrollIntoView({ behavior: "instant", container: "nearest", inline: "start" });
     });
   }
 
-  episodeStreamList.textContent = "";
   let items = normalizeItems(state.episodeStreamItems);
   if (episodeStreamFilterId) {
     items = items.filter(item => String(item.filterId || "") === episodeStreamFilterId);
   }
   if (items.length === 0) {
+    episodeStreamList.textContent = "";
     appendEmptyTrackState(
       episodeStreamList,
       state.episodeStreamsIsLoading ? "Loading streams..." : (state.noStreamsLabel || "No streams found"),
     );
     return;
   }
-  items.forEach(item => {
-    episodeStreamList.appendChild(buildSourceRow(item, selected => {
-      send("selectEpisodeStream", Number(selected.index) || 0);
-      window.setTimeout(closePlayerModal, 120);
-    }));
-  });
+  if (!compareArrays(currentEpisodeStreamItems, items)) {
+    episodeStreamList.textContent = "";
+    items.forEach(item => {
+      episodeStreamList.appendChild(buildSourceRow(item, selected => {
+        send("selectEpisodeStream", Number(selected.index) || 0);
+        window.setTimeout(closePlayerModal, 120);
+      }));
+    });
+    currentEpisodeStreamItems = items;
+  };
 };
 
-const renderEpisodesModal = () => {
+const renderEpisodesModal = (modalOpened = false) => {
   const showStreams = Boolean(state.episodeStreamsVisible);
   episodeListView.hidden = showStreams;
   episodeStreamsView.hidden = !showStreams;
   if (showStreams) {
     renderEpisodeStreams();
   } else {
-    renderEpisodeList();
+    renderEpisodeList(modalOpened);
   }
 };
 
@@ -2033,12 +2062,12 @@ const renderP2pConsentModal = () => {
   p2pConsentEnableButton.textContent = state.p2pConsentEnableLabel || "Enable P2P";
 };
 
-const renderActiveModal = () => {
+const renderActiveModal = (modalOpened = false) => {
   if (activeModal === "audio") renderAudioTrackList();
   if (activeModal === "subtitles") renderSubtitleModal();
   if (activeModal === "speed") renderSpeedOptionList();
-  if (activeModal === "sources") renderSourceModal();
-  if (activeModal === "episodes") renderEpisodesModal();
+  if (activeModal === "sources") renderSourceModal(modalOpened);
+  if (activeModal === "episodes") renderEpisodesModal(modalOpened);
   if (activeModal === "submitIntro") renderSubmitIntroModal();
   if (activeModal === "p2pConsent") renderP2pConsentModal();
 };
@@ -2449,10 +2478,10 @@ const renderChrome = () => {
   syncChromeAutoHideTimer(showOpening);
 };
 
-const render = () => {
+const render = (modalOpened = false) => {
   applyTheme();
   renderChrome();
-  renderActiveModal();
+  renderActiveModal(modalOpened);
 };
 
 const focusShortcutRoot = () => {
@@ -2941,10 +2970,12 @@ episodeStreamsCloseButton.addEventListener("click", event => {
 episodeBackButton.addEventListener("click", event => {
   event.stopPropagation();
   episodeStreamFilterId = "";
+  currentEpisodeStreamItems = [];
   send("backToEpisodes", 0);
 });
 episodeReloadButton.addEventListener("click", event => {
   event.stopPropagation();
+  currentEpisodeStreamItems = [];
   send("reloadEpisodeStreams", 0);
 });
 
@@ -3214,7 +3245,8 @@ window.playerControls = nextState => {
   ) {
     resetSubtitleSelectionState();
   }
-  render();
+  const preventModalAutoScrolling = activeModal === "sources" || activeModal === "episodes";
+  render(preventModalAutoScrolling);
   if (pendingSettingToastCommand === "resize" && (state.resizeModeLabel || "") !== previousResizeLabel) {
     pendingSettingToastCommand = "";
     showPlayerToast(settingToastLabel("resize"), { icon: "icon-aspect" });
