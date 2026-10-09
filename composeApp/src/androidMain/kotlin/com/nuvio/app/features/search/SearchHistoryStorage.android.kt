@@ -15,6 +15,13 @@ actual object SearchHistoryStorage {
         preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
     }
 
+    actual fun loadDirectLinkHistory(profileId: Int): String? =
+        preferences?.getString(ProfileScopedKey.of("direct_link_history", profileId), null)
+
+    actual fun saveDirectLinkHistory(profileId: Int, payload: String) {
+        preferences?.edit()?.putString(ProfileScopedKey.of("direct_link_history", profileId), payload)?.apply()
+    }
+
     actual fun loadPayload(): String? =
         preferences?.getString(ProfileScopedKey.of(payloadKey), null)
 

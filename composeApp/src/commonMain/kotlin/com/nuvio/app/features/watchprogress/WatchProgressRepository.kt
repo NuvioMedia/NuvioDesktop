@@ -1238,6 +1238,11 @@ object WatchProgressRepository {
         persist: Boolean,
         syncRemote: Boolean,
     ) {
+        if (session.contentType == com.nuvio.app.features.search.DirectLinkContentType) {
+            com.nuvio.app.features.search.DirectLinkHistoryRepository.shared.recordPlayback(session, snapshot)
+            return
+        }
+        if (session.videoId.isBlank()) return
         val targetProfileId = session.profileId
         val positionMs = snapshot.positionMs.coerceAtLeast(0L)
         val durationMs = snapshot.durationMs.coerceAtLeast(0L)

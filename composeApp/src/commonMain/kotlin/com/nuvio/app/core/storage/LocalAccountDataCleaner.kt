@@ -48,6 +48,7 @@ internal object LocalAccountDataCleaner {
         ProfileSettingsSync.clearAccountState()
         ContinueWatchingEnrichmentCache.clearLocalState()
         WatchProgressRepository.clearLocalState()
+        com.nuvio.app.features.search.DirectLinkHistoryRepository.shared.clearLocalState()
         WatchedRepository.clearLocalState()
         LibraryRepository.runAccountStorageWipe {
             wipePlatformStorage()

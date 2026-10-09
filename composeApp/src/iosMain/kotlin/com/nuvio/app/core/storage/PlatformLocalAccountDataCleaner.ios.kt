@@ -23,6 +23,7 @@ internal actual object PlatformLocalAccountDataCleaner {
         "watch_progress_payload_",
     )
     private val profileScopedBaseKeys = listOf(
+        "direct_link_history",
         "episode_shuffle",
         "catalog_settings_payload",
         "discover_catalog_key",
