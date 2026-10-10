@@ -22,6 +22,8 @@ internal actual object PlayerSettingsStorage {
     private const val useLegacyPlayerLayoutKey = "use_legacy_player_layout"
     private const val autoSkipMovieCreditsKey = "auto_skip_movie_credits"
     private const val preloadNextEpisodeSourcesKey = "preload_next_episode_sources"
+    private const val stillWatchingEnabledKey = "still_watching_enabled"
+    private const val stillWatchingEpisodeThresholdKey = "still_watching_episode_threshold"
     private const val exoNativeMemoryEnabledKey = "exo_native_memory_enabled"
     private const val vodCacheEnabledKey = "vod_cache_enabled"
     private const val vodCacheSizeModeKey = "vod_cache_size_mode"
@@ -156,6 +158,8 @@ internal actual object PlayerSettingsStorage {
         skipIntroEnabledKey,
         autoSkipSegmentTypesKey,
         preloadNextEpisodeSourcesKey,
+        stillWatchingEnabledKey,
+        stillWatchingEpisodeThresholdKey,
         exoNativeMemoryEnabledKey,
         vodCacheEnabledKey,
         vodCacheSizeModeKey,
@@ -206,6 +210,10 @@ internal actual object PlayerSettingsStorage {
     actual fun saveUseLegacyPlayerLayout(enabled: Boolean) = saveBoolean(useLegacyPlayerLayoutKey, enabled)
     actual fun loadPreloadNextEpisodeSources(): Boolean? = loadBoolean(preloadNextEpisodeSourcesKey)
     actual fun savePreloadNextEpisodeSources(enabled: Boolean) = saveBoolean(preloadNextEpisodeSourcesKey, enabled)
+    actual fun loadStillWatchingEnabled(): Boolean? = loadBoolean(stillWatchingEnabledKey)
+    actual fun saveStillWatchingEnabled(enabled: Boolean) = saveBoolean(stillWatchingEnabledKey, enabled)
+    actual fun loadStillWatchingEpisodeThreshold(): Int? = loadInt(stillWatchingEpisodeThresholdKey)
+    actual fun saveStillWatchingEpisodeThreshold(threshold: Int) = saveInt(stillWatchingEpisodeThresholdKey, threshold)
     actual fun loadExoNativeMemoryEnabled(): Boolean? = loadBoolean(exoNativeMemoryEnabledKey)
     actual fun saveExoNativeMemoryEnabled(enabled: Boolean) = saveBoolean(exoNativeMemoryEnabledKey, enabled)
     actual fun loadVodCacheEnabled(): Boolean? = loadBoolean(vodCacheEnabledKey)
@@ -447,6 +455,8 @@ internal actual object PlayerSettingsStorage {
         loadStreamAutoPlayTimeoutSeconds()?.let { put(streamAutoPlayTimeoutSecondsKey, encodeSyncInt(it)) }
         loadSkipIntroEnabled()?.let { put(skipIntroEnabledKey, encodeSyncBoolean(it)) }
         loadPreloadNextEpisodeSources()?.let { put(preloadNextEpisodeSourcesKey, encodeSyncBoolean(it)) }
+        loadStillWatchingEnabled()?.let { put(stillWatchingEnabledKey, encodeSyncBoolean(it)) }
+        loadStillWatchingEpisodeThreshold()?.let { put(stillWatchingEpisodeThresholdKey, encodeSyncInt(it)) }
         loadAutoSkipMovieCredits()?.let { put(autoSkipMovieCreditsKey, encodeSyncBoolean(it)) }
         loadAutoSkipPostCredits()?.let { put(autoSkipPostCreditsKey, encodeSyncBoolean(it)) }
         loadAutoSkipSegmentTypes()?.let { put(autoSkipSegmentTypesKey, encodeSyncStringSet(it)) }
@@ -529,6 +539,8 @@ internal actual object PlayerSettingsStorage {
         payload.decodeSyncInt(streamAutoPlayTimeoutSecondsKey)?.let(::saveStreamAutoPlayTimeoutSeconds)
         payload.decodeSyncBoolean(skipIntroEnabledKey)?.let(::saveSkipIntroEnabled)
         payload.decodeSyncBoolean(preloadNextEpisodeSourcesKey)?.let(::savePreloadNextEpisodeSources)
+        payload.decodeSyncBoolean(stillWatchingEnabledKey)?.let(::saveStillWatchingEnabled)
+        payload.decodeSyncInt(stillWatchingEpisodeThresholdKey)?.let(::saveStillWatchingEpisodeThreshold)
         payload.decodeSyncBoolean(autoSkipMovieCreditsKey)?.let(::saveAutoSkipMovieCredits)
         payload.decodeSyncBoolean(autoSkipPostCreditsKey)?.let(::saveAutoSkipPostCredits)
         payload.decodeSyncStringSet(autoSkipSegmentTypesKey)?.let(::saveAutoSkipSegmentTypes)
