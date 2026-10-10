@@ -12,6 +12,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
@@ -21,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.core.diagnostics.SentryInitializer
 import com.nuvio.app.core.ui.NuvioTheme
+import com.nuvio.app.core.ui.PlatformBackDispatcher
 import com.nuvio.app.core.ui.ProvideDesktopWindowInsets
 import com.nuvio.app.features.discordrpc.DiscordPresenceManager
 import com.nuvio.app.features.p2p.P2pStreamingEngine
@@ -132,6 +137,11 @@ fun main(args: Array<String>) {
             state = windowState,
             icon = painterResource(appIconState.selected.transparentPreviewResource),
             init = ::configureMacosWindowBeforePeer,
+            onKeyEvent = { event ->
+                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                    PlatformBackDispatcher.dispatch()
+                } else false
+            }
         ) {
             SideEffect {
                 window.background = NuvioDesktopNativeBackground
