@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CollectionsBookmark
+import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Hub
@@ -486,6 +487,13 @@ internal fun settingsSearchEntries(
         ),
         icon = Icons.Rounded.Extension,
     )
+    addPage(
+        page = SettingsPage.MediaServers,
+        key = "media-servers",
+        title = stringResource(Res.string.compose_settings_page_media_servers),
+        description = stringResource(Res.string.settings_content_discovery_media_servers_description),
+        icon = Icons.Rounded.Dns,
+    )
     if (pluginsEnabled) {
         addPage(
             page = SettingsPage.Plugins,
@@ -689,6 +697,9 @@ internal fun settingsSearchEntries(
                 if (!isDesktop) {
                     add(PlaybackSearchRow("dv7-hevc", stringResource(Res.string.settings_playback_map_dv7_to_hevc), stringResource(Res.string.settings_playback_map_dv7_to_hevc_description)))
                     add(PlaybackSearchRow("tunneled-playback", stringResource(Res.string.settings_playback_tunneled_playback), stringResource(Res.string.settings_playback_tunneled_playback_description)))
+                    add(PlaybackSearchRow("exo-native-memory", stringResource(Res.string.settings_playback_exo_native_memory), stringResource(Res.string.settings_playback_exo_native_memory_description)))
+                    add(PlaybackSearchRow("custom-buffers", stringResource(Res.string.settings_playback_buffer_custom), stringResource(Res.string.settings_playback_buffer_custom_description)))
+                    add(PlaybackSearchRow("vod-cache", stringResource(Res.string.settings_playback_vod_cache), stringResource(Res.string.settings_playback_vod_cache_description)))
                 }
             },
         )

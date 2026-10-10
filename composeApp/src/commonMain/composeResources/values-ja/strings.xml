@@ -1932,4 +1932,23 @@
     <string name="movie_status_rumored">噂</string>
     <string name="movie_status_in_production">製作中</string>
     <string name="movie_status_post_production">ポストプロダクション</string>
+    <string name="cd_switch_player_engine">プレーヤーエンジンを切り替え</string>
+    <string name="cd_stream_info">ストリーム情報</string>
+    <string name="player_engine_switching_manual_message">%1$sに切り替え…</string>
+    <string name="stream_info_section_source">SOURCE</string>
+    <string name="stream_info_section_video">VIDEO</string>
+    <string name="stream_info_section_audio">AUDIO</string>
+    <string name="stream_info_section_subtitle">SUBTITLE</string>
+    <string name="stream_info_codec">Codec</string>
+    <string name="stream_info_resolution">Resolution</string>
+    <string name="stream_info_frame_rate">Frame Rate</string>
+    <string name="stream_info_bitrate">Bitrate</string>
+    <string name="stream_info_channels">Channels</string>
+    <string name="stream_info_sample_rate">Sample Rate</string>
+    <string name="stream_info_language">Language</string>
+    <string name="stream_info_name">Name</string>
+    <string name="stream_info_source">Source</string>
+    <string name="stream_info_subtitle_source_addon">Addon</string>
+    <string name="stream_info_subtitle_source_embedded">Embedded</string>
+    <string name="stream_info_player_engine">Player Engine</string>
 </resources>

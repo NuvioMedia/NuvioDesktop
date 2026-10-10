@@ -83,6 +83,7 @@ interface NuvioPlayerBridge {
     fun getBufferedMs(): Long
     fun getPlaybackSpeed(): Float
     fun getErrorMessage(): String
+    fun getProperty(name: String): String
     fun destroy()
 }
 

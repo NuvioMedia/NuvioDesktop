@@ -2335,4 +2335,23 @@ Utilizas esta función bajo tu propia responsabilidad. P2P se puede desactivar e
     <string name="movie_status_rumored">Rumoreada</string>
     <string name="movie_status_in_production">En producción</string>
     <string name="movie_status_post_production">Posproducción</string>
+    <string name="cd_switch_player_engine">Cambiar motor de reproductor</string>
+    <string name="cd_stream_info">Información de la transmisión</string>
+    <string name="player_engine_switching_manual_message">Cambiando a %1$s...</string>
+    <string name="stream_info_section_source">FUENTE</string>
+    <string name="stream_info_section_video">VÍDEO</string>
+    <string name="stream_info_section_audio">AUDIO</string>
+    <string name="stream_info_section_subtitle">SUBTÍTULO</string>
+    <string name="stream_info_codec">Códec</string>
+    <string name="stream_info_resolution">Resolución</string>
+    <string name="stream_info_frame_rate">Velocidad de fotogramas</string>
+    <string name="stream_info_bitrate">Velocidad de bits</string>
+    <string name="stream_info_channels">Canales</string>
+    <string name="stream_info_sample_rate">Frecuencia de muestreo</string>
+    <string name="stream_info_language">Idioma</string>
+    <string name="stream_info_name">Nombre</string>
+    <string name="stream_info_source">Fuente</string>
+    <string name="stream_info_subtitle_source_addon">Complemento</string>
+    <string name="stream_info_subtitle_source_embedded">Integrado</string>
+    <string name="stream_info_player_engine">Motor de reproducción</string>
 </resources>
