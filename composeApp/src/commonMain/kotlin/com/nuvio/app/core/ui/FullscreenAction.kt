@@ -60,6 +60,7 @@ internal fun FullscreenActionButton(
     Box(
         modifier = modifier
             .size(buttonSize)
+            .nuvioFocusBorder(CircleShape)
             .clip(CircleShape)
             .background(containerColor)
             .clickable(

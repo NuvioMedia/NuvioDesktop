@@ -67,6 +67,7 @@ import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.core.ui.NuvioNavBarScrollState
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.features.cloud.CloudLibraryContentType
 import com.nuvio.app.features.cloud.CloudLibraryFile
 import com.nuvio.app.features.cloud.CloudLibraryItem
@@ -950,6 +951,7 @@ private fun DesktopSidebarItem(
         modifier = Modifier
             .fillMaxWidth()
             .height(DesktopSidebarItemHeight)
+            .nuvioFocusBorder(RoundedCornerShape(16.dp))
             .padding(horizontal = 6.dp, vertical = 4.dp),
         color = Color.Transparent,
         shape = RoundedCornerShape(16.dp),

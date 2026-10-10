@@ -64,6 +64,7 @@ import com.nuvio.app.core.ui.DesktopBackdropVerticalBias
 import com.nuvio.app.core.ui.NuvioDesktopImageScaling
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioTokens
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.isFullscreenActionSupported
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.heroStretchHeight
@@ -498,6 +499,7 @@ private fun DefaultHomeHeroFrame(
                 Spacer(modifier = Modifier.height(14.dp))
                 Surface(
                     modifier = Modifier
+                        .nuvioFocusBorder(RoundedCornerShape(40.dp))
                         .clickable(enabled = onItemClick != null) {
                             onItemClick?.invoke(currentHeroItem(items, pagerState))
                         },
@@ -980,6 +982,7 @@ private fun DesktopHeroContentBlock(
                 Surface(
                     modifier = Modifier
                         .height(48.dp)
+                        .nuvioFocusBorder(RoundedCornerShape(40.dp))
                         .clickable { onItemClick(item) },
                     color = colorScheme.onBackground,
                     contentColor = colorScheme.background,

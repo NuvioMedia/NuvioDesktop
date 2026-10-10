@@ -1,5 +1,6 @@
 package com.nuvio.app.core.ui.jelly
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.Dp
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
@@ -47,6 +49,8 @@ import com.nuvio.app.core.ui.themePalette
 import com.nuvio.app.core.ui.visualNavIndex
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.abs
+
+private val JellyTabFocusShape = RoundedCornerShape(50)
 
 @Composable
 internal fun JellyTabRow(
@@ -109,6 +113,7 @@ internal fun JellyTabTargets(
             }
             Box(
                 modifier = Modifier.weight(1f).fillMaxHeight()
+                    .nuvioFocusBorder(JellyTabFocusShape)
                     .selectable(
                         selected = item.selected,
                         role = Role.Tab,

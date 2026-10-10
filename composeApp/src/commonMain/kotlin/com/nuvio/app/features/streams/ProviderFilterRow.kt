@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.collections_tab_all
 import nuvio.composeapp.generated.resources.streams_refresh
@@ -124,6 +125,7 @@ private fun FilterChip(
         animationSpec = tween(durationMillis = 180),
         label = "filter_chip_content",
     )
+    val chipShape = RoundedCornerShape(16.dp)
     Box(
         modifier = Modifier
             .graphicsLayer {
@@ -131,7 +133,8 @@ private fun FilterChip(
                 scaleY = scale
             }
             .height(36.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(chipShape)
+            .nuvioFocusBorder(chipShape)
             .background(containerColor)
             .clickable(
                 interactionSource = interactionSource,
