@@ -1,10 +1,10 @@
-package com.nuvio.app.features.mdblist
+package com.nuvio.app.core.network
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 
-internal actual fun createMdbListHttpClient(): HttpClient = HttpClient(CIO) {
+internal actual fun createApiHttpClient(): HttpClient = HttpClient(CIO) {
     followRedirects = false
     expectSuccess = false
     install(HttpTimeout) {

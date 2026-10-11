@@ -220,6 +220,7 @@ internal data class PlaybackKey(
     val videoId: String?,
     val seasonNumber: Int?,
     val episodeNumber: Int?,
+    val playbackEngine: AndroidPlaybackEngine? = null,
 )
 
 data class PlayerPlaybackSnapshot(
