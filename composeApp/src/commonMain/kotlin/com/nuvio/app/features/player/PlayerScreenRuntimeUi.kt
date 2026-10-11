@@ -1698,6 +1698,7 @@ private fun BoxScope.RenderPlaybackOverlays(
             activeSkipInterval = activeSkipInterval.takeUnless { isDesktop },
             skipsToPostCredits = activeSkipInterval?.internalSkipAction(skipIntervals, playbackSnapshot.durationMs)?.skipsToPostCredits == true,
             skipIntervalDismissed = skipIntervalDismissed,
+            skipPromptResetToken = skipPromptResetToken,
             controlsVisible = controlsVisible,
             onSkipInterval = { interval ->
                 val durationMs = playbackSnapshot.durationMs

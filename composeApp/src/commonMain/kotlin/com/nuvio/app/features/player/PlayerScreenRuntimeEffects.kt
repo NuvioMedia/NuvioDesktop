@@ -525,7 +525,7 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         skipIntervals = emptyList()
         autoSkippedIntervals.clear()
         lastManualSkipSeekPositions = null
-        activeSkipInterval = null
+        detectedSkipInterval = null
         skipIntervalDismissed = false
         autoSkippedIntervalKeys.clear()
         playerNotificationMessage = ""
@@ -596,7 +596,7 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         activeSourceUrl,
     ) {
         if (skipIntervals.isEmpty()) {
-            activeSkipInterval = null
+            detectedSkipInterval = null
             return@LaunchedEffect
         }
         val initialProgressFraction = activeInitialProgressFraction
@@ -609,6 +609,7 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
             else -> 0L
         }
         autoSkippedIntervalKeys += skipIntervals.autoSkipKeysCompletedBy(initialPlaybackPositionMs)
+        autoSkippedIntervals += skipIntervals.filter { it.autoSkipKey() in autoSkippedIntervalKeys }
         val positionSec = playbackSnapshot.positionMs / 1000.0
         lastManualSkipSeekPositions?.let { (fromMs, toMs) ->
             autoSkippedIntervals += skipIntervals.intervalsAtSeekPositions(fromMs, toMs)
@@ -617,8 +618,8 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
             positionSec >= interval.startTime && positionSec < interval.endTime &&
                 interval.internalSkipAction(skipIntervals, playbackSnapshot.durationMs) != null
         }
-        if (current != activeSkipInterval) {
-            activeSkipInterval = current
+        if (current != detectedSkipInterval) {
+            detectedSkipInterval = current
             if (current != null) skipIntervalDismissed = false
         }
         if (current != null) {

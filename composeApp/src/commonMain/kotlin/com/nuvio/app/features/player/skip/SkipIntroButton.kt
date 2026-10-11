@@ -55,6 +55,7 @@ fun SkipIntroButton(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     skipsToPostCredits: Boolean = false,
+    resetToken: Int = 0,
 ) {
     var lastType by remember { mutableStateOf(interval?.type) }
     var lastSkipsToPostCredits by remember { mutableStateOf(skipsToPostCredits) }
@@ -69,17 +70,17 @@ fun SkipIntroButton(
     var manuallyDismissed by remember { mutableStateOf(false) }
     val progress = remember { Animatable(0f) }
 
-    LaunchedEffect(interval?.startTime, interval?.type) {
+    LaunchedEffect(interval?.startTime, interval?.type, resetToken) {
+        progress.snapTo(0f)
         autoHidden = false
         manuallyDismissed = false
-        progress.snapTo(0f)
     }
 
     LaunchedEffect(dismissed) {
         if (!dismissed) {
             if (!manuallyDismissed) {
-                autoHidden = false
                 progress.snapTo(0f)
+                autoHidden = false
             }
         } else {
             manuallyDismissed = true

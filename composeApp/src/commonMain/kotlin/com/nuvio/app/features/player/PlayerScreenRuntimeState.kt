@@ -2,6 +2,7 @@ package com.nuvio.app.features.player
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.unit.Dp
@@ -16,6 +17,8 @@ import com.nuvio.app.features.p2p.P2pSettingsUiState
 import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.player.skip.NextEpisodeInfo
 import com.nuvio.app.features.player.skip.SkipInterval
+import com.nuvio.app.features.player.skip.intervalsAtSeekPositions
+import com.nuvio.app.features.player.skip.shouldAutoSkip
 import com.nuvio.app.features.streams.StreamsUiState
 import com.nuvio.app.features.tracking.TrackingMediaReference
 import com.nuvio.app.features.watched.WatchedUiState
@@ -220,10 +223,21 @@ internal class PlayerScreenRuntime(
     var playerMetaVideos by mutableStateOf<List<MetaVideo>>(emptyList())
     var playerMeta by mutableStateOf<MetaDetails?>(null)
     var skipIntervals by mutableStateOf<List<SkipInterval>>(emptyList())
-    val autoSkippedIntervals = mutableSetOf<SkipInterval>()
-    var lastManualSkipSeekPositions by mutableStateOf<Pair<Long, Long>?>(null)
-    var activeSkipInterval by mutableStateOf<SkipInterval?>(null)
+    val autoSkippedIntervals = mutableStateSetOf<SkipInterval>()
+    private var manualSkipSeekPositions by mutableStateOf<Pair<Long, Long>?>(null)
+    var lastManualSkipSeekPositions: Pair<Long, Long>?
+        get() = manualSkipSeekPositions
+        set(value) {
+            manualSkipSeekPositions = value
+            if (value != null) {
+                autoSkippedIntervals += skipIntervals.intervalsAtSeekPositions(value.first, value.second)
+                skipIntervalDismissed = false
+                skipPromptResetToken += 1
+            }
+        }
+    var detectedSkipInterval by mutableStateOf<SkipInterval?>(null)
     var skipIntervalDismissed by mutableStateOf(false)
+    var skipPromptResetToken by mutableStateOf(0)
     val autoSkippedIntervalKeys = mutableSetOf<String>()
     var parentalWarnings by mutableStateOf<List<ParentalWarning>>(emptyList())
     var showParentalGuide by mutableStateOf(false)
@@ -270,6 +284,12 @@ internal class PlayerScreenRuntime(
     var trackPreferenceRestoreApplied by mutableStateOf(false)
     var subtitleDelayMs by mutableStateOf(0)
     var subtitleAutoSyncState by mutableStateOf(SubtitleAutoSyncUiState())
+
+    val activeSkipInterval: SkipInterval?
+        get() = detectedSkipInterval?.takeIf {
+            playerSettingsUiState.skipIntroEnabled && !skipIntervalDismissed &&
+                (!it.shouldAutoSkip(playerSettingsUiState.autoSkipSegmentTypes) || it in autoSkippedIntervals)
+        }
 
     var lastSyncedSettingsResizeMode: PlayerResizeMode? = null
     var lastResetPlaybackIdentity: PlaybackKey? = null

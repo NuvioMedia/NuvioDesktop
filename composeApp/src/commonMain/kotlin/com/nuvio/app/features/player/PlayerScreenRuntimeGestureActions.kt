@@ -186,6 +186,10 @@ internal fun PlayerScreenRuntime.prepareSeekByForNativeFallback(
     offsetMs: Long,
     revealControls: Boolean = true,
 ) {
+    val fromMs = playbackSnapshot.positionMs
+    val targetMs = (fromMs + offsetMs).coerceAtLeast(0L)
+        .let { if (playbackSnapshot.durationMs > 0L) it.coerceAtMost(playbackSnapshot.durationMs) else it }
+    lastManualSkipSeekPositions = fromMs to targetMs
     applySeekByControlFeedback(offsetMs, revealControls)
 }
 

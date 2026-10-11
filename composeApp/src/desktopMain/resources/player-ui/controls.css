@@ -568,23 +568,31 @@ button:disabled {
   opacity: 0;
   pointer-events: none;
   transform: scale(.8);
-  transform-origin: left bottom;
+  transform-origin: center;
   transition:
-    opacity 300ms ease,
-    transform 300ms var(--ease-out);
+    opacity 200ms cubic-bezier(.4, 0, .2, 1),
+    transform 200ms cubic-bezier(.4, 0, .2, 1);
 }
 
 .skip-prompt.visible {
   opacity: 1;
   pointer-events: auto;
   transform: scale(1);
+  transition:
+    opacity 300ms cubic-bezier(.4, 0, .2, 1),
+    transform 300ms cubic-bezier(.4, 0, .2, 1);
 }
 
 .skip-prompt.lift-down {
   transition:
-    opacity 300ms ease,
-    transform 300ms var(--ease-out),
+    opacity 300ms cubic-bezier(.4, 0, .2, 1),
+    transform 300ms cubic-bezier(.4, 0, .2, 1),
     bottom var(--motion-panel) var(--ease-out);
+}
+
+.skip-prompt:active,
+.skip-prompt.is-pressed {
+  background: rgba(45, 45, 45, .9);
 }
 
 .skip-prompt-row {
@@ -607,7 +615,7 @@ button:disabled {
 }
 
 .skip-progress-track {
-  display: none;
+  opacity: 0;
   width: 100%;
   height: 3px;
   overflow: hidden;
@@ -616,7 +624,7 @@ button:disabled {
 }
 
 .skip-prompt.show-progress .skip-progress-track {
-  display: block;
+  opacity: 1;
 }
 
 .skip-progress-fill {
@@ -817,7 +825,6 @@ button:disabled {
 .opening-button,
 .side-control,
 .play-control,
-.skip-prompt,
   .next-episode-card,
 .action,
 .panel-button,
@@ -852,8 +859,6 @@ button:disabled {
 
 .header-button:active,
 .header-button.is-pressed,
-.skip-prompt:active,
-.skip-prompt.is-pressed,
 .next-episode-card.playable:active,
   .next-episode-card.playable.is-pressed,
 .side-control:active,

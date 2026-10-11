@@ -61,6 +61,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
     onDismissNextEpisode: () -> Unit,
     errorMessage: String?,
     onDismissError: () -> Unit,
+    skipPromptResetToken: Int = 0,
 ) {
     AnimatedVisibility(
         visible = playerControlsLocked && lockedOverlayVisible,
@@ -118,6 +119,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
             interval = if (!initialLoadCompleted || pausedOverlayVisible) null else activeSkipInterval,
             skipsToPostCredits = skipsToPostCredits,
             dismissed = skipIntervalDismissed,
+            resetToken = skipPromptResetToken,
             controlsVisible = controlsVisible,
             onSkip = {
                 activeSkipInterval?.let(onSkipInterval)

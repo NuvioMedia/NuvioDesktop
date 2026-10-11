@@ -397,6 +397,7 @@ let parentalGuideStartedKey = "";
 let parentalGuideCompletedKey = "";
 let skipPromptKey = "";
 let skipPromptWasDismissed = false;
+let skipPromptRequested = false;
 let skipPromptAutoHidden = false;
 let skipPromptAutoHideTimer = 0;
 let skipPromptAutoHideActive = false;
@@ -480,6 +481,11 @@ const chromeInteractionSelector = [
 ].join(",");
 
 const send = (type, value = 0) => {
+  if (["scrubFinish", "seekBack", "seekForward", "keyboardSeekBack", "keyboardSeekForward",
+    "doubleTapSeekBack", "doubleTapSeekForward"].includes(type)) {
+    skipPromptRequested = false;
+    resetSkipPromptAutoHide();
+  }
   const bridge = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.player;
   if (bridge) {
     bridge.postMessage({ type, value });
@@ -2215,24 +2221,30 @@ const renderNativePlaybackPrompts = () => {
     state.skipPromptLabel || "",
   ].join(":");
   if (
-    nextSkipKey !== skipPromptKey ||
-    !state.skipPromptVisible ||
+    (state.skipPromptVisible && nextSkipKey !== skipPromptKey) ||
     (skipPromptWasDismissed && !state.skipPromptDismissed)
   ) {
     skipPromptKey = nextSkipKey;
+    skipPromptRequested = false;
     resetSkipPromptAutoHide();
+  }
+  if (!state.skipPromptVisible) {
+    skipPromptKey = "";
+    skipPromptRequested = false;
   }
   skipPromptWasDismissed = Boolean(state.skipPromptDismissed);
 
-  const shouldShowSkip = Boolean(state.skipPromptVisible && (!state.skipPromptDismissed || state.controlsVisible));
+  const shouldShowSkip = Boolean(state.skipPromptVisible && !state.skipPromptDismissed && !skipPromptRequested);
   const showSkip = Boolean(shouldShowSkip && (!skipPromptAutoHidden || state.controlsVisible));
   const showSkipProgress = Boolean(showSkip && !state.controlsVisible && !skipPromptAutoHidden && !state.skipPromptDismissed);
-  skipPromptLabel.textContent = state.skipPromptLabel || "Skip";
-  skipPrompt.setAttribute("aria-label", state.skipPromptLabel || "Skip");
+  if (showSkip) {
+    skipPromptLabel.textContent = state.skipPromptLabel || "Skip";
+    skipPrompt.setAttribute("aria-label", state.skipPromptLabel || "Skip");
+    syncSkipPromptPlacement(true);
+  }
   skipPrompt.setAttribute("aria-hidden", showSkip ? "false" : "true");
   skipPrompt.classList.toggle("visible", showSkip);
   skipPrompt.classList.toggle("show-progress", showSkipProgress);
-  syncSkipPromptPlacement(showSkip);
   if (showSkipProgress) {
     startSkipPromptAutoHide();
   } else if (!showSkip || state.controlsVisible || state.skipPromptDismissed) {
@@ -3072,9 +3084,16 @@ p2pConsentEnableButton.addEventListener("click", event => {
   send("enableP2pForPlayerControls", 0);
 });
 
+const requestSkipInterval = () => {
+  if (!state.skipPromptVisible || state.skipPromptDismissed || skipPromptRequested) return;
+  skipPromptRequested = true;
+  renderNativePlaybackPrompts();
+  send("skipInterval", 0);
+};
+
 skipPrompt.addEventListener("click", event => {
   event.stopPropagation();
-  send("skipInterval", 0);
+  requestSkipInterval();
 });
 
 nextEpisodeCard.addEventListener("click", event => {
@@ -3795,11 +3814,11 @@ document.addEventListener("keydown", event => {
     return;
   }
 
-  if (event.code === "Enter" && state.skipPromptVisible) {
+  if (event.code === "Enter" && skipPrompt.classList.contains("visible")) {
     const activeEl = document.activeElement;
     if (!activeEl || activeEl.tagName === "BODY" || activeEl === root) {
       event.preventDefault();
-      send("skipInterval", 0);
+      requestSkipInterval();
       return;
     }
   }

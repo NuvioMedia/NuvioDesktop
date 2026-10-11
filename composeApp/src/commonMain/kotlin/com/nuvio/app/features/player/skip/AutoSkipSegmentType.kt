@@ -37,8 +37,9 @@ internal fun SkipInterval.shouldAutoSkip(selectedTypes: Set<AutoSkipSegmentType>
 internal fun List<SkipInterval>.intervalsAtSeekPositions(fromMs: Long, toMs: Long): List<SkipInterval> =
     filter { interval ->
         AutoSkipSegmentType.fromSkipIntervalType(interval.type) != null &&
-            listOf(fromMs, toMs).any { position ->
+            (listOf(fromMs, toMs).any { position ->
                 val seconds = position / 1000.0
                 seconds >= interval.startTime && seconds < interval.endTime
-            }
+            } || (fromMs > toMs &&
+                fromMs / 1000.0 >= interval.endTime && toMs / 1000.0 < interval.startTime))
     }
