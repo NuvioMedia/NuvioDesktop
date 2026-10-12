@@ -3,6 +3,7 @@
 #endif
 #include <windows.h>
 #include <windowsx.h>
+#include <d3d11.h>
 #include <dwmapi.h>
 #include <shlobj.h>
 #include <wrl.h>
@@ -469,7 +470,7 @@ std::string hresultMessage(const char *operation, HRESULT hr) {
     return builder.str();
 }
 
-std::wstring webViewUserDataDirectory() {
+std::wstring localAppDataDirectory(const wchar_t *name) {
     PWSTR localAppData = nullptr;
     HRESULT result = SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_CREATE, nullptr, &localAppData);
     if (FAILED(result) || !localAppData) {
@@ -478,12 +479,38 @@ std::wstring webViewUserDataDirectory() {
     }
     std::wstring directory(localAppData);
     CoTaskMemFree(localAppData);
-    directory += L"\\Nuvio\\WebView2";
+    directory += L"\\Nuvio\\";
+    directory += name;
     int createResult = SHCreateDirectoryExW(nullptr, directory.c_str(), nullptr);
     if (createResult != ERROR_SUCCESS && createResult != ERROR_ALREADY_EXISTS && createResult != ERROR_FILE_EXISTS) {
-        throw std::runtime_error("Failed to create WebView2 user data directory");
+        throw std::runtime_error("Failed to create Nuvio local data directory");
     }
     return directory;
+}
+
+std::wstring webViewUserDataDirectory() {
+    return localAppDataDirectory(L"WebView2");
+}
+
+std::string mpvShaderCacheDirectory() {
+    try {
+        return toUtf8(localAppDataDirectory(L"Cache\\mpv-shaders"));
+    } catch (...) {
+        return std::string();
+    }
+}
+
+bool unifiedMemoryGpu() {
+    static const bool unified = []() {
+        ComPtr<ID3D11Device> device;
+        if (FAILED(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &device, nullptr, nullptr))) {
+            return false;
+        }
+        D3D11_FEATURE_DATA_D3D11_OPTIONS2 options = {};
+        return SUCCEEDED(device->CheckFeatureSupport(D3D11_FEATURE_D3D11_OPTIONS2, &options, sizeof(options))) &&
+            options.UnifiedMemoryArchitecture;
+    }();
+    return unified;
 }
 
 struct MpvApi {
@@ -1675,6 +1702,7 @@ private:
         bool nvidiaRtxSuperResolutionEnabled
     ) {
         MpvApi &api = mpvApi();
+        bool fastProfile = !nvidiaRtxSuperResolutionEnabled && unifiedMemoryGpu();
         {
             std::lock_guard<std::mutex> lock(mpvMutex);
             mpv = api.create();
@@ -1689,7 +1717,7 @@ private:
             setMpvOptionStringLocked("input-vo-keyboard", "no");
             setMpvOptionStringLocked("keep-open", "yes");
             setMpvOptionStringLocked("volume-max", "200");
-            setMpvOptionStringLocked("vo", "gpu-next");
+            setMpvOptionStringLocked("vo", "gpu-next,gpu,");
             if (nvidiaRtxSuperResolutionEnabled) {
                 setMpvOptionStringLocked("gpu-api", "d3d11");
                 setMpvOptionStringLocked("hwdec", "d3d11va");
@@ -1713,16 +1741,27 @@ private:
                 setMpvOptionStringLocked("vd-lavc-software-fallback", "yes");
             }
             setMpvOptionStringLocked("vd-lavc-threads", "4");
-            setMpvOptionStringLocked("tone-mapping", "auto");
+            setMpvOptionStringLocked("tone-mapping", "bt.2390");
             setMpvOptionStringLocked("dither-depth", "auto");
-            setMpvOptionStringLocked("deband", "yes");
-            setMpvOptionStringLocked("scale", "spline36");
-            setMpvOptionStringLocked("cscale", "spline36");
-            setMpvOptionStringLocked("demuxer-max-bytes", "512MiB");
-            setMpvOptionStringLocked("demuxer-max-back-bytes", "256MiB");
+            if (fastProfile) {
+                setMpvOptionStringLocked("profile", "fast");
+            } else {
+                setMpvOptionStringLocked("deband", "yes");
+                setMpvOptionStringLocked("scale", "spline36");
+                setMpvOptionStringLocked("cscale", "spline36");
+            }
+            setMpvOptionStringLocked("demuxer-max-bytes", "150MiB");
+            setMpvOptionStringLocked("demuxer-max-back-bytes", "50MiB");
             setMpvOptionStringLocked("demuxer-seekable-cache", "yes");
-            setMpvOptionStringLocked("cache-secs", "36000");
+            setMpvOptionStringLocked(
+                "stream-lavf-o",
+                "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_on_http_error=%23%408,429,500,502,503,504,reconnect_delay_max=15"
+            );
             setMpvOptionStringLocked("hr-seek", "no");
+            std::string shaderCacheDirectory = mpvShaderCacheDirectory();
+            if (!shaderCacheDirectory.empty()) {
+                setMpvOptionStringLocked("gpu-shader-cache-dir", shaderCacheDirectory.c_str());
+            }
 
             int64_t wid = (int64_t)(intptr_t)containerHwnd;
             int widResult = api.setOption(mpv, "wid", MPV_FORMAT_INT64, &wid);

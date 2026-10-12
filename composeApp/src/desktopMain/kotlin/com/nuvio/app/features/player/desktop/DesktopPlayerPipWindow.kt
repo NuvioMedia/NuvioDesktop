@@ -53,29 +53,9 @@ internal class DesktopPlayerPipWindow(
                 }
             }
         })
-        addComponentListener(object : ComponentAdapter() {
-            private var resizing = false
-
-            override fun componentResized(event: ComponentEvent) {
-                if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
-                    return
-                }
-                if (resizing) return
-                resizing = true
-                try {
-                    val width = width.coerceAtLeast(minimumSize.width)
-                    val height = (width / aspectRatio).toInt().coerceAtLeast(minimumSize.height)
-                    if (this@DesktopPlayerPipWindow.width != width ||
-                        this@DesktopPlayerPipWindow.height != height
-                    ) {
-                        setSize(width, height)
-                    }
-                } finally {
-                    resizing = false
-                }
-                onResized()
-            }
-        })
+        // No Java-side aspect correction on macOS: the native bridge applies the aspect
+        // lock while it tracks the resize. Correcting here reads AWT bounds on the EDT
+        // while AppKit keeps resizing, so it re-applies stale sizes and the window jitters.
     }
 
     fun updateWindowTitle(windowTitle: String) {

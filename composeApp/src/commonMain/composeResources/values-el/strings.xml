@@ -2366,4 +2366,23 @@
     <string name="movie_status_rumored">Φημολογούμενο</string>
     <string name="movie_status_in_production">Σε παραγωγή</string>
     <string name="movie_status_post_production">Μετά την παραγωγή</string>
+    <string name="cd_switch_player_engine">Εναλλαγή μηχανής αναπαραγωγής</string>
+    <string name="cd_stream_info">Πληροφορίες ροής</string>
+    <string name="player_engine_switching_manual_message">Εναλλαγή σε %1$s...</string>
+    <string name="stream_info_section_source">ΠΗΓΗ</string>
+    <string name="stream_info_section_video">ΒΙΝΤΕΟ</string>
+    <string name="stream_info_section_audio">ΗΧΟΣ</string>
+    <string name="stream_info_section_subtitle">ΥΠΟΤΙΤΛΟΣ</string>
+    <string name="stream_info_codec">Κωδικοποιητής</string>
+    <string name="stream_info_resolution">Ανάλυση</string>
+    <string name="stream_info_frame_rate">Ρυθμός καρέ</string>
+    <string name="stream_info_bitrate">Ρυθμός μετάδοσης</string>
+    <string name="stream_info_channels">Κανάλια</string>
+    <string name="stream_info_sample_rate">Ρυθμός δειγματοληψίας</string>
+    <string name="stream_info_language">Γλώσσα</string>
+    <string name="stream_info_name">Όνομα</string>
+    <string name="stream_info_source">Πηγή</string>
+    <string name="stream_info_subtitle_source_addon">Πρόσθετο</string>
+    <string name="stream_info_subtitle_source_embedded">Ενσωματωμένο</string>
+    <string name="stream_info_player_engine">Μηχανή αναπαραγωγής</string>
 </resources>
