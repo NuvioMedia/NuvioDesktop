@@ -37,8 +37,10 @@ internal fun PlayerScreenRuntime.countEpisodeSwitch(isAutoPlay: Boolean) {
  */
 internal fun PlayerScreenRuntime.enterStillWatchingPrompt() {
     if (stillWatchingCountdown != null) return
+    shouldPlay = false
     playerController?.pause()
     controlsVisible = false
+    stillWatchingPlaybackPaused = false
     stillWatchingCountdown = STILL_WATCHING_COUNTDOWN_SECONDS
     stillWatchingJob?.cancel()
     stillWatchingJob = scope.launch {
@@ -48,6 +50,23 @@ internal fun PlayerScreenRuntime.enterStillWatchingPrompt() {
         }
         stillWatchingJob = null
         exitFromStillWatching()
+    }
+}
+
+/**
+ * Resuming playback while the prompt is open (play button, keyboard, media session, ...)
+ * answers it: the user keeps watching the current episode and the count starts over.
+ */
+internal fun PlayerScreenRuntime.onStillWatchingPlaybackChanged(isPlaying: Boolean) {
+    if (stillWatchingCountdown == null) return
+    if (!isPlaying) {
+        stillWatchingPlaybackPaused = true
+    } else if (stillWatchingPlaybackPaused) {
+        cancelStillWatchingPrompt()
+        consecutiveAutoPlayCount = 0
+        shouldPlay = true
+        nextEpisodeCardDismissed = true
+        showNextEpisodeCard = false
     }
 }
 
@@ -67,4 +86,5 @@ internal fun PlayerScreenRuntime.cancelStillWatchingPrompt() {
     stillWatchingJob?.cancel()
     stillWatchingJob = null
     stillWatchingCountdown = null
+    stillWatchingPlaybackPaused = false
 }

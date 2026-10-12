@@ -242,6 +242,7 @@ internal class PlayerScreenRuntime(
     var consecutiveAutoPlayCount by mutableStateOf(0)
     var stillWatchingCountdown by mutableStateOf<Int?>(null)
     var stillWatchingJob by mutableStateOf<Job?>(null)
+    var stillWatchingPlaybackPaused by mutableStateOf(false)
     var pendingP2pSwitch by mutableStateOf<PendingPlayerP2pSwitch?>(null)
     var credentialRefreshJob by mutableStateOf<Job?>(null)
     var credentialRefreshAttemptedSourceUrl by mutableStateOf<String?>(null)

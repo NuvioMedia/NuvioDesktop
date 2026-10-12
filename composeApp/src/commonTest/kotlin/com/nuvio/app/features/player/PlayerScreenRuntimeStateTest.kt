@@ -7,6 +7,7 @@ import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamsUiState
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -304,6 +305,58 @@ class PlayerScreenRuntimeStateTest {
                 progressPercent = 100f,
             ),
         )
+    }
+
+    @Test
+    fun stillWatchingPromptPausesLikeAManualPause() = runTest {
+        val runtime = PlayerScreenRuntime(testPlayerScreenArgs()).apply { scope = backgroundScope }
+        runtime.enterStillWatchingPrompt()
+        assertFalse(runtime.shouldPlay)
+        assertEquals(STILL_WATCHING_COUNTDOWN_SECONDS, runtime.stillWatchingCountdown)
+    }
+
+    @Test
+    fun stillWatchingPromptIgnoresThePlayingSnapshotFromBeforeItsPause() = runTest {
+        val runtime = PlayerScreenRuntime(testPlayerScreenArgs()).apply { scope = backgroundScope }
+        runtime.enterStillWatchingPrompt()
+        runtime.onStillWatchingPlaybackChanged(isPlaying = true)
+        assertEquals(STILL_WATCHING_COUNTDOWN_SECONDS, runtime.stillWatchingCountdown)
+    }
+
+    @Test
+    fun resumingPlaybackAnswersTheStillWatchingPrompt() = runTest {
+        val runtime = PlayerScreenRuntime(testPlayerScreenArgs()).apply {
+            scope = backgroundScope
+            consecutiveAutoPlayCount = 3
+            showNextEpisodeCard = true
+        }
+        runtime.enterStillWatchingPrompt()
+        runtime.onStillWatchingPlaybackChanged(isPlaying = false)
+        runtime.onStillWatchingPlaybackChanged(isPlaying = true)
+
+        assertNull(runtime.stillWatchingCountdown)
+        assertEquals(0, runtime.consecutiveAutoPlayCount)
+        assertTrue(runtime.shouldPlay)
+        assertTrue(runtime.nextEpisodeCardDismissed)
+        assertFalse(runtime.showNextEpisodeCard)
+    }
+
+    @Test
+    fun stillWatchingCountdownClosesThePlayer() = runTest {
+        var closed = false
+        val runtime = PlayerScreenRuntime(testPlayerScreenArgs().copy(onBack = { closed = true })).apply {
+            scope = backgroundScope
+            consecutiveAutoPlayCount = 3
+        }
+        runtime.enterStillWatchingPrompt()
+        advanceTimeBy(STILL_WATCHING_COUNTDOWN_SECONDS * 1_000L - 1L)
+        assertFalse(closed)
+        assertEquals(1, runtime.stillWatchingCountdown)
+
+        advanceTimeBy(2L)
+        assertTrue(closed)
+        assertNull(runtime.stillWatchingCountdown)
+        assertEquals(0, runtime.consecutiveAutoPlayCount)
     }
 
     @Test
