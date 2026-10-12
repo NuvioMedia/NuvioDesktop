@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 
 enum class DialogButtonStyle {
@@ -142,6 +143,9 @@ fun DialogButton(
         onClick = onClick,
         modifier = modifier.heightIn(min = NuvioTokens.Space.s48),
         enabled = enabled && !loading,
+        elevation = ButtonDefaults.buttonElevation(
+            hoveredElevation = 0.dp,
+        ),
         shape = tokens.shapes.button,
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,

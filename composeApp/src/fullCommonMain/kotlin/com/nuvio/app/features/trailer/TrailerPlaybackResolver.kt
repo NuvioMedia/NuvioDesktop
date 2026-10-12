@@ -44,6 +44,11 @@ actual object TrailerPlaybackResolver {
         return source
     }
 
+    actual suspend fun resolveSingleUrlFromYouTubeUrl(youtubeUrl: String): String? {
+        if (youtubeUrl.isBlank()) return null
+        return extractor.extractSingleUrl(youtubeUrl)
+    }
+
     private data class CachedPlaybackSource(
         val source: TrailerPlaybackSource,
         val cachedAt: TimeMark,

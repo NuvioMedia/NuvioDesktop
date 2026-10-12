@@ -52,11 +52,10 @@ internal object DesktopEngineLibrary {
         ).firstOrNull(File::isFile)
 
     private fun extractedLibrary(directory: String, name: String): File? {
-        val bytes = DesktopEngineLibrary::class.java
-            .getResourceAsStream("/native/$directory/$name")
-            ?.use { it.readBytes() }
+        val resource = DesktopEngineLibrary::class.java
+            .getResource("/native/$directory/$name")
             ?: return null
-        return DesktopCache.installVersionedFiles("nuvio-engine/$directory", mapOf(name to bytes))
+        return DesktopCache.installVersionedResources("nuvio-engine/$directory", mapOf(name to resource))
             .resolve(name)
             .toFile()
     }
