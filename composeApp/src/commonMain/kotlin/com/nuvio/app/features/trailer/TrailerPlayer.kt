@@ -1,5 +1,10 @@
 package com.nuvio.app.features.trailer
 
+import com.nuvio.app.features.player.AudioTrack
+import kotlinx.coroutines.delay
+import com.nuvio.app.features.player.DeviceLanguagePreferences
+import com.nuvio.app.features.player.resolvePreferredAudioLanguageTargets
+import com.nuvio.app.features.player.PlayerSettingsRepository
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,7 +104,22 @@ private fun TrailerPlaybackSurface(
     var restoringPosition by remember { mutableStateOf(resumePositionMs > 0L) }
     var controller by remember { mutableStateOf<PlayerEngineController?>(null) }
     var snapshot by remember { mutableStateOf(PlayerPlaybackSnapshot()) }
+    var audioPreferenceApplied by remember { mutableStateOf(false) }
 
+    LaunchedEffect(controller, snapshot.isLoading) {
+        val player = controller ?: return@LaunchedEffect
+        if (audioPreferenceApplied || snapshot.isLoading) return@LaunchedEffect
+        // Track lists can appear a little after loading finishes.
+        repeat(20) {
+            if (audioPreferenceApplied) return@LaunchedEffect
+            if (player.getAudioTracks().size > 1) {
+                player.applyAudioLanguagePreferences(preferredTrailerAudioLanguages())
+                audioPreferenceApplied = true
+                return@LaunchedEffect
+            }
+            delay(250)
+        }
+    }
     LaunchedEffect(controller, snapshot.isLoading, snapshot.durationMs, restoringPosition) {
         val player = controller
         if (restoringPosition && player != null && !snapshot.isLoading && snapshot.durationMs > 0L &&
@@ -123,6 +143,17 @@ private fun TrailerPlaybackSurface(
             presentationId == state.presentationId,
         resizeMode = resizeMode,
         useNativeController = false,
+        onPlayerControlsEvent = { type, value ->
+            if (type == "selectAudioTrack") {
+                controller?.let { player ->
+                    audioPreferenceApplied = true
+                    player.selectAudioTrack(player.getAudioTracks().audioTrackIndexForControlsValue(value))
+                }
+                true
+            } else {
+                false
+            }
+        },
         onControllerReady = {
             controller = it
             if (presentationId == state.presentationId) state.controller = it
@@ -136,4 +167,21 @@ private fun TrailerPlaybackSurface(
     if (restoringPosition) {
         Box(Modifier.fillMaxSize().background(Color.Black))
     }
+}
+
+private fun preferredTrailerAudioLanguages(): List<String> {
+    PlayerSettingsRepository.ensureLoaded()
+    val settings = PlayerSettingsRepository.uiState.value
+    return resolvePreferredAudioLanguageTargets(
+        preferredAudioLanguage = settings.preferredAudioLanguage,
+        secondaryPreferredAudioLanguage = settings.secondaryPreferredAudioLanguage,
+        deviceLanguages = DeviceLanguagePreferences.preferredLanguageCodes(),
+    )
+}
+
+private fun List<AudioTrack>.audioTrackIndexForControlsValue(value: Double): Int {
+    val requested = value.toInt()
+    return firstOrNull { it.id == requested.toString() }?.index
+        ?: firstOrNull { it.index == requested }?.index
+        ?: requested
 }
