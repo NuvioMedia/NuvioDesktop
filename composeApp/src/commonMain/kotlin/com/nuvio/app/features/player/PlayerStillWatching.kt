@@ -26,6 +26,11 @@ internal fun nextConsecutiveAutoPlayCount(
     isAutoPlay: Boolean,
 ): Int = if (isAutoPlay) currentCount + 1 else 0
 
+/** Counts auto-played episodes in a row; any episode the user starts resets the count. */
+internal fun PlayerScreenRuntime.countEpisodeSwitch(isAutoPlay: Boolean) {
+    consecutiveAutoPlayCount = nextConsecutiveAutoPlayCount(consecutiveAutoPlayCount, isAutoPlay)
+}
+
 /**
  * Pauses playback and asks whether the user is still watching instead of auto-playing
  * the next episode. Exits the player when the countdown runs out.

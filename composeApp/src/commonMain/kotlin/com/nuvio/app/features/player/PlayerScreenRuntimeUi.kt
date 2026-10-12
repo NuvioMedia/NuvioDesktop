@@ -944,10 +944,7 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
             if (selectDownloadedEpisodeForPlayback(
                     parentMetaId = parentMetaId,
                     episode = episode,
-                    onDownloadedEpisodeSelected = { item, video ->
-                        consecutiveAutoPlayCount = 0
-                        switchToDownloadedEpisode(item, video)
-                    },
+                    onDownloadedEpisodeSelected = { item, video -> switchToDownloadedEpisode(item, video) },
                 )
             ) {
                 playerControlsCloseModalsToken += 1
@@ -1879,10 +1876,7 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
             selectDownloadedEpisodeForPlayback(
                 parentMetaId = parentMetaId,
                 episode = episode,
-                onDownloadedEpisodeSelected = { item, video ->
-                    consecutiveAutoPlayCount = 0
-                    switchToDownloadedEpisode(item, video)
-                },
+                onDownloadedEpisodeSelected = { item, video -> switchToDownloadedEpisode(item, video) },
             )
         },
         onEpisodeStreamsRequested = { episode ->
@@ -1895,10 +1889,7 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
             episodeStreamsPanelState = EpisodeStreamsPanelState(showStreams = true, selectedEpisode = episode)
         },
         onEpisodeStreamFilterSelected = PlayerStreamsRepository::selectEpisodeStreamsFilter,
-        onEpisodeStreamSelected = { stream, episode ->
-            consecutiveAutoPlayCount = 0
-            switchToEpisodeStream(stream, episode)
-        },
+        onEpisodeStreamSelected = { stream, episode -> switchToEpisodeStream(stream, episode) },
         onBackToEpisodes = {
             episodeStreamsPanelState = EpisodeStreamsPanelState()
             PlayerStreamsRepository.clearEpisodeStreams()

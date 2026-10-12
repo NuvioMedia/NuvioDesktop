@@ -2,9 +2,13 @@ package com.nuvio.app.features.player
 
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Modifier
+import com.nuvio.app.features.details.MetaVideo
+import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamsUiState
+import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.runTest
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -13,6 +17,11 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class PlayerScreenRuntimeStateTest {
+
+    @AfterTest
+    fun tearDown() {
+        WatchProgressRepository.clearLocalState()
+    }
 
     @Test
     fun controlsStartHidden() {
@@ -295,6 +304,20 @@ class PlayerScreenRuntimeStateTest {
                 progressPercent = 100f,
             ),
         )
+    }
+
+    @Test
+    fun onlyAutoPlayedEpisodeSwitchesCountTowardsStillWatching() {
+        val runtime = PlayerScreenRuntime(testPlayerScreenArgs())
+        val episode = MetaVideo(id = "tt1234567:1:2", title = "Episode 2", season = 1, episode = 2)
+        val stream = StreamItem(url = "https://example.com/episode.mp4", addonName = "Addon", addonId = "addon")
+
+        runtime.switchToEpisodeStream(stream, episode, isAutoPlay = true)
+        runtime.switchToEpisodeStream(stream, episode, isAutoPlay = true)
+        assertEquals(2, runtime.consecutiveAutoPlayCount)
+
+        runtime.switchToEpisodeStream(stream, episode)
+        assertEquals(0, runtime.consecutiveAutoPlayCount)
     }
 
     private fun testPlayerScreenArgs() = PlayerScreenArgs(
