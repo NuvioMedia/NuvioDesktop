@@ -688,6 +688,7 @@ private fun HeroPageIndicatorRow(
             val activeFraction = heroPageVisibility(pagerState, page)
             Box(
                 modifier = Modifier
+                    .nuvioFocusBorder(CircleShape, borderWidth = 2.dp)
                     .clickable {
                         coroutineScope.launch {
                             pagerState.animateScrollToPage(heroPageForItem(pagerState.currentPage, index, itemCount))
@@ -749,6 +750,7 @@ private fun HeroPageIndicatorDot(
 ) {
     Box(
         modifier = Modifier
+            .nuvioFocusBorder(CircleShape, borderWidth = 2.dp)
             .clickable(onClick = onClick)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.onBackground)
@@ -831,6 +833,7 @@ private fun HeroContentBlock(
                 modifier = Modifier
                     .fillMaxWidth(layout.logoWidthFraction)
                     .aspectRatio(2.6f)
+                    .nuvioFocusBorder(RoundedCornerShape(NuvioTokens.Radius.md))
                     .clickable(enabled = onItemClick != null) {
                         onItemClick?.invoke(item)
                     },
@@ -843,6 +846,7 @@ private fun HeroContentBlock(
                 text = item.name,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .nuvioFocusBorder(RoundedCornerShape(NuvioTokens.Radius.md))
                     .clickable(enabled = onItemClick != null) {
                         onItemClick?.invoke(item)
                     },
@@ -897,6 +901,7 @@ private fun DesktopHeroContentBlock(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .nuvioFocusBorder(RoundedCornerShape(NuvioTokens.Radius.md))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

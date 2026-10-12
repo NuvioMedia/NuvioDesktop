@@ -30,12 +30,15 @@ actual fun PlatformKeyboardNavigationHost() {
                     .focusOwner.isArrowKeyConsumer()
             ) return@KeyEventDispatcher false
 
-            when (event.keyCode) {
-                KeyEvent.VK_LEFT -> focusManager.moveFocus(FocusDirection.Left)
-                KeyEvent.VK_RIGHT -> focusManager.moveFocus(FocusDirection.Right)
-                KeyEvent.VK_UP -> focusManager.moveFocus(FocusDirection.Up)
-                KeyEvent.VK_DOWN -> focusManager.moveFocus(FocusDirection.Down)
+            val direction = when (event.keyCode) {
+                KeyEvent.VK_LEFT -> FocusDirection.Left
+                KeyEvent.VK_RIGHT -> FocusDirection.Right
+                KeyEvent.VK_UP -> FocusDirection.Up
+                KeyEvent.VK_DOWN -> FocusDirection.Down
                 else -> return@KeyEventDispatcher false
+            }
+            if (!focusManager.moveFocus(direction)) {
+                focusManager.moveFocus(FocusDirection.Next)
             }
             true
         }

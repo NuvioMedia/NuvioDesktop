@@ -51,6 +51,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -372,6 +373,7 @@ private fun HomePosterPreviewCard(
 
     Column(
         modifier = modifier
+            .focusProperties { canFocus = false }
             .width(HoverPreviewWidth)
             .shadow(tokens.elevation.overlay, shape)
             .clip(shape)
