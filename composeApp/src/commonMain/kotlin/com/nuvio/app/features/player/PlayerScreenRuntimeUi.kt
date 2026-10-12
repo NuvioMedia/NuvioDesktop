@@ -253,7 +253,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         episodeText = episodeText,
         streamTitle = activeStreamTitle,
         providerName = activeProviderName,
-        pauseOverlayEnabled = playerSettingsUiState.pauseOverlayEnabled,
+        pauseOverlayEnabled = playerSettingsUiState.pauseOverlayEnabled && stillWatchingCountdown == null,
         pauseOverlayWatchingLabel = stringResource(Res.string.compose_player_youre_watching),
         pauseOverlayLogo = logo,
         pauseOverlayEpisodeInfo = if (seasonNumber != null && episodeNumber != null) {
@@ -441,7 +441,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         skipPromptStartMs = ((nativeSkipInterval?.startTime ?: 0.0) * 1000).toLong().coerceAtLeast(0L),
         skipPromptEndMs = nativeSkipAction?.targetMs?.coerceAtLeast(0L) ?: 0L,
         skipPromptDismissed = skipIntervalDismissed,
-        nextEpisodeVisible = nextEpisodeForControls != null && !playerControlsLocked,
+        nextEpisodeVisible = nextEpisodeForControls != null && (!playerControlsLocked || stillWatchingCountdown != null),
         nextEpisodeHeaderLabel = if (stillWatchingCountdown != null) {
             stringResource(Res.string.player_still_watching_title)
         } else {

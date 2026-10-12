@@ -132,7 +132,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
         )
     }
 
-    if (isSeries && !playerControlsLocked) {
+    if (isSeries && (!playerControlsLocked || stillWatchingCountdown != null)) {
         NextEpisodeCard(
             nextEpisode = nextEpisodeInfo,
             visible = showNextEpisodeCard || nextEpisodeAutoPlaySearching || nextEpisodeAutoPlayCountdown != null ||
