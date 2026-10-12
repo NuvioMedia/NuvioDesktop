@@ -17,13 +17,17 @@ actual fun PlatformKeyboardNavigationHost() {
     DisposableEffect(Unit) {
         val dispatcher = KeyEventDispatcher { event: KeyEvent ->
             if (event.id != KeyEvent.KEY_PRESSED) return@KeyEventDispatcher false
-            when (event.keyCode) {
-                KeyEvent.VK_LEFT -> { focusManager.moveFocus(FocusDirection.Left); true }
-                KeyEvent.VK_RIGHT -> { focusManager.moveFocus(FocusDirection.Right); true }
-                KeyEvent.VK_UP -> { focusManager.moveFocus(FocusDirection.Up); true }
-                KeyEvent.VK_DOWN -> { focusManager.moveFocus(FocusDirection.Down); true }
-                else -> false
+            val direction = when (event.keyCode) {
+                KeyEvent.VK_LEFT -> FocusDirection.Left
+                KeyEvent.VK_RIGHT -> FocusDirection.Right
+                KeyEvent.VK_UP -> FocusDirection.Up
+                KeyEvent.VK_DOWN -> FocusDirection.Down
+                else -> return@KeyEventDispatcher false
             }
+            if (!focusManager.moveFocus(direction)) {
+                focusManager.moveFocus(FocusDirection.Next)
+            }
+            true
         }
         KeyboardFocusManager.getCurrentKeyboardFocusManager()
             .addKeyEventDispatcher(dispatcher)
