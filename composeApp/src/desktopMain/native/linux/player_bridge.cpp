@@ -116,6 +116,11 @@ struct Player {
     // attached — WKWebView/WebView2 parity — so the page's own keydown
     // shortcuts work instead of a Kotlin-side reimplementation.
     Window savedFocusXid = 0;
+    // Subtitle position from the style settings (mpv sub-pos) and mpv's own
+    // sub-margin-y default, kept so applySubtitlePosition can redo the placement
+    // whenever the selected subtitle track changes.
+    std::atomic<double> subPos{100.0};
+    int64_t baseSubMarginY = 34;
 };
 
 // ---- Player liveness -----------------------------------------------------
@@ -769,6 +774,49 @@ std::string mpvGetStr(mpv_handle *mpv, const std::string &name) {
     if (a == std::string::npos) return "";
     size_t b = out.find_last_not_of(" \t\r\n");
     return out.substr(a, b - a + 1);
+}
+
+// Plain-text subtitle codecs that mpv converts and styles itself, so they follow
+// sub-margin-y. ASS tracks keep their own margins and bitmap tracks have none.
+bool followsSubMarginY(const std::string &codec) {
+    static const char *const kCodecs[] = {
+        "subrip", "webvtt", "mov_text", "text", "microdvd", "subviewer", "subviewer1",
+        "sami", "realtext", "mpl2", "pjs", "vplayer", "stl", "jacosub", "eia_608", "ttml",
+    };
+    for (const char *c : kCodecs) {
+        if (codec == c) return true;
+    }
+    return false;
+}
+
+// Above this margin (in mpv's 720-high units, a quarter of the window) top lines
+// stop following the offset, so bottom lines raised far up don't run into them;
+// the rest of the offset goes to sub-pos, which only moves bottom lines.
+constexpr double kMaxSymmetricSubMarginY = 180.0;
+
+// mpv_observe_property id: the selected subtitle track's codec.
+constexpr uint64_t kSubtitleCodecObserver = 1;
+
+// The subtitle offset reaches mpv as sub-pos, which libass applies to bottom
+// lines only: lines a track places at the top ({\an8}) keep the bare default
+// margin and sit against the top of the picture. For plain-text tracks the same
+// distance is set as sub-margin-y instead, which applies to top and bottom lines
+// alike and leaves bottom lines exactly where sub-pos put them. Other tracks keep
+// sub-pos (their placement doesn't use sub-margin-y).
+void applySubtitlePosition(Player *p) {
+    double pos = p->subPos.load();
+    double base = static_cast<double>(p->baseSubMarginY);
+    double margin = base;
+    if (followsSubMarginY(mpvGetStr(p->mpv, "current-tracks/sub/codec"))) {
+        // libass puts a bottom line's lower edge (H - margin) * sub-pos/100 below
+        // the top, so this is the gap under it with the default margin.
+        double gap = base + (720.0 - base) * (100.0 - pos) / 100.0;
+        margin = std::max(0.0, std::min(gap, kMaxSymmetricSubMarginY));
+        pos = gap > margin ? 100.0 * (1.0 - (gap - margin) / (720.0 - margin)) : 100.0;
+    }
+    int64_t marginY = static_cast<int64_t>(margin + 0.5);
+    mpv_set_property(p->mpv, "sub-margin-y", MPV_FORMAT_INT64, &marginY);
+    mpvSetDouble(p->mpv, "sub-pos", pos);
 }
 
 // Build the formatted track list both the controls webview and the Kotlin
@@ -1496,6 +1544,9 @@ void runEventLoop(Player *player) {
             case MPV_EVENT_PLAYBACK_RESTART:
                 player->firstFrameShown.store(true);
                 break;
+            case MPV_EVENT_PROPERTY_CHANGE:
+                if (event->reply_userdata == kSubtitleCodecObserver) applySubtitlePosition(player);
+                break;
             case MPV_EVENT_SHUTDOWN:
                 player->running.store(false);
                 break;
@@ -1701,6 +1752,10 @@ JNIEXPORT jlong JNICALL NP(create)(
         return 0;
     }
     NUVIO_LOG("mpv initialized OK");
+
+    mpv_get_property(player->mpv, "sub-margin-y", MPV_FORMAT_INT64, &player->baseSubMarginY);
+    mpv_observe_property(player->mpv, kSubtitleCodecObserver, "current-tracks/sub/codec",
+                         MPV_FORMAT_NONE);
 
     if (eventSink != nullptr) {
         player->eventSink = env->NewGlobalRef(eventSink);
@@ -1965,8 +2020,8 @@ JNIEXPORT void JNICALL NP(applySubtitleStyle)(
     mpv_set_property_string(p->mpv, "sub-bold", bold == JNI_TRUE ? "yes" : "no");
     std::string size = std::to_string(fontSize);
     mpv_set_property_string(p->mpv, "sub-font-size", size.c_str());
-    std::string pos = std::to_string(subPos);
-    mpv_set_property_string(p->mpv, "sub-pos", pos.c_str());
+    p->subPos.store(subPos);
+    applySubtitlePosition(p);
     // Strip captions written for deaf and hard-of-hearing viewers.
     mpv_set_property_string(p->mpv, "sub-filter-sdh", stripSdh == JNI_TRUE ? "yes" : "no");
     mpv_set_property_string(p->mpv, "sub-filter-sdh-harder", stripSdh == JNI_TRUE ? "yes" : "no");
