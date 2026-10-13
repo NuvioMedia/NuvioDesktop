@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class CollectionCardRemoteImageTest {
     @get:Rule
@@ -75,11 +76,18 @@ class CollectionCardRemoteImageTest {
                 }
             }
             waitForColor(2)
-            assertEquals(0, requests.get(), "The focus asset should not load before hover")
+            assertTrue(
+                requests.get() <= 1,
+                "Only the intentional prefetch may load before hover, was ${requests.get()}",
+            )
             card.performMouseInput { enter(center) }
             waitForColor(0)
             waitForColor(1)
-            assertEquals(1, requests.get())
+            assertEquals(
+                1,
+                requests.get(),
+                "Hover must reuse the prefetched focus asset without refetching it",
+            )
             card.performMouseInput { exit() }
             waitForColor(2)
         } finally {

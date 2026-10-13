@@ -421,13 +421,13 @@ class CustomPosterUrlResolverTest {
     }
 
     @Test
-    fun resolve_pattern_without_any_placeholders_returns_as_is() {
+    fun resolve_pattern_without_any_placeholders_is_rejected() {
         val ids = CustomPosterUrlResolver.extractIds("tt0137523")
         val url = CustomPosterUrlResolver.resolve(
             "https://example.com/static-poster.jpg",
             ids, "movie"
         )
-        assertEquals("https://example.com/static-poster.jpg", url)
+        assertNull(url)
     }
 
     @Test

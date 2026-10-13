@@ -6,6 +6,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -39,28 +40,33 @@ class PluginRuntimeDesktopTest {
 
     @Test
     fun `desktop runtime handles concurrent scraper executions`() = runBlocking {
-        val results = coroutineScope {
-            (0 until 32).map { index ->
-                async(Dispatchers.Default) {
-                    PluginRuntime.executePlugin(
-                        code = """
-                            module.exports.getStreams = async function(tmdbId, mediaType) {
-                                await Promise.resolve();
-                                return [{
-                                    title: "Concurrent stream " + tmdbId + " " + mediaType,
-                                    url: "https://example.test/" + tmdbId + ".mp4",
-                                    provider: "Desktop Stress Test"
-                                }];
-                            };
-                        """.trimIndent(),
-                        tmdbId = index.toString(),
-                        mediaType = "movie",
-                        season = null,
-                        episode = null,
-                        scraperId = "desktop-runtime-stress-$index",
-                    )
-                }
-            }.awaitAll()
+        // The pause flag is process-global state: another test may have left it set, and the
+        // runtime waits on it with no bound, which would hang this test indefinitely.
+        PluginRuntime.setSearchPaused(false)
+        val results = withTimeout(CONCURRENT_TIMEOUT_MS) {
+            coroutineScope {
+                (0 until 32).map { index ->
+                    async(Dispatchers.Default) {
+                        PluginRuntime.executePlugin(
+                            code = """
+                                module.exports.getStreams = async function(tmdbId, mediaType) {
+                                    await Promise.resolve();
+                                    return [{
+                                        title: "Concurrent stream " + tmdbId + " " + mediaType,
+                                        url: "https://example.test/" + tmdbId + ".mp4",
+                                        provider: "Desktop Stress Test"
+                                    }];
+                                };
+                            """.trimIndent(),
+                            tmdbId = index.toString(),
+                            mediaType = "movie",
+                            season = null,
+                            episode = null,
+                            scraperId = "desktop-runtime-stress-$index",
+                        )
+                    }
+                }.awaitAll()
+            }
         }
 
         assertEquals(32, results.size)
@@ -68,5 +74,9 @@ class PluginRuntimeDesktopTest {
             assertEquals(1, streams.size)
             assertEquals("https://example.test/$index.mp4", streams.single().url)
         }
+    }
+
+    private companion object {
+        const val CONCURRENT_TIMEOUT_MS = 60_000L
     }
 }
