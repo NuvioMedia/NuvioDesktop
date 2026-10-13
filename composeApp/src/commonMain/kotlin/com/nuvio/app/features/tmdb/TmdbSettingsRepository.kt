@@ -3,14 +3,20 @@ package com.nuvio.app.features.tmdb
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingEnrichmentCache
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.concurrent.Volatile
 
 object TmdbSettingsRepository {
     private val _uiState = MutableStateFlow(TmdbSettings())
     val uiState: StateFlow<TmdbSettings> = _uiState.asStateFlow()
 
+    private val loadLock = SynchronizedObject()
+
+    @Volatile
     private var hasLoaded = false
 
     private var enabled = false
@@ -30,11 +36,15 @@ object TmdbSettingsRepository {
 
     fun ensureLoaded() {
         if (hasLoaded) return
-        loadFromDisk()
+        synchronized(loadLock) {
+            if (!hasLoaded) loadFromDisk()
+        }
     }
 
     fun onProfileChanged() {
-        loadFromDisk()
+        synchronized(loadLock) {
+            loadFromDisk()
+        }
     }
 
     fun snapshot(): TmdbSettings {
