@@ -754,12 +754,11 @@ button:disabled {
 .next-episode-actions {
   display: flex;
   flex: 0 0 auto;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  align-items: center;
 }
 
 .next-episode-exit {
+  margin-left: 6px;
   opacity: .72;
 }
 
