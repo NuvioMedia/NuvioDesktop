@@ -114,7 +114,7 @@ fun NextEpisodeCard(
         val shape = RoundedCornerShape(16.dp)
         Row(
             modifier = Modifier
-                .widthIn(max = if (stillWatchingCountdownSec != null) 340.dp else 292.dp)
+                .widthIn(max = if (stillWatchingCountdownSec != null) 360.dp else 292.dp)
                 .graphicsLayer { translationX = animatedOffsetX }
                 .clip(shape)
                 .background(Color(0xFF191919).copy(alpha = 0.89f))
@@ -235,62 +235,56 @@ fun NextEpisodeCard(
                 }
             }
 
-            // Badges: the still-watching prompt stacks Exit under Play so the question keeps its width
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+            // Play badge
+            Row(
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Play badge
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = if (isPlayable) Color.White else Color.White.copy(alpha = 0.65f),
+                    modifier = Modifier.size(13.dp),
+                )
+                Text(
+                    text = if (isPlayable) {
+                        stringResource(Res.string.detail_btn_play)
+                    } else {
+                        stringResource(Res.string.player_next_episode_unaired)
+                    },
+                    color = if (isPlayable) Color.White else Color.White.copy(alpha = 0.72f),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(start = 3.dp),
+                )
+            }
+
+            // Exit badge
+            if (stillWatchingCountdownSec != null) {
                 Row(
                     modifier = Modifier
-                        .padding(start = 4.dp)
+                        .padding(start = 6.dp)
                         .clip(CircleShape)
                         .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                        .clickable(onClick = onDismiss)
                         .padding(horizontal = 8.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
+                        imageVector = Icons.Default.Close,
                         contentDescription = null,
-                        tint = if (isPlayable) Color.White else Color.White.copy(alpha = 0.65f),
+                        tint = Color.White.copy(alpha = 0.65f),
                         modifier = Modifier.size(13.dp),
                     )
                     Text(
-                        text = if (isPlayable) {
-                            stringResource(Res.string.detail_btn_play)
-                        } else {
-                            stringResource(Res.string.player_next_episode_unaired)
-                        },
-                        color = if (isPlayable) Color.White else Color.White.copy(alpha = 0.72f),
+                        text = stringResource(Res.string.player_still_watching_exit),
+                        color = Color.White.copy(alpha = 0.72f),
                         fontSize = 11.sp,
                         modifier = Modifier.padding(start = 3.dp),
                     )
-                }
-
-                // Exit badge
-                if (stillWatchingCountdownSec != null) {
-                    Row(
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .clip(CircleShape)
-                            .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
-                            .clickable(onClick = onDismiss)
-                            .padding(horizontal = 8.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.65f),
-                            modifier = Modifier.size(13.dp),
-                        )
-                        Text(
-                            text = stringResource(Res.string.player_still_watching_exit),
-                            color = Color.White.copy(alpha = 0.72f),
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(start = 3.dp),
-                        )
-                    }
                 }
             }
         }
