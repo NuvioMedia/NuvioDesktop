@@ -536,6 +536,8 @@ internal class NativePlayerController(
                 }
             }
             "toggleFullscreen" -> {
+                if (onEvent(type, value)) 
+                    return
                 if (DesktopPlayerPictureInPicture.isEnabled) {
                     DesktopPlayerPictureInPicture.toggle()
                 } else {
@@ -1260,6 +1262,10 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonField("playbackSpeedLabel", playbackSpeedLabel)
         append(',')
+        appendJsonField("holdToSpeedEnabled", holdToSpeedEnabled)
+        append(',')
+        appendJsonField("holdToSpeedValue", holdToSpeedValue)
+        append(',')
         appendJsonField("isFullscreen", isFullscreen)
         append(',')
         appendJsonField("volumeLevel", volumeLevel)
@@ -1630,6 +1636,8 @@ private fun StringBuilder.appendJsonField(name: String, value: Float?) {
     append('"').append(name).append("\":")
     if (value == null || value.isNaN() || value.isInfinite()) {
         append("null")
+    } else if (name == "holdToSpeedValue") {
+        append(value.coerceIn(1f, 4f))
     } else {
         append(value.coerceIn(0f, 1f))
     }

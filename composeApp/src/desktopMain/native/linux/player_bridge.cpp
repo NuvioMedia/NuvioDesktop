@@ -1135,6 +1135,20 @@ gboolean createWebviewOnGtk(gpointer data) {
     Display *dpy = GDK_WINDOW_XDISPLAY(gdkWin);
     Window gtkXid = GDK_WINDOW_XID(gdkWin);
 
+    // Opt the overlay out of X frame sync before its first frame. GDK still
+    // treats it as a toplevel (the foreign host parent keeps that type), so on
+    // a compositor advertising _NET_WM_FRAME_DRAWN (mutter) it freezes the
+    // frame clock after every frame until the WM acks it — and the WM never
+    // manages this embedded window, so the first frame is the last. Since
+    // WebKitGTK 2.54 page rendering is paced by that clock: CSS transitions
+    // freeze mid-flight (the loading screen's fade-out stuck over the chrome,
+    // track panels never opening), rAF stops, and pointermove is never
+    // dispatched, so moving the mouse neither reveals the chrome nor the
+    // cursor. This is the case gdk_x11_window_set_frame_sync_enabled exists
+    // for (windows not directly managed by the WM). Must precede the first
+    // paint: it does not thaw an already-frozen clock.
+    gdk_x11_window_set_frame_sync_enabled(gdkWin, FALSE);
+
     // size to the host window (X device pixels -> GDK logical pixels, so the
     // overlay comes up at the host's size on a HiDPI output instead of
     // scale-times too large; see the resize in compositeOverlay)

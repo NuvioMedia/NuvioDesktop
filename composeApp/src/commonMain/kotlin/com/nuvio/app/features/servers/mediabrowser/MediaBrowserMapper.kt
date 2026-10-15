@@ -124,12 +124,13 @@ internal class MediaBrowserMapper(
     fun candidates(item: BaseItem): List<ServerCandidate> {
         if (item.isMissing) return emptyList()
         val itemRef = ServerItemRef(connectionId, item.id)
-        return item.mediaSources.map { source ->
+        val sources = item.mediaSources.filterNot { it.isPlaceholder }
+        return sources.map { source ->
             val video = source.mediaStreams.firstOrNull { it.type.equals("Video", ignoreCase = true) }
             val audio = source.mediaStreams.firstOrNull { it.type.equals("Audio", ignoreCase = true) }
             ServerCandidate(
                 target = ServerPlaybackTarget(item = itemRef, mediaSourceId = source.id),
-                title = source.name?.takeIf { it.isNotBlank() && item.mediaSources.size > 1 }
+                title = source.name?.takeIf { it.isNotBlank() && sources.size > 1 }
                     ?: video?.let(::resolutionLabel)
                     ?: source.name.orEmpty(),
                 description = listOfNotNull(
@@ -200,10 +201,11 @@ private fun providerNamespace(key: String): String = when (val name = key.trim()
     else -> name
 }
 
-internal fun libraryKind(collectionType: String?): ServerMediaKind? = when (collectionType?.lowercase()) {
+internal fun libraryKind(collectionType: String?, type: String? = null): ServerMediaKind? = when (collectionType?.lowercase()) {
     "movies" -> ServerMediaKind.MOVIE
     "tvshows" -> ServerMediaKind.SERIES
     "boxsets" -> ServerMediaKind.COLLECTION
+    null, "", "mixed" -> ServerMediaKind.MIXED.takeIf { type.equals("CollectionFolder", ignoreCase = true) }
     else -> null
 }
 

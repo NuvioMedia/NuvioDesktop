@@ -183,6 +183,8 @@ let state = {
   pauseOverlayDescription: "",
   resizeModeLabel: "Fit",
   playbackSpeedLabel: "1x",
+  holdToSpeedEnabled: true,
+  holdToSpeedValue: 2.0,
   isFullscreen: false,
   volumeLevel: null,
   subtitlesLabel: "Subs",
@@ -499,14 +501,15 @@ const syncFullscreenButtons = () => {
   if (openingFullscreenButton) openingFullscreenButton.setAttribute("aria-label", label);
 };
 
-const togglePlayerFullscreen = () => {
-  send("toggleFullscreen", 0);
+const togglePlayerFullscreen = (fromEscape = false) => {
+  send("toggleFullscreen", fromEscape ? 1 : 0);
 };
 
 const hidePlayerToast = token => {
   if (!playerToast || (token != null && token !== playerToastToken)) return;
   if (isSpeedBoosting) {
-    showPlayerToast("2x", { icon: "icon-speed", persistent: true });
+    const speedValueFormatted = formatSpeedBoostString(normalizedSpeedBoost());
+    showPlayerToast(`${speedValueFormatted}x`, { icon: "icon-speed", persistent: true });
     return;
   }
   playerToast.classList.remove("visible");
@@ -3371,20 +3374,35 @@ const clearSpaceHoldTimerAndStopSpeedBoost = () => {
   return false;
 }
 
+const normalizedSpeedBoost = () => {
+  const speedValue = Number(state.holdToSpeedValue);
+  return Number.isFinite(speedValue) ? Math.max(1.0, Math.min(4.0, speedValue)) : 2.0;
+};
+
+const formatSpeedBoostString = (speedValue) => {
+  return Number.isSafeInteger(speedValue) ? speedValue.toPrecision(1) : speedValue;
+};
+
+const getCurrentPlaybackSpeed = () => {
+  const currentSpeedStr = String(state.playbackSpeedLabel || "1x");
+  return parseFloat(currentSpeedStr.replace("x", "")) || 1.0;
+};
+
+const canSpeedBoostStart = () => {
+  return state.holdToSpeedEnabled && (getCurrentPlaybackSpeed() !== normalizedSpeedBoost());
+};
+
 const startSpeedBoost = () => {
   if (isSpeedBoosting) return;
   isSpeedBoosting = true;
-  if (preSpeedBoostRate == null) {
-    const currentSpeedStr = String(state.playbackSpeedLabel || "1x");
-    const currentSpeedNum = parseFloat(currentSpeedStr.replace("x", "")) || 1.0;
-    preSpeedBoostRate = currentSpeedNum === 2.0 ? 1.0 : currentSpeedNum;
-  }
+  if (preSpeedBoostRate == null) preSpeedBoostRate = getCurrentPlaybackSpeed();
   if (!state.isPlaying) {
     pausedBeforeSpeedBoosting = true;
     requestPlaybackState("setPlaybackStateQuiet", false);
   }
-  showPlayerToast("2x", { icon: "icon-speed", persistent: true });
-  send("setPlaybackSpeed", 2.0);
+  const speedBoostValue = normalizedSpeedBoost();
+  showPlayerToast(`${formatSpeedBoostString(speedBoostValue)}x`, { icon: "icon-speed", persistent: true });
+  send("setPlaybackSpeed", speedBoostValue);
 };
 
 const stopSpeedBoost = () => {
@@ -3408,7 +3426,7 @@ root.addEventListener("contextmenu", event => {
 });
 
 root.addEventListener("pointerdown", event => {
-  if (state.isInPip || playbackErrorText() || isControlsSurfaceEvent(event)) return;
+  if (!canSpeedBoostStart() || state.isInPip || playbackErrorText() || isControlsSurfaceEvent(event)) return;
   if (event.button !== 0) return;
 
   rootPointerStartX = event.clientX;
@@ -3622,7 +3640,7 @@ document.addEventListener("keydown", event => {
     if (state.isInPip) {
       send("pictureInPicture", 0);
     } else if (state.isFullscreen) {
-      togglePlayerFullscreen();
+      togglePlayerFullscreen(true);
     } else {
       send("back", 0);
     }
@@ -3928,7 +3946,7 @@ document.addEventListener("keydown", event => {
     return;
   }
 
-  if (event.code === "Space") {
+  if (canSpeedBoostStart() && event.code === "Space") {
     event.preventDefault();
     if (event.repeat) {
       if (!isSpeedBoosting) {

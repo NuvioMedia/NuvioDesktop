@@ -10,9 +10,11 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.i18n.localizedMediaTypeLabel
+import com.nuvio.app.core.poster.withCustomPosterUrl
 import com.nuvio.app.core.ui.NuvioDropdownChip
 import com.nuvio.app.core.ui.NuvioDropdownOption
 import com.nuvio.app.features.home.MetaPreview
@@ -108,6 +110,7 @@ internal fun LazyListScope.libraryVerticalContent(
     columns: Int,
     watchedKeys: Set<String>,
     fullyWatchedSeriesKeys: Set<String>,
+    posterPattern: String,
     onPosterClick: ((LibraryItem) -> Unit)?,
     onPosterLongClick: ((LibraryItem, LibrarySection) -> Unit)?,
 ) {
@@ -118,8 +121,15 @@ internal fun LazyListScope.libraryVerticalContent(
             "library-vertical:${firstEntry.item.type}:${firstEntry.item.id}"
         },
     ) { rowEntries ->
+        val resolvedItems = remember(rowEntries, posterPattern) {
+            rowEntries.map { entry ->
+                entry.item.toMetaPreview().let {
+                    if (posterPattern.isNotBlank()) it.withCustomPosterUrl(posterPattern) else it
+                }
+            }
+        }
         PosterGridRow(
-            items = rowEntries.map { entry -> entry.item.toMetaPreview() },
+            items = resolvedItems,
             columns = columns,
             modifier = libraryContentTransitionModifier()
                 .padding(horizontal = 16.dp),

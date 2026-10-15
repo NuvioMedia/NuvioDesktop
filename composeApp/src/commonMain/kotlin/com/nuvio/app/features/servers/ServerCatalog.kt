@@ -11,7 +11,10 @@ import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.MetaPreview
 import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.media_movies
+import nuvio.composeapp.generated.resources.media_series
 import nuvio.composeapp.generated.resources.servers_resume_row
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
 
 internal const val SERVER_CATALOG_PAGE_SIZE = 50
@@ -46,6 +49,11 @@ internal data class ServerLibraryRef(
         get() = CatalogTarget.Server(connection.id, library.id, library.kind.contentType)
 }
 
+internal data class ServerSearchRef(
+    val connection: ServerConnection,
+    val kind: ServerMediaKind,
+)
+
 internal object ServerCatalog {
     fun libraries(): List<ServerLibraryRef> =
         ServerRepository.enabledConnections().flatMap { connection ->
@@ -54,6 +62,13 @@ internal object ServerCatalog {
 
     fun titleLibraries(): List<ServerLibraryRef> =
         libraries().filter { it.library.kind != ServerMediaKind.COLLECTION }
+
+    fun searchTargets(): List<ServerSearchRef> =
+        ServerRepository.enabledConnections()
+            .filter { ServerRepository.provider(it)?.supports(ServerCapability.SEARCH) == true }
+            .flatMap { connection ->
+                SEARCH_KINDS.filter { connection.selectedLibraries(it).isNotEmpty() }.map { ServerSearchRef(connection, it) }
+            }
 
     fun collectionTarget(meta: MetaPreview): CatalogTarget.Server? {
         if (meta.type != ServerMediaKind.COLLECTION.contentType) return null
@@ -171,21 +186,27 @@ internal object ServerCatalog {
         )
     }
 
-    suspend fun searchSection(ref: ServerLibraryRef, query: String): HomeCatalogSection {
-        val items = ServerRepository.call(ref.connection.id) { provider, session ->
+    suspend fun search(ref: ServerSearchRef, query: String): List<MetaPreview> =
+        ServerRepository.call(ref.connection.id) { provider, session ->
             if (!provider.supports(ServerCapability.SEARCH)) throw ServerException(ServerFailure.UNSUPPORTED)
-            provider.search(session, ref.library, query, SERVER_SEARCH_LIMIT)
+            provider.search(session, ref.kind, ref.connection.selectedLibraries(ref.kind), query, SERVER_SEARCH_LIMIT)
         }.map(ref.connection.presenter())
+
+    suspend fun searchSection(ref: ServerSearchRef, query: String): HomeCatalogSection {
+        val items = search(ref, query)
         val label = ServerRepository.sourceLabel(ref.connection)
         return HomeCatalogSection(
-            key = "${homeKey(ref.connection.id, ref.library.id)}:search:${query.lowercase()}",
-            title = ref.title,
+            key = "${homeKey(ref.connection.id, SEARCH_PREFIX + ref.kind.contentType)}:${query.lowercase()}",
+            title = "${ref.connection.name} · ${getString(ref.kind.searchLabel())}",
             subtitle = label,
             addonName = label,
-            target = ref.target,
+            target = CatalogTarget.Server(ref.connection.id, null, ref.kind.contentType),
             items = items,
         )
     }
+
+    private fun ServerMediaKind.searchLabel(): StringResource =
+        if (this == ServerMediaKind.SERIES) Res.string.media_series else Res.string.media_movies
 
     suspend fun details(ref: ServerItemRef): ServerItemDetails =
         ServerRepository.call(ref.connectionId) { provider, session -> provider.details(session, ref.itemId) }
@@ -194,4 +215,6 @@ internal object ServerCatalog {
 
     private const val HOME_KEY_PREFIX = "server:"
     private const val RESUME_ID = "resume"
+    private const val SEARCH_PREFIX = "search."
+    private val SEARCH_KINDS = listOf(ServerMediaKind.MOVIE, ServerMediaKind.SERIES)
 }
