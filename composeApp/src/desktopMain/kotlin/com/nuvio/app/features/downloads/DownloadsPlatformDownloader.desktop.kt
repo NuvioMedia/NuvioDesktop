@@ -25,7 +25,18 @@ private val desktopDownloadHttpClient: HttpClient = HttpClient.newBuilder()
 
 internal actual object DownloadsPlatformDownloader {
     private val downloadsDir: File
-        get() = File(DesktopStorage.rootDir.resolve("downloads").also { it.createDirectories() }.toUri())
+        get() {
+            DownloadsSettingsRepository.ensureLoaded()
+            val customDir = DownloadsSettingsRepository.uiState.value.downloadDirectory
+                ?.takeIf { it.isNotBlank() }
+                ?.let(::File)
+                ?.takeIf { file -> file.isDirectory || !file.exists() }
+            if (customDir != null) {
+                runCatching { customDir.mkdirs() }
+                if (customDir.isDirectory && customDir.canWrite()) return customDir
+            }
+            return File(DesktopStorage.rootDir.resolve("downloads").also { it.createDirectories() }.toUri())
+        }
 
     actual fun restoreItem(item: DownloadItem): DownloadItem =
         if (item.status == DownloadStatus.Downloading) {

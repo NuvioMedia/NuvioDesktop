@@ -10,6 +10,7 @@ import com.nuvio.app.features.downloads.DownloadItem
 import com.nuvio.app.features.downloads.DownloadSubtitles
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
+import com.nuvio.app.features.p2p.P2pStreamOwnership
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.servers.ServerPlayback
 import com.nuvio.app.features.servers.serverPlaybackMessage
@@ -155,6 +156,7 @@ internal fun StreamItem.playerSourceIdentityKey(): String? {
 
 internal fun PlayerScreenRuntime.stopActiveP2pStream() {
     if (activeTorrentInfoHash != null || p2pResolvedSourceUrl != null) {
+        P2pStreamOwnership.notePlaybackStopped()
         P2pStreamingEngine.stopStream()
     }
     activeTorrentInfoHash = null

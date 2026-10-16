@@ -1,7 +1,16 @@
 package com.nuvio.app.features.downloads
 
+import com.nuvio.app.features.p2p.P2pStreamOwnership
+import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.player.addonSubtitleRequests
 import com.nuvio.app.features.streams.StreamItem
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +25,11 @@ import org.jetbrains.compose.resources.getString
 
 object DownloadsRepository {
     private const val MaxDownloadAttempts = 3
+    private const val SeedRatioPollIntervalMs = 30_000L
+    private const val SeedRatioWatchTimeoutMs = 24 * 60 * 60 * 1_000L
+
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val seedWatchHandles = mutableMapOf<String, kotlinx.coroutines.Job>()
 
     private val _uiState = MutableStateFlow(DownloadsUiState())
     val uiState: StateFlow<DownloadsUiState> = _uiState.asStateFlow()
@@ -43,6 +57,8 @@ object DownloadsRepository {
     fun clearLocalState() {
         activeHandles.values.forEach(DownloadsTaskHandle::cancel)
         activeHandles.clear()
+        seedWatchHandles.values.forEach { it.cancel() }
+        seedWatchHandles.clear()
         hasLoaded = false
         _hasUnseenCompleted.value = false
         _uiState.value = DownloadsUiState()
@@ -125,6 +141,8 @@ object DownloadsRepository {
         episodeTitle: String?,
         episodeThumbnail: String?,
         stream: StreamItem,
+        suggestedFileExtension: String? = null,
+        torrentInfoHash: String? = null,
     ): DownloadEnqueueResult {
         ensureLoaded()
 
@@ -150,6 +168,7 @@ object DownloadsRepository {
         if (existing != null) {
             replacedExisting = true
             activeHandles.remove(existing.id)?.cancel()
+            seedWatchHandles.remove(existing.id)?.cancel()
             DownloadsPlatformDownloader.removeFile(playableLocalFileUri(existing) ?: existing.localFileUri)
             DownloadsPlatformDownloader.removePartialFile(existing.fileName)
             currentItems.removeAll { it.id == existing.id }
@@ -164,6 +183,7 @@ object DownloadsRepository {
             fallbackTitle = stream.streamLabel,
             sourceUrl = sourceUrl,
             downloadId = downloadId,
+            suggestedFileExtension = suggestedFileExtension,
         )
 
         val item = DownloadItem(
@@ -185,6 +205,7 @@ object DownloadsRepository {
             providerName = stream.addonName,
             providerAddonId = stream.addonId,
             sourceUrl = sourceUrl,
+            torrentInfoHash = torrentInfoHash?.trim()?.lowercase()?.takeIf { it.isNotBlank() },
             sourceHeaders = sanitizeRequestHeaders(stream.behaviorHints.proxyHeaders?.request),
             sourceResponseHeaders = sanitizeResponseHeaders(stream.behaviorHints.proxyHeaders?.response),
             subtitleRequests = addonSubtitleRequests(contentType, videoId),
@@ -217,6 +238,7 @@ object DownloadsRepository {
         if (item.status != DownloadStatus.Downloading) return
 
         activeHandles.remove(downloadId)?.cancel()
+        seedWatchHandles.remove(downloadId)?.cancel()
         mutateItem(downloadId) { current ->
             current.copy(
                 status = DownloadStatus.Paused,
@@ -270,6 +292,7 @@ object DownloadsRepository {
         val item = _uiState.value.items.firstOrNull { it.id == downloadId } ?: return
 
         activeHandles.remove(downloadId)?.cancel()
+        seedWatchHandles.remove(downloadId)?.cancel()
         DownloadsPlatformDownloader.removeFile(playableLocalFileUri(item) ?: item.localFileUri)
         DownloadsPlatformDownloader.removePartialFile(item.fileName)
 
@@ -344,6 +367,16 @@ object DownloadsRepository {
                         updatedAtEpochMs = DownloadsClock.nowEpochMs(),
                     )
                 }
+                val completed = _uiState.value.items.firstOrNull { it.id == item.id }
+                val completedHash = completed?.torrentInfoHash
+                if (completed?.status == DownloadStatus.Completed && completedHash != null) {
+                    watchSeedRatio(
+                        downloadId = item.id,
+                        torrentHash = completedHash,
+                        downloadedBytes = completed.totalBytes?.takeIf { it > 0L }
+                            ?: completed.downloadedBytes.takeIf { it > 0L },
+                    )
+                }
             },
             onFailure = onFailure@ { message ->
                 activeHandles.remove(item.id)
@@ -374,6 +407,47 @@ object DownloadsRepository {
         )
 
         activeHandles[item.id] = handle
+    }
+
+    /**
+     * Stops the torrent once the seed-ratio setting is met. Upload bytes are
+     * engine-global, so the watch ends if the engine moves to another
+     * torrent, and playback-owned torrents are never touched. 0.0 stops
+     * seeding as soon as the download completes.
+     */
+    private fun watchSeedRatio(downloadId: String, torrentHash: String, downloadedBytes: Long?) {
+        seedWatchHandles.remove(downloadId)?.cancel()
+        if (downloadedBytes == null || downloadedBytes <= 0L) return
+        DownloadsSettingsRepository.ensureLoaded()
+        val targetRatio = DownloadsSettingsRepository.uiState.value.seedRatio
+        val watchJob = repositoryScope.launch {
+            val baseline = P2pStreamingEngine.transferSnapshot()
+                ?.takeIf { it.torrentHash?.lowercase() == torrentHash }
+                ?.totalUploadedBytes
+            if (targetRatio <= 0.0) {
+                if (!P2pStreamOwnership.isOwnedByPlayback(torrentHash)) {
+                    P2pStreamingEngine.stopTorrentIfCurrent(torrentHash)
+                }
+                return@launch
+            }
+            if (baseline == null) return@launch
+            val deadlineMs = DownloadsClock.nowEpochMs() + SeedRatioWatchTimeoutMs
+            while (isActive) {
+                delay(SeedRatioPollIntervalMs)
+                if (_uiState.value.items.none { it.id == downloadId }) return@launch
+                if (P2pStreamOwnership.isOwnedByPlayback(torrentHash)) continue
+                val snapshot = P2pStreamingEngine.transferSnapshot()
+                if (snapshot?.torrentHash?.lowercase() != torrentHash) return@launch
+                val uploadedBytes = (snapshot.totalUploadedBytes - baseline).coerceAtLeast(0L)
+                if (uploadedBytes.toDouble() / downloadedBytes.toDouble() >= targetRatio) {
+                    P2pStreamingEngine.stopTorrentIfCurrent(torrentHash)
+                    return@launch
+                }
+                if (DownloadsClock.nowEpochMs() >= deadlineMs) return@launch
+            }
+        }
+        seedWatchHandles[downloadId] = watchJob
+        watchJob.invokeOnCompletion { seedWatchHandles.remove(downloadId) }
     }
 
     private fun mutateItem(downloadId: String, transform: (DownloadItem) -> DownloadItem) {
@@ -528,6 +602,7 @@ private fun buildFileName(
     fallbackTitle: String,
     sourceUrl: String,
     downloadId: String,
+    suggestedFileExtension: String? = null,
 ): String {
     val baseTitle = if (seasonNumber != null && episodeNumber != null) {
         buildString {
@@ -545,7 +620,9 @@ private fun buildFileName(
         title.ifBlank { fallbackTitle }
     }
 
-    val extension = sourceUrl.fileExtensionFromUrl()
+    val extension = suggestedFileExtension?.lowercase()?.trim()?.takeIf {
+        it.length in 2..5 && it.all { char -> char.isLetterOrDigit() }
+    } ?: sourceUrl.fileExtensionFromUrl()
     return buildString {
         append(baseTitle.sanitizeFileName().ifBlank { "download" }.take(92))
         append('_')

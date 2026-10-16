@@ -1757,6 +1757,9 @@
     <string name="streams_loading_skip_segments">Loading intro/outro segments…</string>
     <string name="streams_finding_streams">Finding streams…</string>
     <string name="streams_link_copied">Stream link copied</string>
+    <string name="streams_magnet_copied">Magnet link copied</string>
+    <string name="streams_p2p_enable_required">Enable P2P streaming first to download torrents</string>
+    <string name="streams_resolving_torrent">Resolving torrent…</string>
     <string name="streams_no_direct_link">No direct stream link available</string>
     <string name="streams_no_metadata">No metadata available</string>
     <string name="streams_refresh">Refresh streams</string>
@@ -2399,6 +2402,16 @@
     <string name="p2p_error_unknown">Unknown torrent error</string>
     <string name="settings_p2p_title">P2P Streaming</string>
     <string name="settings_playback_section_p2p">P2P STREAMING</string>
+    <string name="settings_playback_section_downloads">DOWNLOADS</string>
+    <string name="settings_download_location_title">Download location</string>
+    <string name="settings_download_location_default">Default folder</string>
+    <string name="settings_download_location_reset">Reset to default folder</string>
+    <string name="settings_download_location_unsupported">Folder picker is not available on this platform</string>
+    <string name="settings_download_seed_ratio_title">Seed to ratio</string>
+    <string name="settings_download_seed_ratio_description">Keep seeding torrent downloads until this upload ratio is reached. 0 stops seeding when the download finishes.</string>
+    <string name="settings_download_seed_ratio_stop">Stop when finished</string>
+    <string name="settings_download_open_tab_title">Open Downloads tab when a download starts</string>
+    <string name="settings_download_open_tab_description">Jump to the Downloads tab every time a download starts.</string>
     <string name="settings_p2p_subtitle">Allow peer-to-peer (torrent) streams</string>
     <string name="settings_p2p_hide_stats_title">Hide torrent stats</string>
     <string name="settings_p2p_hide_stats_subtitle">Hide buffer, seeds, peers and download speed during loading and playback</string>

@@ -39,6 +39,7 @@ data class DownloadItem(
     val providerName: String,
     val providerAddonId: String? = null,
     val sourceUrl: String,
+    val torrentInfoHash: String? = null,
     val sourceHeaders: Map<String, String> = emptyMap(),
     val sourceResponseHeaders: Map<String, String> = emptyMap(),
     val subtitleRequests: List<SubtitleAddonRequest> = emptyList(),

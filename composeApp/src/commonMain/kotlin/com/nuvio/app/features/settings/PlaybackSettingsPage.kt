@@ -79,6 +79,9 @@ import com.nuvio.app.features.player.formatPlaybackSpeedLabel
 import com.nuvio.app.features.player.languageLabelForCode
 import com.nuvio.app.features.player.subtitleFontSizeRangeSp
 import com.nuvio.app.features.player.toStorageHexString
+import com.nuvio.app.core.ui.NuvioToastController
+import com.nuvio.app.features.downloads.DownloadsSettingsRepository
+import com.nuvio.app.features.downloads.pickDownloadDirectory
 import com.nuvio.app.features.p2p.P2pConsentDialog
 import com.nuvio.app.features.p2p.P2pCacheClearResult
 import com.nuvio.app.features.p2p.P2pCacheSize
@@ -154,6 +157,13 @@ private fun formatStep(value: Float): String {
     } else {
         value.toString()
     }
+}
+
+@Composable
+private fun seedRatioLabel(ratio: Double): String = if (ratio <= 0.0) {
+    stringResource(Res.string.settings_download_seed_ratio_stop)
+} else {
+    ratio.toString()
 }
 
 @Composable
@@ -359,6 +369,7 @@ private fun PlaybackSettingsSection(
     var showP2pConsentDialog by remember { mutableStateOf(false) }
     var showP2pProfileDialog by remember { mutableStateOf(false) }
     var showP2pCacheSizeDialog by remember { mutableStateOf(false) }
+    var showSeedRatioDialog by remember { mutableStateOf(false) }
     var p2pCacheClearResult by remember { mutableStateOf<P2pCacheClearResult?>(null) }
     var p2pCacheClearFailed by remember { mutableStateOf(false) }
     val pluginsEnabled = AppFeaturePolicy.pluginsEnabled
@@ -368,8 +379,14 @@ private fun PlaybackSettingsSection(
         P2pSettingsRepository.ensureLoaded()
         P2pSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
+    val downloadSettings by remember {
+        DownloadsSettingsRepository.ensureLoaded()
+        DownloadsSettingsRepository.uiState
+    }.collectAsStateWithLifecycle()
     val p2pCacheState by P2pStreamingEngine.cacheState.collectAsStateWithLifecycle()
     val p2pStreamingState by P2pStreamingEngine.state.collectAsStateWithLifecycle()
+    val folderPickerUnsupportedText =
+        stringResource(Res.string.settings_download_location_unsupported)
     val coroutineScope = rememberCoroutineScope()
     val availableExternalPlayers = if (externalPlayerSupported) {
         ExternalPlayerPlatform.availablePlayers()
@@ -808,6 +825,64 @@ private fun PlaybackSettingsSection(
                             },
                         )
                     }
+                }
+            }
+        }
+
+        if (AppFeaturePolicy.downloadsEnabled) {
+            SettingsSection(
+                title = stringResource(Res.string.settings_playback_section_downloads),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
+                    SettingsNavigationRow(
+                        title = stringResource(Res.string.settings_download_location_title),
+                        description = downloadSettings.downloadDirectory
+                            ?: stringResource(Res.string.settings_download_location_default),
+                        isTablet = isTablet,
+                        onClick = {
+                            if (!isDesktop) {
+                                NuvioToastController.show(
+                                    folderPickerUnsupportedText,
+                                )
+                            } else {
+                                coroutineScope.launch {
+                                    val chosen = pickDownloadDirectory(
+                                        downloadSettings.downloadDirectory,
+                                    )
+                                    if (chosen != null) {
+                                        DownloadsSettingsRepository.setDownloadDirectory(chosen)
+                                    }
+                                }
+                            }
+                        },
+                    )
+                    if (downloadSettings.downloadDirectory != null) {
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsNavigationRow(
+                            title = stringResource(Res.string.settings_download_location_reset),
+                            description = downloadSettings.downloadDirectory,
+                            isTablet = isTablet,
+                            onClick = {
+                                DownloadsSettingsRepository.setDownloadDirectory(null)
+                            },
+                        )
+                    }
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsNavigationRow(
+                        title = stringResource(Res.string.settings_download_seed_ratio_title),
+                        description = seedRatioLabel(downloadSettings.seedRatio),
+                        isTablet = isTablet,
+                        onClick = { showSeedRatioDialog = true },
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_download_open_tab_title),
+                        description = stringResource(Res.string.settings_download_open_tab_description),
+                        checked = downloadSettings.openDownloadsOnStart,
+                        isTablet = isTablet,
+                        onCheckedChange = DownloadsSettingsRepository::setOpenDownloadsOnStart,
+                    )
                 }
             }
         }
@@ -1763,6 +1838,17 @@ private fun PlaybackSettingsSection(
         )
     }
 
+    if (showSeedRatioDialog) {
+        SeedRatioDialog(
+            selectedRatio = downloadSettings.seedRatio,
+            onRatioSelected = { ratio ->
+                DownloadsSettingsRepository.setSeedRatio(ratio)
+                showSeedRatioDialog = false
+            },
+            onDismiss = { showSeedRatioDialog = false },
+        )
+    }
+
     if (showExternalPlayerDialog) {
         PlayerPreferenceDialog(
             isExternal = autoPlayPlayerSettings.externalPlayerEnabled,
@@ -2170,6 +2256,47 @@ private fun ReuseCacheDurationDialog(
                     text = formatReuseCacheDuration(hours),
                     selected = isSelected,
                     onClick = { onDurationSelected(hours) },
+                )
+            }
+        }
+
+        DialogButtons {
+            DialogButton(
+                text = stringResource(Res.string.action_done),
+                onClick = onDismiss,
+            )
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun SeedRatioDialog(
+    selectedRatio: Double,
+    onRatioSelected: (Double) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val options = listOf(0.0, 1.0, 2.0)
+
+    DialogSurface(
+        onDismissRequest = onDismiss,
+        title = stringResource(Res.string.settings_download_seed_ratio_title),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            options.forEach { ratio ->
+                val isSelected = ratio == selectedRatio
+                DialogOption(
+                    text = seedRatioLabel(ratio),
+                    description = if (ratio <= 0.0) {
+                        stringResource(Res.string.settings_download_seed_ratio_description)
+                    } else {
+                        null
+                    },
+                    selected = isSelected,
+                    onClick = { onRatioSelected(ratio) },
                 )
             }
         }

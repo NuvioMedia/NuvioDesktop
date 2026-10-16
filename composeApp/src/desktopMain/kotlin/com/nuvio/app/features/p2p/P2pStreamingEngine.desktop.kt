@@ -110,6 +110,21 @@ actual object P2pStreamingEngine {
         scheduleStop(shutdownEngine = false)
     }
 
+    actual suspend fun transferSnapshot(): P2pTransferSnapshot? = withContext(Dispatchers.IO) {
+        val activeEngine = engine ?: return@withContext null
+        val hash = currentTorrentId ?: return@withContext null
+        P2pTransferSnapshot(
+            torrentHash = hash,
+            totalUploadedBytes = activeEngine.stats.value.totalPayloadUploadBytes,
+        )
+    }
+
+    actual suspend fun stopTorrentIfCurrent(torrentHash: String) {
+        if (currentTorrentId?.lowercase() == torrentHash.lowercase()) {
+            stopStream()
+        }
+    }
+
     actual fun shutdown() {
         scheduleStop(shutdownEngine = true)
     }

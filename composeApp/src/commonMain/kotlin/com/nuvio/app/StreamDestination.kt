@@ -23,6 +23,7 @@ import com.nuvio.app.features.debrid.DirectDebridPlayableResult
 import com.nuvio.app.features.debrid.DirectDebridPlaybackResolver
 import com.nuvio.app.features.debrid.toastMessage
 import com.nuvio.app.features.details.MetaDetailsRepository
+import com.nuvio.app.features.downloads.DownloadsSettingsRepository
 import com.nuvio.app.features.p2p.P2pConsentDialog
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.player.PlayerLaunch
@@ -70,6 +71,10 @@ internal fun StreamDestination(
     onLandscapeLoadingChanged: (Boolean) -> Unit,
 ) {
     val onBack = rememberGuardedPopBackStack(navController, route)
+    val openDownloadsOnStart by remember {
+        DownloadsSettingsRepository.ensureLoaded()
+        DownloadsSettingsRepository.uiState
+    }.collectAsStateWithLifecycle()
     val launch = remember(route.launchId) {
         StreamLaunchStore.get(route.launchId)
     }
@@ -767,6 +772,14 @@ internal fun StreamDestination(
                 )
             },
             onBack = onBack,
+            onDownloadEnqueued = {
+                if (openDownloadsOnStart.openDownloadsOnStart) {
+                    navController.navigate(DownloadsRoute()) {
+                        launchSingleTop = true
+                    }
+                }
+            },
+            downloadMode = launch.downloadMode,
             modifier = Modifier.fillMaxSize(),
         )
         pendingP2pStreamOpen?.let { pending ->

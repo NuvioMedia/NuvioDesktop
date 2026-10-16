@@ -23,6 +23,11 @@ actual object P2pStreamingEngine {
         _state.value = P2pStreamingState.Idle
     }
 
+    actual suspend fun transferSnapshot(): P2pTransferSnapshot? = null
+
+    actual suspend fun stopTorrentIfCurrent(torrentHash: String) {
+    }
+
     actual fun shutdown() {
         _state.value = P2pStreamingState.Idle
     }

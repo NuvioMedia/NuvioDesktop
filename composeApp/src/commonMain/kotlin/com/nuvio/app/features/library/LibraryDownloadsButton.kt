@@ -7,9 +7,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -27,7 +30,6 @@ import com.nuvio.app.core.ui.accentBrush
 import com.nuvio.app.core.ui.gradientMask
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.themePalette
-import com.nuvio.app.features.downloads.DownloadStatus
 import com.nuvio.app.features.downloads.DownloadsRepository
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_settings_root_downloads_title
@@ -40,10 +42,20 @@ internal fun LibraryDownloadsButton(onClick: () -> Unit) {
         DownloadsRepository.uiState
     }.collectAsStateWithLifecycle()
     val hasUnseenCompleted by DownloadsRepository.hasUnseenCompleted.collectAsStateWithLifecycle()
+    val activeCount = downloads.activeItems.size
 
     IconButton(onClick = onClick) {
-        when {
-            downloads.items.any { it.status == DownloadStatus.Downloading } -> FlowingDownloadIcon()
+        if (activeCount > 0) {
+            BadgedBox(
+                badge = {
+                    Badge {
+                        Text(text = activeCount.toString())
+                    }
+                },
+            ) {
+                FlowingDownloadIcon()
+            }
+        } else when {
             hasUnseenCompleted -> DownloadIcon(
                 modifier = Modifier.gradientMask(MaterialTheme.themePalette.accentBrush()),
                 tint = Color.White,

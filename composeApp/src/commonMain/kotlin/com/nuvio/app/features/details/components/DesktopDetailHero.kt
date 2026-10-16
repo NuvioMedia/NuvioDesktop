@@ -212,6 +212,7 @@ fun DesktopDetailHero(
     onHeroTrailerMuteToggle: () -> Unit,
     onPlayClick: () -> Unit,
     onPlayLongClick: (() -> Unit)?,
+    onDownloadClick: (() -> Unit)? = null,
     onShuffleClick: (() -> Unit)?,
     shuffleEnabled: Boolean,
     onWatchedClick: () -> Unit,
@@ -357,6 +358,7 @@ fun DesktopDetailHero(
                 isTablet = true,
                 onPlayClick = onPlayClick,
                 onPlayLongClick = onPlayLongClick,
+                onDownloadClick = onDownloadClick,
             )
         }
 

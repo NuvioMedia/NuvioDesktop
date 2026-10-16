@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
+import com.nuvio.app.features.p2p.P2pStreamOwnership
 import com.nuvio.app.features.p2p.P2pStreamRequest
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.p2p.P2pStreamingState
@@ -135,11 +136,13 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         val infoHash = activeTorrentInfoHash
         if (infoHash == null) {
             p2pResolvedSourceUrl = null
+            P2pStreamOwnership.notePlaybackStopped()
             P2pStreamingEngine.stopStream()
             return@LaunchedEffect
         }
         if (!P2pSettingsRepository.isVisible || !p2pSettingsUiState.p2pEnabled) {
             p2pResolvedSourceUrl = null
+            P2pStreamOwnership.notePlaybackStopped()
             P2pStreamingEngine.stopStream()
             return@LaunchedEffect
         }
@@ -168,6 +171,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
                 activeSourceHeaders = emptyMap()
                 activeSourceResponseHeaders = emptyMap()
                 p2pResolvedSourceUrl = localUrl
+                P2pStreamOwnership.notePlaybackStarted(infoHash)
             }
         } catch (error: CancellationException) {
             throw error
@@ -381,6 +385,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         onDispose {
             args.launchId?.let { launchId -> PlayerLaunchStore.update(launchId) { currentLaunch(it) } }
             playerController?.clearNowPlayingInfo()
+            P2pStreamOwnership.notePlaybackStopped()
             P2pStreamingEngine.shutdown()
             cancelNextEpisodePreload()
             PlayerStreamsRepository.clearAll()

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Icon
@@ -49,6 +50,7 @@ import com.nuvio.app.core.ui.secondaryClick
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_play
 import nuvio.composeapp.generated.resources.details_actions_menu_label
+import nuvio.composeapp.generated.resources.streams_download_file
 import nuvio.composeapp.generated.resources.hero_add_to_library
 import nuvio.composeapp.generated.resources.hero_mark_unwatched
 import nuvio.composeapp.generated.resources.hero_mark_watched
@@ -78,8 +80,10 @@ fun DetailActionButtons(
     isTablet: Boolean = false,
     onPlayClick: () -> Unit = {},
     onPlayLongClick: (() -> Unit)? = null,
+    onDownloadClick: (() -> Unit)? = null,
 ) {
     val playPainter = appIconPainter(AppIconResource.PlayerPlay)
+    val downloadLabel = stringResource(Res.string.streams_download_file)
     val buttonHeight = if (isTablet) 56.dp else 52.dp
     val iconButtonSize = buttonHeight
     val playShape = RoundedCornerShape(40.dp)
@@ -146,6 +150,21 @@ fun DetailActionButtons(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+
+            if (onDownloadClick != null) {
+                Spacer(modifier = Modifier.width(12.dp))
+                DetailIconAction(
+                    label = downloadLabel,
+                    icon = Icons.Filled.Download,
+                    active = false,
+                    progress = 1f,
+                    size = iconButtonSize,
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onDownloadClick()
+                    },
+                )
             }
 
             if (pinnedAction != null) {
@@ -253,6 +272,7 @@ fun DetailActions(
     shuffleEnabled: Boolean,
     onPlayClick: () -> Unit,
     onPlayLongClick: (() -> Unit)?,
+    onDownloadClick: (() -> Unit)? = null,
     onShuffleClick: (() -> Unit)?,
     onWatchedClick: () -> Unit,
     onSaveClick: () -> Unit,
@@ -293,6 +313,7 @@ fun DetailActions(
         isTablet = isTablet,
         onPlayClick = onPlayClick,
         onPlayLongClick = onPlayLongClick,
+        onDownloadClick = onDownloadClick,
     )
 }
 

@@ -228,6 +228,11 @@ actual object P2pStreamingEngine {
         }
     }
 
+    actual suspend fun transferSnapshot(): P2pTransferSnapshot? = null
+
+    actual suspend fun stopTorrentIfCurrent(torrentHash: String) {
+    }
+
     actual fun shutdown() {
         scope.launch {
             lifecycleMutex.withLock { stopLocked(shutdownEngine = true) }

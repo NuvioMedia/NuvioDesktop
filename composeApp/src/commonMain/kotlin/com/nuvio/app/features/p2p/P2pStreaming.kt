@@ -226,6 +226,34 @@ sealed class P2pStreamingState {
 
 class P2pStreamingException(message: String) : Exception(message)
 
+/**
+ * Remembers whether the engine's current torrent was started by playback,
+ * so the seed hook doesn't stop it.
+ */
+object P2pStreamOwnership {
+    @Volatile
+    var playbackHash: String? = null
+        private set
+
+    fun notePlaybackStarted(infoHash: String?) {
+        playbackHash = infoHash?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+    }
+
+    fun notePlaybackStopped() {
+        playbackHash = null
+    }
+
+    fun isOwnedByPlayback(infoHash: String): Boolean {
+        val current = playbackHash ?: return false
+        return current == infoHash.trim().lowercase()
+    }
+}
+
+data class P2pTransferSnapshot(
+    val torrentHash: String?,
+    val totalUploadedBytes: Long,
+)
+
 expect object P2pStreamingEngine {
     val state: StateFlow<P2pStreamingState>
     val cacheState: StateFlow<P2pCacheUiState>
@@ -233,6 +261,8 @@ expect object P2pStreamingEngine {
     suspend fun clearCache(): P2pCacheClearResult
     fun stopStream()
     fun shutdown()
+    suspend fun transferSnapshot(): P2pTransferSnapshot?
+    suspend fun stopTorrentIfCurrent(torrentHash: String)
 }
 
 internal fun formatP2pSpeed(bytesPerSec: Long): String {

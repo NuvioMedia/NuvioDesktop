@@ -8,18 +8,29 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -651,9 +662,7 @@ internal fun MainAppContent(
                 offlineLaunchRouteHandled = true
             }
 
-            NetworkCondition.NoInternet,
-            NetworkCondition.ServersUnreachable,
-            -> {
+            NetworkCondition.NoInternet -> {
                 offlineLaunchRouteHandled = true
                 if (!AppFeaturePolicy.downloadsEnabled) return@LaunchedEffect
                 val hasPlayableDownload = downloadsUiState.completedItems.any {
@@ -665,6 +674,12 @@ internal fun MainAppContent(
                         launchSingleTop = true
                     }
                 }
+            }
+
+            NetworkCondition.ServersUnreachable -> {
+                // Backend down but device online: stay on Home. Only real
+                // offline reroutes to Downloads.
+                offlineLaunchRouteHandled = true
             }
         }
     }
@@ -965,6 +980,7 @@ internal fun MainAppContent(
             resumeProgressFraction: Float?,
             manualSelection: Boolean,
             startFromBeginning: Boolean,
+            downloadMode: Boolean = false,
         ) {
             val targetResumePositionMs = if (startFromBeginning) 0L else (resumePositionMs ?: 0L)
             val targetResumeProgressFraction = if (startFromBeginning) null else resumeProgressFraction
@@ -1039,6 +1055,7 @@ internal fun MainAppContent(
                     resumeProgressFraction = targetResumeProgressFraction,
                     manualSelection = manualSelection,
                     startFromBeginning = startFromBeginning,
+                    downloadMode = downloadMode,
                 ),
             )
             navController.navigate(
@@ -1089,6 +1106,30 @@ internal fun MainAppContent(
                     resumeProgressFraction = null,
                     manualSelection = true,
                     startFromBeginning = false,
+                )
+            }
+
+        val onDownloadList: ContentPlayAction =
+            { type, videoId, parentMetaId, parentMetaType, title, logo, poster, background, seasonNumber, episodeNumber, episodeTitle, episodeThumbnail, pauseDescription, resumePositionMs ->
+                launchPlaybackWithDownloadPreference(
+                    type = type,
+                    videoId = videoId,
+                    parentMetaId = parentMetaId,
+                    parentMetaType = parentMetaType,
+                    title = title,
+                    logo = logo,
+                    poster = poster,
+                    background = background,
+                    seasonNumber = seasonNumber,
+                    episodeNumber = episodeNumber,
+                    episodeTitle = episodeTitle,
+                    episodeThumbnail = episodeThumbnail,
+                    pauseDescription = pauseDescription,
+                    resumePositionMs = resumePositionMs,
+                    resumeProgressFraction = null,
+                    manualSelection = false,
+                    startFromBeginning = false,
+                    downloadMode = true,
                 )
             }
 
@@ -1508,6 +1549,7 @@ internal fun MainAppContent(
                         navController = navController,
                         onPlay = onPlay,
                         onPlayManually = onPlayManually,
+                        onDownloadList = onDownloadList,
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                     )
@@ -1710,6 +1752,44 @@ internal fun MainAppContent(
                 )
                 }
             }
+            }
+
+            val activeDownloadCount = downloadsUiState.activeItems.size
+            if (AppFeaturePolicy.downloadsEnabled && activeDownloadCount > 0 &&
+                currentRoute !is PlayerRoute
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 60.dp, end = 12.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 6.dp,
+                ) {
+                    BadgedBox(
+                        badge = {
+                            Badge {
+                                Text(text = activeDownloadCount.toString())
+                            }
+                        },
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .clickable {
+                                activateTab(AppScreenTab.Library)
+                                navController.navigate(DownloadsRoute(downloadsTitle)) {
+                                    launchSingleTop = true
+                                }
+                            },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Download,
+                            contentDescription = downloadsTitle,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                }
             }
 
             selectedPosterActionTarget?.let { posterActionTarget ->
