@@ -1,3 +1,4 @@
+import AVKit
 import Combine
 import SwiftUI
 import UIKit
@@ -1380,13 +1381,40 @@ struct ContentView: View {
         Group {
             if #available(iOS 16.0, *) {
                 NativeNavContentView()
+                    .accessibilityHidden(systemUI.pictureInPictureMessage != nil)
+                    .allowsHitTesting(systemUI.pictureInPictureMessage == nil)
             } else {
                 ComposeView()
                     .ignoresSafeArea(.all)
+                    .accessibilityHidden(systemUI.pictureInPictureMessage != nil)
+                    .allowsHitTesting(systemUI.pictureInPictureMessage == nil)
             }
         }
         .persistentSystemOverlays(systemUI.isPlayerImmersive ? .hidden : .automatic)
         .statusBarHidden(systemUI.isPlayerImmersive)
+        .overlay {
+            if let message = systemUI.pictureInPictureMessage {
+                Color.black
+                    .ignoresSafeArea()
+                    .overlay {
+                        VStack(spacing: 16) {
+                            Image(uiImage: AVPictureInPictureController.pictureInPictureButtonStartImage)
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 96, height: 72)
+                                .accessibilityHidden(true)
+                            Text(message)
+                                .font(.body)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .foregroundStyle(.gray)
+                        .padding(24)
+                        .accessibilityElement(children: .combine)
+                    }
+            }
+        }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 DispatchQueue.main.async {

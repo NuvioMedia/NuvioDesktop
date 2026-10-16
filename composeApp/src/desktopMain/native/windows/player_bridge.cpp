@@ -1874,6 +1874,7 @@ private:
         if (!webView) return;
         double duration = doubleProperty("duration", 0.0);
         double position = doubleProperty("time-pos", 0.0);
+        double bufferedPosition = (double)(bufferedPositionMs() / 1000.0);
         double volumeLevel = volume();
         bool paused = isPaused();
         bool loading = isLoading();
@@ -1883,6 +1884,7 @@ private:
         std::ostringstream script;
         script << "window.playerUpdate({duration:" << duration
                << ",position:" << position
+               << ",bufferedPosition:" << bufferedPosition
                << ",volumeLevel:" << volumeLevel
                << ",paused:" << (paused ? "true" : "false")
                << ",loading:" << (loading ? "true" : "false")
@@ -2140,7 +2142,8 @@ private:
             if (cacheTime >= effectivePosition - 5.0) {
                 return std::max(cacheTime - effectivePosition, 0.0);
             }
-            return cacheTime;
+            double rawPosition = rawPositionSeconds();
+            return std::max(cacheTime - rawPosition, 0.0);
         }
 
         double cacheDuration = doubleProperty("demuxer-cache-duration", 0.0);

@@ -6,17 +6,27 @@ let playerSceneDidActivateNotification = Notification.Name("NuvioPlayerSceneDidA
 /// PiP presents MPV's existing VideoToolbox buffers; MPV remains the audio and playback clock owner.
 final class PlayerPictureInPictureController: NSObject,
     AVPictureInPictureControllerDelegate, AVPictureInPictureSampleBufferPlaybackDelegate {
-    let displayLayer = AVSampleBufferDisplayLayer()
+    let displayLayer: AVSampleBufferDisplayLayer
     private weak var owner: MPVPlayerViewController?
     private weak var metalLayer: MetalLayer?
     private var controller: AVPictureInPictureController?
     private var sceneActivationObserver: NSObjectProtocol?
+    private let frameQueue: DispatchQueue
+    private let prepareFrameRenderer: () -> Bool
+    private let enqueueFrame: (CMSampleBuffer) -> Void
+    private let clearFrameRenderer: () -> Void
     private let frameLock = NSLock()
     private var pendingFrame: (CVPixelBuffer, Double)?
     private var drainScheduled = false
     private var acceptingFrames = true
+    private var feedingRestoreTransition = false
     private var lastPrimeTime: TimeInterval = 0
-    private var receivedFrame = false
+    private var hasReceivedFrame = false
+    private var receivedFrame: Bool {
+        frameLock.lock()
+        defer { frameLock.unlock() }
+        return hasReceivedFrame
+    }
     private var timebase: CMTimebase?
     private var cachedFormat: CMVideoFormatDescription?
     private(set) var isStarting = false
@@ -27,12 +37,70 @@ final class PlayerPictureInPictureController: NSObject,
     private var isForegroundActive = true
     private var shouldReturnToInline = false
     private var stopRequested = false
+    private var waitingForInlinePresentation = false
+    private var restoringInline = false
+    private var inlinePresentationPrepared = false
+
+    private func cancelInlinePresentationWait() {
+        waitingForInlinePresentation = false
+        restoringInline = false
+        inlinePresentationPrepared = false
+        frameLock.lock()
+        feedingRestoreTransition = false
+        frameLock.unlock()
+        metalLayer?.cancelPresentationObserver()
+    }
+
+    private func prepareInlinePresentation() {
+        guard !inlinePresentationPrepared, !isBackground,
+              UIApplication.shared.applicationState == .active,
+              owner?.viewIfLoaded?.window?.windowScene?.activationState == .foregroundActive,
+              owner?.isPlayerPlaying == true, owner?.isPlayerLoading == false,
+              let metalLayer else { return }
+        inlinePresentationPrepared = true
+        waitingForInlinePresentation = true
+        // AVKit still needs the existing buffers until its stop animation finishes.
+        frameLock.lock()
+        feedingRestoreTransition = true
+        frameLock.unlock()
+        metalLayer.observeNextPresentedDrawable { [weak self] _ in
+            guard let self, self.waitingForInlinePresentation, !self.isBackground else { return }
+            self.waitingForInlinePresentation = false
+            // Keep inline video covered until AVKit's stop animation also finishes.
+            if !self.isActive, !self.isStarting {
+                self.owner?.setPictureInPicturePlaceholderVisible(false)
+            }
+        }
+        // Arm presentation feedback before allowing MPV's original Metal output.
+        metalLayer.nuvioPiPConsumesVideo = false
+    }
 
     var keepsPlaybackAlive: Bool { isStarting || isActive }
 
     init(owner: MPVPlayerViewController, metalLayer: MetalLayer) {
+        let layer = AVSampleBufferDisplayLayer()
+        self.displayLayer = layer
         self.owner = owner
         self.metalLayer = metalLayer
+        if #available(iOS 17.0, *) {
+            let renderer = layer.sampleBufferRenderer
+            frameQueue = DispatchQueue(label: "com.nuvio.pip.frames", qos: .userInitiated)
+            prepareFrameRenderer = {
+                if renderer.status == .failed { renderer.flush() }
+                return renderer.isReadyForMoreMediaData
+            }
+            enqueueFrame = { renderer.enqueue($0) }
+            clearFrameRenderer = { renderer.flush(removingDisplayedImage: true, completionHandler: nil) }
+        } else {
+            // AVSampleBufferDisplayLayer itself remains on the main queue on iOS 16.
+            frameQueue = .main
+            prepareFrameRenderer = {
+                if layer.status == .failed { layer.flush() }
+                return layer.isReadyForMoreMediaData
+            }
+            enqueueFrame = { layer.enqueue($0) }
+            clearFrameRenderer = { layer.flushAndRemoveImage() }
+        }
         super.init()
         displayLayer.videoGravity = .resizeAspect
         var clock: CMTimebase?
@@ -64,7 +132,7 @@ final class PlayerPictureInPictureController: NSObject,
         frameLock.lock()
         guard acceptingFrames else { frameLock.unlock(); return }
         let now = ProcessInfo.processInfo.systemUptime
-        if !isPictureInPictureFrame && now - lastPrimeTime < 0.5 {
+        if !isPictureInPictureFrame && !feedingRestoreTransition && now - lastPrimeTime < 0.5 {
             frameLock.unlock()
             return
         }
@@ -74,7 +142,7 @@ final class PlayerPictureInPictureController: NSObject,
         drainScheduled = true
         frameLock.unlock()
         if schedule {
-            DispatchQueue.main.async { [weak self] in self?.drainFrame() }
+            frameQueue.async { [weak self] in self?.drainFrame() }
         }
     }
 
@@ -86,8 +154,7 @@ final class PlayerPictureInPictureController: NSObject,
         let accepts = acceptingFrames
         frameLock.unlock()
         guard accepts, let (buffer, pts) = frame, pts.isFinite else { return }
-        if displayLayer.status == .failed { displayLayer.flush() }
-        guard displayLayer.isReadyForMoreMediaData else { return }
+        guard prepareFrameRenderer() else { return }
         if cachedFormat.map({ CMVideoFormatDescriptionMatchesImageBuffer($0, imageBuffer: buffer) }) != true {
             var format: CMVideoFormatDescription?
             guard CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault,
@@ -105,14 +172,28 @@ final class PlayerPictureInPictureController: NSObject,
         if let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: true) as? [NSMutableDictionary] {
             attachments.first?[kCMSampleAttachmentKey_DisplayImmediately] = true
         }
-        if !receivedFrame {
-            receivedFrame = true
-            updatePlaybackState()
+        frameLock.lock()
+        let firstFrame = !hasReceivedFrame
+        hasReceivedFrame = true
+        frameLock.unlock()
+        if firstFrame {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.frameLock.lock()
+                let accepts = self.acceptingFrames
+                self.frameLock.unlock()
+                if accepts { self.updatePlaybackState() }
+            }
         }
-        displayLayer.enqueue(sample)
+        enqueueFrame(sample)
     }
 
     func updatePlaybackState() {
+        if waitingForInlinePresentation,
+           owner?.isPlayerPlaying != true || owner?.isPlayerLoading == true {
+            cancelInlinePresentationWait()
+            owner?.setPictureInPicturePlaceholderVisible(false)
+        }
         guard let owner, let timebase else { return }
         let position = Double(owner.positionMs) / 1000
         let now = CMTimeGetSeconds(CMTimebaseGetTime(timebase))
@@ -124,6 +205,8 @@ final class PlayerPictureInPictureController: NSObject,
     }
 
     func enteredBackground() -> Bool {
+        if waitingForInlinePresentation { owner?.setPictureInPicturePlaceholderVisible(false) }
+        cancelInlinePresentationWait()
         handoffGeneration &+= 1
         let generation = handoffGeneration
         isBackground = true
@@ -150,6 +233,7 @@ final class PlayerPictureInPictureController: NSObject,
     func enteredForeground() -> Bool {
         handoffGeneration &+= 1
         let preservePlaybackState = keepsPlaybackAlive || hasPresentedPictureInPicture || controller?.isPictureInPictureActive == true
+        let closedInBackground = hasPresentedPictureInPicture && !keepsPlaybackAlive && controller?.isPictureInPictureActive != true
         hasPresentedPictureInPicture = false
         isBackground = false
         isForegroundActive = false
@@ -160,12 +244,16 @@ final class PlayerPictureInPictureController: NSObject,
             isStarting = false
             metalLayer?.nuvioPiPConsumesVideo = false
         }
+        // A closed PiP session returns through the original background video lifecycle,
+        // while preserving the user's paused playback state.
+        if closedInBackground { owner?.restoreBackgroundVideo() }
         return preservePlaybackState
     }
 
     func becameActive() {
         isBackground = false
         isForegroundActive = true
+        if restoringInline { prepareInlinePresentation() }
         shouldReturnToInline = shouldReturnToInline || keepsPlaybackAlive || controller?.isPictureInPictureActive == true
         restoreInlineIfReady()
     }
@@ -174,6 +262,8 @@ final class PlayerPictureInPictureController: NSObject,
         guard shouldReturnToInline, isForegroundActive, !stopRequested, let controller else { return }
         if controller.isPictureInPictureActive {
             stopRequested = true
+            restoringInline = true
+            prepareInlinePresentation()
             controller.stopPictureInPicture()
         } else if !isStarting {
             // AVKit may already have finished a user-initiated enlargement.
@@ -185,6 +275,8 @@ final class PlayerPictureInPictureController: NSObject,
     }
 
     func invalidate() {
+        cancelInlinePresentationWait()
+        owner?.setPictureInPicturePlaceholderVisible(false)
         handoffGeneration &+= 1
         if let sceneActivationObserver {
             NotificationCenter.default.removeObserver(sceneActivationObserver)
@@ -197,13 +289,17 @@ final class PlayerPictureInPictureController: NSObject,
         controller?.delegate = nil
         controller?.stopPictureInPicture()
         controller = nil
-        cachedFormat = nil
         metalLayer?.pictureInPictureSink = nil
-        displayLayer.flushAndRemoveImage()
         displayLayer.removeFromSuperlayer()
+        // Serialize teardown after any in-flight enqueue, without waiting on the UI.
+        frameQueue.async { [weak self, clearFrameRenderer] in
+            self?.cachedFormat = nil
+            clearFrameRenderer()
+        }
     }
 
     func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        cancelInlinePresentationWait()
         isStarting = true
         metalLayer?.nuvioPiPConsumesVideo = true
         updatePlaybackState()
@@ -214,11 +310,15 @@ final class PlayerPictureInPictureController: NSObject,
         isStarting = false
         isActive = true
         hasPresentedPictureInPicture = true
+        // Do not include inline artwork in the transition into PiP.
+        owner?.setPictureInPicturePlaceholderVisible(true)
         restoreInlineIfReady()
     }
 
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController,
                                    failedToStartPictureInPictureWithError error: Error) {
+        cancelInlinePresentationWait()
+        owner?.setPictureInPicturePlaceholderVisible(false)
         handoffGeneration &+= 1
         isStarting = false
         isActive = false
@@ -228,19 +328,34 @@ final class PlayerPictureInPictureController: NSObject,
         if isBackground { owner?.pausePlayback() }
     }
 
+    func pictureInPictureControllerWillStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        restoringInline = true
+        prepareInlinePresentation()
+    }
+
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        prepareInlinePresentation()
+        restoringInline = false
+        frameLock.lock()
+        feedingRestoreTransition = false
+        frameLock.unlock()
+        if !inlinePresentationPrepared || !waitingForInlinePresentation {
+            owner?.setPictureInPicturePlaceholderVisible(false)
+        }
         handoffGeneration &+= 1
         isStarting = false
         isActive = false
         stopRequested = false
         shouldReturnToInline = false
         metalLayer?.nuvioPiPConsumesVideo = isBackground
-        if isBackground { owner?.pausePlayback() }
+        if isBackground { owner?.pauseBackgroundPlayback() }
     }
 
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController,
                                    restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
-        // The player stays mounted while switching apps; there is no internal navigation to restore.
+        // Restore through AVKit's lifecycle while its video still covers the player.
+        restoringInline = true
+        prepareInlinePresentation()
         completionHandler(owner?.isViewLoaded == true)
     }
 

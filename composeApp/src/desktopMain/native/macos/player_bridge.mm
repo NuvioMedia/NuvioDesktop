@@ -1818,6 +1818,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
             double position = [self doubleProperty:"time-pos" fallback:0.0];
             double volumeLevel = [self volume];
             double cacheAhead = [self cacheAheadSecondsForPosition:position];
+            double bufferedPosition = (double)([self bufferedPositionMs] / 1000.0);
             BOOL paused = [self rawIsPaused];
             BOOL ended = [self rawIsEnded];
             BOOL loading = [self rawLoadingWithPaused:paused ended:ended duration:duration];
@@ -1847,9 +1848,10 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                                          paused:paused
                                           speed:speed];
                 NSString *script = [NSString stringWithFormat:
-                    @"window.playerUpdate({duration:%0.3f,position:%0.3f,volumeLevel:%0.3f,paused:%@,loading:%@,audioTracks:%@,subtitleTracks:%@})",
+                    @"window.playerUpdate({duration:%0.3f,position:%0.3f,bufferedPosition:%0.3f,volumeLevel:%0.3f,paused:%@,loading:%@,audioTracks:%@,subtitleTracks:%@})",
                     duration,
                     position,
+                    bufferedPosition,
                     volumeLevel,
                     paused ? @"true" : @"false",
                     loading ? @"true" : @"false",
@@ -2348,7 +2350,7 @@ static void nuvioMpvWakeup(void *ctx) {
         if (cacheTime >= effectivePosition - 5.0) {
             return fmax(cacheTime - effectivePosition, 0.0);
         }
-        return cacheTime;
+        return fmax(cacheTime - safePosition, 0.0);
     }
 
     double cacheDuration = [self doubleProperty:"demuxer-cache-duration" fallback:0.0];

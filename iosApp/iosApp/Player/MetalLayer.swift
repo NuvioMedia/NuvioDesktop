@@ -1,11 +1,54 @@
 import Foundation
 import UIKit
 import CoreVideo
+import Metal
 
 class MetalLayer: CAMetalLayer {
     weak var pictureInPictureSink: PlayerPictureInPictureController?
     private let pictureInPictureLock = NSLock()
     private var consumesVideo = false
+    private var presentationGeneration: UInt = 0
+    private var presentationObserver: (generation: UInt, callback: (TimeInterval) -> Void)?
+
+    func observeNextPresentedDrawable(_ callback: @escaping (TimeInterval) -> Void) {
+        pictureInPictureLock.lock()
+        presentationGeneration &+= 1
+        presentationObserver = (presentationGeneration, callback)
+        pictureInPictureLock.unlock()
+    }
+
+    func cancelPresentationObserver() {
+        pictureInPictureLock.lock()
+        presentationGeneration &+= 1
+        presentationObserver = nil
+        pictureInPictureLock.unlock()
+    }
+
+    override func nextDrawable() -> CAMetalDrawable? {
+        pictureInPictureLock.lock()
+        let generation = presentationObserver?.generation
+        pictureInPictureLock.unlock()
+        // Return the same drawable that MoltenVK would normally acquire.
+        let drawable = super.nextDrawable()
+        guard let drawable, let generation else { return drawable }
+        pictureInPictureLock.lock()
+        let observer = presentationObserver?.generation == generation ? presentationObserver : nil
+        if observer != nil { presentationObserver = nil }
+        pictureInPictureLock.unlock()
+        if let observer {
+            drawable.addPresentedHandler { [weak self] presented in
+                let time = presented.presentedTime
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.pictureInPictureLock.lock()
+                    let current = self.presentationGeneration == generation
+                    self.pictureInPictureLock.unlock()
+                    if current { observer.callback(time) }
+                }
+            }
+        }
+        return drawable
+    }
 
     @objc var nuvioPiPConsumesVideo: Bool {
         get {

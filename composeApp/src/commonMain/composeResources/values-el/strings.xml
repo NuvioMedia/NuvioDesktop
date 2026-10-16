@@ -396,6 +396,8 @@
     <string name="settings_appearance_app_icon_sheet_title">Επιλογή εικονιδίου εφαρμογής</string>
     <string name="settings_appearance_app_language">Γλώσσα εφαρμογής</string>
     <string name="settings_appearance_app_language_sheet_title">Επιλογή γλώσσας</string>
+    <string name="settings_appearance_app_language_restart_title">Απαιτείται επανεκκίνηση</string>
+    <string name="settings_appearance_app_language_restart_message">Κλείστε και ανοίξτε ξανά την εφαρμογή για να ενημερωθεί η διάταξη για αυτή τη γλώσσα.</string>
     <string name="settings_appearance_nav_bar_style">Γραμμή πλοήγησης</string>
     <string name="settings_appearance_nav_bar_style_sheet_title">Στυλ γραμμής πλοήγησης</string>
     <string name="settings_nav_bar_glow">Λάμψη γυαλιού</string>
@@ -478,6 +480,7 @@
     <string name="settings_poster_custom">Προσαρμοσμένο</string>
     <string name="settings_poster_description">Ρύθμιση πλάτους κάρτας και ακτίνας γωνιών.</string>
     <string name="settings_poster_hide_labels">Απόκρυψη ετικετών</string>
+    <string name="settings_poster_always_show_landscape_clearlogo">Πάντα φόντο με λογότυπο για οριζόντιες αφίσες</string>
     <string name="settings_poster_landscape_mode">Οριζόντιες αφίσες</string>
     <string name="settings_poster_live_preview">Ζωντανή προεπισκόπηση</string>
     <string name="settings_poster_option_with_value">%1$s (%2$s)</string>
@@ -752,6 +755,29 @@
     <string name="settings_playback_timeout_unlimited">Απεριόριστο</string>
     <string name="settings_playback_tunneled_playback">Αναπαραγωγή μέσω σήραγγας</string>
     <string name="settings_playback_tunneled_playback_description">Συγχρονισμός ήχου/βίντεο σε επίπεδο υλικού. Μπορεί να βελτιώσει την αναπαραγωγή σε ορισμένες συσκευές Android TV.</string>
+    <string name="settings_playback_exo_native_memory">Εγγενής μνήμη ExoPlayer</string>
+    <string name="settings_playback_exo_native_memory_description">Διατήρηση της προσωρινής μνήμης αναπαραγωγής στην εγγενή μνήμη αντί στον σωρό Java, ώστε να μπορούν να φορτώνονται περισσότερα δεδομένα από μεγάλα αρχεία χωρίς πίεση στη μνήμη.</string>
+    <string name="settings_playback_exo_native_memory_unsupported">Αυτή η συσκευή δεν υποστηρίζει εγγενή μνήμη αναπαραγωγής.</string>
+    <string name="settings_playback_exo_native_memory_device">Μνήμη συσκευής: %1$s. Ασφαλές όριο προσωρινής μνήμης: %2$d MB.</string>
+    <string name="settings_playback_buffer_custom">Προσαρμοσμένη προσωρινή μνήμη αναπαραγωγής</string>
+    <string name="settings_playback_buffer_custom_description">Παράκαμψη της προσωρινής μνήμης του προγράμματος αναπαραγωγής. Όταν είναι ανενεργή, το ExoPlayer χρησιμοποιεί την κανονική προσωρινή μνήμη του ή τις προεπιλογές εγγενούς μνήμης αν η επιλογή εκείνη είναι ενεργή.</string>
+    <string name="settings_playback_buffer_warning">Αυτές οι τιμές αλλάζουν πόσα δεδομένα αποθηκεύονται στην προσωρινή μνήμη πριν και κατά την αναπαραγωγή. Μια πολύ μικρή τιμή μπορεί να προκαλέσει διακοπές, ενώ μια πολύ μεγάλη μπορεί να καταναλώσει περισσότερη μνήμη.</string>
+    <string name="settings_playback_buffer_min">Ελάχιστη προσωρινή μνήμη</string>
+    <string name="settings_playback_buffer_max">Μέγιστη προσωρινή μνήμη</string>
+    <string name="settings_playback_buffer_initial">Αρχική προσωρινή μνήμη</string>
+    <string name="settings_playback_buffer_rebuffer">Προσωρινή μνήμη μετά από διακοπή</string>
+    <string name="settings_playback_buffer_back">Προσωρινή μνήμη επιστροφής</string>
+    <string name="settings_playback_buffer_target">Στοχευόμενο μέγεθος προσωρινής μνήμης</string>
+    <string name="settings_playback_buffer_seconds">%1$ds</string>
+    <string name="settings_playback_buffer_same_as_min">%1$ds (ίδιο με το ελάχιστο)</string>
+    <string name="settings_playback_buffer_target_warning">Πάνω από το ασφαλές όριο των %1$d MB. Η αναπαραγωγή μπορεί να εξαντλήσει τη μνήμη.</string>
+    <string name="settings_playback_vod_cache">Προσωρινή μνήμη δίσκου VOD</string>
+    <string name="settings_playback_vod_cache_description">Αποθήκευση της τρέχουσας προοδευτικής ροής στον δίσκο. Η επιστροφή παραμένει άμεση πέρα από την προσωρινή μνήμη και η αναπαραγωγή συνεχίζεται σε σύντομες διακοπές δικτύου. Το HLS και το DASH δεν αποθηκεύονται στην προσωρινή μνήμη.</string>
+    <string name="settings_playback_vod_cache_auto_size">Αυτόματο μέγεθος</string>
+    <string name="settings_playback_vod_cache_auto_size_description">Ορισμός του μεγέθους της προσωρινής μνήμης με βάση τον ελεύθερο χώρο του δίσκου. Απενεργοποιήστε για να επιλέξετε μέγεθος.</string>
+    <string name="settings_playback_vod_cache_size">Μέγεθος προσωρινής μνήμης VOD</string>
+    <string name="settings_playback_vod_cache_size_value">%1$d MB</string>
+    <string name="settings_playback_vod_cache_warning">Οι εγγραφές στον δίσκο συνεχίζονται όσο αναπαράγεται μια ροή από την προσωρινή μνήμη. Ένα νέο μέγεθος εφαρμόζεται την επόμενη φορά που θα ξεκινήσει η εφαρμογή.</string>
     <string name="settings_tmdb_api_key_label">Κλειδί API</string>
     <string name="settings_tmdb_api_key_override_description">Χρησιμοποιήστε το δικό σας κλειδί API TMDB ή αφήστε το κενό για να χρησιμοποιηθεί το προεπιλεγμένο.</string>
     <string name="settings_tmdb_personal_api_key">Προσωπικό κλειδί API</string>
@@ -836,6 +862,11 @@
     <string name="settings_tracking_anime_id_tvdb">Προτίμηση TVDB</string>
     <string name="settings_tracking_anime_id_tvdb_description">Χρήση TVDB ID για ομαδοποίηση σεζόν. Πιο σταθερό από το IMDB για anime με ξεχωριστές καταχωρήσεις IMDB ανά σεζόν.</string>
     <string name="settings_tracking_anime_section">Λειτουργίες Simkl</string>
+    <string name="settings_tracking_mdblist_section">Λειτουργίες MDBList</string>
+    <string name="settings_mdblist_library_lists">Λίστες βιβλιοθήκης</string>
+    <string name="settings_mdblist_library_lists_description">Επιλέξτε ποιες λίστες MDBList εμφανίζονται στη Βιβλιοθήκη και στη Διαχείριση λιστών. Η Λίστα παρακολούθησης εμφανίζεται πάντα.</string>
+    <string name="settings_mdblist_library_lists_summary">%1$d από %2$d εμφανίζονται</string>
+    <string name="settings_mdblist_library_lists_empty">Δεν βρέθηκαν ακόμη λίστες στον λογαριασμό σας MDBList. Συγχρονίστε για να τις φορτώσετε.</string>
     <string name="settings_simkl_connect">Σύνδεση Simkl</string>
     <string name="settings_simkl_connected_as">Συνδεδεμένος ως %1$s</string>
     <string name="settings_simkl_default_user">Χρήστης Simkl</string>
@@ -911,6 +942,10 @@
     <string name="player_skip_intro">Παράλειψη εισαγωγής</string>
     <string name="player_skip_outro">Παράλειψη εξόδου</string>
     <string name="player_skip_recap">Παράλειψη ανακεφαλαίωσης</string>
+    <string name="player_auto_skip_intro_notification">Η εισαγωγή παραλείφθηκε έως το %1$s</string>
+    <string name="player_auto_skip_recap_notification">Η ανακεφαλαίωση παραλείφθηκε έως το %1$s</string>
+    <string name="player_auto_skip_outro_notification">Η έξοδος παραλείφθηκε έως το %1$s</string>
+    <string name="player_auto_skip_movie_credits_notification">Οι τίτλοι τέλους της ταινίας παραλείφθηκαν έως το %1$s</string>
     <string name="compose_player_no_subtitles_found">Δεν βρέθηκαν υπότιτλοι</string>
     <string name="lang_afrikaans">Αφρικάανς</string>
     <string name="lang_albanian">Αλβανικά</string>
@@ -1142,6 +1177,8 @@
     <string name="player_loading_starting">Έναρξη ροής…</string>
     <string name="player_loading_buffering">Φόρτωση στην προσωρινή μνήμη…</string>
     <string name="debrid_resolving_stream">Επίλυση ροής debrid</string>
+    <string name="youtube_resolving_stream">Φόρτωση βίντεο YouTube</string>
+    <string name="youtube_resolution_failed">Δεν ήταν δυνατή η φόρτωση αυτού του βίντεο YouTube.</string>
     <string name="streams_finding_streams">Εύρεση ροών…</string>
     <string name="streams_link_copied">Ο σύνδεσμος ροής αντιγράφηκε</string>
     <string name="streams_no_direct_link">Δεν υπάρχει διαθέσιμος άμεσος σύνδεσμος ροής</string>
@@ -1318,6 +1355,8 @@
     <string name="library_other">Άλλο</string>
     <string name="library_sort_added_asc">Παλαιότερη προσθήκη</string>
     <string name="library_sort_added_desc">Πρόσφατη προσθήκη</string>
+    <string name="library_sort_released_asc">Παλαιότερη κυκλοφορία</string>
+    <string name="library_sort_released_desc">Πρόσφατη κυκλοφορία</string>
     <string name="library_sort_title_asc">Τίτλος Α–Ω</string>
     <string name="library_error_sort_failed">Δεν ήταν δυνατή η φόρτωση της σειράς ταξινόμησης. Εμφανίζεται η σειρά του παρόχου.</string>
     <string name="library_sort_title_desc">Τίτλος Ω–Α</string>
@@ -2135,6 +2174,8 @@
     <string name="settings_playback_player_preference_internal">Εσωτερικός</string>
     <string name="settings_playback_reuse_binge_group">Επαναχρησιμοποίηση ομάδας binge</string>
     <string name="settings_playback_reuse_binge_group_description">Απομνημόνευση και επαναχρησιμοποίηση της τελευταίας ομάδας binge μεταξύ συνεδριών (Συνέχεια παρακολούθησης, Λεπτομέρειες κ.λπ.).</string>
+    <string name="settings_playback_preload_next_episode">Προφόρτωση πηγών επόμενου επεισοδίου</string>
+    <string name="settings_playback_preload_next_episode_description">Έναρξη αναζήτησης πηγών στο παρασκήνιο πριν εμφανιστεί το κουμπί του επόμενου επεισοδίου.</string>
     <string name="settings_playback_parental_guide">Προειδοποιήσεις περιεχομένου</string>
     <string name="settings_playback_parental_guide_description">Εμφάνιση επικάλυψης γονικής καθοδήγησης κατά την έναρξη της αναπαραγωγής.</string>
     <string name="settings_playback_pause_overlay">Επικάλυψη παύσης</string>
@@ -2385,4 +2426,5 @@
     <string name="stream_info_subtitle_source_addon">Πρόσθετο</string>
     <string name="stream_info_subtitle_source_embedded">Ενσωματωμένο</string>
     <string name="stream_info_player_engine">Μηχανή αναπαραγωγής</string>
+    <string name="stream_info_server">Διακομιστής</string>
 </resources>

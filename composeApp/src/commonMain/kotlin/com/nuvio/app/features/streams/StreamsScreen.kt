@@ -914,6 +914,7 @@ internal fun StreamList(
     val findingStreamsText = stringResource(Res.string.streams_finding_streams)
     val checkingMoreAddonsText = stringResource(Res.string.streams_checking_more_addons)
     val formatStreamSize = rememberStreamSizeLabelFormat()
+    val sharedStream = LocalSharedStream.current
     val streamBadgeSettings by remember {
         StreamBadgeSettingsRepository.ensureLoaded()
         StreamBadgeSettingsRepository.uiState
@@ -930,6 +931,28 @@ internal fun StreamList(
             ),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
+            sharedStream?.let { shared ->
+                item(key = "shared_stream") {
+                    Column {
+                        StreamSectionHeader(
+                            addonName = shared.label,
+                            isLoading = false,
+                            fetchingText = fetchingText,
+                        )
+                        StreamCard(
+                            stream = shared.stream,
+                            enabled = true,
+                            appendInstantServiceToDefaultName = false,
+                            showFileSizeBadges = streamBadgeSettings.showFileSizeBadges,
+                            showAddonLogo = streamBadgeSettings.showAddonLogo,
+                            badgePlacement = streamBadgeSettings.badgePlacement,
+                            onClick = { onStreamSelected(shared.stream, resumePositionMs, resumeProgressFraction) },
+                            isCurrent = true,
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                }
+            }
             when {
                 hasGroups && anyLoading && !hasAnyStreams -> {
                     item(

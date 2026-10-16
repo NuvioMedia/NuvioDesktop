@@ -1236,6 +1236,7 @@ kotlin {
             implementation(libs.supabase.auth)
             implementation(libs.supabase.functions)
             implementation(libs.supabase.storage)
+            implementation(libs.supabase.realtime)
             implementation(libs.reorderable)
         }
         val desktopTest by getting {

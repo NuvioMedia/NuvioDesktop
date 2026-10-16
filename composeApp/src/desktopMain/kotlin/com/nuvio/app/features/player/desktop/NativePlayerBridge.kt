@@ -1,5 +1,6 @@
 package com.nuvio.app.features.player.desktop
 
+import co.touchlab.kermit.Logger
 import com.nuvio.app.core.storage.DesktopCache
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -22,8 +23,22 @@ internal object NativePlayerBridge {
     )
     private val preloadStarted = AtomicBoolean(false)
 
-    init {
+    private val log = Logger.withTag("NativePlayerBridge")
+
+    private val loadFailure: Throwable? = try {
         loadNativeLibrary()
+        null
+    } catch (error: Throwable) {
+        log.e(error) { "native player library failed to load" }
+        error
+    }
+
+    fun ensureLoaded() {
+        val failure = loadFailure ?: return
+        throw IllegalStateException(
+            "Native player failed to load: ${failure.javaClass.simpleName}: ${failure.message}",
+            failure,
+        )
     }
 
     /**
@@ -116,7 +131,10 @@ internal object NativePlayerBridge {
     external fun shutdownWebView2Warmup()
     external fun setWindowsDisplaySleepInhibited(inhibited: Boolean): Boolean
 
-    val controlsPageUrl: String by lazy { controlsPageAssets.url }
+    val controlsPageUrl: String by lazy {
+        ensureLoaded()
+        controlsPageAssets.url
+    }
     private val controlsPageAssets: ControlsPageAssets by lazy { exportControlsPageAssets() }
 
     fun preloadAsync() {
@@ -200,7 +218,8 @@ internal object NativePlayerBridge {
         windowsNativeRuntimeDependencyNames.forEach { name ->
             val dependency = directory.resolve(name)
             if (dependency.exists()) {
-                System.load(dependency.absolutePath)
+                runCatching { System.load(dependency.absolutePath) }
+                    .onFailure { error -> log.w(error) { "skipping runtime dependency $name" } }
             }
         }
     }

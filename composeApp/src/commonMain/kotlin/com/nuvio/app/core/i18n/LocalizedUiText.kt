@@ -1,6 +1,7 @@
 package com.nuvio.app.core.i18n
 
 import kotlinx.coroutines.runBlocking
+import nuvio.composeapp.generated.resources.player_picture_in_picture
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_play
 import nuvio.composeapp.generated.resources.action_play_episode
@@ -183,6 +184,9 @@ fun localizedByteUnit(unit: String): String =
         "KB" -> resourceString("KB") { getString(Res.string.unit_bytes_kb) }
         else -> resourceString("B") { getString(Res.string.unit_bytes_b) }
     }
+
+fun localizedPlayerPictureInPicture(): String =
+    resourceString("Nuvio is playing in Picture in Picture mode") { getString(Res.string.player_picture_in_picture) }
 
 private fun resourceString(
     fallback: String,

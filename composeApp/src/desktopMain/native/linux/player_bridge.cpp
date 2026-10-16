@@ -867,6 +867,8 @@ gboolean pushPlayerUpdate(gpointer data) {
     }
     double duration = mpvGetDouble(player->mpv, "duration");
     double position = mpvGetDouble(player->mpv, "time-pos");
+    double cache = mpvGetDouble(player->mpv, "demuxer-cache-time");
+    double bufferedPosition = std::max((cache > position ? cache : position), 0.0);
     double volumeLevel = mpvGetDouble(player->mpv, "volume") / 100.0;
     volumeLevel = std::max(0.0, std::min(kMaxVolumePercent / 100.0, volumeLevel));
     bool paused = mpvGetFlag(player->mpv, "pause");
@@ -875,8 +877,8 @@ gboolean pushPlayerUpdate(gpointer data) {
     std::string subtitleTracks = buildTracksJson(player->mpv, "sub");
     char head[224];
     snprintf(head, sizeof(head),
-             "window.playerUpdate&&window.playerUpdate({duration:%0.3f,position:%0.3f,volumeLevel:%0.3f,paused:%s,loading:%s,audioTracks:",
-             duration, position, volumeLevel, paused ? "true" : "false", loading ? "true" : "false");
+             "window.playerUpdate&&window.playerUpdate({duration:%0.3f,position:%0.3f,bufferedPosition:%0.3f,volumeLevel:%0.3f,paused:%s,loading:%s,audioTracks:",
+             duration, position, bufferedPosition, volumeLevel, paused ? "true" : "false", loading ? "true" : "false");
     std::string js = std::string(head) + audioTracks +
                      ",subtitleTracks:" + subtitleTracks + "})";
     evalJs(player->webview, js);
