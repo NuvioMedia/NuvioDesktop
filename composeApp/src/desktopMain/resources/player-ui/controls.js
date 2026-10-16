@@ -169,6 +169,20 @@ const playerToast = document.getElementById("playerToast");
 const playerToastIcon = document.getElementById("playerToastIcon");
 const playerToastIconUse = document.getElementById("playerToastIconUse");
 const playerToastText = document.getElementById("playerToastText");
+const seekOverlay = document.getElementById("seekOverlay");
+const seekOverlayTime = document.getElementById("seekOverlayTime");
+const seekIndicators = {
+  forward: {
+    root: document.getElementById("seekIndicatorForward"),
+    text: document.getElementById("seekIndicatorForwardText"),
+    chevrons: document.querySelector("#seekIndicatorForward .seek-indicator-chevrons"),
+  },
+  back: {
+    root: document.getElementById("seekIndicatorBack"),
+    text: document.getElementById("seekIndicatorBackText"),
+    chevrons: document.querySelector("#seekIndicatorBack .seek-indicator-chevrons"),
+  },
+};
 
 let state = {
   title: "",
@@ -358,6 +372,17 @@ let state = {
 };
 let isScrubbing = false;
 let scrubPositionMs = 0;
+// TV-style seek preview state (see "seek overlay" section below)
+let seekPreviewPositionMs = null;
+let seekHeldKey = "";
+let seekKeyRepeatCount = 0;
+let seekOverlayHideTimer = 0;
+let lastSeekTargetMs = 0;
+let lastSeekAt = 0;
+let seekIndicatorDirection = "";
+let seekIndicatorTotalMs = 0;
+let seekIndicatorHideTimer = 0;
+let seekIndicatorLastPulseAt = 0;
 let tapTimer = 0;
 let activeModal = "";
 let pressedButton = null;
@@ -2397,7 +2422,11 @@ const finishChromePointerInteraction = event => {
 
 const renderChrome = () => {
   const durationMs = Math.max(0, Number(state.durationMs) || 0);
-  const positionMs = isScrubbing ? scrubPositionMs : Math.max(0, Number(state.positionMs) || 0);
+  const positionMs = isScrubbing
+    ? scrubPositionMs
+    : seekPreviewPositionMs !== null
+      ? seekPreviewPositionMs
+      : Math.max(0, Number(state.positionMs) || 0);
   const isPlaying = Boolean(state.isPlaying);
   const showError = renderPlaybackError();
   root.classList.toggle("pip-mode", Boolean(state.isInPip));
@@ -2475,6 +2504,7 @@ const renderChrome = () => {
     renderNativePlaybackPrompts();
   }
   syncChromeAutoHideTimer(showOpening);
+  syncSeekOverlayVisibility();
 };
 
 const render = (modalOpened = false) => {
@@ -2623,42 +2653,227 @@ const keepChromeVisibleFromKeyboard = () => {
   noteChromeActivity(true);
 };
 
-let fineSeekTimer = 0;
-let fineSeekAccumulatedMs = 0;
-let fineSeekDirection = null;
+// ---------------------------------------------------------------------------
+// Seek overlay (mirrors NuvioTV): while the main controls are hidden, seeking shows
+// only a progress bar with "current / total" at the bottom (no top pill).
+//  - Arrow / J / L: hold to scrub, step grows with key repeat (10s -> 20s -> 30s -> 60s),
+//    the seek is committed once on key release.
+//  - Mouse back/forward buttons, Shift+Arrow and Shift/progress-bar wheel seek immediately.
+//  - With the controls visible, the main progress bar is the feedback (no overlay).
+// ---------------------------------------------------------------------------
+const seekOverlayHideDelayMs = 1500;
+const seekStepForKeyRepeat = repeatCount => {
+  if (repeatCount >= 15) return 60000;
+  if (repeatCount >= 8) return 30000;
+  if (repeatCount >= 3) return 20000;
+  return 10000;
+};
+
+const seekDurationMs = () => Math.max(0, Number(state.durationMs) || 0);
+
+const clampSeekTargetMs = positionMs => {
+  const durationMs = seekDurationMs();
+  const floored = Math.max(0, positionMs);
+  return durationMs > 0 ? Math.min(durationMs, floored) : floored;
+};
+
+const seekBasePositionMs = () => {
+  if (seekPreviewPositionMs !== null) return seekPreviewPositionMs;
+  const now = window.performance ? window.performance.now() : Date.now();
+  // Rapid taps: native position can still be stale right after a seek, so chain from the last target.
+  if (lastSeekAt && now - lastSeekAt < 1200) return lastSeekTargetMs;
+  return Math.max(0, Number(state.positionMs) || 0);
+};
+
+const seekOverlayAllowed = () => Boolean(
+  !state.controlsVisible &&
+  !activeModal &&
+  !playbackErrorText() &&
+  !isOpeningOverlayActive(),
+);
+
+const hideSeekOverlay = () => {
+  window.clearTimeout(seekOverlayHideTimer);
+  seekOverlayHideTimer = 0;
+  if (!seekOverlay) return;
+  seekOverlay.classList.remove("visible");
+  seekOverlay.setAttribute("aria-hidden", "true");
+};
+
+const syncSeekOverlayVisibility = () => {
+  if (seekOverlay && seekOverlay.classList.contains("visible") && !seekOverlayAllowed()) {
+    hideSeekOverlay();
+  }
+  if (seekIndicatorDirection && !seekIndicatorAllowed()) {
+    hideSeekIndicator();
+  }
+};
+
+const showSeekOverlay = positionMs => {
+  if (!seekOverlay || !seekOverlayAllowed()) {
+    hideSeekOverlay();
+    return;
+  }
+  const durationMs = seekDurationMs();
+  const percent = durationMs > 0 ? Math.max(0, Math.min(100, positionMs / durationMs * 100)) : 0;
+  seekOverlay.style.setProperty("--progress", `${percent}%`);
+  seekOverlayTime.textContent = `${formatTime(positionMs)} / ${formatTime(durationMs)}`;
+  seekOverlay.classList.add("visible");
+  seekOverlay.setAttribute("aria-hidden", "false");
+  window.clearTimeout(seekOverlayHideTimer);
+  seekOverlayHideTimer = window.setTimeout(hideSeekOverlay, seekOverlayHideDelayMs);
+};
+
+// YouTube-style side indicator: "+ N >" on the right for forward, "< - N" on the left for backward.
+// N accumulates while you keep seeking in the same direction; flipping direction cross-fades to the
+// other side and restarts the count.
+const seekIndicatorHideDelayMs = 1000;
+const seekIndicatorPulseGapMs = 360;
+
+const seekIndicatorAllowed = () => Boolean(
+  !activeModal &&
+  !playbackErrorText() &&
+  !isOpeningOverlayActive(),
+);
+
+const setSeekIndicatorVisible = (direction, visible) => {
+  const indicator = seekIndicators[direction];
+  if (!indicator || !indicator.root) return;
+  indicator.root.classList.toggle("visible", visible);
+  indicator.root.setAttribute("aria-hidden", visible ? "false" : "true");
+};
+
+const hideSeekIndicator = () => {
+  window.clearTimeout(seekIndicatorHideTimer);
+  seekIndicatorHideTimer = 0;
+  setSeekIndicatorVisible("forward", false);
+  setSeekIndicatorVisible("back", false);
+  seekIndicatorDirection = "";
+  seekIndicatorTotalMs = 0;
+  seekIndicatorLastPulseAt = 0;
+};
+
+const scheduleSeekIndicatorHide = () => {
+  window.clearTimeout(seekIndicatorHideTimer);
+  seekIndicatorHideTimer = window.setTimeout(() => {
+    seekIndicatorHideTimer = 0;
+    // Keep it up while a seek key is still held.
+    if (seekHeldKey) {
+      scheduleSeekIndicatorHide();
+      return;
+    }
+    hideSeekIndicator();
+  }, seekIndicatorHideDelayMs);
+};
+
+const noteSeekIndicator = deltaMs => {
+  if (!deltaMs) return;
+  if (!seekIndicatorAllowed()) {
+    hideSeekIndicator();
+    return;
+  }
+  const direction = deltaMs > 0 ? "forward" : "back";
+  if (direction !== seekIndicatorDirection) {
+    if (seekIndicatorDirection) setSeekIndicatorVisible(seekIndicatorDirection, false);
+    seekIndicatorDirection = direction;
+    seekIndicatorTotalMs = 0;
+    seekIndicatorLastPulseAt = 0;
+  }
+  seekIndicatorTotalMs += Math.abs(deltaMs);
+
+  const indicator = seekIndicators[direction];
+  if (!indicator || !indicator.root) return;
+  const seconds = Math.round(seekIndicatorTotalMs / 1000);
+  indicator.text.textContent = `${direction === "forward" ? "+" : "\u2212"} ${seconds}`;
+
+  const wasVisible = indicator.root.classList.contains("visible");
+  setSeekIndicatorVisible(direction, true);
+
+  const now = window.performance ? window.performance.now() : Date.now();
+  if (indicator.chevrons && (!wasVisible || now - seekIndicatorLastPulseAt >= seekIndicatorPulseGapMs)) {
+    seekIndicatorLastPulseAt = now;
+    indicator.chevrons.classList.remove("pulse");
+    void indicator.chevrons.offsetWidth; // restart the CSS animation
+    indicator.chevrons.classList.add("pulse");
+  }
+  scheduleSeekIndicatorHide();
+};
+
+const showSeekFeedback = positionMs => {
+  if (state.controlsVisible) {
+    hideSeekOverlay();
+    setProgress(positionMs, seekDurationMs());
+    noteChromeActivity();
+  } else {
+    showSeekOverlay(positionMs);
+  }
+};
+
+const rememberSeekTarget = targetMs => {
+  lastSeekTargetMs = targetMs;
+  lastSeekAt = window.performance ? window.performance.now() : Date.now();
+};
+
+// Immediate seek (mouse back/forward buttons, fine seek, wheel).
+const seekNow = (deltaMs, legacyCommand = "") => {
+  if (seekDurationMs() <= 0 && legacyCommand) {
+    // Timeline unknown: let the native side do a plain relative seek.
+    showCommandToast(legacyCommand);
+    send(legacyCommand, 0);
+    return;
+  }
+  const targetMs = clampSeekTargetMs(seekBasePositionMs() + deltaMs);
+  seekPreviewPositionMs = null;
+  state.positionMs = targetMs;
+  rememberSeekTarget(targetMs);
+  showSeekFeedback(targetMs);
+  noteSeekIndicator(deltaMs);
+  send("scrubFinish", targetMs);
+};
+
+// Held-key seek: accumulate a preview target, commit on key release.
+const previewSeekBy = deltaMs => {
+  const targetMs = clampSeekTargetMs(seekBasePositionMs() + deltaMs);
+  seekPreviewPositionMs = targetMs;
+  showSeekFeedback(targetMs);
+  noteSeekIndicator(deltaMs);
+};
+
+const commitSeekPreview = () => {
+  const targetMs = seekPreviewPositionMs;
+  seekHeldKey = "";
+  seekKeyRepeatCount = 0;
+  if (targetMs === null) return;
+  seekPreviewPositionMs = null;
+  state.positionMs = targetMs;
+  rememberSeekTarget(targetMs);
+  send("scrubFinish", targetMs);
+  showSeekFeedback(targetMs);
+};
+
+const keySeek = (isForward, event) => {
+  const legacyCommand = isForward ? "keyboardSeekForward" : "keyboardSeekBack";
+  if (seekDurationMs() <= 0) {
+    showCommandToast(legacyCommand);
+    send(legacyCommand, 0);
+    return;
+  }
+  // A fresh press restarts the acceleration ramp, like a new D-pad press on TV.
+  if (event.repeat && seekHeldKey === event.code) {
+    seekKeyRepeatCount += 1;
+  } else {
+    seekKeyRepeatCount = 0;
+  }
+  seekHeldKey = event.code;
+  const step = seekStepForKeyRepeat(seekKeyRepeatCount);
+  previewSeekBy(isForward ? step : -step);
+};
 
 const fineSeek = isForward => {
-  const direction = isForward ? "forward" : "backward";
-  const stepMs = isForward ? 1000 : -1000;
-
-  if (fineSeekDirection === direction) {
-    fineSeekAccumulatedMs += stepMs;
-  } else {
-    fineSeekDirection = direction;
-    fineSeekAccumulatedMs = stepMs;
-  }
-
-  const currentPosMs = Math.max(0, Number(state.positionMs) || 0);
-  const durationMs = Math.max(0, Number(state.durationMs) || 0);
-  const targetPosMs = Math.max(0, durationMs > 0 ? Math.min(durationMs, currentPosMs + stepMs) : currentPosMs + stepMs);
-
-  state.positionMs = targetPosMs;
-  setProgress(targetPosMs, durationMs);
-
-  const deltaSec = Math.round(fineSeekAccumulatedMs / 1000);
-  const sign = deltaSec > 0 ? "+" : "";
-  showPlayerToast(`${sign}${deltaSec}s`);
-
-  send("scrubFinish", targetPosMs);
-
-  if (fineSeekTimer) {
-    window.clearTimeout(fineSeekTimer);
-  }
-  fineSeekTimer = window.setTimeout(() => {
-    fineSeekAccumulatedMs = 0;
-    fineSeekDirection = null;
-  }, 800);
+  seekNow(isForward ? 1000 : -1000);
 };
+
+window.addEventListener("blur", commitSeekPreview);
 
 const sendKeyboardVolume = delta => {
   const currentLevel = typeof state.volumeLevel === "number" && Number.isFinite(state.volumeLevel)
@@ -2722,12 +2937,10 @@ const clearPressedButton = () => {
 
 document.addEventListener("pointerdown", event => {
   if (event.button === 3) {
-    showCommandToast("seekBack");
-    send("seekBack", 0);
+    seekNow(-10000, "seekBack");
     return;
   } else if (event.button === 4) {
-    showCommandToast("seekForward");
-    send("seekForward", 0);
+    seekNow(10000, "seekForward");
     return;
   }
   const interactingWithChrome = isChromeInteractionTarget(event.target);
@@ -3612,6 +3825,10 @@ root.addEventListener("wheel", event => {
 }, { passive: false });
 
 document.addEventListener("keyup", event => {
+  if (seekHeldKey && event.code === seekHeldKey) {
+    commitSeekPreview();
+    return;
+  }
   if (event.key === "Alt" || event.key === "Control" || event.key === "Meta" || event.metaKey || event.ctrlKey || event.altKey) {
     clearSpaceHoldTimerAndStopSpeedBoost();
     return;
@@ -3989,6 +4206,14 @@ document.addEventListener("keydown", event => {
   }
   if (command === "keyboardFineSeekBack") {
     fineSeek(false);
+    return;
+  }
+  if (command === "keyboardSeekForward") {
+    keySeek(true, event);
+    return;
+  }
+  if (command === "keyboardSeekBack") {
+    keySeek(false, event);
     return;
   }
   showCommandToast(command);

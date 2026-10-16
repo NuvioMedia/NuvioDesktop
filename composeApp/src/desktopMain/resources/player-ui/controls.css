@@ -292,6 +292,157 @@ button:disabled {
   pointer-events: none;
 }
 
+/* YouTube-style seek indicator: forward on the right, backward on the left, vertically centered. */
+.seek-indicator {
+  position: absolute;
+  top: 50%;
+  z-index: 41;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+  filter: drop-shadow(0 1px 5px rgba(0, 0, 0, .65));
+  transition: opacity 220ms ease;
+}
+
+.seek-indicator.visible {
+  opacity: 1;
+  transition-duration: 130ms;
+}
+
+.seek-indicator-back {
+  left: 2.7%;
+}
+
+.seek-indicator-forward {
+  right: 2.7%;
+}
+
+.seek-indicator-text {
+  display: block;
+}
+
+.seek-indicator-chevrons {
+  position: relative;
+  display: block;
+  width: 12px;
+  height: 22px;
+}
+
+.seek-indicator-back .seek-indicator-chevrons {
+  transform: scaleX(-1);
+}
+
+.seek-chevron {
+  position: absolute;
+  inset: 0;
+  width: 12px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.seek-chevron-ghost {
+  opacity: 0;
+}
+
+/* Every press: a ghost chevron unfolds from a thin line and the pair merges back into one (> >> >). */
+.seek-indicator-chevrons.pulse .seek-chevron-main {
+  animation: seek-chevron-main 360ms cubic-bezier(.3, 0, .2, 1) both;
+}
+
+.seek-indicator-chevrons.pulse .seek-chevron-ghost {
+  animation: seek-chevron-ghost 360ms cubic-bezier(.3, 0, .2, 1) both;
+}
+
+@keyframes seek-chevron-main {
+  0% { transform: translateX(-4px); opacity: .55; }
+  35% { transform: translateX(5px); opacity: 1; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes seek-chevron-ghost {
+  0% { transform: translateX(-12px) scaleX(.08); opacity: .9; }
+  45% { transform: translateX(-5px) scaleX(1); opacity: 1; }
+  100% { transform: translateX(2px) scaleX(1); opacity: 0; }
+}
+
+.player.pip-mode .seek-indicator {
+  font-size: 14px;
+  gap: 8px;
+}
+
+.player.opening-active .seek-indicator,
+.player.error-active .seek-indicator {
+  opacity: 0;
+}
+
+/* TV-style seek overlay: progress bar + "current / total", shown only while the main controls are hidden. */
+.seek-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  padding: 24px 32px calc(24px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(to top, rgba(0, 0, 0, .55), rgba(0, 0, 0, 0));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.seek-overlay.visible {
+  opacity: 1;
+}
+
+.seek-overlay-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--theme-timeline-track);
+  overflow: hidden;
+}
+
+.seek-overlay-fill {
+  width: var(--progress, 0%);
+  height: 100%;
+  border-radius: 3px;
+  background: var(--theme-accent-gradient, linear-gradient(var(--theme-timeline-fill), var(--theme-timeline-fill)));
+}
+
+.seek-overlay-time {
+  align-self: flex-end;
+  color: rgba(255, 255, 255, .9);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, .6);
+}
+
+.player.pip-mode .seek-overlay {
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  gap: 6px;
+}
+
+.player.opening-active .seek-overlay,
+.player.error-active .seek-overlay {
+  opacity: 0;
+}
+
 [hidden] {
   display: none !important;
 }
@@ -3415,6 +3566,9 @@ button.action:focus-visible {
   .opening-logo,
   .pause-logo,
   .player-toast,
+  .seek-overlay,
+  .seek-indicator,
+  .seek-indicator-chevrons .seek-chevron,
   .next-episode-thumb img,
   .episode-thumb img,
   .image-loading::before,

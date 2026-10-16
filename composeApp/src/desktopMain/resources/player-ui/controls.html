@@ -243,6 +243,18 @@
         <svg class="player-toast-icon" id="playerToastIcon" aria-hidden="true" hidden><use id="playerToastIconUse" href="#icon-speed"></use></svg>
         <span class="player-toast-text" id="playerToastText"></span>
       </section>
+      <section class="seek-indicator seek-indicator-back" id="seekIndicatorBack" aria-hidden="true">
+        <span class="seek-indicator-chevrons"><svg class="seek-chevron seek-chevron-ghost" viewBox="0 0 12 22" aria-hidden="true"><path d="M2 2l8 9-8 9"/></svg><svg class="seek-chevron seek-chevron-main" viewBox="0 0 12 22" aria-hidden="true"><path d="M2 2l8 9-8 9"/></svg></span>
+        <span class="seek-indicator-text" id="seekIndicatorBackText">&minus; 10</span>
+      </section>
+      <section class="seek-indicator seek-indicator-forward" id="seekIndicatorForward" aria-hidden="true">
+        <span class="seek-indicator-text" id="seekIndicatorForwardText">+ 10</span>
+        <span class="seek-indicator-chevrons"><svg class="seek-chevron seek-chevron-ghost" viewBox="0 0 12 22" aria-hidden="true"><path d="M2 2l8 9-8 9"/></svg><svg class="seek-chevron seek-chevron-main" viewBox="0 0 12 22" aria-hidden="true"><path d="M2 2l8 9-8 9"/></svg></span>
+      </section>
+      <section class="seek-overlay" id="seekOverlay" aria-hidden="true">
+        <div class="seek-overlay-track"><div class="seek-overlay-fill"></div></div>
+        <div class="seek-overlay-time" id="seekOverlayTime">00:00 / 00:00</div>
+      </section>
       <section class="modal-layer player-rail-modal" id="speedModal" aria-label="Playback speed" hidden>
         <div class="track-panel audio-rail-panel">
           <div class="track-header" id="speedPanelTitle">Playback Speed</div>
