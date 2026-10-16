@@ -2443,7 +2443,7 @@ class LinuxVideoPlayerStateLifecycleTest {
 
                 loopFuture.get(5, TimeUnit.SECONDS)
                 assertTrue(playCompleted.await(5, TimeUnit.SECONDS))
-                assertEquals(seekCallsBefore, bridge.calls().count { it.name == "seek" })
+                assertEquals(seekCallsBefore + 1, bridge.calls().count { it.name == "seek" })
                 assertEquals(0, restartCount.get())
                 assertTrue(state.isPlaying)
             } finally {
@@ -2462,6 +2462,7 @@ class LinuxVideoPlayerStateLifecycleTest {
             val openCompleted = CountDownLatch(1)
             val pauseReserved = CountDownLatch(1)
             val pauseCompleted = CountDownLatch(1)
+            val playCompleted = CountDownLatch(1)
             val restartCount = AtomicInteger()
             val state =
                 LinuxVideoPlayerState(
@@ -2473,6 +2474,7 @@ class LinuxVideoPlayerStateLifecycleTest {
                     },
                     asyncOperationCompletedForTest = { name, _ ->
                         if (name == "pause") pauseCompleted.countDown()
+                        if (name == "play") playCompleted.countDown()
                     },
                     frameRenderingEnabled = false,
                 )
@@ -2501,6 +2503,11 @@ class LinuxVideoPlayerStateLifecycleTest {
                 assertEquals(seekCallsBefore, bridge.calls().count { it.name == "seek" })
                 assertEquals(0, restartCount.get())
                 assertFalse(state.isPlaying)
+
+                state.play()
+                assertTrue(playCompleted.await(5, TimeUnit.SECONDS))
+                assertEquals(seekCallsBefore + 1, bridge.calls().count { it.name == "seek" })
+                assertTrue(state.isPlaying)
             } finally {
                 bridge.releaseConsumeEnd.countDown()
                 executor.shutdownNow()

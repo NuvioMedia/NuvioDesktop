@@ -1486,6 +1486,7 @@ class LinuxVideoPlayerState internal constructor(
                     claimsPublication = false,
                 )
             val positionSnapshotIsCurrent = eosPoll.predecessor.isCompleted
+            var promotedEosCommand: LinuxSourcePlaybackContext.CommandTicket? = null
             loopEosPollReservedForTest?.invoke()
             try {
                 val reachedEnd =
@@ -1498,19 +1499,39 @@ class LinuxVideoPlayerState internal constructor(
                             return@runCommand false
                         }
                         val consumed = withPlayer(sourceGeneration) { bridge.consumeDidPlayToEnd(it) } ?: false
-                        consumed || (positionSnapshotIsCurrent && duration > 0 && current >= duration - 0.5)
+                        val reachedEnd = consumed || (positionSnapshotIsCurrent && duration > 0 && current >= duration - 0.5)
+                        if (reachedEnd) {
+                            promotedEosCommand = playback.reservePublicationCommandIfUnchanged(eosPoll)
+                            if (promotedEosCommand == null) {
+                                playback.resume.markEndedIfConsumed(playbackGeneration) { true }
+                            }
+                        }
+                        reachedEnd
                     } ?: false
                 if (!reachedEnd) return
+                val eosCommand = promotedEosCommand ?: return
 
                 if (!loop) {
                     if (!playback.resume.markEndedIfConsumed(playbackGeneration) { true }) return
-                    publishTerminalEos(eosPoll, sourceGeneration, playback, playbackGeneration)
+                    publishTerminalEos(
+                        eosPoll,
+                        sourceGeneration,
+                        playback,
+                        playbackGeneration,
+                        eosCommand,
+                    )
                     return
                 }
 
                 // Empty polls participate in command ordering without taking managed-publication
                 // ownership. Promote an observed EOS only when no public command has superseded it.
-                restartLoopOrPublishTerminal(eosPoll, sourceGeneration, playback, playbackGeneration)
+                restartLoopOrPublishTerminal(
+                    eosPoll,
+                    sourceGeneration,
+                    playback,
+                    playbackGeneration,
+                    eosCommand,
+                )
             } finally {
                 if (ownsLoopPoll) playback.releaseEosHandling()
             }
@@ -1555,8 +1576,9 @@ class LinuxVideoPlayerState internal constructor(
         sourceGeneration: Long,
         playback: LinuxSourcePlaybackContext,
         playbackGeneration: Long,
+        promotedCommand: LinuxSourcePlaybackContext.CommandTicket? = null,
     ) {
-        val seekCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
+        val seekCommand = promotedCommand ?: playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
         val restarted = seekToAsync(0f, sourceGeneration, playback, seekCommand, replaceFrameWorker = false)
         if (restarted) {
             withContext(Dispatchers.Main) {
@@ -1581,8 +1603,9 @@ class LinuxVideoPlayerState internal constructor(
         sourceGeneration: Long,
         playback: LinuxSourcePlaybackContext,
         playbackGeneration: Long,
+        promotedCommand: LinuxSourcePlaybackContext.CommandTicket? = null,
     ) {
-        val eosCommand = playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
+        val eosCommand = promotedCommand ?: playback.reservePublicationCommandIfUnchanged(eosPoll) ?: return
         playback.runCommand(
             eosCommand,
             { terminalizeLatestPublication(sourceGeneration, playback, it) },
