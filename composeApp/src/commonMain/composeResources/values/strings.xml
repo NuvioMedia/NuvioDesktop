@@ -1797,6 +1797,7 @@
     <string name="updates_message_downloading">Downloading update...</string>
     <string name="updates_message_no_updates">No updates found.</string>
     <string name="updates_message_ready">A new version is ready to install.</string>
+    <string name="updates_message_manual_install">This install can&apos;t update itself. Update it with your package manager or from the release page.</string>
     <string name="updates_not_available">In-app updates are not available on this build.</string>
     <string name="updates_no_release_notes">No release notes were provided.</string>
     <string name="updates_preparing_download">Preparing download</string>

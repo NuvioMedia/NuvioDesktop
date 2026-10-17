@@ -7,6 +7,7 @@ actual object AppUpdaterPlatform {
     actual val isDebugBuild: Boolean
         get() = AndroidAppUpdaterPlatform.isDebugBuild()
     actual val hasSingleUpdateChannel: Boolean = false
+    actual val installsUpdatesInApp: Boolean = true
 
     actual val releaseSource: AppUpdateReleaseSource = AppUpdateReleaseSource(
         owner = "NuvioMedia",
