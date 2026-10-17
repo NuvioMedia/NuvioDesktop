@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.PlatformWindowInsets
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.features.player.desktop.DesktopHostOs
+import com.nuvio.app.features.player.desktop.MacosTitleBarHeight
 
 internal actual val nuvioPlatformExtraTopPadding: Dp = 0.dp
 internal actual val nuvioPlatformExtraBottomPadding: Dp = 0.dp
@@ -35,7 +36,7 @@ internal fun ProvideDesktopWindowInsets(
     }
 
     val inheritedInsets = LocalPlatformWindowInsets.current
-    val titleBarTop = with(LocalDensity.current) { if (isFullscreen) 0 else 28.dp.roundToPx() }
+    val titleBarTop = with(LocalDensity.current) { if (isFullscreen) 0 else MacosTitleBarHeight.roundToPx() }
     val windowInsets = remember(inheritedInsets, titleBarTop) {
         object : PlatformWindowInsets by inheritedInsets {
             override val captionBar = inheritedInsets.captionBar.withTopInset(titleBarTop)

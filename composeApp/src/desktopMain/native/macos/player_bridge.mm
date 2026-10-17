@@ -108,8 +108,27 @@ static constexpr double kMaxVolumePercent = 200.0;
     return view && [self isTitleBarPoint:pointInWindow] ? self : view;
 }
 
+- (void)performTitleBarDoubleClickAction {
+    // This view covers the title bar, so AppKit never runs its own double-click
+    // handler there. Follow the user's "double-click a window's title bar" setting.
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSString *action = [defaults stringForKey:@"AppleActionOnDoubleClick"];
+    if (!action) {
+        action = [defaults boolForKey:@"AppleMiniaturizeOnDoubleClick"] ? @"Minimize" : @"Maximize";
+    }
+    if ([action caseInsensitiveCompare:@"Minimize"] == NSOrderedSame) {
+        [self.window performMiniaturize:nil];
+    } else if ([action caseInsensitiveCompare:@"None"] != NSOrderedSame) {
+        [self.window performZoom:nil];
+    }
+}
+
 - (void)mouseDown:(NSEvent *)event {
     if ([self isTitleBarPoint:event.locationInWindow]) {
+        if (event.clickCount == 2) {
+            [self performTitleBarDoubleClickAction];
+            return;
+        }
         [self.window performWindowDragWithEvent:event];
         return;
     }
