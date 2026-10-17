@@ -46,6 +46,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+
+import androidx.compose.ui.input.key.onKeyEvent
+
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -161,8 +166,9 @@ fun SettingsScreen(
     onCollectionsClick: () -> Unit = {},
     onWatchPartyClick: () -> Unit = {},
 ) {
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     BoxWithConstraints(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().onKeyEvent { if (it.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && it.key == androidx.compose.ui.input.key.Key.Escape) { focusManager.clearFocus(); true } else false },
     ) {
         val screenActive = LocalScreenActive.current
         val pageStateHolder = rememberSaveableStateHolder()
