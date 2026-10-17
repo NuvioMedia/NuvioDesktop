@@ -98,8 +98,33 @@ internal class DesktopAppFullscreenController {
      * then skipped and the window stays fullscreen. Verify the AWT device state
      * against the intended placement and correct it; a no-op when Compose
      * applied the change itself.
+     *
+     * Under Wayland (e.g. Niri via XWayland) the compositor presents the
+     * X window fullscreen without resizing it to the output: the frame keeps
+     * its windowed size (e.g. 1910x1050 on a 1920x1080 output) while Niri
+     * shows it top-left with window-background strips on the right/bottom,
+     * so video stays small and top-anchored instead of centered. Compose's
+     * _NET_WM_STATE_FULLSCREEN is already forwarded by XWayland, so skip the
+     * exclusive-mode override there and size the frame to the screen
+     * explicitly (idempotent when the compositor already resized it), then
+     * revalidate so the host canvas follows.
      */
     private fun enforceLinuxFullscreen(window: Window, windowState: WindowState) {
+        if (isWaylandSession()) {
+            SwingUtilities.invokeLater {
+                if (windowState.placement == WindowPlacement.Fullscreen) {
+                    val screenBounds = runCatching {
+                        window.graphicsConfiguration?.bounds
+                    }.getOrNull()
+                    if (screenBounds != null && window.bounds != screenBounds) {
+                        window.bounds = screenBounds
+                    }
+                }
+                window.revalidate()
+                window.repaint()
+            }
+            return
+        }
         fun enforce(stage: String) {
             val device = window.graphicsConfiguration?.device ?: return
             val wantFullscreen = windowState.placement == WindowPlacement.Fullscreen
@@ -291,3 +316,7 @@ private fun KeyEvent.isDesktopAppFullscreenShortcut(): Boolean {
             modifiers and KeyEvent.ALT_DOWN_MASK == 0
     return hasMacFullscreenModifiers
 }
+
+private fun isWaylandSession(): Boolean =
+    !System.getenv("WAYLAND_DISPLAY").isNullOrBlank() ||
+        System.getenv("XDG_SESSION_TYPE")?.equals("wayland", ignoreCase = true) == true
