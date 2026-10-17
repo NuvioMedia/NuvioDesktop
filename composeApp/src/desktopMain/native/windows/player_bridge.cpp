@@ -1906,11 +1906,6 @@ private:
             syncControls();
             return;
         }
-        if (type == "selectAudioTrack") {
-            selectAudioTrackId((int)std::llround(value));
-            syncControls();
-            return;
-        }
         if (type == "selectSubtitleTrack") {
             selectSubtitleTrackId((int)std::llround(value));
             syncControls();
