@@ -13,6 +13,7 @@ object TmdbService {
     private val json = Json { ignoreUnknownKeys = true }
     private val imdbToTmdbCache = linkedMapOf<String, String>()
     private val tmdbToImdbCache = linkedMapOf<String, String>()
+    private val imdbMatchCache = linkedMapOf<String, ImdbIdMatch>()
     private val cacheMutex = Mutex()
 
     suspend fun ensureTmdbId(videoId: String, mediaType: String, fallbackImdbId: String? = null): String? {
@@ -64,6 +65,51 @@ object TmdbService {
             imdbToTmdbCache["$imdbId:${normalizeMediaType(mediaType)}"] = tmdbId.toString()
         }
         return imdbId
+    }
+
+    suspend fun resolveImdbId(imdbId: String): ImdbIdMatch? {
+        val normalized = imdbId.trim().lowercase()
+        if (!normalized.startsWith("tt")) return null
+
+        val apiKey = TmdbSettingsRepository.effectiveApiKey()
+        cacheMutex.withLock {
+            imdbMatchCache[normalized]?.let { return it }
+        }
+
+        val body = fetch<TmdbFindResponse>(
+            endpoint = "find/$normalized",
+            apiKey = apiKey,
+            query = mapOf("external_source" to "imdb_id"),
+        ) ?: return null
+
+        val movie = body.movieResults.firstOrNull()
+        val tv = body.tvResults.firstOrNull()
+        val match = when {
+            movie != null && movie.id > 0 -> ImdbIdMatch(
+                imdbId = normalized,
+                tmdbId = movie.id,
+                type = "movie",
+                name = movie.title,
+                year = movie.releaseDate?.take(4)?.takeIf { it.isNotBlank() },
+                posterPath = movie.posterPath,
+            )
+            tv != null && tv.id > 0 -> ImdbIdMatch(
+                imdbId = normalized,
+                tmdbId = tv.id,
+                type = "series",
+                name = tv.name,
+                year = tv.firstAirDate?.take(4)?.takeIf { it.isNotBlank() },
+                posterPath = tv.posterPath,
+            )
+            else -> null
+        } ?: return null
+
+        cacheMutex.withLock {
+            imdbMatchCache[normalized] = match
+            imdbToTmdbCache["$normalized:${match.type}"] = match.tmdbId.toString()
+            tmdbToImdbCache["${match.tmdbId}:${match.type}"] = normalized
+        }
+        return match
     }
 
     private suspend fun imdbToTmdb(imdbId: String, mediaType: String, apiKey: String): String? {
@@ -148,6 +194,20 @@ private data class TmdbFindResponse(
 @Serializable
 private data class TmdbExternalResult(
     val id: Int,
+    val title: String? = null,
+    val name: String? = null,
+    @SerialName("release_date") val releaseDate: String? = null,
+    @SerialName("first_air_date") val firstAirDate: String? = null,
+    @SerialName("poster_path") val posterPath: String? = null,
+)
+
+data class ImdbIdMatch(
+    val imdbId: String,
+    val tmdbId: Int,
+    val type: String,
+    val name: String?,
+    val year: String?,
+    val posterPath: String?,
 )
 
 @Serializable
