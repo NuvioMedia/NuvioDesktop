@@ -52,3 +52,6 @@ private fun PlatformInsets.withTopInset(topInset: Int): PlatformInsets =
         override val top: Int
             get() = maxOf(this@withTopInset.top, topInset)
     }
+
+@Composable
+internal actual fun ResizeForKeyboard() = Unit

@@ -142,12 +142,12 @@ class AutoSyncDelayOnlyTest {
         val referenceCues = irregularTimeline(220)
         val target = shift(referenceCues, -4_000L)
 
-        val decision = AutomaticSubtitleSync.computeAlignment(
+        val decision = AutomaticDelaySyncEngine.computeAlignment(
             targetCues = target,
-            references = listOf(AutomaticSubtitleSync.ReferenceCues("ref", referenceCues)),
+            references = listOf(AutomaticDelaySyncEngine.ReferenceCues("ref", referenceCues)),
         )
 
-        val applied = decision as? AutomaticSubtitleSync.Decision.ApplyOffset
+        val applied = decision as? AutomaticDelaySyncEngine.Decision.ApplyOffset
         assertNotNull(applied)
         assertTrue(abs(applied.offsetMs - 4_000) <= 500)
     }
@@ -156,8 +156,8 @@ class AutoSyncDelayOnlyTest {
     fun automaticSyncNotApplicableWithoutReferences() {
         val target = irregularTimeline(220)
         assertEquals(
-            AutomaticSubtitleSync.Decision.NotApplicable,
-            AutomaticSubtitleSync.computeAlignment(target, emptyList()),
+            AutomaticDelaySyncEngine.Decision.NotApplicable,
+            AutomaticDelaySyncEngine.computeAlignment(target, emptyList()),
         )
     }
 
@@ -166,12 +166,12 @@ class AutoSyncDelayOnlyTest {
         val target = irregularTimeline(220)
         val unrelated = repeatedCadenceTimeline(220)
 
-        val decision = AutomaticSubtitleSync.computeAlignment(
+        val decision = AutomaticDelaySyncEngine.computeAlignment(
             targetCues = target,
-            references = listOf(AutomaticSubtitleSync.ReferenceCues("ref", unrelated)),
+            references = listOf(AutomaticDelaySyncEngine.ReferenceCues("ref", unrelated)),
         )
 
-        assertFalse(decision is AutomaticSubtitleSync.Decision.ApplyOffset)
+        assertFalse(decision is AutomaticDelaySyncEngine.Decision.ApplyOffset)
     }
 
     private fun reference(key: String, cues: List<SubtitleSyncCue>): Reference {

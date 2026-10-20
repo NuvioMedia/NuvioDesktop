@@ -80,6 +80,34 @@ nuvio_linux_ensure_uri_handler() {
     fi
 }
 
+# jpackage drops its own generated entry (/opt/nuvio/lib/<pkg>-<name>.desktop)
+# and registers it from the maintainer scripts with xdg-desktop-menu. We ship a
+# better one in usr/share/applications, so keeping both meant two icons after
+# every install/upgrade. Remove the hook and the file it points at.
+nuvio_linux_strip_generated_desktop_integration() {
+    if [[ $# -ne 1 ]]; then
+        return 2
+    fi
+
+    local root_dir="$1"
+    local shortcut_path="/${NUVIO_LINUX_SHORTCUT_RELATIVE_PATH}"
+    local script script_path entry
+
+    for script in preinst postinst prerm postrm; do
+        script_path="$root_dir/DEBIAN/$script"
+        [[ -f "$script_path" ]] || continue
+
+        # drop the entries it would install (ours ships in the payload, so it
+        # never shows up here) and then the xdg-desktop-menu calls themselves
+        while IFS= read -r entry; do
+            [[ -z "$entry" || "$entry" == "$shortcut_path" ]] && continue
+            rm -f "$root_dir$entry"
+        done < <(sed -nE 's/^[[:space:]]*xdg-desktop-menu[[:space:]]+(install|uninstall)[[:space:]]+([^[:space:]]+).*/\2/p' "$script_path")
+
+        sed -i -E '/^[[:space:]]*xdg-desktop-menu[[:space:]]+(install|uninstall)[[:space:]]/d' "$script_path"
+    done
+}
+
 nuvio_linux_write_desktop_entry_file() {
     if [[ $# -ne 3 ]]; then
         return 2

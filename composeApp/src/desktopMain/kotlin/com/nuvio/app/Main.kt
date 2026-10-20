@@ -215,7 +215,7 @@ fun main(args: Array<String>) {
 
             if (smokePlayerUrl == null) {
                 ProvideDesktopWindowInsets(isFullscreen = windowState.placement == WindowPlacement.Fullscreen) {
-                    App()
+                    MiddleClickAutoscroll { App() }
                 }
             } else {
                 // The player surface reads LocalNuvioPlatformDensity, which only

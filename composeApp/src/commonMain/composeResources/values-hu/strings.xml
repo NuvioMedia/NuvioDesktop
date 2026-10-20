@@ -1238,11 +1238,11 @@
     <string name="action_resume_episode">%1$s folytatása</string>
     <string name="collections_import_error_empty_json">A JSON üres.</string>
     <string name="collections_import_error_collection_blank_id">A(z) %1$d. gyűjtemény azonosítója (ID) üres.</string>
-    <string name="collections_import_error_collection_blank_title">A(z) \'%1$s\' gyűjtemény címe üres.</string>
-    <string name="collections_import_error_folder_blank_id">A(z) %1$d. mappa a(z) \'%2$s\' helyen üres azonosítóval rendelkezik.</string>
-    <string name="collections_import_error_folder_blank_title">A(z) \'%1$s\' mappa a(z) \'%2$s\' helyen üres címmel rendelkezik.</string>
-    <string name="collections_import_error_source_blank_fields">A(z) %1$d. forrás a(z) \'%2$s\' mappában üres mezőket tartalmaz.</string>
-    <string name="collections_import_error_trakt_list_id">A(z) %1$d. forrásból a(z) \'%2$s\' mappában hiányzik a Trakt lista ID.</string>
+    <string name="collections_import_error_collection_blank_title">A(z) '%1$s' gyűjtemény címe üres.</string>
+    <string name="collections_import_error_folder_blank_id">A(z) %1$d. mappa a(z) '%2$s' helyen üres azonosítóval rendelkezik.</string>
+    <string name="collections_import_error_folder_blank_title">A(z) '%1$s' mappa a(z) '%2$s' helyen üres címmel rendelkezik.</string>
+    <string name="collections_import_error_source_blank_fields">A(z) %1$d. forrás a(z) '%2$s' mappában üres mezőket tartalmaz.</string>
+    <string name="collections_import_error_trakt_list_id">A(z) %1$d. forrásból a(z) '%2$s' mappában hiányzik a Trakt lista ID.</string>
     <string name="collections_import_error_invalid_json">Érvénytelen JSON: %1$s</string>
     <string name="collections_folder_addon_not_found">A kiegészítő nem található: %1$s</string>
     <string name="date_month_january">január</string>

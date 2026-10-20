@@ -1,6 +1,5 @@
 package com.nuvio.app.features.autosync
 
-import com.nuvio.app.features.autosync.AutoSyncTimelineRetimer.PreparedActivity
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -11,10 +10,7 @@ import kotlin.math.max
  * mistimed and must not be used as a sync reference.
  *
  * Tracks that are near-identical in timing (e.g. CHS / CHT / bilingual variants from one source)
- * are grouped first, so correlated copies cannot outvote an independent track. With add-on
- * references the same voting guards against a mistimed add-on subtitle being trusted.
- *
- * Ported from Nuvio Reshaped's AutoSync.
+ * are grouped first, so correlated copies cannot outvote an independent track.
  */
 internal object AutoSyncReferenceConsistency {
     private const val MAX_CHECKED_REFERENCES = 8
@@ -24,7 +20,7 @@ internal object AutoSyncReferenceConsistency {
 
     internal data class Reference(
         val key: String,
-        val activity: PreparedActivity,
+        val activity: AutoSyncTimelineRetimer.PreparedActivity,
         val cueCount: Int,
     )
 
@@ -77,14 +73,14 @@ internal object AutoSyncReferenceConsistency {
 
     /** Near-identical timing (e.g. CHS / CHT / bilingual variants of one source). */
     internal fun isSameSource(
-        first: PreparedActivity,
-        second: PreparedActivity,
+        first: AutoSyncTimelineRetimer.PreparedActivity,
+        second: AutoSyncTimelineRetimer.PreparedActivity,
     ): Boolean = fineActivityOverlap(first, second) >= SAME_SOURCE_MIN_OVERLAP
 
     /** Jaccard overlap of the 100 ms activity bins at zero offset. */
     private fun fineActivityOverlap(
-        first: PreparedActivity,
-        second: PreparedActivity,
+        first: AutoSyncTimelineRetimer.PreparedActivity,
+        second: AutoSyncTimelineRetimer.PreparedActivity,
     ): Double {
         val a = first.fine.packed
         val b = second.fine.packed

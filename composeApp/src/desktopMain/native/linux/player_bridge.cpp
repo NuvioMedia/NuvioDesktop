@@ -867,6 +867,8 @@ gboolean pushPlayerUpdate(gpointer data) {
     }
     double duration = mpvGetDouble(player->mpv, "duration");
     double position = mpvGetDouble(player->mpv, "time-pos");
+    double cache = mpvGetDouble(player->mpv, "demuxer-cache-time");
+    double bufferedPosition = std::max((cache > position ? cache : position), 0.0);
     double volumeLevel = mpvGetDouble(player->mpv, "volume") / 100.0;
     volumeLevel = std::max(0.0, std::min(kMaxVolumePercent / 100.0, volumeLevel));
     bool paused = mpvGetFlag(player->mpv, "pause");
@@ -875,8 +877,8 @@ gboolean pushPlayerUpdate(gpointer data) {
     std::string subtitleTracks = buildTracksJson(player->mpv, "sub");
     char head[224];
     snprintf(head, sizeof(head),
-             "window.playerUpdate&&window.playerUpdate({duration:%0.3f,position:%0.3f,volumeLevel:%0.3f,paused:%s,loading:%s,audioTracks:",
-             duration, position, volumeLevel, paused ? "true" : "false", loading ? "true" : "false");
+             "window.playerUpdate&&window.playerUpdate({duration:%0.3f,position:%0.3f,bufferedPosition:%0.3f,volumeLevel:%0.3f,paused:%s,loading:%s,audioTracks:",
+             duration, position, bufferedPosition, volumeLevel, paused ? "true" : "false", loading ? "true" : "false");
     std::string js = std::string(head) + audioTracks +
                      ",subtitleTracks:" + subtitleTracks + "})";
     evalJs(player->webview, js);
@@ -1134,6 +1136,20 @@ gboolean createWebviewOnGtk(gpointer data) {
     GdkWindow *gdkWin = gtk_widget_get_window(win);
     Display *dpy = GDK_WINDOW_XDISPLAY(gdkWin);
     Window gtkXid = GDK_WINDOW_XID(gdkWin);
+
+    // Opt the overlay out of X frame sync before its first frame. GDK still
+    // treats it as a toplevel (the foreign host parent keeps that type), so on
+    // a compositor advertising _NET_WM_FRAME_DRAWN (mutter) it freezes the
+    // frame clock after every frame until the WM acks it — and the WM never
+    // manages this embedded window, so the first frame is the last. Since
+    // WebKitGTK 2.54 page rendering is paced by that clock: CSS transitions
+    // freeze mid-flight (the loading screen's fade-out stuck over the chrome,
+    // track panels never opening), rAF stops, and pointermove is never
+    // dispatched, so moving the mouse neither reveals the chrome nor the
+    // cursor. This is the case gdk_x11_window_set_frame_sync_enabled exists
+    // for (windows not directly managed by the WM). Must precede the first
+    // paint: it does not thaw an already-frozen clock.
+    gdk_x11_window_set_frame_sync_enabled(gdkWin, FALSE);
 
     // size to the host window (X device pixels -> GDK logical pixels, so the
     // overlay comes up at the host's size on a HiDPI output instead of
@@ -1884,6 +1900,14 @@ JNIEXPORT void JNICALL NP(selectAudioTrack)(JNIEnv *, jobject, jlong handle, jin
     int64_t id = trackId;
     if (trackId < 0) mpv_set_property_string(p->mpv, "aid", "no");
     else mpv_set_property(p->mpv, "aid", MPV_FORMAT_INT64, &id);
+}
+
+JNIEXPORT void JNICALL NP(setAudioLanguages)(JNIEnv *env, jobject, jlong handle, jstring languages) {
+    Player *p = asPlayer(handle);
+    if (!p) return;
+    std::string value = jstringToUtf8(env, languages);
+    mpv_set_property_string(p->mpv, "alang", value.c_str());
+    mpv_set_property_string(p->mpv, "aid", "auto");
 }
 
 JNIEXPORT void JNICALL NP(selectSubtitleTrack)(JNIEnv *, jobject, jlong handle, jint trackId) {

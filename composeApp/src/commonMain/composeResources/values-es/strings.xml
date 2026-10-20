@@ -1787,13 +1787,13 @@
     <string name="action_resume_episode">Reanudar %1$s</string>
     <string name="collections_import_error_empty_json">El JSON está vacío.</string>
     <string name="collections_import_error_collection_blank_id">La colección %1$d tiene el id vacío.</string>
-    <string name="collections_import_error_collection_duplicate_id">El ID de colección \'%1$s\' se usa más de una vez.</string>
+    <string name="collections_import_error_collection_duplicate_id">El ID de colección '%1$s' se usa más de una vez.</string>
     <string name="collections_import_error_collection_blank_title">La colección '%1$s' tiene el título vacío.</string>
     <string name="collections_import_error_folder_blank_id">La carpeta %1$d en '%2$s' tiene el id vacío.</string>
-    <string name="collections_import_error_folder_duplicate_id">La identificación de carpeta \'%1$s\' se usa más de una vez en \'%2$s\'.</string>
+    <string name="collections_import_error_folder_duplicate_id">La identificación de carpeta '%1$s' se usa más de una vez en '%2$s'.</string>
     <string name="collections_import_error_folder_blank_title">La carpeta '%1$s' en '%2$s' tiene el título vacío.</string>
     <string name="collections_import_error_source_blank_fields">La fuente %1$d en la carpeta '%2$s' tiene campos vacíos.</string>
-    <string name="collections_import_error_trakt_list_id">A la fuente %1$d en la carpeta \'%2$s\' le falta un ID de lista de Trakt.</string>
+    <string name="collections_import_error_trakt_list_id">A la fuente %1$d en la carpeta '%2$s' le falta un ID de lista de Trakt.</string>
     <string name="collections_import_error_invalid_json">JSON inválido: %1$s</string>
     <string name="collections_folder_addon_not_found">Complemento no encontrado: %1$s</string>
     <string name="collections_folder_trakt_movie_list">Lista de películas de Trakt</string>

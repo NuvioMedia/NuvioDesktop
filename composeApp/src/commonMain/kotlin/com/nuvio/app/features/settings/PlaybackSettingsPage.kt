@@ -495,24 +495,24 @@ private fun PlaybackSettingsSection(
                         isTablet = isTablet,
                         onCheckedChange = PlayerSettingsRepository::setTouchGesturesEnabled,
                     )
+                }
+                SettingsGroupDivider(isTablet = isTablet)
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_playback_hold_to_speed),
+                    description = stringResource(Res.string.settings_playback_hold_to_speed_description),
+                    checked = holdToSpeedEnabled,
+                    enabled = !autoPlayPlayerSettings.externalPlayerEnabled,
+                    isTablet = isTablet,
+                    onCheckedChange = PlayerSettingsRepository::setHoldToSpeedEnabled,
+                )
+                if (holdToSpeedEnabled && !autoPlayPlayerSettings.externalPlayerEnabled) {
                     SettingsGroupDivider(isTablet = isTablet)
-                    SettingsSwitchRow(
-                        title = stringResource(Res.string.settings_playback_hold_to_speed),
-                        description = stringResource(Res.string.settings_playback_hold_to_speed_description),
-                        checked = holdToSpeedEnabled,
-                        enabled = !autoPlayPlayerSettings.externalPlayerEnabled,
+                    SettingsNavigationRow(
+                        title = stringResource(Res.string.settings_playback_hold_speed),
+                        description = formatPlaybackSpeedLabel(holdToSpeedValue),
                         isTablet = isTablet,
-                        onCheckedChange = PlayerSettingsRepository::setHoldToSpeedEnabled,
+                        onClick = { showHoldToSpeedValueDialog = true },
                     )
-                    if (holdToSpeedEnabled && !autoPlayPlayerSettings.externalPlayerEnabled) {
-                        SettingsGroupDivider(isTablet = isTablet)
-                        SettingsNavigationRow(
-                            title = stringResource(Res.string.settings_playback_hold_speed),
-                            description = formatPlaybackSpeedLabel(holdToSpeedValue),
-                            isTablet = isTablet,
-                            onClick = { showHoldToSpeedValueDialog = true },
-                        )
-                    }
                 }
             }
         }
@@ -574,6 +574,14 @@ private fun PlaybackSettingsSection(
                     isTablet = isTablet,
                     onClick = { showSecondarySubtitleDialog = true },
                 )
+                if (!isIos) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    AutoSyncPlaybackSettingsRows( // AutoSync hook
+                        isTablet = isTablet,
+                        enabled = otherSubtitleOptionsEnabled && androidPlaybackEngine != AndroidPlaybackEngine.Libmpv,
+                        preferredSubtitleLanguage = preferredSubtitleLanguage,
+                    )
+                }
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
                     title = stringResource(Res.string.settings_playback_subtitle_strip_sdh),

@@ -472,6 +472,10 @@ internal fun findPreferredAudioTrackIndex(
     for (language in languages) {
         val index = tracks.indexOfFirst { languageMatchesPreference(it.language, language) }
         if (index >= 0) return index
+        val byLabel = tracks.indexOfFirst {
+            normalizeLanguageCode(it.language) == null && audioTrackMatchesLanguage(it, language)
+        }
+        if (byLabel >= 0) return byLabel
     }
     return -1
 }

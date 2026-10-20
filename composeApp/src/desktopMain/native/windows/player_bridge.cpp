@@ -1225,6 +1225,13 @@ public:
         mpvApi().setProperty(mpv, "aid", MPV_FORMAT_INT64, &id);
     }
 
+    void setAudioLanguages(const std::string &languages) {
+        std::lock_guard<std::mutex> lock(mpvMutex);
+        if (!mpv) return;
+        mpvApi().setPropertyString(mpv, "alang", languages.c_str());
+        mpvApi().setPropertyString(mpv, "aid", "auto");
+    }
+
     void selectSubtitleTrackId(int trackId) {
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
@@ -1874,6 +1881,7 @@ private:
         if (!webView) return;
         double duration = doubleProperty("duration", 0.0);
         double position = doubleProperty("time-pos", 0.0);
+        double bufferedPosition = (double)(bufferedPositionMs() / 1000.0);
         double volumeLevel = volume();
         bool paused = isPaused();
         bool loading = isLoading();
@@ -1883,6 +1891,7 @@ private:
         std::ostringstream script;
         script << "window.playerUpdate({duration:" << duration
                << ",position:" << position
+               << ",bufferedPosition:" << bufferedPosition
                << ",volumeLevel:" << volumeLevel
                << ",paused:" << (paused ? "true" : "false")
                << ",loading:" << (loading ? "true" : "false")
@@ -1901,11 +1910,6 @@ private:
         if (type == "controlsReady") {
             controlsWebReady.store(true);
             flushPendingControlsJsonIfReady();
-            syncControls();
-            return;
-        }
-        if (type == "selectAudioTrack") {
-            selectAudioTrackId((int)std::llround(value));
             syncControls();
             return;
         }
@@ -2140,7 +2144,8 @@ private:
             if (cacheTime >= effectivePosition - 5.0) {
                 return std::max(cacheTime - effectivePosition, 0.0);
             }
-            return cacheTime;
+            double rawPosition = rawPositionSeconds();
+            return std::max(cacheTime - rawPosition, 0.0);
         }
 
         double cacheDuration = doubleProperty("demuxer-cache-duration", 0.0);
@@ -2873,6 +2878,12 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_selectAudioTrack(JNIEnv *, jobject, jlong handle, jint trackId) {
     auto player = playerFromHandle(handle);
     if (player) player->selectAudioTrackId(trackId);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setAudioLanguages(JNIEnv *env, jobject, jlong handle, jstring languages) {
+    auto player = playerFromHandle(handle);
+    if (player) player->setAudioLanguages(jstringToUtf8(env, languages));
 }
 
 extern "C" JNIEXPORT void JNICALL

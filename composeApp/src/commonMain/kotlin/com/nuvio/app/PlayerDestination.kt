@@ -7,6 +7,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.nuvio.app.core.ui.NuvioToastController
+import com.nuvio.app.features.party.PartyMedia
 import com.nuvio.app.features.player.ExternalPlayerIntentResult
 import com.nuvio.app.features.player.ExternalPlayerPlatform
 import com.nuvio.app.features.player.PlayerLaunch
@@ -27,6 +28,7 @@ internal fun PlayerDestination(
     launchExternalPlayer: (ExternalPlayerIntentResult.Success) -> Boolean,
     openExternalStreamUrl: (String) -> Boolean,
     onSystemBackHandlerChanged: (PlayerRoute, (() -> Unit)?) -> Unit,
+    onOpenPartyMedia: (PartyMedia) -> Unit,
 ) {
     val popBack = rememberGuardedPopBackStack(
         navController = navController,
@@ -96,6 +98,8 @@ internal fun PlayerDestination(
         initialProgressFraction = launch.initialProgressFraction,
         contentLanguage = launch.contentLanguage,
         launchId = route.launchId,
+        sourceFilename = launch.sourceFilename,
+        stream = launch.stream,
         onBack = onBack,
         onSystemBackHandlerChanged = registerSystemBack,
         onOpenInExternalPlayer = if (externalPlayerSupported) { { request ->
@@ -148,6 +152,7 @@ internal fun PlayerDestination(
         onOpenExternalUrl = { url ->
             openExternalStreamUrl(url)
         },
+        onOpenPartyMedia = onOpenPartyMedia,
         modifier = Modifier.fillMaxSize(),
     )
 }
