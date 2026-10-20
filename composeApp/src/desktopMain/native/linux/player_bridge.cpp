@@ -867,6 +867,8 @@ gboolean pushPlayerUpdate(gpointer data) {
     }
     double duration = mpvGetDouble(player->mpv, "duration");
     double position = mpvGetDouble(player->mpv, "time-pos");
+    double cache = mpvGetDouble(player->mpv, "demuxer-cache-time");
+    double bufferedPosition = std::max((cache > position ? cache : position), 0.0);
     double volumeLevel = mpvGetDouble(player->mpv, "volume") / 100.0;
     volumeLevel = std::max(0.0, std::min(kMaxVolumePercent / 100.0, volumeLevel));
     bool paused = mpvGetFlag(player->mpv, "pause");
@@ -875,8 +877,8 @@ gboolean pushPlayerUpdate(gpointer data) {
     std::string subtitleTracks = buildTracksJson(player->mpv, "sub");
     char head[224];
     snprintf(head, sizeof(head),
-             "window.playerUpdate&&window.playerUpdate({duration:%0.3f,position:%0.3f,volumeLevel:%0.3f,paused:%s,loading:%s,audioTracks:",
-             duration, position, volumeLevel, paused ? "true" : "false", loading ? "true" : "false");
+             "window.playerUpdate&&window.playerUpdate({duration:%0.3f,position:%0.3f,bufferedPosition:%0.3f,volumeLevel:%0.3f,paused:%s,loading:%s,audioTracks:",
+             duration, position, bufferedPosition, volumeLevel, paused ? "true" : "false", loading ? "true" : "false");
     std::string js = std::string(head) + audioTracks +
                      ",subtitleTracks:" + subtitleTracks + "})";
     evalJs(player->webview, js);
@@ -1898,6 +1900,14 @@ JNIEXPORT void JNICALL NP(selectAudioTrack)(JNIEnv *, jobject, jlong handle, jin
     int64_t id = trackId;
     if (trackId < 0) mpv_set_property_string(p->mpv, "aid", "no");
     else mpv_set_property(p->mpv, "aid", MPV_FORMAT_INT64, &id);
+}
+
+JNIEXPORT void JNICALL NP(setAudioLanguages)(JNIEnv *env, jobject, jlong handle, jstring languages) {
+    Player *p = asPlayer(handle);
+    if (!p) return;
+    std::string value = jstringToUtf8(env, languages);
+    mpv_set_property_string(p->mpv, "alang", value.c_str());
+    mpv_set_property_string(p->mpv, "aid", "auto");
 }
 
 JNIEXPORT void JNICALL NP(selectSubtitleTrack)(JNIEnv *, jobject, jlong handle, jint trackId) {

@@ -37,11 +37,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
@@ -53,7 +48,8 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
-import com.nuvio.app.core.ui.PlatformBackDispatcher
+import androidx.navigationevent.DirectNavigationEventInput
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.nuvio.app.core.ui.LocalPosterClickAnchor
 import com.nuvio.app.navigation.PosterNavigationState
 import com.nuvio.app.navigation.posterNavigationEntry
@@ -117,6 +113,7 @@ import com.nuvio.app.features.home.components.shouldBlurContinueWatchingArtwork
 import com.nuvio.app.features.library.LibraryItem
 import com.nuvio.app.features.library.LibraryRepository
 import com.nuvio.app.features.library.LibrarySection
+import com.nuvio.app.features.library.rememberLibrarySectionTitleResolver
 import com.nuvio.app.features.library.LibrarySortOption
 import com.nuvio.app.features.library.LibrarySourceMode
 import com.nuvio.app.features.library.PendingTrackingMembershipRemoval
@@ -129,6 +126,11 @@ import com.nuvio.app.features.library.toMetaPreview
 import com.nuvio.app.features.membership.MemberAccessRepository
 import com.nuvio.app.features.notifications.EpisodeReleaseNotificationsRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
+import com.nuvio.app.features.party.PartyMedia
+import com.nuvio.app.features.party.PartyRepository
+import com.nuvio.app.features.party.PartyScreen
+import com.nuvio.app.features.party.PartySync
+import com.nuvio.app.features.party.message
 import com.nuvio.app.features.player.ExternalPlayerIntentResult
 import com.nuvio.app.features.player.externalPlaybackSession
 import com.nuvio.app.features.player.infusePlaybackCallbacks
@@ -186,6 +188,7 @@ import com.nuvio.app.features.servers.ServerMatcher
 import com.nuvio.app.features.servers.ServerRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import nuvio.composeapp.generated.resources.*
@@ -375,6 +378,7 @@ internal fun MainAppContent(
     val collectionsTitle = stringResource(Res.string.collections_header)
     val newCollectionTitle = stringResource(Res.string.collections_new)
     val detailsFallbackTitle = stringResource(Res.string.meta_section_details_title)
+    val watchPartyTitle = stringResource(Res.string.party_title)
     val isRemoteLibrarySource = libraryUiState.sourceMode != LibrarySourceMode.LOCAL
     val appContentGeneration = if (ownsAppRuntime && appGateController != null) {
         val generation by appGateController.contentGeneration.collectAsStateWithLifecycle()
@@ -725,13 +729,14 @@ internal fun MainAppContent(
         if (!ownsAppRuntime) return@LaunchedEffect
         if (!initialHomeReady || profileSwitchLoading) return@LaunchedEffect
         if (resumePromptItem != null) return@LaunchedEffect
+        if (currentRoute is StreamRoute || currentRoute is PlayerRoute || currentRoute is PartyRoute) return@LaunchedEffect
         if (continueWatchingPreferencesUiState.showResumePromptOnLaunch) {
             resumePromptItem = ResumePromptRepository.consumeResumePrompt()
         }
     }
 
     LaunchedEffect(currentRoute) {
-        val inPlaybackFlow = currentRoute is StreamRoute || currentRoute is PlayerRoute
+        val inPlaybackFlow = currentRoute is StreamRoute || currentRoute is PlayerRoute || currentRoute is PartyRoute
         if (inPlaybackFlow) {
             resumePromptItem = null
         }
@@ -785,6 +790,14 @@ internal fun MainAppContent(
                             navController.navigate(DownloadsRoute(downloadsTitle)) {
                                 launchSingleTop = true
                             }
+                        }
+                        AppDeepLinkRepository.markConsumed(deepLink)
+                    }
+
+                    is AppDeepLink.Party -> {
+                        appGateController?.appReady?.first { it }
+                        navController.navigate(PartyRoute(code = deepLink.code, title = watchPartyTitle)) {
+                            launchSingleTop = true
                         }
                         AppDeepLinkRepository.markConsumed(deepLink)
                     }
@@ -1046,6 +1059,32 @@ internal fun MainAppContent(
             )
         }
 
+        fun openPartyMedia(media: PartyMedia) {
+            if (navController.currentRoute is PlayerRoute) navController.popBackStack()
+            val resumePositionMs = PartyRepository.playback.value
+                ?.takeIf { it.mediaKey == null || it.mediaKey == media.key }
+                ?.let { PartySync.expectedPositionMs(it, PartyRepository.nowMs()) }
+            launchPlaybackWithDownloadPreference(
+                type = media.type,
+                videoId = media.videoId ?: media.metaId,
+                parentMetaId = media.metaId,
+                parentMetaType = media.metaType,
+                title = media.title,
+                logo = media.logo,
+                poster = media.poster,
+                background = media.background,
+                seasonNumber = media.season,
+                episodeNumber = media.episode,
+                episodeTitle = media.episodeTitle,
+                episodeThumbnail = null,
+                pauseDescription = null,
+                resumePositionMs = resumePositionMs,
+                resumeProgressFraction = null,
+                manualSelection = true,
+                startFromBeginning = resumePositionMs == null,
+            )
+        }
+
         val onPlay: ContentPlayAction =
             { type, videoId, parentMetaId, parentMetaType, title, logo, poster, background, seasonNumber, episodeNumber, episodeTitle, episodeThumbnail, pauseDescription, resumePositionMs ->
                 launchPlaybackWithDownloadPreference(
@@ -1092,6 +1131,13 @@ internal fun MainAppContent(
                 )
             }
 
+        LaunchedEffect(Unit) {
+            if (!ownsAppRuntime) return@LaunchedEffect
+            PartyRepository.events.collect { event ->
+                NuvioToastController.show(event.message())
+            }
+        }
+
         val onCatalogClick: (HomeCatalogSection) -> Unit = { section ->
             val launchId = CatalogLaunchStore.put(
                 CatalogLaunch(
@@ -1116,10 +1162,13 @@ internal fun MainAppContent(
                                     LibrarySourceMode.MDBLIST -> stringResource(Res.string.library_mdblist_title)
         }
 
+        val resolveLibrarySectionTitle = rememberLibrarySectionTitleResolver()
+
         val onLibrarySectionViewAllClick: (LibrarySection, LibrarySortOption) -> Unit = { section, sortOption ->
+            val sectionTitle = resolveLibrarySectionTitle(section.type, section.displayTitle)
             val launchId = CatalogLaunchStore.put(
                 CatalogLaunch(
-                    title = section.displayTitle,
+                    title = sectionTitle,
                     subtitle = librarySectionSubtitle,
                     target = CatalogTarget.Library(
                         contentType = section.items.firstOrNull()?.type ?: "movie",
@@ -1131,7 +1180,7 @@ internal fun MainAppContent(
             navController.navigate(
                 CatalogRoute(
                     launchId = launchId,
-                    title = section.displayTitle,
+                    title = sectionTitle,
                     subtitle = librarySectionSubtitle,
                 ),
             )
@@ -1249,6 +1298,17 @@ internal fun MainAppContent(
             selectedContinueWatchingForActions = item
         }
 
+        // Desktop has no system back, so mouse Back joins Esc in Compose's window back
+        // dispatcher; open dialogs then take it before screen-level handlers.
+        val mouseBackInput = remember { DirectNavigationEventInput() }
+        if (isDesktop) {
+            val navigationEventDispatcher = LocalNavigationEventDispatcherOwner.current?.navigationEventDispatcher
+            DisposableEffect(navigationEventDispatcher) {
+                navigationEventDispatcher?.addInput(mouseBackInput)
+                onDispose { navigationEventDispatcher?.removeInput(mouseBackInput) }
+            }
+        }
+
         AppUpdaterHost(
             controller = appUpdaterController,
             modifier = Modifier.fillMaxSize(),
@@ -1257,16 +1317,6 @@ internal fun MainAppContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.nuvio.colors.background)
-                    .onKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
-                            if (!PlatformBackDispatcher.dispatch()) {
-                                navController.popBackStack()
-                            }
-                            true
-                        } else {
-                            false
-                        }
-                    }
                     .pointerInput(Unit) {
                         awaitPointerEventScope {
                             while (true) {
@@ -1275,7 +1325,9 @@ internal fun MainAppContent(
                                     if (!event.changes.any { it.isConsumed }) {
                                         if (event.button == PointerButton.Back) {
                                             event.changes.forEach { it.consume() }
-                                            if (!PlatformBackDispatcher.dispatch()) {
+                                            if (isDesktop) {
+                                                mouseBackInput.backCompleted()
+                                            } else {
                                                 navController.popBackStack()
                                             }
                                         }
@@ -1453,6 +1505,7 @@ internal fun MainAppContent(
                                     null
                                 },
                                 onCollectionsSettingsClick = { navController.navigate(CollectionsRoute(collectionsTitle)) },
+                                onWatchPartySettingsClick = { navController.navigate(PartyRoute(title = watchPartyTitle)) },
                                 onFolderClick = { collectionId, folderId ->
                                     val folderTitle = CollectionRepository.collections.value
                                         .firstOrNull { it.id == collectionId }
@@ -1584,6 +1637,7 @@ internal fun MainAppContent(
                                 registeredPlayerSystemBack = playerRoute to handler
                             }
                         },
+                        onOpenPartyMedia = ::openPartyMedia,
                     )
                 }
                 entry<CatalogRoute> { route ->
@@ -1647,6 +1701,15 @@ internal fun MainAppContent(
                         SettingsDestination(route, navController) { onBack ->
                             PluginsSettingsScreen(onBack = onBack)
                         }
+                    }
+                }
+                entry<PartyRoute> { route ->
+                    SettingsDestination(route, navController) { onBack ->
+                        PartyScreen(
+                            initialCode = route.code,
+                            onBack = onBack,
+                            onWatch = ::openPartyMedia,
+                        )
                     }
                 }
                 entry<AccountSettingsRoute> { route ->

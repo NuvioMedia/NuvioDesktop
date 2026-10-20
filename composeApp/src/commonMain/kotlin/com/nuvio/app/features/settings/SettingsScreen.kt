@@ -99,6 +99,7 @@ import com.nuvio.app.features.tmdb.TmdbSettings
 import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesUiState
+import com.nuvio.app.features.party.PartyRepository
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_settings_page_root
 import kotlinx.coroutines.delay
@@ -111,6 +112,12 @@ import org.jetbrains.compose.resources.stringResource
 private val SettingsSearchRevealThreshold = 28.dp
 private const val SettingsSearchRevealAnimationMillis = 240L
 private const val SettingsSearchRevealHapticDelayMillis = 90L
+
+@Composable
+private fun watchPartyRow(onClick: () -> Unit): (() -> Unit)? {
+    val available by PartyRepository.available.collectAsStateWithLifecycle()
+    return onClick.takeIf { available }
+}
 
 private fun SettingsPage.isEnabledByPolicy(): Boolean =
     when (this) {
@@ -152,6 +159,7 @@ fun SettingsScreen(
     onCheckForUpdatesClick: (() -> Unit)? = null,
     onTestUpdateBannerClick: (() -> Unit)? = null,
     onCollectionsClick: () -> Unit = {},
+    onWatchPartyClick: () -> Unit = {},
 ) {
     BoxWithConstraints(
         modifier = modifier.fillMaxSize(),
@@ -415,6 +423,7 @@ fun SettingsScreen(
                 onCheckForUpdatesClick = onCheckForUpdatesClick,
                 onTestUpdateBannerClick = onTestUpdateBannerClick,
                 onCollectionsClick = onCollectionsClick,
+                onWatchPartyClick = onWatchPartyClick,
             )
         } else {
             MobileSettingsScreen(
@@ -489,6 +498,7 @@ fun SettingsScreen(
                 onCheckForUpdatesClick = onCheckForUpdatesClick,
                 onTestUpdateBannerClick = onTestUpdateBannerClick,
                 onCollectionsClick = onCollectionsClick,
+                onWatchPartyClick = onWatchPartyClick,
             )
         }
             }
@@ -569,6 +579,7 @@ private fun MobileSettingsScreen(
     onCheckForUpdatesClick: (() -> Unit)? = null,
     onTestUpdateBannerClick: (() -> Unit)? = null,
     onCollectionsClick: () -> Unit = {},
+    onWatchPartyClick: () -> Unit = {},
 ) {
     val saveableStateHolder = rememberSaveableStateHolder()
     saveableStateHolder.SaveableStateProvider(page.name) {
@@ -640,6 +651,7 @@ private fun MobileSettingsScreen(
             }
         }
 
+        val watchPartyRowClick = watchPartyRow(onWatchPartyClick)
         NuvioScreen(
             modifier = Modifier.nestedScroll(rootSearchRevealConnection),
             topPadding = if (topChromePadding != null) 0.dp else null,
@@ -697,6 +709,7 @@ private fun MobileSettingsScreen(
                             onAccountClick = onAccountClick,
                             onSwitchProfileClick = onSwitchProfile,
                             showNotificationsEntry = AppFeaturePolicy.notificationsEnabled,
+                            onWatchPartyClick = watchPartyRowClick,
                             showSupportersContributorsPage = AppFeaturePolicy.supportersContributorsPageEnabled,
                         )
                     }
@@ -960,6 +973,7 @@ private fun TabletSettingsScreen(
     onCheckForUpdatesClick: (() -> Unit)? = null,
     onTestUpdateBannerClick: (() -> Unit)? = null,
     onCollectionsClick: () -> Unit = {},
+    onWatchPartyClick: () -> Unit = {},
 ) {
     var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.General.name) }
     val activeCategory = SettingsCategory.valueOf(selectedCategory)
@@ -1098,6 +1112,7 @@ private fun TabletSettingsScreen(
                         }
                     }
                 }
+                    val watchPartyRowClick = watchPartyRow(onWatchPartyClick)
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
@@ -1163,6 +1178,7 @@ private fun TabletSettingsScreen(
                                         onTestUpdateBannerClick = onTestUpdateBannerClick,
                                         onAccountClick = { openInlinePage(SettingsPage.Account) },
                                         onSwitchProfileClick = onSwitchProfile,
+                                        onWatchPartyClick = watchPartyRowClick,
                                         showNotificationsEntry = AppFeaturePolicy.notificationsEnabled,
                                         showAccountSection = activeCategory == SettingsCategory.Account,
                                         showGeneralSection = activeCategory == SettingsCategory.General,

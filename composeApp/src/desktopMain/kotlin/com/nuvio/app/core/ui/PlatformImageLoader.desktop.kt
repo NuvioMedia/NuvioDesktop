@@ -1,5 +1,6 @@
 package com.nuvio.app.core.ui
 
+import coil3.ComponentRegistry
 import coil3.ImageLoader
 import coil3.memory.MemoryCache
 
@@ -12,7 +13,10 @@ internal actual fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoa
         MemoryCache.Builder()
             .maxSizeBytes(ImageMemoryCacheBytes)
             .build()
-    }.components {
-        add(SkiaGifDecoder.Factory())
     }
+}
+
+internal actual fun ComponentRegistry.Builder.addPlatformDecoders() {
+    add(SkiaGifDecoder.Factory())
+    add(SvgEmbeddedImageDecoder.Factory())
 }

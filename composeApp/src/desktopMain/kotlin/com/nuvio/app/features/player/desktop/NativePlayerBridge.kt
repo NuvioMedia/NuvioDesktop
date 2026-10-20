@@ -1,5 +1,6 @@
 package com.nuvio.app.features.player.desktop
 
+import co.touchlab.kermit.Logger
 import com.nuvio.app.core.storage.DesktopCache
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -22,8 +23,22 @@ internal object NativePlayerBridge {
     )
     private val preloadStarted = AtomicBoolean(false)
 
-    init {
+    private val log = Logger.withTag("NativePlayerBridge")
+
+    private val loadFailure: Throwable? = try {
         loadNativeLibrary()
+        null
+    } catch (error: Throwable) {
+        log.e(error) { "native player library failed to load" }
+        error
+    }
+
+    fun ensureLoaded() {
+        val failure = loadFailure ?: return
+        throw IllegalStateException(
+            "Native player failed to load: ${failure.javaClass.simpleName}: ${failure.message}",
+            failure,
+        )
     }
 
     /**
@@ -78,6 +93,7 @@ internal object NativePlayerBridge {
     external fun audioTracksJson(handle: Long): String
     external fun subtitleTracksJson(handle: Long): String
     external fun selectAudioTrack(handle: Long, trackId: Int)
+    external fun setAudioLanguages(handle: Long, languages: String)
     external fun selectSubtitleTrack(handle: Long, trackId: Int)
     external fun addSubtitleUrl(handle: Long, url: String)
     external fun clearExternalSubtitles(handle: Long)
@@ -116,7 +132,10 @@ internal object NativePlayerBridge {
     external fun shutdownWebView2Warmup()
     external fun setWindowsDisplaySleepInhibited(inhibited: Boolean): Boolean
 
-    val controlsPageUrl: String by lazy { controlsPageAssets.url }
+    val controlsPageUrl: String by lazy {
+        ensureLoaded()
+        controlsPageAssets.url
+    }
     private val controlsPageAssets: ControlsPageAssets by lazy { exportControlsPageAssets() }
 
     fun preloadAsync() {
@@ -200,7 +219,8 @@ internal object NativePlayerBridge {
         windowsNativeRuntimeDependencyNames.forEach { name ->
             val dependency = directory.resolve(name)
             if (dependency.exists()) {
-                System.load(dependency.absolutePath)
+                runCatching { System.load(dependency.absolutePath) }
+                    .onFailure { error -> log.w(error) { "skipping runtime dependency $name" } }
             }
         }
     }
@@ -286,6 +306,8 @@ internal object NativePlayerBridge {
                 .replace("/* __NUVIO_PLAYER_FONT_FACES__ */", nativePlayerFontFaces())
                 .toByteArray(Charsets.UTF_8),
             "controls.js" to readResourceBytes("/player-ui/controls.js"),
+            "party.css" to readResourceBytes("/player-ui/party.css"),
+            "party.js" to readResourceBytes("/player-ui/party.js"),
             "loading-indicator.js" to readResourceBytes("/player-ui/loading-indicator.js"),
             "fonts/jetbrains_sans_regular.ttf" to readResourceBytes(
                 "/composeResources/nuvio.composeapp.generated.resources/font/jetbrains_sans_regular.ttf",

@@ -168,7 +168,7 @@ internal fun TabletStreamsLayout(
                     model = tabletBackdrop,
                     contentDescription = null,
                     modifier = artworkModifier,
-                    alignment = BiasAlignment(0f, DesktopBackdropVerticalBias),
+                    alignment = BiasAlignment(-0.05f, DesktopBackdropVerticalBias),
                     contentScale = if (useWideArtworkFrame && !cropWideArtwork) ContentScale.Fit else ContentScale.Crop,
                     onSuccess = { state -> dominantBackdropPainter = state.painter },
                 )

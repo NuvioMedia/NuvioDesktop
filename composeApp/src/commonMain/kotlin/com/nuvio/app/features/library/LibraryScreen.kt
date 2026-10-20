@@ -1247,7 +1247,7 @@ private fun LazyListScope.librarySections(
         key = { section -> "library-horizontal:${section.type}" },
     ) { section ->
         NuvioShelfSection(
-            title = section.displayTitle,
+            title = localizedLibrarySectionTitle(section.type, section.displayTitle),
             entries = section.previewEntries,
             modifier = libraryContentTransitionModifier(),
             headerHorizontalPadding = 16.dp,
