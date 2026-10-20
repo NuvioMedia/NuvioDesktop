@@ -15,6 +15,11 @@ actual fun PlatformKeyboardNavigationHost() {
     DesktopKeyboardShortcutHost()
 
     DisposableEffect(Unit) {
+        DesktopGamepadNavigation.start()
+        onDispose { DesktopGamepadNavigation.stop() }
+    }
+
+    DisposableEffect(Unit) {
         val dispatcher = KeyEventDispatcher { event: KeyEvent ->
             if (event.id != KeyEvent.KEY_PRESSED) return@KeyEventDispatcher false
             val direction = when (event.keyCode) {
