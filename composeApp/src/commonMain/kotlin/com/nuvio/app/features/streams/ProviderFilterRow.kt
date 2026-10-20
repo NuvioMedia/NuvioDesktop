@@ -173,6 +173,7 @@ private fun FilterChip(
         animationSpec = tween(durationMillis = 180),
         label = "filter_chip_content",
     )
+    val chipShape = RoundedCornerShape(16.dp)
     Box(
         modifier = Modifier
             .graphicsLayer {
@@ -180,7 +181,8 @@ private fun FilterChip(
                 scaleY = scale
             }
             .height(36.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(chipShape)
+            .nuvioFocusBorder(chipShape)
             .background(containerColor)
             .nuvioFocusBorder(RoundedCornerShape(16.dp))
             .clickable(
