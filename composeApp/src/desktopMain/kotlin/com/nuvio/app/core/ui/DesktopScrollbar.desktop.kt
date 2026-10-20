@@ -3,15 +3,19 @@ package com.nuvio.app.core.ui
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.ScrollbarStyle
 import androidx.compose.foundation.VerticalScrollbar
+import androidx.compose.foundation.layout.recalculateWindowInsets
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -21,8 +25,9 @@ internal actual fun NuvioDesktopVerticalScrollbar(
     backgroundColor: Color?,
 ) {
     VerticalScrollbar(
-        adapter = rememberScrollbarAdapter(state),
-        modifier = modifier,
+        // A density change resizes items without necessarily changing the list's pixel width.
+        adapter = remember(state, LocalDensity.current) { MeasuredLazyListScrollbarAdapter(state) },
+        modifier = modifier.recalculateWindowInsets().statusBarsPadding(),
         style = nuvioDesktopScrollbarStyle(backgroundColor),
     )
 }
@@ -35,7 +40,7 @@ internal actual fun NuvioDesktopVerticalScrollbar(
 ) {
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
-        modifier = modifier,
+        modifier = modifier.recalculateWindowInsets().statusBarsPadding(),
         style = nuvioDesktopScrollbarStyle(backgroundColor),
     )
 }
@@ -48,7 +53,7 @@ internal actual fun NuvioDesktopVerticalScrollbar(
 ) {
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
-        modifier = modifier,
+        modifier = modifier.recalculateWindowInsets().statusBarsPadding(),
         style = nuvioDesktopScrollbarStyle(backgroundColor),
     )
 }

@@ -75,8 +75,8 @@ fun NuvioContinueWatchingActionSheet(
                 .padding(bottom = nuvioSafeBottomPadding(tokens.spacing.screenHorizontal)),
         ) {
             ContinueWatchingSheetHeader(item = item)
+            NuvioBottomSheetDivider()
             if (showDetailsOption) {
-                NuvioBottomSheetDivider()
                 NuvioBottomSheetActionRow(
                     icon = Icons.Default.Info,
                     title = stringResource(Res.string.cw_action_go_to_details),
@@ -84,7 +84,6 @@ fun NuvioContinueWatchingActionSheet(
                 )
             }
             if (showManualPlayOption && onPlayManually != null) {
-                NuvioBottomSheetDivider()
                 NuvioBottomSheetActionRow(
                     icon = Icons.Default.PlayArrow,
                     title = stringResource(Res.string.play_manually),
@@ -92,14 +91,12 @@ fun NuvioContinueWatchingActionSheet(
                 )
             }
             if (!item.isNextUp && onStartFromBeginning != null) {
-                NuvioBottomSheetDivider()
                 NuvioBottomSheetActionRow(
                     icon = Icons.Default.Replay,
                     title = stringResource(Res.string.cw_action_start_from_beginning),
                     onClick = { dismissAfter(onStartFromBeginning) },
                 )
             }
-            NuvioBottomSheetDivider()
             NuvioBottomSheetActionRow(
                 icon = Icons.Default.DeleteOutline,
                 title = stringResource(Res.string.cw_action_remove),

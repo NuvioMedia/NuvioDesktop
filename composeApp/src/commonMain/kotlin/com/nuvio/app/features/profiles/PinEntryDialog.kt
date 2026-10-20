@@ -26,11 +26,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Backspace
-import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,6 +54,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.DialogSurface
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
@@ -118,8 +117,10 @@ fun PinEntryDialog(
         focusRequester.requestFocus()
     }
 
-    BasicAlertDialog(onDismissRequest = onDismiss) {
-        Surface(
+    DialogSurface(
+        onDismissRequest = onDismiss,
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
@@ -143,70 +144,64 @@ fun PinEntryDialog(
                         else -> false
                     }
                 },
-            color = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+            Text(
+                text = stringResource(Res.string.pin_enter),
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = profileName,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                repeat(4) { index ->
+                    PinDot(filled = index < pin.length, hasError = error != null)
+                }
+            }
+
+            AnimatedVisibility(
+                visible = error != null,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
             ) {
                 Text(
-                    text = stringResource(Res.string.pin_enter),
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold,
+                    text = error.orEmpty(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 12.dp),
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            PinKeypad(
+                onDigit = ::submitDigit,
+                onBackspace = ::deleteDigit,
+            )
+
+            if (onForgotPin != null) {
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = profileName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = stringResource(Res.string.pin_forgot),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onForgotPin)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
                 )
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    repeat(4) { index ->
-                        PinDot(filled = index < pin.length, hasError = error != null)
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = error != null,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut(),
-                ) {
-                    Text(
-                        text = error.orEmpty(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                PinKeypad(
-                    onDigit = ::submitDigit,
-                    onBackspace = ::deleteDigit,
-                )
-
-                if (onForgotPin != null) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(Res.string.pin_forgot),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onForgotPin)
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
-                }
             }
         }
     }

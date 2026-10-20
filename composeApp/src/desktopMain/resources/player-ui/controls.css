@@ -31,9 +31,9 @@
   --theme-selected-surface-hover: #2d4565;
   --theme-selected-ring: rgba(47, 111, 237, .35);
   --theme-timeline-fill: #fff;
-  --theme-timeline-track: rgba(255, 255, 255, .28);
+  --theme-timeline-track: rgba(255, 255, 255, .3);
   --theme-buffering: #fff;
-  --theme-buffering-track: rgba(255, 255, 255, .28);
+  --theme-buffering-track: rgba(255, 255, 255, .35);
   --theme-control-foreground: #fff;
   --theme-surface-elevated: #16171d;
   --theme-surface-card: rgba(255, 255, 255, .08);
@@ -185,6 +185,12 @@ button:disabled {
   transition-duration: 1ms !important;
 }
 
+/* The open panel's scrim covers these buttons: they would look active but every click lands on the scrim. */
+.player.modal-open .header-actions {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .player.chrome-hidden .top-gradient,
 .player.chrome-hidden .bottom-gradient,
 .player.chrome-hidden .metadata,
@@ -229,7 +235,7 @@ button:disabled {
   left: 50%;
   z-index: 42;
   min-width: 108px;
-  max-width: min(240px, calc(100% - 40px));
+  max-width: min(420px, calc(100% - 40px));
   min-height: 41px;
   padding: 11px 16px;
   border: 1px solid rgba(255, 255, 255, .12);
@@ -499,7 +505,7 @@ button:disabled {
   width: 3px;
   height: 0;
   border-radius: 1px;
-  background: var(--theme-accent);
+  background: var(--theme-accent-gradient-vertical, var(--theme-accent));
   transform: scaleY(0);
   transform-origin: top;
   transition: transform 400ms var(--ease-out);
@@ -622,7 +628,7 @@ button:disabled {
 .skip-progress-fill {
   width: 0%;
   height: 100%;
-  background: var(--theme-timeline-fill);
+  background: var(--theme-accent-gradient, var(--theme-timeline-fill));
 }
 
 .next-episode-card {
@@ -674,6 +680,11 @@ button:disabled {
 
 .next-episode-card:not(.has-thumb) .next-episode-thumb img {
   display: none;
+}
+
+.next-episode-card:is(.blur-thumb) .next-episode-thumb img {
+  filter: blur(15px);
+  transform: scale(1.15);
 }
 
 .next-episode-thumb::after {
@@ -868,6 +879,189 @@ button:disabled {
   height: var(--header-icon);
 }
 
+/* PiP keeps only playback, captions/audio, volume, restore action, and pause overlay. */
+.player.pip-mode {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+}
+
+.player.pip-mode .header-button:not(#pipButton):not(#pipLockButton),
+.player.pip-mode .metadata,
+.player.pip-mode [data-command="resize"],
+.player.pip-mode [data-command="speed"],
+.player.pip-mode [data-command="sources"],
+.player.pip-mode [data-command="episodes"],
+.player.pip-mode [data-command="playNextEpisode"],
+.player.pip-mode .next-episode-card,
+.player.pip-mode .skip-prompt,
+.player.pip-mode .parental-guide,
+.player.pip-mode .opening-overlay {
+  display: none !important;
+}
+
+.player.pip-mode .header {
+  padding: 10px;
+}
+
+.player.pip-mode .header-actions {
+  margin-left: auto;
+}
+
+.player.pip-mode .action-row {
+  gap: 8px;
+}
+
+.player.pip-mode .action {
+  padding: 8px;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  justify-content: center;
+}
+
+.player.pip-mode .action span {
+  display: none;
+}
+
+.player.pip-mode .playback-status {
+  gap: 8px;
+}
+
+.player.pip-mode .volume-slider {
+  width: 76px;
+}
+
+/* PiP lock button: hidden outside pip-mode, visible inside it. */
+.pip-lock-button {
+  display: none !important;
+}
+
+.player.pip-mode .pip-lock-button {
+  display: grid !important;
+  place-items: center;
+}
+
+/* PiP pause metadata overlay (idle watching screen) */
+.player.pip-mode .pause-metadata-content {
+  padding: 14px 14px 60px 14px;
+}
+
+.player.pip-mode .pause-kicker {
+  font-size: 11px;
+}
+
+.player.pip-mode .pause-logo {
+  width: min(160px, 50vw);
+  height: 36px;
+  margin-top: 4px;
+}
+
+.player.pip-mode .pause-title {
+  font-size: 15px;
+  margin-top: 4px;
+  -webkit-line-clamp: 1;
+}
+
+.player.pip-mode .pause-episode-info,
+.player.pip-mode .pause-episode-title {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.player.pip-mode .pause-description {
+  display: none !important;
+}
+
+/* When pip is locked, hide all chrome and gradients to protect against accidental clicks */
+.player.pip-locked .content,
+.player.pip-locked .top-gradient,
+.player.pip-locked .bottom-gradient {
+  display: none !important;
+}
+
+/* When PiP is being resized, hide all overlay chrome, gradients, and modals with zero latency */
+.player.pip-mode.native-resizing .content,
+.player.pip-mode.native-resizing .top-gradient,
+.player.pip-mode.native-resizing .bottom-gradient,
+.player.pip-mode.native-resizing .pause-metadata-overlay,
+.player.pip-mode.native-resizing .opening-overlay,
+.player.pip-mode.native-resizing .pip-lock-overlay,
+.player.pip-mode.native-resizing .pip-lock-badge {
+  display: none !important;
+}
+
+.pip-lock-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 100;
+  background: transparent;
+  border: none;
+  cursor: grab;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.pip-lock-badge {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 101;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 50%;
+  background: rgba(18, 19, 24, 0.82);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transform: scale(0.88);
+  transition: opacity 180ms ease, transform 180ms ease, background 150ms ease;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.pip-lock-badge svg {
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
+}
+
+.player.pip-locked .pip-lock-overlay {
+  display: flex;
+}
+
+.player.pip-locked .pip-lock-overlay:active {
+  cursor: grabbing;
+}
+
+.player.pip-locked .pip-lock-badge {
+  display: flex;
+}
+
+/* Hovering the locked PiP window reveals the unlock padlock. Drag still works on the overlay. */
+.player.pip-locked:hover .pip-lock-badge,
+.player.pip-locked .pip-lock-badge:focus {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.player.pip-locked .pip-lock-badge:hover,
+.player.pip-locked .pip-lock-badge:focus {
+  background: rgba(30, 32, 42, 0.95);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+
 .center-controls {
   position: absolute;
   left: 50%;
@@ -901,12 +1095,8 @@ button:disabled {
 }
 
 .center-spinner {
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  border: 3px solid var(--theme-buffering-track);
-  border-top-color: var(--theme-buffering);
-  animation: center-spin 760ms linear infinite;
+  width: var(--play-icon);
+  height: var(--play-icon);
 }
 
 .playback-error {
@@ -1292,10 +1482,6 @@ button:disabled {
 .opening-spinner {
   width: 54px;
   height: 54px;
-  border-radius: 999px;
-  border: 3px solid var(--theme-buffering-track);
-  border-top-color: var(--theme-buffering);
-  animation: center-spin 760ms linear infinite;
 }
 
 .opening-status {
@@ -1332,19 +1518,13 @@ button:disabled {
   width: 0%;
   height: 100%;
   border-radius: inherit;
-  background: var(--theme-timeline-fill);
+  background: var(--theme-accent-gradient, var(--theme-timeline-fill));
   transition: width 900ms cubic-bezier(.4, 0, .2, 1);
 }
 
 @keyframes opening-logo-pulse {
   to {
     transform: scale(1.04);
-  }
-}
-
-@keyframes center-spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 
@@ -1400,7 +1580,10 @@ button:disabled {
   height: 10px;
   border-radius: 999px;
   background:
-    linear-gradient(to right, var(--theme-timeline-fill) 0 var(--progress, 0%), var(--theme-timeline-track) var(--progress, 0%) 100%);
+    var(--theme-accent-gradient, linear-gradient(var(--theme-timeline-fill), var(--theme-timeline-fill)))
+      left center / var(--progress, 0%) 100% no-repeat,
+    linear-gradient(var(--theme-buffering-track)) left center / var(--bufferProgress, 0%) 100% no-repeat,
+    var(--theme-timeline-track);
 }
 
 .scrub::-webkit-slider-thumb {
@@ -1514,11 +1697,9 @@ button:disabled {
       rgba(255, 173, 50, .78) 84%,
       #ff4d4d 100%
     ),
-    linear-gradient(
-      to right,
-      var(--theme-accent) 0 var(--volume-position),
-      rgba(255, 255, 255, .26) var(--volume-position) 100%
-    );
+    var(--theme-accent-gradient, linear-gradient(var(--theme-accent), var(--theme-accent)))
+      left center / var(--volume-position) 100% no-repeat,
+    rgba(255, 255, 255, .26);
 }
 
 .volume-slider::-webkit-slider-thumb {
@@ -1772,10 +1953,13 @@ button:disabled {
 }
 
 .player-rail-modal {
+  /* Room for the bottom bar, which stays visible under the panel: the seek bar's top sits
+     --slider-bottom + 74px above the bottom (48px action row, 16px gap, 10px seek bar), plus a 16px gap. */
+  --rail-bottom-clearance: calc(var(--slider-bottom) + 90px);
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  padding: clamp(28px, 4vw, 52px) clamp(28px, 4vw, 52px) clamp(64px, 11vh, 124px);
+  padding: clamp(28px, 4vw, 52px) clamp(28px, 4vw, 52px) max(clamp(64px, 11vh, 124px), var(--rail-bottom-clearance));
   background:
     linear-gradient(90deg, rgba(0, 0, 0, .88) 0%, rgba(0, 0, 0, .66) 36%, transparent 82%),
     linear-gradient(180deg, rgba(0, 0, 0, .6) 0%, rgba(0, 0, 0, .34) 30%, rgba(0, 0, 0, .14) 60%, transparent 100%),
@@ -1785,7 +1969,8 @@ button:disabled {
 .player-rail-modal .track-panel {
   width: auto;
   max-width: calc(100vw - clamp(56px, 8vw, 104px));
-  max-height: calc(100vh - clamp(72px, 12vh, 128px));
+  /* Fit inside the layer's padding; a vh guess let tall rails push the title up against the top edge. */
+  max-height: 100%;
   overflow: visible;
   border: 0;
   border-radius: 0;
@@ -1991,6 +2176,7 @@ button:disabled {
   padding: 4px 8px;
   flex: 0 0 auto;
   scrollbar-width: none;
+  scroll-padding-left: 6px;
 }
 
 .filter-row::-webkit-scrollbar {
@@ -2050,6 +2236,9 @@ button:disabled {
 .subtitle-rails {
   display: grid;
   grid-template-columns: 200px 300px;
+  grid-template-rows: minmax(0, 1fr);
+  flex: 0 1 auto;
+  min-height: 0;
   align-items: stretch;
   gap: 14px;
   max-width: 100%;
@@ -2079,6 +2268,7 @@ button:disabled {
 }
 
 .subtitle-rail-title {
+  flex-shrink: 0;
   overflow: hidden;
   color: var(--theme-text-muted);
   font-size: 14px;
@@ -3164,7 +3354,7 @@ button.action:focus-visible {
   }
 
   .player-rail-modal {
-    padding: 28px 24px 64px;
+    padding: 28px 24px var(--rail-bottom-clearance);
   }
 
   .subtitle-rails {
@@ -3188,7 +3378,7 @@ button.action:focus-visible {
 @media (max-height: 680px) {
   .player-rail-modal {
     padding-top: 24px;
-    padding-bottom: 48px;
+    padding-bottom: var(--rail-bottom-clearance);
   }
 
   .player-rail-modal .track-header {

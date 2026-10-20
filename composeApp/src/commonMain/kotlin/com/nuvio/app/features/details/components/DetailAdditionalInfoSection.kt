@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
+import com.nuvio.app.core.i18n.localizedMediaStatusLabel
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.formatRuntimeForDisplay
 import com.nuvio.app.isDesktop
@@ -39,7 +40,9 @@ fun DetailAdditionalInfoSection(
         stringResource(Res.string.details_movie_details)
     }
     val rows = buildList {
-        meta.status?.let { add(stringResource(Res.string.details_status) to it) }
+        meta.status?.let {
+            add(stringResource(Res.string.details_status) to localizedMediaStatusLabel(it, isSeriesLike))
+        }
         meta.releaseInfo?.let {
             add(stringResource(Res.string.details_release_info) to formatReleaseDateForDisplay(it))
         }

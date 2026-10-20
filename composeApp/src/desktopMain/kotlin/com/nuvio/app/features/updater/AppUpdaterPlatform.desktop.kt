@@ -26,6 +26,7 @@ import kotlin.system.exitProcess
 
 private const val desktopUpdaterPreferencesName = "nuvio_updater"
 private const val ignoredTagKey = "ignored_release_tag"
+private const val updateChannelKey = "update_channel"
 
 private val desktopUpdaterHttpClient: HttpClient = HttpClient.newBuilder()
     .connectTimeout(Duration.ofSeconds(60))
@@ -36,6 +37,7 @@ actual object AppUpdaterPlatform {
     private val currentOs: DesktopUpdaterOs = DesktopUpdaterOs.current()
     private val store = DesktopStorage.store(desktopUpdaterPreferencesName)
     actual val isDebugBuild: Boolean = false
+    actual val hasSingleUpdateChannel: Boolean = true
 
     // Linux ships four package formats and the running app is the only place
     // that can tell which one it was installed from, so the format is resolved
@@ -63,10 +65,22 @@ actual object AppUpdaterPlatform {
 
     actual val currentVersionName: String = AppVersionConfig.DESKTOP_VERSION_NAME
 
+    actual fun getSupportedAbis(): List<String> = emptyList()
+
     actual fun getIgnoredTag(): String? = store.getString(ignoredTagKey)
 
     actual fun setIgnoredTag(tag: String?) {
         store.putString(ignoredTagKey, tag)
+    }
+
+    actual fun getUpdateChannel(): String? = store.getString(updateChannelKey)
+
+    actual fun setUpdateChannel(channel: String) {
+        store.putString(updateChannelKey, channel)
+    }
+
+    actual fun deleteDownloadedUpdate(path: String) {
+        File(path).delete()
     }
 
     actual suspend fun downloadUpdateAsset(

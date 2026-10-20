@@ -62,7 +62,6 @@ import com.nuvio.app.core.ui.NuvioPosterShape
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.catalogPosterBaseWidthDp
 import com.nuvio.app.core.ui.desktopPageHorizontalPaddingForWidth
-import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.core.ui.posterGridColumnCountForViewport
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
@@ -73,7 +72,6 @@ import com.nuvio.app.features.home.PosterShape
 import com.nuvio.app.features.home.canOpenCatalog
 import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.home.components.HomeCatalogRowSection
-import com.nuvio.app.features.home.components.HomePosterCard
 import com.nuvio.app.features.home.components.HomePosterHoverPreview
 import com.nuvio.app.features.home.components.homeCatalogPreviewLimitForWidth
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
@@ -161,7 +159,7 @@ fun FolderDetailScreen(
                         modifier = Modifier.padding(horizontal = desktopPagePadding),
                         backgroundColor = Color.Transparent,
                         includeStatusBarPadding = false,
-                        topPadding = 32.dp,
+                        topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 32.dp,
                         onBack = onBack,
                     )
                 }
@@ -405,13 +403,7 @@ private fun TabbedGridContent(
             }
             val basePosterWidthDp = catalogPosterBaseWidthDp(posterCardStyle.widthDp)
             val gridCells = if (isDesktop) {
-                GridCells.FixedSize(
-                    if (posterCardStyle.catalogLandscapeModeEnabled) {
-                        landscapePosterWidth(basePosterWidthDp)
-                    } else {
-                        basePosterWidthDp.dp
-                    },
-                )
+                GridCells.FixedSize(basePosterWidthDp.dp)
             } else {
                 GridCells.Fixed(columns)
             }
@@ -429,6 +421,7 @@ private fun TabbedGridContent(
                             contentPadding = PaddingValues(
                                 start = pageHorizontalPadding,
                                 end = pageHorizontalPadding,
+                                top = if (isDesktop) 8.dp else 4.dp,
                                 bottom = nuvioSafeBottomPadding(18.dp),
                             ),
                             horizontalArrangement = Arrangement.spacedBy(if (isDesktop) 12.dp else 10.dp),
@@ -443,30 +436,23 @@ private fun TabbedGridContent(
                                     watchedKeys = watchedKeys,
                                     item = item,
                                 )
-                                if (isDesktop) {
-                                    HomePosterCard(
-                                        item = item,
-                                        useLandscapeBackdropMode = posterCardStyle.catalogLandscapeModeEnabled,
+                                HomePosterHoverPreview(
+                                    item = item,
+                                    isWatched = isWatched,
+                                    onClick = { onPosterClick(item) },
+                                    onLongClick = null,
+                                ) { cardModifier ->
+                                    NuvioPosterCard(
+                                        title = item.name,
+                                        imageUrl = item.poster,
+                                        modifier = cardModifier,
+                                        basePosterWidthDp = if (isDesktop) basePosterWidthDp else null,
+                                        fallbackImageUrl = item.rawPosterUrl,
+                                        shape = NuvioPosterShape.Poster,
+                                        detailLine = item.releaseInfo,
                                         isWatched = isWatched,
                                         onClick = { onPosterClick(item) },
                                     )
-                                } else {
-                                    HomePosterHoverPreview(
-                                        item = item,
-                                        isWatched = isWatched,
-                                        onClick = { onPosterClick(item) },
-                                        onLongClick = null,
-                                    ) {
-                                        NuvioPosterCard(
-                                            title = item.name,
-                                            imageUrl = item.poster,
-                                            modifier = it,
-                                            shape = NuvioPosterShape.Poster,
-                                            detailLine = item.releaseInfo,
-                                            isWatched = isWatched,
-                                            onClick = { onPosterClick(item) },
-                                        )
-                                    }
                                 }
                             }
 
@@ -586,7 +572,6 @@ private fun PaginationLoadingFooter() {
     ) {
         NuvioLoadingIndicator(
             modifier = Modifier.size(28.dp),
-            color = MaterialTheme.colorScheme.primary,
         )
     }
 }
@@ -599,7 +584,6 @@ private fun LoadingIndicator() {
     ) {
         NuvioLoadingIndicator(
             modifier = Modifier.size(32.dp),
-            color = MaterialTheme.colorScheme.primary,
         )
     }
 }

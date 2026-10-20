@@ -867,6 +867,8 @@ gboolean pushPlayerUpdate(gpointer data) {
     }
     double duration = mpvGetDouble(player->mpv, "duration");
     double position = mpvGetDouble(player->mpv, "time-pos");
+    double cache = mpvGetDouble(player->mpv, "demuxer-cache-time");
+    double bufferedPosition = std::max((cache > position ? cache : position), 0.0);
     double volumeLevel = mpvGetDouble(player->mpv, "volume") / 100.0;
     volumeLevel = std::max(0.0, std::min(kMaxVolumePercent / 100.0, volumeLevel));
     bool paused = mpvGetFlag(player->mpv, "pause");
@@ -875,8 +877,8 @@ gboolean pushPlayerUpdate(gpointer data) {
     std::string subtitleTracks = buildTracksJson(player->mpv, "sub");
     char head[224];
     snprintf(head, sizeof(head),
-             "window.playerUpdate&&window.playerUpdate({duration:%0.3f,position:%0.3f,volumeLevel:%0.3f,paused:%s,loading:%s,audioTracks:",
-             duration, position, volumeLevel, paused ? "true" : "false", loading ? "true" : "false");
+             "window.playerUpdate&&window.playerUpdate({duration:%0.3f,position:%0.3f,bufferedPosition:%0.3f,volumeLevel:%0.3f,paused:%s,loading:%s,audioTracks:",
+             duration, position, bufferedPosition, volumeLevel, paused ? "true" : "false", loading ? "true" : "false");
     std::string js = std::string(head) + audioTracks +
                      ",subtitleTracks:" + subtitleTracks + "})";
     evalJs(player->webview, js);
@@ -1134,6 +1136,20 @@ gboolean createWebviewOnGtk(gpointer data) {
     GdkWindow *gdkWin = gtk_widget_get_window(win);
     Display *dpy = GDK_WINDOW_XDISPLAY(gdkWin);
     Window gtkXid = GDK_WINDOW_XID(gdkWin);
+
+    // Opt the overlay out of X frame sync before its first frame. GDK still
+    // treats it as a toplevel (the foreign host parent keeps that type), so on
+    // a compositor advertising _NET_WM_FRAME_DRAWN (mutter) it freezes the
+    // frame clock after every frame until the WM acks it — and the WM never
+    // manages this embedded window, so the first frame is the last. Since
+    // WebKitGTK 2.54 page rendering is paced by that clock: CSS transitions
+    // freeze mid-flight (the loading screen's fade-out stuck over the chrome,
+    // track panels never opening), rAF stops, and pointermove is never
+    // dispatched, so moving the mouse neither reveals the chrome nor the
+    // cursor. This is the case gdk_x11_window_set_frame_sync_enabled exists
+    // for (windows not directly managed by the WM). Must precede the first
+    // paint: it does not thaw an already-frozen clock.
+    gdk_x11_window_set_frame_sync_enabled(gdkWin, FALSE);
 
     // size to the host window (X device pixels -> GDK logical pixels, so the
     // overlay comes up at the host's size on a HiDPI output instead of
@@ -1849,13 +1865,18 @@ JNIEXPORT jfloat JNICALL NP(speed)(JNIEnv *, jobject, jlong handle) {
 JNIEXPORT void JNICALL NP(setResizeMode)(JNIEnv *, jobject, jlong handle, jint mode) {
     Player *p = asPlayer(handle);
     if (!p) return;
-    // 0 fit, 1 fill/zoom, 2 fixed-width, 3 stretch (best-effort mpv mapping)
+    // 0 fit, 1 fill, 2 zoom, 3 stretch
     switch (mode) {
-        case 3: mpv_set_option_string(p->mpv, "keepaspect", "no"); break;
-        case 1: mpv_set_option_string(p->mpv, "keepaspect", "yes");
-                mpv_set_option_string(p->mpv, "panscan", "1.0"); break;
-        default: mpv_set_option_string(p->mpv, "keepaspect", "yes");
-                 mpv_set_option_string(p->mpv, "panscan", "0.0"); break;
+        case 3: mpv_set_property_string(p->mpv, "keepaspect", "no");
+                mpv_set_property_string(p->mpv, "panscan", "0.0");
+                mpv_set_property_string(p->mpv, "video-unscaled", "no"); break;
+        case 1:
+        case 2: mpv_set_property_string(p->mpv, "keepaspect", "yes");
+                mpv_set_property_string(p->mpv, "panscan", "1.0");
+                mpv_set_property_string(p->mpv, "video-unscaled", "no"); break;
+        default: mpv_set_property_string(p->mpv, "keepaspect", "yes");
+                 mpv_set_property_string(p->mpv, "panscan", "0.0");
+                 mpv_set_property_string(p->mpv, "video-unscaled", "no"); break;
     }
 }
 
@@ -1879,6 +1900,14 @@ JNIEXPORT void JNICALL NP(selectAudioTrack)(JNIEnv *, jobject, jlong handle, jin
     int64_t id = trackId;
     if (trackId < 0) mpv_set_property_string(p->mpv, "aid", "no");
     else mpv_set_property(p->mpv, "aid", MPV_FORMAT_INT64, &id);
+}
+
+JNIEXPORT void JNICALL NP(setAudioLanguages)(JNIEnv *env, jobject, jlong handle, jstring languages) {
+    Player *p = asPlayer(handle);
+    if (!p) return;
+    std::string value = jstringToUtf8(env, languages);
+    mpv_set_property_string(p->mpv, "alang", value.c_str());
+    mpv_set_property_string(p->mpv, "aid", "auto");
 }
 
 JNIEXPORT void JNICALL NP(selectSubtitleTrack)(JNIEnv *, jobject, jlong handle, jint trackId) {
@@ -2018,6 +2047,11 @@ JNIEXPORT void JNICALL NP(shutdownWebView2Warmup)(JNIEnv *, jobject) {
 JNIEXPORT jboolean JNICALL NP(setWindowsDisplaySleepInhibited)(JNIEnv *, jobject, jboolean) {
     return JNI_FALSE;
 }
+JNIEXPORT void JNICALL NP(beginWindowDrag)(JNIEnv *, jobject, jlong) {}
+JNIEXPORT void JNICALL NP(setWindowResizable)(JNIEnv *, jobject, jlong, jboolean) {}
+JNIEXPORT void JNICALL NP(setWindowAspectRatio)(JNIEnv *, jobject, jlong, jfloat) {}
+JNIEXPORT void JNICALL NP(layoutNativeSubviews)(JNIEnv *, jobject, jlong) {}
+JNIEXPORT void JNICALL NP(reparentSurfaceNative)(JNIEnv *, jobject, jlong, jlong) {}
 
 #undef NP
 } // extern "C"

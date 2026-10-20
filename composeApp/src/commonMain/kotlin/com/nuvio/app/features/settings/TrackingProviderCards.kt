@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,11 +17,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Sync
-import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,6 +51,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.core.ui.DialogButton
+import com.nuvio.app.core.ui.DialogButtons
+import com.nuvio.app.core.ui.DialogButtonStyle
+import com.nuvio.app.core.ui.DialogSurface
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
@@ -97,6 +98,7 @@ import nuvio.composeapp.generated.resources.settings_simkl_sign_in_failed
 import nuvio.composeapp.generated.resources.settings_simkl_sync_info_action
 import nuvio.composeapp.generated.resources.settings_simkl_sync_now
 import nuvio.composeapp.generated.resources.settings_simkl_visit
+import nuvio.composeapp.generated.resources.settings_mdblist_disconnect_description
 import nuvio.composeapp.generated.resources.settings_tracking_approval_redirect
 import nuvio.composeapp.generated.resources.settings_tracking_disconnect_description
 import nuvio.composeapp.generated.resources.settings_tracking_disconnect_title
@@ -122,6 +124,7 @@ internal enum class TrackingBrand(val displayName: String) {
     NUVIO("Nuvio"),
     TRAKT("Trakt"),
     SIMKL("Simkl"),
+    MDBLIST("MDBList"),
     TMDB("TMDB"),
 }
 
@@ -135,12 +138,14 @@ internal fun isTrackingBrandAvailable(
     brand: TrackingBrand,
     traktConnected: Boolean,
     simklConnected: Boolean,
+    mdblistConnected: Boolean = false,
 ): Boolean = when (brand) {
     TrackingBrand.NUVIO,
     TrackingBrand.TMDB,
     -> true
     TrackingBrand.TRAKT -> traktConnected
     TrackingBrand.SIMKL -> simklConnected
+    TrackingBrand.MDBLIST -> mdblistConnected
 }
 
 internal fun TraktConnectionMode.toTrackingConnectionCardMode(): TrackingConnectionCardMode = when (this) {
@@ -195,6 +200,7 @@ internal fun TrackingProviderCards(
             onInfoRequested = { showSyncInfo = true },
             modifier = Modifier.fillMaxWidth(),
         )
+        MdbListProviderCard(Modifier.fillMaxWidth())
     }
 
     if (showSyncInfo) {
@@ -329,7 +335,7 @@ private fun SimklProviderCard(
 }
 
 @Composable
-private fun TrackingProviderCard(
+internal fun TrackingProviderCard(
     brand: TrackingBrand,
     mode: TrackingConnectionCardMode,
     credentialsConfigured: Boolean,
@@ -344,6 +350,7 @@ private fun TrackingProviderCard(
     disconnectLabel: String,
     missingCredentialsMessage: String,
     approvalCode: String? = null,
+    authorizationCode: String? = null,
     approvalUrl: String? = null,
     approvalCodeCopiedMessage: String? = null,
     modifier: Modifier = Modifier,
@@ -354,8 +361,8 @@ private fun TrackingProviderCard(
     errorMessage: String? = null,
     websiteLabel: String? = null,
     websiteUrl: String? = null,
-    onConnectRequested: () -> String?,
-    onResumeAuthorization: () -> String?,
+    onConnectRequested: suspend () -> String?,
+    onResumeAuthorization: suspend () -> String?,
     onCancelAuthorization: () -> Unit,
     onSyncRequested: (() -> Unit)? = null,
     onInfoRequested: (() -> Unit)? = null,
@@ -364,10 +371,12 @@ private fun TrackingProviderCard(
     val tokens = MaterialTheme.nuvio
     val clipboardManager = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
+    val actionScope = rememberCoroutineScope()
+    val displayedApprovalCode = authorizationCode ?: approvalCode
     val failedOpenBrowserMessage = stringResource(Res.string.settings_trakt_failed_open_browser)
     var browserError by rememberSaveable { mutableStateOf(false) }
     var showDisconnectDialog by rememberSaveable { mutableStateOf(false) }
-    var localStatusMessage by rememberSaveable(approvalCode) { mutableStateOf<String?>(null) }
+    var localStatusMessage by rememberSaveable(displayedApprovalCode) { mutableStateOf<String?>(null) }
 
     fun openUrl(url: String?) {
         if (url.isNullOrBlank()) return
@@ -436,7 +445,7 @@ private fun TrackingProviderCard(
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.White.copy(alpha = 0.78f),
                     )
-                    approvalCode?.takeIf(String::isNotBlank)?.let { code ->
+                    displayedApprovalCode?.takeIf(String::isNotBlank)?.let { code ->
                         TrackingApprovalCode(
                             code = code,
                             url = approvalUrl,
@@ -450,7 +459,9 @@ private fun TrackingProviderCard(
                         label = openLoginLabel,
                         loading = isLoading,
                         enabled = !isLoading,
-                        onClick = { openUrl(onResumeAuthorization()) },
+                        onClick = {
+                            actionScope.launch { openUrl(onResumeAuthorization()) }
+                        },
                     )
                     OutlinedButton(
                         onClick = onCancelAuthorization,
@@ -478,7 +489,9 @@ private fun TrackingProviderCard(
                         label = connectLabel,
                         loading = isLoading,
                         enabled = credentialsConfigured && !isLoading,
-                        onClick = { openUrl(onConnectRequested()) },
+                        onClick = {
+                            actionScope.launch { openUrl(onConnectRequested()) }
+                        },
                     )
                     if (!credentialsConfigured) {
                         TrackingBrandMessage(
@@ -703,59 +716,37 @@ private fun TrackingDisconnectDialog(
     onDismiss: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
-    BasicAlertDialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = tokens.components.dialogMaxWidth),
-            shape = tokens.shapes.dialog,
-            color = tokens.colors.surfaceDialog,
-        ) {
-            Column(
-                modifier = Modifier.padding(tokens.spacing.dialogPadding),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = stringResource(Res.string.settings_tracking_disconnect_title, brand.displayName),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = tokens.colors.textPrimary,
-                    fontWeight = FontWeight.SemiBold,
+    DialogSurface(
+        onDismissRequest = onDismiss,
+        title = stringResource(Res.string.settings_tracking_disconnect_title, brand.displayName),
+    ) {
+        Text(
+            text = when (brand) {
+                TrackingBrand.TRAKT ->
+                    stringResource(Res.string.settings_trakt_disconnect_description)
+                TrackingBrand.SIMKL ->
+                    stringResource(Res.string.settings_simkl_disconnect_description)
+                TrackingBrand.MDBLIST -> stringResource(Res.string.settings_mdblist_disconnect_description)
+                TrackingBrand.NUVIO,
+                TrackingBrand.TMDB,
+                -> stringResource(
+                    Res.string.settings_tracking_disconnect_description,
+                    brand.displayName,
                 )
-                Text(
-                    text = when (brand) {
-                        TrackingBrand.TRAKT ->
-                            stringResource(Res.string.settings_trakt_disconnect_description)
-                        TrackingBrand.SIMKL ->
-                            stringResource(Res.string.settings_simkl_disconnect_description)
-                        TrackingBrand.NUVIO,
-                        TrackingBrand.TMDB,
-                        -> stringResource(
-                            Res.string.settings_tracking_disconnect_description,
-                            brand.displayName,
-                        )
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = tokens.colors.textMuted,
-                )
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(stringResource(Res.string.action_cancel))
-                    }
-                    Button(
-                        onClick = onConfirm,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError,
-                        ),
-                    ) {
-                        Text(stringResource(Res.string.settings_trakt_disconnect))
-                    }
-                }
-            }
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = tokens.colors.textMuted,
+        )
+        DialogButtons {
+            DialogButton(
+                text = stringResource(Res.string.action_cancel),
+                onClick = onDismiss,
+            )
+            DialogButton(
+                text = stringResource(Res.string.settings_trakt_disconnect),
+                onClick = onConfirm,
+                style = DialogButtonStyle.Destructive,
+            )
         }
     }
 }
@@ -775,6 +766,12 @@ internal fun TrackingBrandGlyph(
         )
         TrackingBrand.SIMKL -> Image(
             painter = simklBrandPainter(SimklBrandAsset.Glyph),
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = ContentScale.Fit,
+        )
+        TrackingBrand.MDBLIST -> Image(
+            painter = integrationLogoPainter(IntegrationLogo.MdbList),
             contentDescription = contentDescription,
             modifier = modifier,
             contentScale = ContentScale.Fit,
@@ -802,6 +799,7 @@ private fun TrackingBrandWordmark(
     val painter: Painter = when (brand) {
         TrackingBrand.TRAKT -> traktBrandPainter(TraktBrandAsset.Wordmark)
         TrackingBrand.SIMKL -> simklBrandPainter(SimklBrandAsset.Wordmark)
+        TrackingBrand.MDBLIST -> integrationLogoPainter(IntegrationLogo.MdbList)
         TrackingBrand.NUVIO,
         TrackingBrand.TMDB,
         -> return
@@ -816,6 +814,7 @@ private fun TrackingBrandWordmark(
             TrackingBrand.SIMKL -> Modifier
                 .width(124.dp)
                 .height(30.dp)
+            TrackingBrand.MDBLIST -> Modifier.width(130.dp).height(32.dp)
             TrackingBrand.NUVIO,
             TrackingBrand.TMDB,
             -> Modifier
@@ -831,6 +830,9 @@ private fun TrackingBrand.cardBrush(): Brush = when (this) {
     )
     TrackingBrand.SIMKL -> Brush.linearGradient(
         colors = listOf(Color(0xFF050505), Color(0xFF292929), Color(0xFF111111)),
+    )
+    TrackingBrand.MDBLIST -> Brush.linearGradient(
+        colors = listOf(Color(0xFF173D69), Color(0xFF225C97), Color(0xFF16385D)),
     )
     TrackingBrand.NUVIO,
     TrackingBrand.TMDB,

@@ -151,7 +151,9 @@ private fun CastItem(
             .width(sizing.itemWidth)
             .then(
                 if (onClick != null) {
-                    Modifier.clickable(
+                    Modifier
+                        .nuvioFocusBorder(CircleShape)
+                        .clickable(
                         interactionSource = clickInteractionSource,
                         indication = null,
                         onClick = onClick,

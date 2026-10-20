@@ -1,17 +1,29 @@
 package com.nuvio.app.features.player
 
+import co.touchlab.kermit.Logger
+import com.nuvio.app.core.i18n.localizedAutoSyncApplied
+import com.nuvio.app.core.i18n.localizedAutoSyncNoMatch
 import com.nuvio.app.core.i18n.localizedNoSubtitleLinesFound
 import com.nuvio.app.core.i18n.localizedSubtitleLinesLoadError
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
+import com.nuvio.app.features.autosync.AutoSyncPlayerController
+import com.nuvio.app.features.autosync.AutomaticDelaySyncEngine
 import kotlinx.coroutines.launch
 
+private val autoSyncLog = Logger.withTag("SubtitleAutoSync")
+
 internal fun PlayerScreenRuntime.fetchAddonSubtitlesForActiveItem() {
+    if (activeSourceUrl.startsWith("file:") && externalSubtitles.isNotEmpty()) {
+        SubtitleRepository.clear()
+        return
+    }
     val type = activeAddonSubtitleType.takeIf { it.isNotBlank() } ?: return
     val videoId = activeVideoId?.takeIf { it.isNotBlank() } ?: return
     SubtitleRepository.fetchAddonSubtitles(type, videoId)
 }
 
 internal fun PlayerScreenRuntime.setSubtitleDelay(delayMs: Int) {
+    (playerController as? AutoSyncPlayerController)?.cancelForManualSubtitleDelay() // AutoSync hook
     val clamped = delayMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS)
     subtitleDelayMs = clamped
     PlayerTrackPreferenceStorage.saveSubtitleDelayMs(playbackSession.videoId, clamped)
@@ -63,3 +75,77 @@ internal fun PlayerScreenRuntime.applySubtitleAutoSyncCue(cue: SubtitleSyncCue) 
         .coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS)
     setSubtitleDelay(newDelayMs)
 }
+
+/**
+ * Automatic variant of the manual Auto Sync: aligns the active add-on subtitle against the other
+ * add-on subtitles of the same item and applies the confident constant-delay offset through the
+ * player's subtitle delay. Only runs with a clean (zero) delay so an intentional manual offset is
+ * never overwritten, and reports the outcome through [subtitleAutoSyncState].
+ */
+internal suspend fun PlayerScreenRuntime.runAutomaticSubtitleSync() {
+    if (subtitleDelayMs != 0) return
+    val subtitle = selectedAddonSubtitle ?: return
+    val references = autoSyncReferenceCandidates(subtitle)
+    if (references.isEmpty()) return
+
+    autoSyncLog.d {
+        "auto-sync start target=${subtitle.display} refs=${references.size} " +
+            "langs=${references.joinToString { it.language ?: "?" }}"
+    }
+    subtitleAutoSyncState = subtitleAutoSyncState.copy(isLoading = true, autoSyncNote = null, errorMessage = null)
+    try {
+        val decision = runCatching {
+            val targetCues = PlayerSubtitleCueParser.parse(
+                text = httpGetTextWithHeaders(
+                    url = subtitle.url,
+                    headers = sanitizePlaybackHeaders(activeSourceHeaders),
+                ),
+                sourceUrl = subtitle.url,
+            )
+            val referenceCues = references.mapNotNull { candidate ->
+                runCatching {
+                    AutomaticDelaySyncEngine.ReferenceCues(
+                        key = candidate.selectionKey,
+                        cues = PlayerSubtitleCueParser.parse(
+                            text = httpGetTextWithHeaders(
+                                url = candidate.url,
+                                headers = sanitizePlaybackHeaders(activeSourceHeaders),
+                            ),
+                            sourceUrl = candidate.url,
+                        ),
+                    )
+                }.onFailure { autoSyncLog.d { "reference fetch failed: ${candidate.url} (${it.message})" } }
+                    .getOrNull()
+            }
+            autoSyncLog.d { "target cues=${targetCues.size} reference cues=${referenceCues.map { it.cues.size }}" }
+            AutomaticDelaySyncEngine.computeAlignment(targetCues, referenceCues)
+        }.onFailure { autoSyncLog.d { "auto-sync failed: ${it.message}" } }.getOrNull()
+
+        when (decision) {
+            is AutomaticDelaySyncEngine.Decision.ApplyOffset -> {
+                if (subtitleDelayMs != 0) return
+                val clamped = decision.offsetMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS)
+                autoSyncLog.d { "auto-sync applied offset=${clamped}ms" }
+                setSubtitleDelay(clamped)
+                subtitleAutoSyncState = subtitleAutoSyncState.copy(autoSyncNote = localizedAutoSyncApplied(clamped))
+            }
+            is AutomaticDelaySyncEngine.Decision.NoConfidentMatch -> {
+                autoSyncLog.d { "auto-sync no confident match" }
+                subtitleAutoSyncState = subtitleAutoSyncState.copy(autoSyncNote = localizedAutoSyncNoMatch())
+            }
+            AutomaticDelaySyncEngine.Decision.NotApplicable, null -> {
+                autoSyncLog.d { "auto-sync not applicable" }
+                subtitleAutoSyncState = subtitleAutoSyncState.copy(autoSyncNote = null)
+            }
+        }
+    } finally {
+        subtitleAutoSyncState = subtitleAutoSyncState.copy(isLoading = false)
+    }
+}
+
+internal fun PlayerScreenRuntime.autoSyncReferenceCandidates(
+    subtitle: AddonSubtitle,
+): List<AddonSubtitle> = addonSubtitles
+    .filter { it.selectionKey != subtitle.selectionKey }
+    .sortedBy { if (it.language == subtitle.language) 0 else 1 }
+    .take(8)

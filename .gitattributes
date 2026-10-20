@@ -1,3 +1,2 @@
 composeApp/src/desktopMain/native/windows/runtime/libmpv-2.dll filter=lfs diff=lfs merge=lfs -text
 composeApp/src/desktopMain/native/macos/runtime/**/*.dylib filter=lfs diff=lfs merge=lfs -text
-composeApp/src/desktopMain/resources/torrserver/windows-amd64/TorrServer.exe filter=lfs diff=lfs merge=lfs -text

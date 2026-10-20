@@ -19,8 +19,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -40,7 +38,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.nuvio.app.core.ui.Menu
+import com.nuvio.app.core.ui.MenuItem
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
@@ -139,19 +140,15 @@ fun DetailTrailersSection(
                         }
                     }
 
-                    DropdownMenu(
+                    Menu(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false },
                     ) {
                         grouped.keys.forEach { category ->
                             val count = grouped[category]?.size ?: 0
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = stringResource(Res.string.detail_trailer_category_count, category, count),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                },
+                            MenuItem(
+                                text = stringResource(Res.string.detail_trailer_category_count, category, count),
+                                selected = category == selectedCategory,
                                 onClick = {
                                     selectedCategory = category
                                     menuExpanded = false
@@ -214,6 +211,7 @@ private fun TrailerCard(
                     shape = RoundedCornerShape(cornerRadius),
                     surface = NuvioCardDepthSurface.Trailers,
                 )
+                .nuvioFocusBorder(RoundedCornerShape(cornerRadius))
                 .clickable(onClick = onClick),
         ) {
             AsyncImage(

@@ -24,11 +24,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.LocalScreenActive
 import com.nuvio.app.core.ui.NuvioShelfSection
 import com.nuvio.app.core.ui.PosterLandscapeAspectRatio
 import com.nuvio.app.core.ui.desktopCatalogShelfPosterBaseWidthDp
 import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.collection.Collection
@@ -119,14 +121,15 @@ private fun CollectionFolderCard(
         }
     }
 
+    val shapeCorner = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
     Column(
         modifier = Modifier
+            .nuvioFocusBorder(shapeCorner)
             .posterCardClickable(onClick = onClick, onLongClick = null)
             .then(modifier)
             .width(cardWidth),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        val shapeCorner = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
         val imageUrl = collectionFolderCardImageUrl(folder)
         Card(
             modifier = Modifier
@@ -156,7 +159,9 @@ private fun CollectionFolderCard(
                             contentDescription = folder.title,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,
-                            animateIfPossible = animateGifs && isAnimatedCollectionFolderImage(folder, imageUrl),
+                            animateIfPossible = animateGifs &&
+                                isAnimatedCollectionFolderImage(folder, imageUrl) &&
+                                LocalScreenActive.current,
                         )
                     }
                     !folder.coverEmoji.isNullOrBlank() -> {

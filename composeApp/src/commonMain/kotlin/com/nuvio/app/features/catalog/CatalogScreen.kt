@@ -23,7 +23,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import com.nuvio.app.core.ui.NuvioLoadingIndicator
+import com.nuvio.app.core.ui.NuvioBackButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,7 +50,6 @@ import com.nuvio.app.core.network.NetworkStatusRepository
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
-import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioPosterWatchedOverlay
@@ -63,7 +62,11 @@ import com.nuvio.app.core.ui.desktopPosterHoverScale
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.posterGridColumnCountForViewport
+import com.nuvio.app.core.ui.NuvioLoadingIndicator
+import com.nuvio.app.core.ui.SkeletonPoster
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
+import com.nuvio.app.core.ui.posterCardClickable
+import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.isDesktop
 import com.nuvio.app.features.home.MetaPreview
@@ -226,7 +229,11 @@ fun CatalogScreen(
                                 },
                             )
                         } else {
-                            CatalogSkeletonTile(cornerRadiusDp = posterCardStyle.cornerRadiusDp)
+                            SkeletonPoster(
+                                modifier = Modifier.fillMaxWidth(),
+                                cornerRadius = posterCardStyle.cornerRadiusDp.dp,
+                                showLabels = !posterCardStyle.hideLabelsEnabled,
+                            )
                         }
                     }
                 } else if (uiState.items.isEmpty()) {
@@ -321,6 +328,7 @@ private fun CatalogHeader(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
+            .then(if (isDesktop) Modifier.windowInsetsPadding(WindowInsets.statusBars) else Modifier)
             .padding(horizontal = pageHorizontalPadding)
             .padding(top = if (isDesktop) 32.dp else 52.dp, bottom = 12.dp),
     ) {
@@ -394,8 +402,22 @@ private fun CatalogPosterTile(
                     ),
             ) {
                 if (item.poster != null) {
+                    val platformContext = coil3.compose.LocalPlatformContext.current
+                    val hasFallback = !item.rawPosterUrl.isNullOrBlank() && item.rawPosterUrl != item.poster
+                    val imageModel = remember(item.poster, item.rawPosterUrl, platformContext) {
+                        if (hasFallback) {
+                            coil3.request.ImageRequest.Builder(platformContext)
+                                .data(item.poster)
+                                .memoryCacheKeyExtras(
+                                    mapOf(com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY to item.rawPosterUrl!!)
+                                )
+                                .build()
+                        } else {
+                            item.poster
+                        }
+                    }
                     AsyncImage(
-                        model = item.poster,
+                        model = imageModel,
                         contentDescription = item.name,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
@@ -501,7 +523,6 @@ private fun CatalogLoadingFooter() {
     ) {
         NuvioLoadingIndicator(
             modifier = Modifier.size(22.dp),
-            color = MaterialTheme.colorScheme.primary,
         )
     }
 }

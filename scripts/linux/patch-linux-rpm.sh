@@ -42,12 +42,6 @@ for dependency in "${NUVIO_LINUX_RPM_RUNTIME_DEPENDENCIES[@]}"; do
     fi
 done
 
-if (( ${#missing_dependencies[@]} == 0 )); then
-    printf 'RPM runtime dependencies already include required entries: %s\n' "$rpm_path"
-    exit 0
-fi
-
-# Full toolchain is only required when we actually need to rebuild.
 for tool in rpm2cpio cpio rpmbuild fakeroot tar find sort awk sed; do
     require_tool "$tool"
 done
@@ -70,6 +64,8 @@ rpm2cpio "$rpm_path" | (cd "$payload_dir" && cpio -idm --quiet)
 if ! nuvio_linux_desktop_entry_exists "$payload_dir"; then
     nuvio_linux_write_desktop_entry "$payload_dir"
 fi
+nuvio_linux_ensure_startup_wm_class "$payload_dir"
+nuvio_linux_ensure_uri_handler "$payload_dir"
 
 name="$(rpm -qp --qf '%{NAME}\n' "$rpm_path")"
 version="$(rpm -qp --qf '%{VERSION}\n' "$rpm_path")"

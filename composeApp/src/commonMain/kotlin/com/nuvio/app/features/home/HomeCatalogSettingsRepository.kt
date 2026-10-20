@@ -1,10 +1,13 @@
 package com.nuvio.app.features.home
 
 import com.nuvio.app.features.addons.AddonRepository
+import androidx.compose.ui.text.intl.Locale
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.addons.enabledAddons
 import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.collection.CollectionRepository
+import com.nuvio.app.features.servers.ServerCatalog
+import com.nuvio.app.features.servers.ServerRepository
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -113,6 +116,8 @@ object HomeCatalogSettingsRepository {
     private var lastPersistedPayload: String? = null
     private var definitions: List<HomeCatalogDefinition> = emptyList()
     private var collectionDefinitions: List<CollectionCatalogDefinition> = emptyList()
+    private var lastCatalogSync: CatalogSyncInput? = null
+    private var lastCollectionSync: Pair<List<Collection>, String>? = null
     private val preferencesRef = atomic<Map<String, StoredHomeCatalogPreference>>(emptyMap())
     private var preferences: Map<String, StoredHomeCatalogPreference>
         get() = preferencesRef.value
@@ -133,6 +138,8 @@ object HomeCatalogSettingsRepository {
         collectionDefinitions = emptyList()
         snapshotRef.value = emptySnapshot
         lastPersistedPayload = null
+        lastCatalogSync = null
+        lastCollectionSync = null
         _uiState.value = HomeCatalogSettingsUiState()
     }
 
@@ -140,6 +147,8 @@ object HomeCatalogSettingsRepository {
         hasLoaded = false
         definitions = emptyList()
         collectionDefinitions = emptyList()
+        lastCatalogSync = null
+        lastCollectionSync = null
         preferences = emptyMap()
         heroEnabled = true
         showCatalogType = true
@@ -157,11 +166,15 @@ object HomeCatalogSettingsRepository {
 
     private fun syncCatalogsInternal(addons: List<ManagedAddon>) {
         ensureLoaded()
-        val nextDefinitions = buildHomeCatalogDefinitions(addons)
-        val nextCollectionDefinitions = buildCollectionDefinitions(CollectionRepository.collections.value)
-        if (definitions == nextDefinitions && collectionDefinitions == nextCollectionDefinitions) return
-        definitions = nextDefinitions
-        collectionDefinitions = nextCollectionDefinitions
+        val collections = CollectionRepository.collections.value
+        val syncInput = CatalogSyncInput(addons, collections, Locale.current.toLanguageTag(), ServerRepository.uiState.value.revision)
+        if (lastCatalogSync == syncInput) return
+        definitions = buildHomeCatalogDefinitions(addons)
+        collectionDefinitions = buildCollectionDefinitions(collections)
+        lastCatalogSync = syncInput
+        lastCollectionSync = lastCollectionSync?.takeIf {
+            it.first == collections && it.second == syncInput.locale
+        }
         if (definitions.isEmpty() && collectionDefinitions.isEmpty()) {
             publish()
             return
@@ -186,11 +199,14 @@ object HomeCatalogSettingsRepository {
         addons: List<ManagedAddon>,
     ) {
         ensureLoaded()
-        val nextDefinitions = definitions.ifEmpty { buildHomeCatalogDefinitions(addons) }
-        val nextCollectionDefinitions = buildCollectionDefinitions(collections)
-        if (definitions == nextDefinitions && collectionDefinitions == nextCollectionDefinitions) return
-        definitions = nextDefinitions
-        collectionDefinitions = nextCollectionDefinitions
+        val syncInput = collections to Locale.current.toLanguageTag()
+        if (lastCollectionSync == syncInput) return
+        if (definitions.isEmpty()) definitions = buildHomeCatalogDefinitions(addons)
+        collectionDefinitions = buildCollectionDefinitions(collections)
+        lastCatalogSync = lastCatalogSync?.takeIf {
+            it.collections == collections && it.locale == syncInput.second
+        }
+        lastCollectionSync = syncInput
         normalizePreferences()
         enforcePinnedCollectionsAtTop()
         publish()
@@ -503,7 +519,7 @@ object HomeCatalogSettingsRepository {
         ensureLoaded()
         val catalogDefinitionsByKey = definitions.associateBy { it.key }
         val collectionDefinitionsByKey = collectionDefinitions.associateBy { it.key }
-        val items = preferences.values.sortedBy { it.order }.map { pref ->
+        val items = preferences.values.filterNot { ServerCatalog.isServerKey(it.key) }.sortedBy { it.order }.map { pref ->
             val catalogDefinition = catalogDefinitionsByKey[pref.key]
             val collectionDefinition = collectionDefinitionsByKey[pref.key]
             val isCollection = collectionDefinition != null || pref.key.startsWith("collection_")
@@ -664,3 +680,10 @@ internal fun buildCollectionDefinitions(collections: List<Collection>): List<Col
             isPinnedToTop = collection.pinToTop,
         )
     }
+
+private data class CatalogSyncInput(
+    val addons: List<ManagedAddon>,
+    val collections: List<Collection>,
+    val locale: String,
+    val serverRevision: Int,
+)

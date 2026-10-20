@@ -104,6 +104,7 @@ actual suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean,
     maxResponseBodyBytes: Int,
+    bodyBytes: ByteArray?,
 ): RawHttpResponse = withContext(Dispatchers.IO) {
     val client = if (followRedirects) {
         desktopHttpClient
@@ -113,7 +114,7 @@ actual suspend fun httpRequestRaw(
             .followSslRedirects(false)
             .build()
     }
-    val request = buildDesktopRequest(method, url, headers, body)
+    val request = buildDesktopRequest(method, url, headers, body, bodyBytes)
 
     client.newCall(request).execute().use { response ->
         RawHttpResponse(
@@ -154,6 +155,7 @@ private fun buildDesktopRequest(
     url: String,
     headers: Map<String, String>,
     body: String,
+    bodyBytes: ByteArray? = null,
 ): Request {
     val normalizedMethod = method.trim().uppercase().ifBlank { "GET" }
     val sanitizedHeaders = headers.withoutAcceptEncoding()
@@ -169,7 +171,7 @@ private fun buildDesktopRequest(
             ?: if (normalizedMethod == "POST") "application/x-www-form-urlencoded" else "application/json"
         builder.method(
             normalizedMethod,
-            body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType()),
+            (bodyBytes ?: body.toByteArray(Charsets.UTF_8)).toRequestBody(contentType.toMediaType()),
         )
     } else {
         builder.method(normalizedMethod, null)

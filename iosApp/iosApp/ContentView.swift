@@ -1,3 +1,4 @@
+import AVKit
 import Combine
 import SwiftUI
 import UIKit
@@ -73,27 +74,33 @@ final class RootComposeViewController: UIViewController {
     }
 
     override var childForHomeIndicatorAutoHidden: UIViewController? {
-        immersiveController(in: contentController) ?? contentController
+        nil
     }
 
     override var childForScreenEdgesDeferringSystemGestures: UIViewController? {
-        immersiveController(in: contentController) ?? contentController
+        nil
     }
 
     override var childForStatusBarHidden: UIViewController? {
-        immersiveController(in: contentController) ?? contentController
+        nil
     }
 
     override var prefersHomeIndicatorAutoHidden: Bool {
-        immersiveController(in: contentController)?.prefersHomeIndicatorAutoHidden ?? false
+        SystemUI.shared.activePlayer?.prefersHomeIndicatorAutoHidden
+            ?? immersiveController(in: contentController)?.prefersHomeIndicatorAutoHidden
+            ?? false
     }
 
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge {
-        immersiveController(in: contentController)?.preferredScreenEdgesDeferringSystemGestures ?? []
+        SystemUI.shared.activePlayer?.preferredScreenEdgesDeferringSystemGestures
+            ?? immersiveController(in: contentController)?.preferredScreenEdgesDeferringSystemGestures
+            ?? []
     }
 
     override var prefersStatusBarHidden: Bool {
-        immersiveController(in: contentController)?.prefersStatusBarHidden ?? false
+        SystemUI.shared.activePlayer?.prefersStatusBarHidden
+            ?? immersiveController(in: contentController)?.prefersStatusBarHidden
+            ?? false
     }
 
     override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation {
@@ -979,7 +986,7 @@ private final class NativeProfileSwitcherViewModel: ObservableObject {
     }
 
     func choose(_ profile: NativeProfileItem, onComplete: @escaping () -> Void) {
-        if profile.pinEnabled {
+        if profile.pinEnabled && !profile.active {
             lockedProfile = profile
             pin = ""
             errorMessage = nil
@@ -1367,12 +1374,53 @@ struct NativeNavContentView: View {
 }
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var systemUI = SystemUI.shared
+
     var body: some View {
-        if #available(iOS 16.0, *) {
-            NativeNavContentView()
-        } else {
-            ComposeView()
-                .ignoresSafeArea(.all)
+        Group {
+            if #available(iOS 16.0, *) {
+                NativeNavContentView()
+                    .accessibilityHidden(systemUI.pictureInPictureMessage != nil)
+                    .allowsHitTesting(systemUI.pictureInPictureMessage == nil)
+            } else {
+                ComposeView()
+                    .ignoresSafeArea(.all)
+                    .accessibilityHidden(systemUI.pictureInPictureMessage != nil)
+                    .allowsHitTesting(systemUI.pictureInPictureMessage == nil)
+            }
+        }
+        .persistentSystemOverlays(systemUI.isPlayerImmersive ? .hidden : .automatic)
+        .statusBarHidden(systemUI.isPlayerImmersive)
+        .overlay {
+            if let message = systemUI.pictureInPictureMessage {
+                Color.black
+                    .ignoresSafeArea()
+                    .overlay {
+                        VStack(spacing: 16) {
+                            Image(uiImage: AVPictureInPictureController.pictureInPictureButtonStartImage)
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 96, height: 72)
+                                .accessibilityHidden(true)
+                            Text(message)
+                                .font(.body)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .foregroundStyle(.gray)
+                        .padding(24)
+                        .accessibilityElement(children: .combine)
+                    }
+            }
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: playerSceneDidActivateNotification, object: nil)
+                }
+            }
         }
     }
 }

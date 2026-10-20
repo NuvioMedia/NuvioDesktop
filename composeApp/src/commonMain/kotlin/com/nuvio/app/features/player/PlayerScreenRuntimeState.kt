@@ -22,6 +22,7 @@ import com.nuvio.app.features.watched.WatchedUiState
 import com.nuvio.app.features.watchprogress.WatchProgressUiState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlin.time.TimeMark
 
 internal data class PlayerSurfaceSource(
     val sourceUrl: String,
@@ -98,7 +99,7 @@ internal class PlayerScreenRuntime(
     val torrentTrackers: List<String> get() = args.torrentTrackers
     val initialPositionMs: Long get() = args.initialPositionMs
     val initialProgressFraction: Float? get() = args.initialProgressFraction
-    val externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> get() = args.externalSubtitles
+    var externalSubtitles by mutableStateOf(args.externalSubtitles)
     val isSeries: Boolean get() = parentMetaType == "series"
 
     lateinit var scope: CoroutineScope
@@ -136,6 +137,7 @@ internal class PlayerScreenRuntime(
 
     var controlsVisible by mutableStateOf(false)
     var controlsActivityTick by mutableStateOf(0)
+    var showRemainingTime by mutableStateOf(false)
     var playerControlsLocked by mutableStateOf(false)
     var activeSourceUrl by mutableStateOf(sourceUrl)
     var activeSourceAudioUrl by mutableStateOf(sourceAudioUrl)
@@ -145,6 +147,7 @@ internal class PlayerScreenRuntime(
     var activeTorrentInfoHash by mutableStateOf(torrentInfoHash)
     var activeTorrentFileIdx by mutableStateOf(torrentFileIdx)
     var activeTorrentFilename by mutableStateOf(torrentFilename)
+    var activeSourceFilename by mutableStateOf(args.sourceFilename ?: torrentFilename)
     var activeTorrentTrackers by mutableStateOf(torrentTrackers)
     var p2pResolvedSourceUrl by mutableStateOf<String?>(null)
     var activeSourceIdentityKey by mutableStateOf(
@@ -156,7 +159,10 @@ internal class PlayerScreenRuntime(
     var activeStreamSubtitle by mutableStateOf(streamSubtitle)
     var activeProviderName by mutableStateOf(providerName)
     var activeProviderAddonId by mutableStateOf(providerAddonId)
+    var activeStream by mutableStateOf(args.stream)
     var currentStreamBingeGroup by mutableStateOf(initialBingeGroup)
+    var currentStreamFilename by mutableStateOf<String?>(null)
+    var currentStreamInfoHash by mutableStateOf<String?>(null)
     var activeSeasonNumber by mutableStateOf(seasonNumber)
     var activeEpisodeNumber by mutableStateOf(episodeNumber)
     var activeEpisodeTitle by mutableStateOf(episodeTitle)
@@ -169,6 +175,7 @@ internal class PlayerScreenRuntime(
     var resizeMode by mutableStateOf(playerSettingsUiState.resizeMode.supportedOnCurrentPlatform())
     var layoutSize by mutableStateOf(IntSize.Zero)
     var playbackSnapshot by mutableStateOf(PlayerPlaybackSnapshot())
+    var playbackSnapshotKey by mutableStateOf<PlaybackKey?>(null)
     var playerController by mutableStateOf<PlayerEngineController?>(null)
     var playerLifecycleController by mutableStateOf<PlayerEngineController?>(null)
     val playerReleaseSurfaceRetention = PlayerReleaseSurfaceRetention()
@@ -218,6 +225,8 @@ internal class PlayerScreenRuntime(
     var playerMetaVideos by mutableStateOf<List<MetaVideo>>(emptyList())
     var playerMeta by mutableStateOf<MetaDetails?>(null)
     var skipIntervals by mutableStateOf<List<SkipInterval>>(emptyList())
+    val autoSkippedIntervals = mutableSetOf<SkipInterval>()
+    var lastManualSkipSeekPositions by mutableStateOf<Pair<Long, Long>?>(null)
     var activeSkipInterval by mutableStateOf<SkipInterval?>(null)
     var skipIntervalDismissed by mutableStateOf(false)
     val autoSkippedIntervalKeys = mutableSetOf<String>()
@@ -232,6 +241,9 @@ internal class PlayerScreenRuntime(
     var nextEpisodeAutoPlaySourceName by mutableStateOf<String?>(null)
     var nextEpisodeAutoPlayCountdown by mutableStateOf<Int?>(null)
     var nextEpisodeAutoPlayJob by mutableStateOf<Job?>(null)
+    var nextEpisodeAutoPlayAutomatic by mutableStateOf(false)
+    var nextEpisodePreloadJob by mutableStateOf<Job?>(null)
+    var nextEpisodePreloadTriggered by mutableStateOf(false)
     var pendingP2pSwitch by mutableStateOf<PendingPlayerP2pSwitch?>(null)
     var credentialRefreshJob by mutableStateOf<Job?>(null)
     var credentialRefreshAttemptedSourceUrl by mutableStateOf<String?>(null)
@@ -239,7 +251,28 @@ internal class PlayerScreenRuntime(
     var showAudioModal by mutableStateOf(false)
     var showSubtitleModal by mutableStateOf(false)
     var showVideoSettingsModal by mutableStateOf(false)
+    var showStreamInfo by mutableStateOf(false)
+    var showPartyPanel by mutableStateOf(false)
+    var partyPanelToken by mutableStateOf(0L)
+    var partyMessage by mutableStateOf("")
+    var partyMessageToken by mutableStateOf(0L)
+    var copyPartyInvite: () -> Unit = {}
+    var showPartyChat by mutableStateOf(false)
+    var partyChatVisible by mutableStateOf(false)
+    var partyBehind by mutableStateOf(false)
+    var partyBehindMs by mutableStateOf<Long?>(null)
+    var partyRateNudge: Float? = null
+    var partyPreviousKey: String? = null
+    var partyAppInBackground = false
+    var playbackSnapshotMark: TimeMark? = null
+    var pendingSeekTarget: Pair<Long, TimeMark>? = null
+    var streamMediaInfo by mutableStateOf(PlayerMediaInfo())
+    var playbackEngineOverride by mutableStateOf<AndroidPlaybackEngine?>(null)
     var audioTracks by mutableStateOf<List<AudioTrack>>(emptyList())
+    var serverAudioTracks by mutableStateOf<List<AudioTrack>>(emptyList())
+    var serverSubtitleTracks by mutableStateOf<List<SubtitleTrack>>(emptyList())
+    var serverTrackSwitchJob by mutableStateOf<Job?>(null)
+    var serverAudioPreferenceKey: String? = null
     var subtitleTracks by mutableStateOf<List<SubtitleTrack>>(emptyList())
     var selectedAudioIndex by mutableStateOf(-1)
     var selectedSubtitleIndex by mutableStateOf(-1)
@@ -258,6 +291,6 @@ internal class PlayerScreenRuntime(
     var subtitleAutoSyncState by mutableStateOf(SubtitleAutoSyncUiState())
 
     var lastSyncedSettingsResizeMode: PlayerResizeMode? = null
-    var lastResetPlaybackIdentity: String? = null
+    var lastResetPlaybackIdentity: PlaybackKey? = null
     var lastResetVideoIdentity: String? = null
 }

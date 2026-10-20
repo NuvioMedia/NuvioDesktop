@@ -26,6 +26,7 @@ const toggleLabel = document.getElementById("toggleLabel");
 const nextEpisodeButton = document.getElementById("nextEpisodeButton");
 const nextEpisodeButtonLabel = document.getElementById("nextEpisodeButtonLabel");
 const fullscreenButton = document.getElementById("fullscreenButton");
+const pipButton = document.getElementById("pipButton");
 const fullscreenIcon = document.getElementById("fullscreenIcon");
 const title = document.getElementById("title");
 const episode = document.getElementById("episode");
@@ -52,6 +53,8 @@ const openingLogoFillClip = document.getElementById("openingLogoFillClip");
 const openingLogoFill = document.getElementById("openingLogoFill");
 const openingTitle = document.getElementById("openingTitle");
 const openingSpinner = document.getElementById("openingSpinner");
+const openingLoadingIndicator = window.createLoadingIndicator(openingSpinner);
+const bufferingLoadingIndicator = window.createLoadingIndicator(bufferingStatus.querySelector("canvas"));
 const openingStatus = document.getElementById("openingStatus");
 const openingMessage = document.getElementById("openingMessage");
 const openingProgressTrack = document.getElementById("openingProgressTrack");
@@ -172,6 +175,7 @@ let state = {
   episodeText: "",
   streamTitle: "",
   providerName: "",
+  pauseOverlayEnabled: false,
   pauseOverlayWatchingLabel: "You're watching",
   pauseOverlayLogo: "",
   pauseOverlayEpisodeInfo: "",
@@ -179,6 +183,8 @@ let state = {
   pauseOverlayDescription: "",
   resizeModeLabel: "Fit",
   playbackSpeedLabel: "1x",
+  holdToSpeedEnabled: true,
+  holdToSpeedValue: 2.0,
   isFullscreen: false,
   volumeLevel: null,
   subtitlesLabel: "Subs",
@@ -189,6 +195,8 @@ let state = {
   playLabel: "Play",
   pauseLabel: "Pause",
   closeLabel: "Close player",
+  lockLabel: "Lock player controls",
+  unlockLabel: "Unlock player controls",
   submitIntroLabel: "Submit Intro",
   videoSettingsLabel: "Video settings",
   playbackErrorTitle: "Playback error",
@@ -248,6 +256,7 @@ let state = {
   onLabel: "On",
   offLabel: "Off",
   themeAccentColor: "#2f6fed",
+  themeAccentGradientColors: [],
   themeAccentStrongColor: "#3c7bff",
   themeOnAccentColor: "#fff",
   themeFocusColor: "#9ecaff",
@@ -255,9 +264,9 @@ let state = {
   themeSelectedSurfaceHoverColor: "#2d4565",
   themeSelectedRingColor: "rgba(47, 111, 237, .35)",
   themeTimelineFillColor: "#fff",
-  themeTimelineTrackColor: "rgba(255, 255, 255, .28)",
+  themeTimelineTrackColor: "rgba(255, 255, 255, .3)",
   themeBufferingColor: "#fff",
-  themeBufferingTrackColor: "rgba(255, 255, 255, .28)",
+  themeBufferingTrackColor: "rgba(255, 255, 255, .35)",
   themeControlForegroundColor: "#fff",
   themeSurfaceElevatedColor: "#16171d",
   themeSurfaceCardColor: "rgba(255, 255, 255, .08)",
@@ -286,6 +295,7 @@ let state = {
   nextEpisodeHeaderLabel: "Next episode",
   nextEpisodeTitle: "",
   nextEpisodeThumbnail: "",
+  nextEpisodeThumbnailBlurred: false,
   nextEpisodeStatus: "",
   nextEpisodeActionLabel: "Play",
   nextEpisodePlayable: false,
@@ -296,6 +306,7 @@ let state = {
   showExternalPlayer: false,
   durationMs: 0,
   positionMs: 0,
+  bufferedPositionMs: 0,
   audioTracks: [],
   subtitleTracks: [],
   sourceIsLoading: false,
@@ -331,6 +342,7 @@ let state = {
   subtitleAutoSyncCues: [],
   subtitleAutoSyncIsLoading: false,
   subtitleAutoSyncErrorMessage: "",
+  subtitleAutoSyncNote: "",
   subtitleStyle: {
     textColor: "#FFFFFFFF",
     outlineColor: "#FF000000",
@@ -360,6 +372,10 @@ let sourceVirtualOffsets = [];
 let sourceVirtualTotalHeight = 0;
 let sourceVirtualSpacer = null;
 let sourceVirtualRenderRaf = 0;
+let appliedRememberedVolume = false;
+let rememberedEpisodeSeason = null;
+let currentEpisodeStreamItems = [];
+let currentEpisodeItems = [];
 let selectedEpisodeSeason = null;
 let episodeStreamFilterId = "";
 let activeSubtitleLanguageKey = "";
@@ -407,6 +423,44 @@ let playerToastTimer = 0;
 let playerToastToken = 0;
 let pendingSettingToastCommand = "";
 let pendingSettingToastToken = 0;
+let timeLabelShowRemaining = false;
+let isPipLocked = false;
+const pipLockButton = document.getElementById("pipLockButton");
+const pipLockOverlay = document.getElementById("pipLockOverlay");
+const pipLockBadge = document.getElementById("pipLockBadge");
+const pipLockLabel = () => String(state.lockLabel || "Lock player controls").trim();
+const pipUnlockLabel = () => String(state.unlockLabel || "Unlock player controls").trim();
+const syncPipLockLabels = () => {
+  const lockLabel = isPipLocked ? pipUnlockLabel() : pipLockLabel();
+  if (pipLockButton) {
+    pipLockButton.setAttribute("aria-label", lockLabel);
+    pipLockButton.setAttribute("title", lockLabel);
+  }
+  if (pipLockBadge) {
+    const unlockLabel = pipUnlockLabel();
+    pipLockBadge.setAttribute("aria-label", unlockLabel);
+    pipLockBadge.setAttribute("title", unlockLabel);
+  }
+};
+const setPipLocked = locked => {
+  isPipLocked = locked;
+  if (locked && document.body.style.cursor && document.body.style.cursor.includes("resize")) {
+    document.body.style.cursor = "";
+  }
+  root.classList.toggle("pip-locked", locked);
+  if (pipLockButton) {
+    pipLockButton.setAttribute("aria-pressed", String(locked));
+    const useEl = pipLockButton.querySelector("use");
+    if (useEl) useEl.setAttribute("href", locked ? "#icon-lock-open" : "#icon-lock");
+  }
+  if (pipLockOverlay) {
+    pipLockOverlay.setAttribute("aria-hidden", "true");
+  }
+  if (pipLockBadge) {
+    pipLockBadge.hidden = !locked;
+  }
+  syncPipLockLabels();
+};
 const prefersReducedMotion = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const modalTransitionMs = prefersReducedMotion ? 1 : 240;
@@ -449,14 +503,15 @@ const syncFullscreenButtons = () => {
   if (openingFullscreenButton) openingFullscreenButton.setAttribute("aria-label", label);
 };
 
-const togglePlayerFullscreen = () => {
-  send("toggleFullscreen", 0);
+const togglePlayerFullscreen = (fromEscape = false) => {
+  send("toggleFullscreen", fromEscape ? 1 : 0);
 };
 
 const hidePlayerToast = token => {
   if (!playerToast || (token != null && token !== playerToastToken)) return;
   if (isSpeedBoosting) {
-    showPlayerToast("2x", { icon: "icon-speed", persistent: true });
+    const speedValueFormatted = formatSpeedBoostString(normalizedSpeedBoost());
+    showPlayerToast(`${speedValueFormatted}x`, { icon: "icon-speed", persistent: true });
     return;
   }
   playerToast.classList.remove("visible");
@@ -534,6 +589,7 @@ const syncVolumeControl = () => {
 const seekToastLabel = command => {
   if (command === "seekBack" || command === "keyboardSeekBack") return "-10s";
   if (command === "seekForward" || command === "keyboardSeekForward") return "+10s";
+  if (command === "pictureInPicture" || command === "pip") return state.pipLabel || "";
   return "";
 };
 
@@ -694,6 +750,21 @@ const cssColorOrFallback = (value, fallback) => {
 
 const applyTheme = () => {
   const style = document.documentElement.style;
+  const gradientColors = Array.isArray(state.themeAccentGradientColors)
+    ? state.themeAccentGradientColors.map(color => cssColorOrFallback(color, "")).filter(Boolean)
+    : [];
+  const loadingColors = gradientColors.length > 0
+    ? gradientColors
+    : [cssColorOrFallback(state.themeAccentColor, "#2f6fed")];
+  openingLoadingIndicator.setColors(loadingColors);
+  bufferingLoadingIndicator.setColors(loadingColors);
+  if (gradientColors.length > 1) {
+    style.setProperty("--theme-accent-gradient", `linear-gradient(to right, ${gradientColors.join(", ")})`);
+    style.setProperty("--theme-accent-gradient-vertical", `linear-gradient(to bottom, ${gradientColors.join(", ")})`);
+  } else {
+    style.removeProperty("--theme-accent-gradient");
+    style.removeProperty("--theme-accent-gradient-vertical");
+  }
   const setColor = (name, value, fallback) => {
     style.setProperty(name, cssColorOrFallback(value, fallback));
   };
@@ -705,9 +776,9 @@ const applyTheme = () => {
   setColor("--theme-selected-surface-hover", state.themeSelectedSurfaceHoverColor, "#2d4565");
   setColor("--theme-selected-ring", state.themeSelectedRingColor, "rgba(47, 111, 237, .35)");
   setColor("--theme-timeline-fill", state.themeTimelineFillColor, "#fff");
-  setColor("--theme-timeline-track", state.themeTimelineTrackColor, "rgba(255, 255, 255, .28)");
+  setColor("--theme-timeline-track", state.themeTimelineTrackColor, "rgba(255, 255, 255, .3)");
   setColor("--theme-buffering", state.themeBufferingColor, "#fff");
-  setColor("--theme-buffering-track", state.themeBufferingTrackColor, "rgba(255, 255, 255, .28)");
+  setColor("--theme-buffering-track", state.themeBufferingTrackColor, "rgba(255, 255, 255, .35)");
   setColor("--theme-control-foreground", state.themeControlForegroundColor, "#fff");
   setColor("--theme-surface-elevated", state.themeSurfaceElevatedColor, "#16171d");
   setColor("--theme-surface-card", state.themeSurfaceCardColor, "rgba(255, 255, 255, .08)");
@@ -716,6 +787,7 @@ const applyTheme = () => {
   setColor("--theme-text-secondary", state.themeTextSecondaryColor, "rgba(255, 255, 255, .72)");
   setColor("--theme-text-muted", state.themeTextMutedColor, "rgba(255, 255, 255, .6)");
   setColor("--theme-border-default", state.themeBorderDefaultColor, "rgba(255, 255, 255, .12)");
+  setColor("--theme-danger", state.themeDangerColor, "#e36a8a");
 };
 
 const formatTime = milliseconds => {
@@ -729,16 +801,24 @@ const formatTime = milliseconds => {
     : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 };
 
-const setProgress = (positionMs, durationMs) => {
+const setProgress = (positionMs, durationMs, bufferedPositionMs) => {
   const percent = durationMs > 0 ? Math.max(0, Math.min(100, positionMs / durationMs * 100)) : 0;
+  const bufferPercent = bufferedPositionMs > 0 ?
+    Math.max(0, Math.min(100, bufferedPositionMs / durationMs * 100)) : 0;
   seek.value = Math.round(percent * 10);
   seek.style.setProperty("--progress", `${percent}%`);
+  seek.style.setProperty("--bufferProgress", `${bufferPercent}%`);
   positionLabel.textContent = formatTime(positionMs);
   durationLabel.textContent = formatTime(durationMs);
   if (timeLabel) {
-    timeLabel.textContent = `${formatTime(positionMs)} / ${formatTime(durationMs)}`;
+    durationMs = durationMs - (durationMs % 1000);
+    if (timeLabelShowRemaining) {
+      let remainingTimeMs = durationMs - positionMs + (positionMs % 1000 == 0 ? 0 : 1000);
+      timeLabel.textContent = `-${formatTime(remainingTimeMs)}`;
+    } else {
+      timeLabel.textContent = `${formatTime(positionMs)} / ${formatTime(durationMs)}`;
+    }
   }
-  syncVolumeControl();
 };
 
 const setText = (element, text) => {
@@ -875,6 +955,7 @@ const modalByName = {
   episodes: episodesModal,
   submitIntro: submitIntroModal,
   p2pConsent: p2pConsentModal,
+  party: partyModal,
 };
 const modalElements = Object.values(modalByName);
 const modalCloseTimers = new Map();
@@ -925,6 +1006,8 @@ const closePlayerModal = (notifyDismiss = false, animated = true) => {
   if (notifyDismiss && closingModal === "p2pConsent") {
     send("cancelP2pForPlayerControls", 0);
   }
+  if (closingModal === "episodes") onEpisodesModalClosed();
+  if (closingModal === "party") onPartyModalClosed();
   renderChrome();
 };
 
@@ -934,6 +1017,8 @@ const openPlayerModal = modal => {
     closePlayerModal(false);
     return;
   }
+  if (activeModal === "party" && modal !== "party") onPartyModalClosed();
+  if (modal === "party" && activeModal !== "party") onPartyModalOpened();
   activeModal = modal;
   if (modal === "submitIntro") {
     const contentKey = state.submitIntroContentKey || "";
@@ -955,6 +1040,14 @@ const openPlayerModal = modal => {
     setModalVisibility(modalElement, modalElement === targetModal);
   });
   renderChrome();
+};
+
+const onEpisodesModalClosed = () => {
+  currentEpisodeItems = [];
+  currentEpisodeStreamItems = [];
+  selectedEpisodeSeason = null;
+  episodeStreamFilterId = "";
+  send("backToEpisodes", 0);
 };
 
 const normalizeTracks = tracks =>
@@ -1274,6 +1367,8 @@ const renderAutoSyncCues = () => {
     autoSyncStatus.textContent = state.loadingSubtitleLinesLabel || "Loading subtitle lines...";
   } else if (state.subtitleAutoSyncErrorMessage) {
     autoSyncStatus.textContent = state.subtitleAutoSyncErrorMessage;
+  } else if (state.subtitleAutoSyncNote) {
+    autoSyncStatus.textContent = state.subtitleAutoSyncNote;
   } else if (Number(state.subtitleAutoSyncCapturedPositionMs) >= 0 && normalizeItems(state.subtitleAutoSyncCues).length === 0) {
     autoSyncStatus.textContent = state.noSubtitleLinesFoundLabel || "No subtitle lines found";
   } else {
@@ -1351,6 +1446,63 @@ const renderSubtitleModal = () => {
   renderSubtitleSelectionRails();
 };
 
+const filterRows = document.querySelectorAll(".filter-row");
+let filterRowPointerId = null;
+let filterRowStartX = null;
+let filterRowStartY = null;
+let filterRowDragging = false;
+
+const resetFilterRowDragHelpers = () => {
+  filterRowPointerId = null;
+  filterRowStartX = null;
+  filterRowStartY = null;
+  filterRowDragging = false;
+};
+
+const releaseFilterRowPointerCaptures = () => {
+  filterRows.forEach(filterRow => {
+    if (filterRow?.hasPointerCapture(filterRowPointerId)) {
+      filterRow.releasePointerCapture(filterRowPointerId);
+      resetFilterRowDragHelpers();
+    }
+  });
+};
+
+filterRows.forEach(filterRow => {
+  const setXYValues = (event) => {
+    filterRowStartX = event.screenX;
+    filterRowStartY = event.screenY;
+  };
+  const prepareDrag = (event) => {
+    resetFilterRowDragHelpers();
+    setXYValues(event);
+  }
+  const shouldDragStart = (event) => {
+    const dx = Math.abs(event.screenX - filterRowStartX);
+    const dy = Math.abs(event.screenY - filterRowStartY);
+    if (dx > 8 || dy > 8) {
+      filterRow.setPointerCapture(event.pointerId);
+      filterRowPointerId = event.pointerId;
+      filterRowDragging = true;
+    }
+  };
+  const clearDrag = (event) => {
+    filterRow.releasePointerCapture(event.pointerId);
+    resetFilterRowDragHelpers();
+  };
+  const drag = (event) => {
+    if (filterRowStartX && !filterRowDragging) shouldDragStart(event);
+    if (filterRow.hasPointerCapture(event.pointerId)) filterRow.scrollLeft -= event.movementX;
+  };
+
+  filterRow.addEventListener("pointerdown", (event) => {
+    if (event.button == 0) prepareDrag(event);
+  });
+  filterRow.addEventListener("pointermove", drag);
+  filterRow.addEventListener("pointerup", clearDrag);
+  filterRow.addEventListener("pointercancel", clearDrag);
+});
+
 const normalizeItems = items =>
   Array.isArray(items) ? items.filter(item => item && typeof item === "object") : [];
 
@@ -1368,7 +1520,10 @@ const appendFilterChip = (container, label, selected, onSelect, isLoading = fals
   chip.appendChild(text);
   chip.addEventListener("click", event => {
     event.stopPropagation();
-    onSelect();
+    if (!selected) {
+      chip.scrollIntoView({ behavior: "smooth", container: "nearest", inline: "start" });
+      onSelect();
+    }
   });
   container.appendChild(chip);
 };
@@ -1633,7 +1788,7 @@ const requestSourceVirtualRender = () => {
   sourceVirtualRenderRaf = window.requestAnimationFrame(renderSourceVirtualRows);
 };
 
-const renderSourceModal = () => {
+const renderSourceModal = (modalOpened = false) => {
   sourcePanelTitle.textContent = state.sourcesPanelTitle || "Sources";
   sourceReloadButton.textContent = state.reloadLabel || "Reload";
   sourceCloseButton.textContent = state.panelCloseLabel || "Close";
@@ -1647,8 +1802,15 @@ const renderSourceModal = () => {
   renderFilterRow(sourceFilterList, filters, sourceFilterId, id => {
     sourceFilterId = id;
     sourceList.scrollTop = 0;
-    renderSourceModal();
+    renderSourceModal(true);
   });
+
+  if (!modalOpened || !sourceVirtualSpacer) {
+    window.requestAnimationFrame(() => {
+      sourceFilterList.querySelector(".filter-chip.selected")
+        ?.scrollIntoView({ behavior: "instant", container: "nearest", inline: "start" });
+    });
+  }
 
   sourceList.textContent = "";
   sourceList.classList.remove("virtualized");
@@ -1679,7 +1841,7 @@ const renderSourceModal = () => {
   sourceVirtualSpacer.className = "source-virtual-spacer";
   sourceList.appendChild(sourceVirtualSpacer);
   rebuildSourceVirtualLayout();
-  renderSourceVirtualRows();
+  requestSourceVirtualRender();
 };
 
 const appendEpisodeRow = (container, item) => {
@@ -1737,10 +1899,11 @@ const appendEpisodeRow = (container, item) => {
   container.appendChild(row);
 };
 
-const ensureEpisodeSeason = () => {
+const ensureEpisodeSeason = (modalOpened) => {
   const seasons = normalizeItems(state.episodeSeasons);
   if (seasons.length === 0) {
     selectedEpisodeSeason = null;
+    rememberedEpisodeSeason = null;
     return null;
   }
   if (
@@ -1749,15 +1912,23 @@ const ensureEpisodeSeason = () => {
   ) {
     const preferred = seasons.find(season => Boolean(season.isSelected)) || seasons[0];
     selectedEpisodeSeason = Number(preferred.season) || 0;
+    rememberedEpisodeSeason = selectedEpisodeSeason;
   }
-  return selectedEpisodeSeason;
+  return modalOpened ? selectedEpisodeSeason : rememberedEpisodeSeason;
 };
 
-const renderEpisodeList = () => {
+const compareArrays = (prevArray, currArray) => {
+  if (prevArray === null || currArray === null) return false;
+  if (!Array.isArray(prevArray) || !Array.isArray(currArray)) return false;
+  if (prevArray.length !== currArray.length) return false;
+  return (JSON.stringify(currArray) === JSON.stringify(prevArray));
+};
+
+const renderEpisodeList = (modalOpened = false) => {
   episodesPanelTitle.textContent = state.episodesPanelTitle || "Episodes";
   episodesCloseButton.textContent = state.panelCloseLabel || "Close";
 
-  const selectedSeason = ensureEpisodeSeason();
+  const selectedSeason = ensureEpisodeSeason(modalOpened);
   const seasons = normalizeItems(state.episodeSeasons);
   renderFilterRow(
     seasonFilterList,
@@ -1765,23 +1936,45 @@ const renderEpisodeList = () => {
     selectedSeason == null ? "" : String(selectedSeason),
     id => {
       selectedEpisodeSeason = Number(id);
-      renderEpisodeList();
+      currentEpisodeItems = [];
+      renderEpisodeList(true);
     },
   );
 
-  episodeList.textContent = "";
+  if (!modalOpened) {
+    window.requestAnimationFrame(() => {
+      seasonFilterList.querySelector(".filter-chip.selected")
+        ?.scrollIntoView({ behavior: "instant", container: "nearest", inline: "start" });
+    });
+  }
+
   let items = normalizeItems(state.episodeItems);
   if (selectedSeason != null) {
     items = items.filter(item => Number(item.season) === Number(selectedSeason));
   }
   if (items.length === 0) {
+    episodeList.textContent = "";
     appendEmptyTrackState(episodeList, state.noEpisodesLabel || "No episodes available");
     return;
   }
-  items.forEach(item => appendEpisodeRow(episodeList, item));
+
+  if (!compareArrays(currentEpisodeItems, items)) {
+    episodeList.textContent = "";
+    items.forEach(item => appendEpisodeRow(episodeList, item));
+    currentEpisodeItems = items;
+
+    window.requestAnimationFrame(() => {
+      const selectedEpisode = episodeList.querySelector(".track-row.episode-row.selected");
+      if (selectedEpisode) {
+        selectedEpisode.scrollIntoView({ behavior: "instant", container: "nearest", block: "start" });
+      } else {
+        episodeList.scrollTop = 0;
+      }
+    });
+  }
 };
 
-const renderEpisodeStreams = () => {
+const renderEpisodeStreams = (modalOpened = false) => {
   streamsPanelTitle.textContent = state.streamsPanelTitle || "Streams";
   episodeBackButton.textContent = state.backLabel || "Back";
   episodeReloadButton.textContent = state.reloadLabel || "Reload";
@@ -1795,37 +1988,50 @@ const renderEpisodeStreams = () => {
   }
   renderFilterRow(episodeStreamFilterList, filters, episodeStreamFilterId, id => {
     episodeStreamFilterId = id;
-    renderEpisodeStreams();
+    episodeStreamList.scrollTop = 0;
+    currentEpisodeStreamItems = [];
+    renderEpisodeStreams(true);
   });
 
-  episodeStreamList.textContent = "";
+  if (!modalOpened && currentEpisodeStreamItems?.length === 0) {
+    window.requestAnimationFrame(() => {
+      episodeStreamFilterList.querySelector(".filter-chip.selected")
+        ?.scrollIntoView({ behavior: "instant", container: "nearest", inline: "start" });
+    });
+  }
+
   let items = normalizeItems(state.episodeStreamItems);
   if (episodeStreamFilterId) {
     items = items.filter(item => String(item.filterId || "") === episodeStreamFilterId);
   }
   if (items.length === 0) {
+    episodeStreamList.textContent = "";
     appendEmptyTrackState(
       episodeStreamList,
       state.episodeStreamsIsLoading ? "Loading streams..." : (state.noStreamsLabel || "No streams found"),
     );
     return;
   }
-  items.forEach(item => {
-    episodeStreamList.appendChild(buildSourceRow(item, selected => {
-      send("selectEpisodeStream", Number(selected.index) || 0);
-      window.setTimeout(closePlayerModal, 120);
-    }));
-  });
+  if (!compareArrays(currentEpisodeStreamItems, items)) {
+    episodeStreamList.textContent = "";
+    items.forEach(item => {
+      episodeStreamList.appendChild(buildSourceRow(item, selected => {
+        send("selectEpisodeStream", Number(selected.index) || 0);
+        window.setTimeout(closePlayerModal, 120);
+      }));
+    });
+    currentEpisodeStreamItems = items;
+  };
 };
 
-const renderEpisodesModal = () => {
+const renderEpisodesModal = (modalOpened = false) => {
   const showStreams = Boolean(state.episodeStreamsVisible);
   episodeListView.hidden = showStreams;
   episodeStreamsView.hidden = !showStreams;
   if (showStreams) {
     renderEpisodeStreams();
   } else {
-    renderEpisodeList();
+    renderEpisodeList(modalOpened);
   }
 };
 
@@ -1868,22 +2074,32 @@ const renderP2pConsentModal = () => {
   p2pConsentEnableButton.textContent = state.p2pConsentEnableLabel || "Enable P2P";
 };
 
-const renderActiveModal = () => {
+const renderActiveModal = (modalOpened = false) => {
   if (activeModal === "audio") renderAudioTrackList();
   if (activeModal === "subtitles") renderSubtitleModal();
   if (activeModal === "speed") renderSpeedOptionList();
-  if (activeModal === "sources") renderSourceModal();
-  if (activeModal === "episodes") renderEpisodesModal();
+  if (activeModal === "sources") renderSourceModal(modalOpened);
+  if (activeModal === "episodes") renderEpisodesModal(modalOpened);
   if (activeModal === "submitIntro") renderSubmitIntroModal();
   if (activeModal === "p2pConsent") renderP2pConsentModal();
+  if (activeModal === "party") renderPartyModal();
 };
 
 window.nuvioNativeViewportChanged = () => {
   root.classList.add("native-resizing");
   window.clearTimeout(nativeViewportTimer);
+  const timeoutMs = state.isInPip ? 5000 : 180;
   nativeViewportTimer = window.setTimeout(() => {
     root.classList.remove("native-resizing");
-  }, 180);
+  }, timeoutMs);
+  syncSkipPromptPlacement(skipPrompt.classList.contains("visible"));
+  if (activeModal) renderActiveModal();
+};
+
+window.nuvioNativeResizeEnded = () => {
+  window.clearTimeout(nativeViewportTimer);
+  root.classList.remove("native-resizing");
+  noteChromeActivity(true);
   syncSkipPromptPlacement(skipPrompt.classList.contains("visible"));
   if (activeModal) renderActiveModal();
 };
@@ -1927,6 +2143,7 @@ const renderOpeningOverlay = suppress => {
   openingTitle.textContent = titleText;
   openingTitle.hidden = Boolean(logoUrl || !titleText);
   openingSpinner.hidden = Boolean(logoUrl || titleText);
+  openingLoadingIndicator.setActive(showOpening && !openingSpinner.hidden);
 
   openingMessage.textContent = messageText;
   openingStatus.hidden = !(messageText || showHorizontalProgress);
@@ -2042,6 +2259,7 @@ const renderNativePlaybackPrompts = () => {
 
   const showNextEpisode = Boolean(state.nextEpisodeVisible);
   const nextThumbUrl = setImageSource(nextEpisodeThumb, state.nextEpisodeThumbnail);
+  const blurNextThumb = Boolean(nextThumbUrl) && Boolean(state.nextEpisodeThumbnailBlurred);
   nextEpisodeHeader.textContent = state.nextEpisodeHeaderLabel || "Next episode";
   nextEpisodeTitle.textContent = state.nextEpisodeTitle || "";
   nextEpisodeStatus.textContent = state.nextEpisodeStatus || "";
@@ -2051,6 +2269,7 @@ const renderNativePlaybackPrompts = () => {
   nextEpisodeCard.classList.toggle("visible", showNextEpisode);
   nextEpisodeCard.classList.toggle("playable", Boolean(state.nextEpisodePlayable));
   nextEpisodeCard.classList.toggle("has-thumb", Boolean(nextThumbUrl));
+  nextEpisodeCard.classList.toggle("blur-thumb", blurNextThumb);
 };
 
 const isOpeningOverlayActive = () =>
@@ -2192,13 +2411,17 @@ const finishChromePointerInteraction = event => {
 const renderChrome = () => {
   const durationMs = Math.max(0, Number(state.durationMs) || 0);
   const positionMs = isScrubbing ? scrubPositionMs : Math.max(0, Number(state.positionMs) || 0);
+  const bufferedPositionMs = Math.max(0, Number(state.bufferedPositionMs) || 0);
   const isPlaying = Boolean(state.isPlaying);
   const showError = renderPlaybackError();
+  root.classList.toggle("pip-mode", Boolean(state.isInPip));
+  if (!state.isInPip && isPipLocked) setPipLocked(false);
   root.classList.toggle("chrome-hidden", Boolean(showError || !state.controlsVisible));
+  root.classList.toggle("modal-open", Boolean(activeModal));
   root.classList.toggle("source-visible", Boolean(!showError && !isPlaying && !state.isLoading && (state.streamTitle || state.providerName)));
   syncHiddenCursor();
   const showOpening = renderOpeningOverlay(showError);
-  renderPauseMetadataOverlay(showOpening || showError);
+  if (state.pauseOverlayEnabled || showError) renderPauseMetadataOverlay(showOpening || showError);
   syncParentalGuide(showOpening || showError);
 
   title.textContent = state.title || "";
@@ -2217,9 +2440,17 @@ const renderChrome = () => {
   setActionButtonLabel("audio", state.audioLabel || "Audio");
   setActionButtonLabel("sources", state.sourcesLabel || "Sources");
   setActionButtonLabel("episodes", state.episodesLabel || "Episodes");
+  if (pipButton) {
+    const pipLabel = String(state.pipLabel || "").trim();
+    pipButton.setAttribute("aria-label", pipLabel);
+    pipButton.setAttribute("title", pipLabel);
+    pipButton.hidden = !pipLabel;
+  }
+  syncPipLockLabels();
   const showBuffering = Boolean(!showError && state.isLoading && !activeModal && !showOpening);
   bufferingStatus.classList.toggle("visible", showBuffering);
   bufferingStatus.setAttribute("aria-hidden", showBuffering ? "false" : "true");
+  bufferingLoadingIndicator.setActive(showBuffering);
 
   setVisible(submitIntroButton, Boolean(state.showSubmitIntro));
   setVisible(videoSettingsButton, Boolean(state.showVideoSettings));
@@ -2248,7 +2479,7 @@ const renderChrome = () => {
   backButton.setAttribute("aria-label", state.closeLabel || "Close player");
   submitIntroButton.setAttribute("aria-label", state.submitIntroLabel || "Submit Intro");
   videoSettingsButton.setAttribute("aria-label", state.videoSettingsLabel || "Video settings");
-  setProgress(positionMs, durationMs);
+  setProgress(positionMs, durationMs, bufferedPositionMs);
   if (showError) {
     skipPrompt.classList.remove("visible", "show-progress");
     skipPrompt.setAttribute("aria-hidden", "true");
@@ -2257,13 +2488,14 @@ const renderChrome = () => {
   } else {
     renderNativePlaybackPrompts();
   }
+  renderPartyChrome();
   syncChromeAutoHideTimer(showOpening);
 };
 
-const render = () => {
+const render = (modalOpened = false) => {
   applyTheme();
   renderChrome();
-  renderActiveModal();
+  renderActiveModal(modalOpened);
 };
 
 const focusShortcutRoot = () => {
@@ -2397,8 +2629,6 @@ const actionShortcutCommandForEvent = event => {
       return "sources";
     case "KeyE":
       return "episodes";
-    case "KeyP":
-      return "keyboardToggle";
     default:
       return "";
   }
@@ -2411,6 +2641,16 @@ const keepChromeVisibleFromKeyboard = () => {
 let fineSeekTimer = 0;
 let fineSeekAccumulatedMs = 0;
 let fineSeekDirection = null;
+let partySeekTimer = 0;
+const partySeekSettleMs = 300;
+
+const finishPartySeek = () => {
+  partySeekTimer = 0;
+  isScrubbing = false;
+  state.positionMs = scrubPositionMs;
+  send("scrubFinish", scrubPositionMs);
+  render();
+};
 
 const fineSeek = isForward => {
   const direction = isForward ? "forward" : "backward";
@@ -2423,18 +2663,28 @@ const fineSeek = isForward => {
     fineSeekAccumulatedMs = stepMs;
   }
 
-  const currentPosMs = Math.max(0, Number(state.positionMs) || 0);
+  const partySeek = Boolean(partySeekTimer || currentParty().synced);
+  const currentPosMs = Math.max(0, Number(partySeekTimer ? scrubPositionMs : state.positionMs) || 0);
   const durationMs = Math.max(0, Number(state.durationMs) || 0);
+  const bufferedPositionMs = Math.max(0, Number(state.bufferedPositionMs) || 0);
   const targetPosMs = Math.max(0, durationMs > 0 ? Math.min(durationMs, currentPosMs + stepMs) : currentPosMs + stepMs);
 
   state.positionMs = targetPosMs;
-  setProgress(targetPosMs, durationMs);
+  setProgress(targetPosMs, durationMs, bufferedPositionMs);
 
   const deltaSec = Math.round(fineSeekAccumulatedMs / 1000);
   const sign = deltaSec > 0 ? "+" : "";
   showPlayerToast(`${sign}${deltaSec}s`);
 
-  send("scrubFinish", targetPosMs);
+  if (partySeek) {
+    isScrubbing = true;
+    scrubPositionMs = targetPosMs;
+    send("scrubChange", targetPosMs);
+    window.clearTimeout(partySeekTimer);
+    partySeekTimer = window.setTimeout(finishPartySeek, partySeekSettleMs);
+  } else {
+    send("scrubFinish", targetPosMs);
+  }
 
   if (fineSeekTimer) {
     window.clearTimeout(fineSeekTimer);
@@ -2572,6 +2822,7 @@ window.addEventListener("blur", () => {
   clearPressedButton();
   syncChromeAutoHideTimer(isOpeningOverlayActive());
   clearSpeedBoostTimers();
+  releaseFilterRowPointerCaptures();
   if (isHoldSpeedActive || isSpaceBoosting || isSpeedBoosting) {
     suppressNextRootClick = true;
     stopSpeedBoost();
@@ -2753,10 +3004,12 @@ episodeStreamsCloseButton.addEventListener("click", event => {
 episodeBackButton.addEventListener("click", event => {
   event.stopPropagation();
   episodeStreamFilterId = "";
+  currentEpisodeStreamItems = [];
   send("backToEpisodes", 0);
 });
 episodeReloadButton.addEventListener("click", event => {
   event.stopPropagation();
+  currentEpisodeStreamItems = [];
   send("reloadEpisodeStreams", 0);
 });
 
@@ -2874,7 +3127,7 @@ seek.addEventListener("input", () => {
   noteChromeActivity();
   isScrubbing = true;
   scrubPositionMs = rangePositionMs();
-  setProgress(scrubPositionMs, state.durationMs);
+  setProgress(scrubPositionMs, state.durationMs, state.bufferedPositionMs);
   send("scrubChange", scrubPositionMs);
 });
 
@@ -2897,6 +3150,7 @@ volumeSlider.addEventListener("input", event => {
     preMuteVolumeLevel = nextLevel;
   }
   syncVolumeControl();
+  showPlayerToast(volumeToastLabel());
   send("volumeChange", nextLevel);
 });
 
@@ -2914,9 +3168,16 @@ volumeButton.addEventListener("click", () => {
   send("volumeChangeTemporary", state.volumeLevel);
 });
 
+timeLabel.addEventListener("click", () => {
+  noteChromeActivity();
+  timeLabelShowRemaining = !timeLabelShowRemaining;
+  renderChrome();
+});
+
 window.playerUpdate = update => {
   const durationMs = Math.round((Number(update.duration) || 0) * 1000);
   const positionMs = Math.round((Number(update.position) || 0) * 1000);
+  const bufferedPositionMs = Math.round((Number(update.bufferedPosition) || 0) * 1000);
   const reportedVolumeLevel = Number(update.volumeLevel);
   const volumeLevel = Number.isFinite(reportedVolumeLevel)
     ? clampVolumeLevel(reportedVolumeLevel)
@@ -2936,12 +3197,17 @@ window.playerUpdate = update => {
     ...state,
     durationMs,
     positionMs,
+    bufferedPositionMs,
     isPlaying: pendingIsPlaying === null ? nativeIsPlaying : pendingIsPlaying,
     isLoading: Boolean(update.loading || update.isLoading),
     volumeLevel,
     audioTracks,
     subtitleTracks,
   };
+  if (!appliedRememberedVolume) {
+    appliedRememberedVolume = true;
+    syncVolumeControl();
+  }
   if (typeof volumeLevel === "number" && volumeLevel > 0) {
     preMuteVolumeLevel = volumeLevel;
   }
@@ -2968,6 +3234,8 @@ window.playerControls = nextState => {
   const previousEpisodeStreamsVisible = Boolean(state.episodeStreamsVisible);
   const previousSelectedSubtitleLanguageKey = state.selectedSubtitleLanguageKey || "__off__";
   const previousSelectedSubtitleOptionId = state.selectedSubtitleOptionId || "";
+  const previousParty = state.party;
+  const replayingParty = !hasReceivedPlayerControls;
   const currentPlaybackState = pendingIsPlaying === null
     ? state.isPlaying
     : pendingIsPlaying;
@@ -2997,6 +3265,7 @@ window.playerControls = nextState => {
   if (notificationToken !== previousNotificationToken) {
     showPlayerToast(state.notificationMessage);
   }
+  if (!replayingParty) applyPartyControls(previousParty);
   if (state.showP2pConsent && activeModal !== "p2pConsent") {
     openPlayerModal("p2pConsent");
   } else if (!state.showP2pConsent && activeModal === "p2pConsent") {
@@ -3011,7 +3280,8 @@ window.playerControls = nextState => {
   ) {
     resetSubtitleSelectionState();
   }
-  render();
+  const preventModalAutoScrolling = activeModal === "sources" || activeModal === "episodes";
+  render(preventModalAutoScrolling);
   if (pendingSettingToastCommand === "resize" && (state.resizeModeLabel || "") !== previousResizeLabel) {
     pendingSettingToastCommand = "";
     showPlayerToast(settingToastLabel("resize"), { icon: "icon-aspect" });
@@ -3065,8 +3335,45 @@ let isSpeedBoosting = false;
 let speedBoostHoldTimer = null;
 let isHoldSpeedActive = false;
 let suppressNextRootClick = false;
+let suppressClickTimer = null;
+
+const setSuppressNextRootClick = () => {
+  suppressNextRootClick = true;
+  if (suppressClickTimer) {
+    window.clearTimeout(suppressClickTimer);
+  }
+  suppressClickTimer = window.setTimeout(() => {
+    suppressNextRootClick = false;
+    suppressClickTimer = null;
+  }, 250);
+};
+
+const clearSuppressNextRootClick = () => {
+  suppressNextRootClick = false;
+  if (suppressClickTimer) {
+    window.clearTimeout(suppressClickTimer);
+    suppressClickTimer = null;
+  }
+};
+
+window.nuvioNativeViewportChanged = () => {
+  root.classList.add("native-resizing");
+};
+
+window.nuvioNativeResizeEnded = () => {
+  pipPointerDown = false;
+  clearSuppressNextRootClick();
+  root.classList.remove("native-resizing");
+  if (document.body.style.cursor && document.body.style.cursor.includes("resize")) {
+    document.body.style.cursor = "";
+  }
+};
+
 let rootPointerStartX = 0;
 let rootPointerStartY = 0;
+let pipPointerStartX = 0;
+let pipPointerStartY = 0;
+let pipPointerDown = false;
 let spaceHoldTimer = null;
 let isSpaceBoosting = false;
 let pausedBeforeSpeedBoosting = false;
@@ -3108,20 +3415,35 @@ const clearSpaceHoldTimerAndStopSpeedBoost = () => {
   return false;
 }
 
+const normalizedSpeedBoost = () => {
+  const speedValue = Number(state.holdToSpeedValue);
+  return Number.isFinite(speedValue) ? Math.max(1.0, Math.min(4.0, speedValue)) : 2.0;
+};
+
+const formatSpeedBoostString = (speedValue) => {
+  return Number.isSafeInteger(speedValue) ? speedValue.toPrecision(1) : speedValue;
+};
+
+const getCurrentPlaybackSpeed = () => {
+  const currentSpeedStr = String(state.playbackSpeedLabel || "1x");
+  return parseFloat(currentSpeedStr.replace("x", "")) || 1.0;
+};
+
+const canSpeedBoostStart = () => {
+  return state.holdToSpeedEnabled && (getCurrentPlaybackSpeed() !== normalizedSpeedBoost());
+};
+
 const startSpeedBoost = () => {
   if (isSpeedBoosting) return;
   isSpeedBoosting = true;
-  if (preSpeedBoostRate == null) {
-    const currentSpeedStr = String(state.playbackSpeedLabel || "1x");
-    const currentSpeedNum = parseFloat(currentSpeedStr.replace("x", "")) || 1.0;
-    preSpeedBoostRate = currentSpeedNum === 2.0 ? 1.0 : currentSpeedNum;
-  }
+  if (preSpeedBoostRate == null) preSpeedBoostRate = getCurrentPlaybackSpeed();
   if (!state.isPlaying) {
     pausedBeforeSpeedBoosting = true;
     requestPlaybackState("setPlaybackStateQuiet", false);
   }
-  showPlayerToast("2x", { icon: "icon-speed", persistent: true });
-  send("setPlaybackSpeed", 2.0);
+  const speedBoostValue = normalizedSpeedBoost();
+  showPlayerToast(`${formatSpeedBoostString(speedBoostValue)}x`, { icon: "icon-speed", persistent: true });
+  send("setPlaybackSpeed", speedBoostValue);
 };
 
 const stopSpeedBoost = () => {
@@ -3145,7 +3467,7 @@ root.addEventListener("contextmenu", event => {
 });
 
 root.addEventListener("pointerdown", event => {
-  if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
+  if (!canSpeedBoostStart() || state.isInPip || playbackErrorText() || isControlsSurfaceEvent(event)) return;
   if (event.button !== 0) return;
 
   rootPointerStartX = event.clientX;
@@ -3161,28 +3483,89 @@ root.addEventListener("pointerdown", event => {
   }, 220);
 });
 
+const PIP_RESIZE_BORDER = 8;
+
+const getPipEdgeHit = (clientX, clientY) => {
+  if (!state.isInPip || isPipLocked) return null;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  if (w <= 0 || h <= 0) return null;
+  const left = clientX < PIP_RESIZE_BORDER;
+  const right = clientX >= w - PIP_RESIZE_BORDER;
+  const top = clientY < PIP_RESIZE_BORDER;
+  const bottom = clientY >= h - PIP_RESIZE_BORDER;
+
+  if (top && left) return { hit: 13, cursor: "nwse-resize" };
+  if (top && right) return { hit: 14, cursor: "nesw-resize" };
+  if (bottom && left) return { hit: 16, cursor: "nesw-resize" };
+  if (bottom && right) return { hit: 17, cursor: "nwse-resize" };
+  if (left) return { hit: 10, cursor: "ew-resize" };
+  if (right) return { hit: 11, cursor: "ew-resize" };
+  if (top) return { hit: 12, cursor: "ns-resize" };
+  if (bottom) return { hit: 15, cursor: "ns-resize" };
+  return null;
+};
+
 window.addEventListener("pointermove", event => {
   if (speedBoostHoldTimer && !isHoldSpeedActive) {
     const dx = Math.abs(event.clientX - rootPointerStartX);
     const dy = Math.abs(event.clientY - rootPointerStartY);
     if (dx > 12 || dy > 12) clearSpeedBoostHoldTimer();
   }
+  if (state.isInPip && !isPipLocked) {
+    if (event.target && event.target.closest && event.target.closest("button, input, select, textarea, [data-command], a, #seek, .volume-control, .pip-lock-badge, .modal")) {
+      if (document.body.style.cursor && document.body.style.cursor.includes("resize")) {
+        document.body.style.cursor = "";
+      }
+    } else {
+      const edge = getPipEdgeHit(event.clientX, event.clientY);
+      if (edge) {
+        document.body.style.cursor = edge.cursor;
+      } else if (document.body.style.cursor && document.body.style.cursor.includes("resize")) {
+        document.body.style.cursor = "";
+      }
+    }
+  }
+  if (pipPointerDown && state.isInPip) {
+    const dx = Math.abs(event.clientX - pipPointerStartX);
+    const dy = Math.abs(event.clientY - pipPointerStartY);
+    if (dx > 6 || dy > 6) {
+      pipPointerDown = false;
+      setSuppressNextRootClick();
+      if (event.target && event.target.releasePointerCapture) {
+        try { event.target.releasePointerCapture(event.pointerId); } catch (_) {}
+      }
+      send("dragWindow", 0);
+    }
+  }
 });
 
 window.addEventListener("pointerup", () => {
+  pipPointerDown = false;
   clearSpeedBoostHoldTimer();
   preventClickAndStopSpeedBoost();
 });
 
 window.addEventListener("pointercancel", () => {
+  pipPointerDown = false;
+  clearSuppressNextRootClick();
   clearSpeedBoostHoldTimer();
   preventClickAndStopSpeedBoost();
 });
 
+window.addEventListener("blur", () => {
+  pipPointerDown = false;
+  clearSuppressNextRootClick();
+  if (document.body.style.cursor && document.body.style.cursor.includes("resize")) {
+    document.body.style.cursor = "";
+  }
+});
+
 root.addEventListener("click", event => {
   if (event.button !== 0) return;
+  if (isPipLocked) return;
   if (suppressNextRootClick) {
-    suppressNextRootClick = false;
+    clearSuppressNextRootClick();
     window.clearTimeout(tapTimer);
     event.stopPropagation();
     event.preventDefault();
@@ -3195,11 +3578,57 @@ root.addEventListener("click", event => {
   }, 220);
 });
 
+root.addEventListener("pointerdown", event => {
+  if (!state.isInPip || event.button !== 0) return;
+  if (activeModal) return;
+
+  if (event.target.closest("button, input, select, textarea, [data-command], a, #seek, .volume-control, .pip-lock-badge, .modal")) return;
+
+  if (!isPipLocked) {
+    const edge = getPipEdgeHit(event.clientX, event.clientY);
+    if (edge) {
+      event.preventDefault();
+      event.stopPropagation();
+      setSuppressNextRootClick();
+      pipPointerDown = false;
+      root.classList.add("native-resizing");
+      if (event.target && event.target.releasePointerCapture) {
+        try { event.target.releasePointerCapture(event.pointerId); } catch (_) {}
+      }
+      send("resizeWindow", edge.hit);
+      return;
+    }
+  }
+
+  pipPointerStartX = event.clientX;
+  pipPointerStartY = event.clientY;
+  pipPointerDown = true;
+});
+
+if (pipLockButton) {
+  pipLockButton.addEventListener("click", () => {
+    setPipLocked(!isPipLocked);
+  });
+}
+
+if (pipLockBadge) {
+  pipLockBadge.addEventListener("click", event => {
+    event.stopPropagation();
+    setPipLocked(false);
+  });
+}
+
+
 root.addEventListener("dblclick", event => {
   if (event.button !== 0) return;
+  if (isPipLocked) return;
   if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
   event.preventDefault();
   window.clearTimeout(tapTimer);
+  if (state.isInPip) {
+    send("pictureInPicture", 0);
+    return;
+  }
   togglePlayerFullscreen();
 });
 
@@ -3239,6 +3668,11 @@ document.addEventListener("keyup", event => {
 });
 
 document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && isPartyConfirmOpen()) {
+    event.preventDefault();
+    closePartyConfirm();
+    return;
+  }
   if (event.key === "Escape" && activeModal) {
     clearSpaceHoldTimerAndStopSpeedBoost();
     event.preventDefault();
@@ -3249,8 +3683,10 @@ document.addEventListener("keydown", event => {
   if (event.key === "Escape") {
     clearSpaceHoldTimerAndStopSpeedBoost();
     event.preventDefault();
-    if (state.isFullscreen) {
-      togglePlayerFullscreen();
+    if (state.isInPip) {
+      send("pictureInPicture", 0);
+    } else if (state.isFullscreen) {
+      togglePlayerFullscreen(true);
     } else {
       send("back", 0);
     }
@@ -3354,7 +3790,7 @@ document.addEventListener("keydown", event => {
   }
 
   if (activeModal && event.code.startsWith("Arrow") && document.activeElement && document.activeElement.tagName !== "BODY" && document.activeElement !== root) {
-    const modalEl = modalByName[activeModal];
+    const modalEl = isPartyConfirmOpen() ? partyConfirm : modalByName[activeModal];
     if (!modalEl) return;
     const focusable = Array.from(modalEl.querySelectorAll('button:not([disabled]):not([hidden]), input:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'))
       .filter(el => el.offsetWidth > 0 || el.offsetHeight > 0);
@@ -3510,9 +3946,7 @@ document.addEventListener("keydown", event => {
   }
   if (event.code === "KeyP") {
     event.preventDefault();
-    const style = state.subtitleStyle || {};
-    const currentOpacity = Math.round((parseArgb(style.textColor).alpha / 255) * 100);
-    send("subtitleTextOpacity", Math.min(100, currentOpacity + 10));
+    send("pictureInPicture", 0);
     return;
   }
   if (event.code === "KeyI") {
@@ -3558,7 +3992,7 @@ document.addEventListener("keydown", event => {
     return;
   }
 
-  if (event.code === "Space") {
+  if (canSpeedBoostStart() && event.code === "Space") {
     event.preventDefault();
     if (event.repeat) {
       if (!isSpeedBoosting) {
@@ -3568,6 +4002,23 @@ document.addEventListener("keydown", event => {
       return;
     }
     clearSpaceHoldTimer();
+    isSpaceBoosting = false;
+    spaceHoldTimer = window.setTimeout(() => {
+      isSpaceBoosting = true;
+      startSpeedBoost();
+    }, 220);
+    return;
+  }
+  if (event.code === "Space") {
+    event.preventDefault();
+    if (event.repeat) {
+      if (!isSpeedBoosting) {
+        isSpaceBoosting = true;
+        startSpeedBoost();
+      }
+      return;
+    }
+    if (spaceHoldTimer) window.clearTimeout(spaceHoldTimer);
     isSpaceBoosting = false;
     spaceHoldTimer = window.setTimeout(() => {
       isSpaceBoosting = true;
@@ -3606,7 +4057,7 @@ document.addEventListener("keydown", event => {
   send(command, 0);
 });
 
-setProgress(0, 0);
+setProgress(0, 0, 0);
 focusShortcutRoot();
 render();
 send("controlsReady", 0);

@@ -30,7 +30,8 @@ private val log = Logger.withTag("WatchedBadgeBulk")
 suspend fun resolveWatchedBadgesBulk(
     watchedItems: List<WatchedItem>,
     progressEntries: List<WatchProgressEntry>,
-) = withContext(Dispatchers.Default) {
+    todayIsoDate: String = CurrentDateProvider.todayIsoDate(),
+): Boolean = withContext(Dispatchers.Default) {
     val completedProgressVideoIds = progressEntries
         .asSequence()
         .filter { entry -> entry.isEffectivelyCompleted }
@@ -56,9 +57,8 @@ suspend fun resolveWatchedBadgesBulk(
         }
         WatchedRepository.baseFullyWatchedSeriesKeys().mapNotNullTo(this, ::extractContentIdFromWatchedKey)
     }
-    if (touchedSeriesIds.isEmpty()) return@withContext
+    if (touchedSeriesIds.isEmpty()) return@withContext true
 
-    val todayIsoDate = CurrentDateProvider.todayIsoDate()
     // Use the full watchedKeys from UI state which includes extra keys from
     // provider alternate IDs (e.g. Simkl anime alternate MAL/Kitsu keys).
     val watchedKeys = WatchedRepository.uiState.value.watchedKeys
@@ -77,7 +77,7 @@ suspend fun resolveWatchedBadgesBulk(
                     } catch (_: Throwable) {
                         null
                     }
-                    if (meta == null) return@withPermit null
+                    if (meta == null || !meta.type.isSeriesLikeWatchingContentType(includeAnime = true) || meta.videos.isEmpty()) return@withPermit null
                     val isFullyWatched = WatchedRepository.calculateFullyWatchedSeriesState(
                         meta = meta,
                         todayIsoDate = todayIsoDate,
@@ -109,6 +109,7 @@ suspend fun resolveWatchedBadgesBulk(
     log.i { "Bulk badge resolution complete: resolved ${resolutions.count { it != null }}/${touchedSeriesIds.size}" }
 
     expandFullyWatchedWithSiblings()
+    resolutions.count { it != null } == touchedSeriesIds.size
 }
 
 fun expandFullyWatchedWithSiblings() {
@@ -153,13 +154,9 @@ private fun getActiveProviderSiblingMap(): Map<String, Set<String>> {
             com.nuvio.app.features.tracking.TrackingProviderRegistry.isAuthenticated(providerId)
         },
     )
-    return when (effectiveSource.providerId) {
-        TrackingProviderId.TRAKT -> TraktProgressRepository.getShowIdSiblings()
-        TrackingProviderId.SIMKL -> {
-            SimklSyncRepository.state.value.snapshot.toSimklShowIdSiblings()
-        }
-        else -> emptyMap()
-    }
+    return effectiveSource.providerId?.let {
+        com.nuvio.app.features.tracking.TrackingProviderRegistry.progressProvider(it)?.showIdSiblings()
+    }.orEmpty()
 }
 
 private fun extractContentIdFromWatchedKey(key: String): String? {

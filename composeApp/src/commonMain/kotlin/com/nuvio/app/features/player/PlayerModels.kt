@@ -46,6 +46,8 @@ data class PlayerLaunch(
     val initialPositionMs: Long = 0L,
     val initialProgressFraction: Float? = null,
     val contentLanguage: String? = null,
+    val sourceFilename: String? = null,
+    val stream: com.nuvio.app.features.streams.StreamItem? = null,
 )
 
 object PlayerLaunchStore {
@@ -59,6 +61,11 @@ object PlayerLaunchStore {
     }
 
     fun get(launchId: Long): PlayerLaunch? = launches[launchId]
+
+    fun update(launchId: Long, transform: (PlayerLaunch) -> PlayerLaunch) {
+        val launch = launches[launchId] ?: return
+        launches[launchId] = transform(launch)
+    }
 
     fun remove(launchId: Long) {
         launches.remove(launchId)
@@ -209,6 +216,14 @@ fun IosHardwareDecoderMode.localizedLabel(): String = when (this) {
     IosHardwareDecoderMode.Off -> stringResource(Res.string.player_ios_hardware_decoder_off)
     else -> label
 }
+
+internal data class PlaybackKey(
+    val sourceIdentity: String,
+    val videoId: String?,
+    val seasonNumber: Int?,
+    val episodeNumber: Int?,
+    val playbackEngine: AndroidPlaybackEngine? = null,
+)
 
 data class PlayerPlaybackSnapshot(
     val isLoading: Boolean = true,

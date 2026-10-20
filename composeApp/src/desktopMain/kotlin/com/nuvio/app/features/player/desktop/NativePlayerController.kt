@@ -5,6 +5,7 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.features.player.PlayerControlAddonSubtitleItem
 import com.nuvio.app.features.player.PlayerControlEpisodeItem
 import com.nuvio.app.features.player.PlayerControlFilterItem
+import com.nuvio.app.features.player.PlayerControlPartyState
 import com.nuvio.app.features.player.PlayerControlSeasonItem
 import com.nuvio.app.features.player.PlayerControlSourceItem
 import com.nuvio.app.features.player.PlayerControlSubtitleCueItem
@@ -18,6 +19,7 @@ import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.player.PlayerPlaybackSnapshot
 import com.nuvio.app.features.player.PlayerResizeMode
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MAX_MS
+import com.nuvio.app.features.player.findPreferredAudioTrackIndex
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MIN_MS
 import com.nuvio.app.features.player.SubtitleColorSwatches
 import com.nuvio.app.features.player.SubtitleOutlineColorSwatches
@@ -28,6 +30,7 @@ import com.nuvio.app.features.player.toStorageHexString
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import java.awt.Component
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.util.concurrent.CountDownLatch
@@ -48,7 +51,10 @@ internal typealias NativePlayerCreate = (
 
 internal class NativePlayerController(
     private val host: NativePlayerHost,
-    private val nativeCreate: NativePlayerCreate = NativePlayerBridge::create,
+    private val nativeCreate: NativePlayerCreate = { hostViewPtr, source, headers, playWhenReady, positionMs, controlsUrl, decoder, rtx, sink ->
+        NativePlayerBridge.ensureLoaded()
+        NativePlayerBridge.create(hostViewPtr, source, headers, playWhenReady, positionMs, controlsUrl, decoder, rtx, sink)
+    },
     private val nativeDispose: (Long) -> Unit = NativePlayerBridge::dispose,
     private val nativeSeekTo: (Long, Long) -> Unit = NativePlayerBridge::seekTo,
     private val isHostDisplayable: () -> Boolean = { host.isDisplayable },
@@ -77,6 +83,9 @@ internal class NativePlayerController(
     )
 
     private val lifecycleLock = Any()
+    private var currentNowPlayingTitle: String = ""
+    private var currentNowPlayingSubtitle: String = ""
+    private var currentArtworkUrl: String = ""
 
     @Volatile
     private var handle: Long = 0L
@@ -89,6 +98,8 @@ internal class NativePlayerController(
     private var pendingSource: PendingSource? = null
     @Volatile
     private var releaseRequested: Boolean = false
+    val isReleasing: Boolean
+        get() = releaseRequested
     private val createsInFlight = mutableSetOf<Thread>()
     private var createWaitInFlight: Thread? = null
     private val releaseCallbacks = mutableListOf<ReleaseCallback>()
@@ -339,6 +350,9 @@ internal class NativePlayerController(
                         applyRememberedVolume()
                         updateControls(controlsState)
                         setResizeMode(rememberedResizeMode)
+                        if (currentNowPlayingTitle.isNotEmpty() || currentArtworkUrl.isNotEmpty()) {
+                            setNowPlayingMetadata(currentNowPlayingTitle, currentNowPlayingSubtitle, currentArtworkUrl)
+                        }
                         applyPendingSubtitleSettings()
                     }
                 }.onFailure { error ->
@@ -430,6 +444,7 @@ internal class NativePlayerController(
         val structureKey = NativeControlsStructureKey(
             state = stateWithVolume.nativeControlsStructureKey(),
             isFullscreen = isFullscreen,
+            isInPip = DesktopPlayerPictureInPicture.isEnabled,
         )
         if (structureKey == lastSentControlsStructureKey) return
         lastSentControlsStructureKey = structureKey
@@ -439,7 +454,15 @@ internal class NativePlayerController(
                 "speed=${stateWithVolume.playbackSpeedLabel} audioLabel=${stateWithVolume.audioLabel} " +
                 "subsLabel=${stateWithVolume.subtitlesLabel} fullscreen=$isFullscreen"
         }
-        NativePlayerBridge.updateControls(current, stateWithVolume.toControlsJson(isFullscreen))
+        NativePlayerBridge.updateControls(current, stateWithVolume.toControlsJson(isFullscreen, ::refreshControlsForImage))
+    }
+
+    private fun refreshControlsForImage() {
+        SwingUtilities.invokeLater {
+            if (releaseRequested) return@invokeLater
+            lastSentControlsStructureKey = null
+            updateControls(controlsState)
+        }
     }
 
     fun onDesktopFullscreenChanged() {
@@ -448,12 +471,46 @@ internal class NativePlayerController(
         requestKeyboardFocus()
     }
 
-    private fun requestKeyboardFocus() {
+    fun reparentSurface(host: Component): Boolean {
+        val current = handle.takeIf { it != 0L } ?: return false
+        if (!host.isDisplayable) return false
+        val pointer = runCatching { AwtNativeViewResolver.resolveNativeViewPointer(host) }
+            .onFailure { error -> log.w(error) { "failed to resolve PiP native host ${host.javaClass.name}" } }
+            .getOrNull() ?: return false
+        return NativePlayerBridge.reparentSurface(current, pointer)
+    }
+
+    fun layoutNativeSubviews() {
+        val current = handle.takeIf { it != 0L } ?: return
+        NativePlayerBridge.layoutNativeSubviews(current)
+    }
+
+    fun requestKeyboardFocus() {
         SwingUtilities.invokeLater {
+            val current = handle.takeIf { it != 0L } ?: return@invokeLater
+            if (DesktopPlayerPictureInPicture.isEnabled) {
+                DesktopPlayerPictureInPicture.pipWindow?.videoHolderPanel?.requestFocusInWindow()
+                NativePlayerBridge.requestFocus(current)
+                return@invokeLater
+            }
             if (!isHostDisplayable()) return@invokeLater
             host.requestFocusInWindow()
-            val current = handle.takeIf { it != 0L } ?: return@invokeLater
             NativePlayerBridge.requestFocus(current)
+        }
+    }
+
+    fun setNowPlayingMetadata(title: String?, subtitle: String?, artworkUrl: String?) {
+        if (DesktopHostOs.current != DesktopHostOs.MACOS) return
+        currentNowPlayingTitle = title.orEmpty()
+        currentNowPlayingSubtitle = subtitle.orEmpty()
+        currentArtworkUrl = artworkUrl.orEmpty()
+        handle.takeIf { it != 0L }?.let { current ->
+            NativePlayerBridge.setNowPlayingMetadata(
+                current,
+                currentNowPlayingTitle,
+                currentNowPlayingSubtitle,
+                currentArtworkUrl,
+            )
         }
     }
 
@@ -493,14 +550,21 @@ internal class NativePlayerController(
                 }
             }
             "toggleFullscreen" -> {
-                toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
-                onDesktopFullscreenChanged()
+                if (onEvent(type, value)) 
+                    return
+                if (DesktopPlayerPictureInPicture.isEnabled) {
+                    DesktopPlayerPictureInPicture.toggle()
+                } else {
+                    toggleDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
+                    onDesktopFullscreenChanged()
+                }
             }
+            "dragWindow" -> NativePlayerBridge.beginWindowDrag(handle)
             "volumeChange" -> setFallbackVolume(value.toFloat())
             "volumeChangeTemporary" -> setTemporaryVolume(value.toFloat())
             "setPlaybackSpeed" -> {
-                val speed = value.toFloat()
-                setPlaybackSpeed(speed)
+                if (onEvent(type, value)) return
+                setPlaybackSpeed(value.toFloat())
             }
             else -> {
                 val eventHandled = onEvent(type, value)
@@ -547,9 +611,14 @@ internal class NativePlayerController(
             PlayerControlsAction.KeyboardSeekForward -> fallbackSeekBy(10_000L)
             PlayerControlsAction.KeyboardVolumeDown -> adjustFallbackVolume(-10f)
             PlayerControlsAction.KeyboardVolumeUp -> adjustFallbackVolume(10f)
+            PlayerControlsAction.PictureInPicture -> togglePictureInPictureFromShortcut()
             PlayerControlsAction.Speed -> cycleFallbackSpeed()
             else -> Unit
         }
+    }
+
+    fun togglePictureInPictureFromShortcut() {
+        DesktopPlayerPictureInPicture.toggle()
     }
 
     @Synchronized
@@ -944,17 +1013,8 @@ internal class NativePlayerController(
         }
 
     override fun applyAudioLanguagePreferences(languages: List<String>) {
-        val preferredLanguages = languages
-            .map(String::trim)
-            .filter(String::isNotEmpty)
-            .map(String::lowercase)
-        if (preferredLanguages.isEmpty()) return
-        val trackIndex = getAudioTracks().indexOfFirst { track ->
-            val language = track.language?.lowercase() ?: return@indexOfFirst false
-            preferredLanguages.any { preferred ->
-                language == preferred || language.startsWith("$preferred-")
-            }
-        }
+        handle.takeIf { it != 0L }?.let { NativePlayerBridge.setAudioLanguages(it, languages.joinToString(",")) }
+        val trackIndex = findPreferredAudioTrackIndex(getAudioTracks(), languages)
         if (trackIndex >= 0) selectAudioTrack(trackIndex)
     }
 
@@ -1171,6 +1231,7 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
         "keyboardSeekForward" -> PlayerControlsAction.KeyboardSeekForward
         "keyboardVolumeDown" -> PlayerControlsAction.KeyboardVolumeDown
         "keyboardVolumeUp" -> PlayerControlsAction.KeyboardVolumeUp
+        "pictureInPicture", "pip" -> PlayerControlsAction.PictureInPicture
         "resize" -> PlayerControlsAction.ResizeMode
         "speed" -> PlayerControlsAction.Speed
         "subtitles" -> PlayerControlsAction.Subtitles
@@ -1186,9 +1247,10 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
 private data class NativeControlsStructureKey(
     val state: PlayerControlsState,
     val isFullscreen: Boolean,
+    val isInPip: Boolean,
 )
 
-private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
+private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageReady: () -> Unit): String =
     buildString {
         append('{')
         appendJsonField("title", title)
@@ -1198,6 +1260,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("streamTitle", streamTitle)
         append(',')
         appendJsonField("providerName", providerName)
+        append(',')
+        appendJsonField("pauseOverlayEnabled", pauseOverlayEnabled)
         append(',')
         appendJsonField("pauseOverlayWatchingLabel", pauseOverlayWatchingLabel)
         append(',')
@@ -1212,6 +1276,10 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("resizeModeLabel", resizeModeLabel)
         append(',')
         appendJsonField("playbackSpeedLabel", playbackSpeedLabel)
+        append(',')
+        appendJsonField("holdToSpeedEnabled", holdToSpeedEnabled)
+        append(',')
+        appendJsonField("holdToSpeedValue", holdToSpeedValue)
         append(',')
         appendJsonField("isFullscreen", isFullscreen)
         append(',')
@@ -1357,6 +1425,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonField("themeAccentColor", themeAccentColor)
         append(',')
+        appendJsonArrayField("themeAccentGradientColors", themeAccentGradientColors) { append(it.toJsonString()) }
+        append(',')
         appendJsonField("themeAccentStrongColor", themeAccentStrongColor)
         append(',')
         appendJsonField("themeOnAccentColor", themeOnAccentColor)
@@ -1393,9 +1463,28 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonField("themeBorderDefaultColor", themeBorderDefaultColor)
         append(',')
+        appendJsonField("themeDangerColor", themeDangerColor)
+        append(',')
         appendJsonField("isPlaying", isPlaying)
         append(',')
         appendJsonField("isLoading", isLoading)
+        append(',')
+        appendJsonField(
+            "pipLabel",
+            if (DesktopHostOs.current == DesktopHostOs.WINDOWS ||
+                DesktopHostOs.current == DesktopHostOs.MACOS
+            ) {
+                pipLabel
+            } else {
+                ""
+            },
+        )
+        append(',')
+        appendJsonField("lockLabel", lockLabel)
+        append(',')
+        appendJsonField("unlockLabel", unlockLabel)
+        append(',')
+        appendJsonField("isInPip", DesktopPlayerPictureInPicture.isEnabled)
         append(',')
         appendJsonField("controlsVisible", controlsVisible)
         append(',')
@@ -1433,6 +1522,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonField("nextEpisodeThumbnail", nextEpisodeThumbnail)
         append(',')
+        appendJsonField("nextEpisodeThumbnailBlurred", nextEpisodeThumbnailBlurred)
+        append(',')
         appendJsonField("nextEpisodeStatus", nextEpisodeStatus)
         append(',')
         appendJsonField("nextEpisodeActionLabel", nextEpisodeActionLabel)
@@ -1452,6 +1543,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("durationMs", durationMs)
         append(',')
         appendJsonField("positionMs", positionMs)
+        append(',')
+        appendJsonField("bufferedPositionMs", bufferedPositionMs)
         append(',')
         appendJsonField("sourceIsLoading", sourceIsLoading)
         append(',')
@@ -1521,6 +1614,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         append(',')
         appendJsonField("subtitleAutoSyncErrorMessage", subtitleAutoSyncErrorMessage)
         append(',')
+        appendJsonField("subtitleAutoSyncNote", subtitleAutoSyncNote)
+        append(',')
         appendJsonField("subtitleStyle", subtitleStyle)
         append(',')
         appendJsonArrayField("subtitleColorSwatches", SubtitleColorSwatches.map { it.toStorageHexString() }) { append(it.toJsonString()) }
@@ -1534,8 +1629,15 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean): String =
         appendJsonField("notificationMessage", notificationMessage)
         append(',')
         appendJsonField("notificationToken", notificationToken)
+        append(",\"party\":")
+        append(partyJson.encodeToString(PlayerControlPartyState.serializer(), party.withWebviewImages(onImageReady)))
         append('}')
     }
+
+private val partyJson = Json { encodeDefaults = true }
+
+private fun PlayerControlPartyState.withWebviewImages(onImageReady: () -> Unit): PlayerControlPartyState =
+    copy(profile = profile.copy(imageUrl = if (active) "" else WebviewImages.resolve(profile.imageUrl, onImageReady)))
 
 private fun PlayerControlsState.nativeControlsStructureKey(): PlayerControlsState =
     copy(
@@ -1543,6 +1645,7 @@ private fun PlayerControlsState.nativeControlsStructureKey(): PlayerControlsStat
         isLoading = false,
         durationMs = 0L,
         positionMs = 0L,
+        bufferedPositionMs = 0L,
     )
 
 private fun StringBuilder.appendJsonField(name: String, value: String) {
@@ -1562,6 +1665,8 @@ private fun StringBuilder.appendJsonField(name: String, value: Float?) {
     append('"').append(name).append("\":")
     if (value == null || value.isNaN() || value.isInfinite()) {
         append("null")
+    } else if (name == "holdToSpeedValue") {
+        append(value.coerceIn(1f, 4f))
     } else {
         append(value.coerceIn(0f, 1f))
     }

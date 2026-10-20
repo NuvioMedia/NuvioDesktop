@@ -15,6 +15,7 @@ import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.plugins.PluginRepository
 import com.nuvio.app.features.plugins.pluginContentId
 import com.nuvio.app.features.plugins.PluginsUiState
+import com.nuvio.app.features.servers.ServerStreams
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -48,6 +49,7 @@ object StreamsRepository {
         "$type::$videoId::$season::$episode::$manualSelection"
 
     fun load(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
+        PluginRepository.setLocalPluginSearchPaused(false)
         load(
             type = type,
             videoId = videoId,
@@ -60,6 +62,7 @@ object StreamsRepository {
     }
 
     fun reload(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
+        PluginRepository.setLocalPluginSearchPaused(false)
         load(
             type = type,
             videoId = videoId,
@@ -116,6 +119,12 @@ object StreamsRepository {
         ) {
             parentMetaId?.let { BingeGroupCacheRepository.get(it) }
         } else null
+        val persistedFilename = if (persistedBingeGroup != null) {
+            parentMetaId?.let { BingeGroupCacheRepository.getFilename(it) }
+        } else null
+        val persistedInfoHash = if (persistedBingeGroup != null) {
+            parentMetaId?.let { BingeGroupCacheRepository.getInfoHash(it) }
+        } else null
 
         // Enable direct auto-play flow if normal auto-play is enabled,
         // OR if we have a persisted binge group in MANUAL mode
@@ -128,6 +137,7 @@ object StreamsRepository {
             _uiState.value = StreamsUiState(
                 requestToken = requestToken,
                 isDirectAutoPlayFlow = true,
+                autoPlayDecided = true,
                 showDirectAutoPlayOverlay = true,
             )
         }
@@ -148,14 +158,18 @@ object StreamsRepository {
             _uiState.value = StreamsUiState(
                 requestToken = requestToken,
                 groups = listOf(presentedGroup),
+                autoPlayDecided = true,
                 activeAddonIds = setOf("embedded"),
                 isAnyLoading = false,
             )
             return
         }
 
-        val installedAddons = AddonRepository.uiState.value.addons.enabledAddons()
-        val pluginScrapers = if (AppFeaturePolicy.pluginsEnabled) {
+        val isNativeServerRequest = ServerStreams.isNativeRequest(videoId)
+        val serverSources = ServerStreams.sources(type, videoId, season, episode, forceRefresh)
+        val preferredGroupIds = serverSources.filter { it.preferred }.mapTo(mutableSetOf()) { it.addonId }
+        val installedAddons = if (isNativeServerRequest) emptyList() else AddonRepository.uiState.value.addons.enabledAddons()
+        val pluginScrapers = if (AppFeaturePolicy.pluginsEnabled && !isNativeServerRequest) {
             PluginRepository.getEnabledScrapersForType(type)
         } else {
             emptyList()
@@ -165,11 +179,12 @@ object StreamsRepository {
             groupByRepository = pluginUiState.groupStreamsByRepository,
         )
 
-        if (installedAddons.isEmpty() && pluginProviderGroups.isEmpty()) {
+        if (installedAddons.isEmpty() && pluginProviderGroups.isEmpty() && serverSources.isEmpty()) {
             _uiState.value = StreamsUiState(
                 requestToken = requestToken,
                 isAnyLoading = false,
                 emptyStateReason = StreamsEmptyStateReason.NoAddonsInstalled,
+                autoPlayDecided = true,
             )
             return
         }
@@ -177,13 +192,7 @@ object StreamsRepository {
         val streamAddons = installedAddons
             .mapNotNull { addon ->
                 val manifest = addon.manifest ?: return@mapNotNull null
-                val supportsRequestedStream = manifest.resources.any { resource ->
-                    resource.name == "stream" &&
-                        resource.types.contains(type) &&
-                        (resource.idPrefixes.isEmpty() ||
-                            resource.idPrefixes.any { videoId.startsWith(it) })
-                }
-                if (!supportsRequestedStream) return@mapNotNull null
+                if (!manifest.supportsStream(type, videoId)) return@mapNotNull null
 
                 InstalledStreamAddonTarget(
                     addonName = addon.displayTitle.ifBlank { manifest.name },
@@ -194,11 +203,12 @@ object StreamsRepository {
 
         log.d { "Found ${streamAddons.size} addons for stream type=$type id=$videoId" }
 
-        if (streamAddons.isEmpty() && pluginProviderGroups.isEmpty()) {
+        if (streamAddons.isEmpty() && pluginProviderGroups.isEmpty() && serverSources.isEmpty()) {
             _uiState.value = StreamsUiState(
                 requestToken = requestToken,
                 isAnyLoading = false,
                 emptyStateReason = StreamsEmptyStateReason.NoCompatibleAddons,
+                autoPlayDecided = true,
             )
             return
         }
@@ -219,7 +229,7 @@ object StreamsRepository {
                 streams = emptyList(),
                 isLoading = true,
             )
-        }, installedAddonOrder)
+        } + serverSources.map { it.loadingGroup() }, installedAddonOrder, preferredGroupIds)
         val isInitiallyLoading = initialGroups.any { it.isLoading }
         _uiState.value = StreamsUiState(
             requestToken = requestToken,
@@ -228,6 +238,7 @@ object StreamsRepository {
             isAnyLoading = isInitiallyLoading,
             emptyStateReason = null,
             isDirectAutoPlayFlow = isDirectAutoPlayFlow,
+            autoPlayDecided = true,
             showDirectAutoPlayOverlay = isDirectAutoPlayFlow,
         )
 
@@ -238,7 +249,8 @@ object StreamsRepository {
                 .toMutableMap()
             val pluginFirstErrorByAddonId = mutableMapOf<String, String>()
             val totalTasks = streamAddons.size +
-                pluginProviderGroups.sumOf { it.scrapers.size }
+                pluginProviderGroups.sumOf { it.scrapers.size } +
+                serverSources.size
 
             val installedAddonNames = installedAddonOrder.toSet()
             val installedAddonIds = streamAddons.map { it.addonId }.toSet()
@@ -284,6 +296,41 @@ object StreamsRepository {
             fun updateAutoPlayAfterStreamsChanged() {
                 if (!isDirectAutoPlayFlow || autoSelectTriggered) return
 
+                // Try binge group + filename first (most precise), then infoHash
+                if (persistedBingeGroup != null && !timeoutElapsed) {
+                    val allStreams = _uiState.value.groups.flatMap { it.streams }
+                    // Filename match
+                    if (persistedFilename != null) {
+                        val nextFilename = run {
+                            val extracted = FilenameEpisodeMatcher.extractSeasonEpisode(persistedFilename)
+                            if (extracted != null) {
+                                FilenameEpisodeMatcher.buildNextFilename(
+                                    persistedFilename, extracted.first, extracted.second, season, episode ?: 0
+                                ) ?: persistedFilename
+                            } else persistedFilename
+                        }
+                        val bingeAndFilename = allStreams.firstOrNull { stream ->
+                            stream.behaviorHints.bingeGroup == persistedBingeGroup &&
+                                FilenameEpisodeMatcher.matches(stream.behaviorHints.filename, nextFilename)
+                        }
+                        if (bingeAndFilename != null) {
+                            settleAutoPlay(StreamAutoPlayEvaluation(bingeAndFilename, allStreams))
+                            return
+                        }
+                    }
+                    // InfoHash match (fallback when filename didn't match or was null)
+                    if (persistedInfoHash != null) {
+                        val bingeAndInfoHash = allStreams.firstOrNull { stream ->
+                            stream.behaviorHints.bingeGroup == persistedBingeGroup &&
+                                stream.infoHash?.equals(persistedInfoHash, ignoreCase = true) == true
+                        }
+                        if (bingeAndInfoHash != null) {
+                            settleAutoPlay(StreamAutoPlayEvaluation(bingeAndInfoHash, allStreams))
+                            return
+                        }
+                    }
+                }
+
                 val earlyEvaluation = when {
                     timeoutElapsed -> evaluateAutoPlay()
                     persistedBingeGroup != null -> evaluateAutoPlay(bingeGroupOnly = true)
@@ -328,6 +375,7 @@ object StreamsRepository {
                             if (currentGroup.addonId == group.addonId) group else currentGroup
                         },
                         installedOrder = installedAddonOrder,
+                        preferredGroupIds = preferredGroupIds,
                     )
                     val anyLoading = updated.any { it.isLoading }
                     current.copy(
@@ -460,6 +508,10 @@ object StreamsRepository {
                 }
             }
 
+            serverSources.forEach { source ->
+                launch { publishCompletion(StreamLoadCompletion.Addon(source.load())) }
+            }
+
             pluginProviderGroups.forEach { providerGroup ->
                 val includeScraperNameInSubtitle = false
                 providerGroup.scrapers.forEach { scraper ->
@@ -543,6 +595,7 @@ object StreamsRepository {
                                     }
                                 },
                                 installedOrder = installedAddonOrder,
+                                preferredGroupIds = preferredGroupIds,
                             )
                             val anyLoading = updated.any { it.isLoading }
                             current.copy(
@@ -623,12 +676,14 @@ object StreamsRepository {
                 autoPlayCandidates = remaining,
                 isDirectAutoPlayFlow = remaining.isNotEmpty(),
                 showDirectAutoPlayOverlay = remaining.isNotEmpty(),
+                overlayMessage = null,
             )
         }
         return hasNext
     }
 
     fun cancelLoading() {
+        PluginRepository.setLocalPluginSearchPaused(true)
         activeJob?.cancel()
         activeJob = null
         _uiState.update { current ->
@@ -652,6 +707,7 @@ object StreamsRepository {
     }
 
     fun clear() {
+        PluginRepository.setLocalPluginSearchPaused(true)
         activeJob?.cancel()
         activeJob = null
         activeRequestKey = null

@@ -43,11 +43,17 @@ if [[ ! -f "$control" ]]; then
     exit 1
 fi
 
+# jpackage's postinst registers its own generated entry with xdg-desktop-menu,
+# which used to give us a second Nuvio icon after every install/upgrade.
+nuvio_linux_strip_generated_desktop_integration "$work_dir"
+
 # Ensure a launcher is present for desktop integration. Some jpackage/deb
 # combinations may omit it; in that case, synthesize a minimal entry.
 if ! nuvio_linux_desktop_entry_exists "$work_dir"; then
     nuvio_linux_write_desktop_entry "$work_dir"
 fi
+nuvio_linux_ensure_startup_wm_class "$work_dir"
+nuvio_linux_ensure_uri_handler "$work_dir"
 
 depends="$(dpkg-deb -f "$deb" Depends)"
 for dependency in "${NUVIO_LINUX_DEB_RUNTIME_DEPENDENCIES[@]}"; do

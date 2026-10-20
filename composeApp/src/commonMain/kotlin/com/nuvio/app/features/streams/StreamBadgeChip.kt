@@ -10,6 +10,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,7 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
 import com.nuvio.app.core.i18n.localizedByteUnit
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
@@ -27,6 +30,20 @@ import kotlin.math.round
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.streams_size
 import org.jetbrains.compose.resources.stringResource
+
+private const val STREAM_SIZE_PLACEHOLDER = "\uE000"
+
+internal val LocalStreamSizeLabelFormat = staticCompositionLocalOf<(String) -> String> {
+    { sizeLabel -> "SIZE $sizeLabel" }
+}
+
+@Composable
+internal fun rememberStreamSizeLabelFormat(): (String) -> String {
+    val template = stringResource(Res.string.streams_size, STREAM_SIZE_PLACEHOLDER)
+    return remember(template) {
+        { sizeLabel -> template.replace(STREAM_SIZE_PLACEHOLDER, sizeLabel) }
+    }
+}
 
 internal object StreamBadgeChipDefaults {
     val shape = RoundedCornerShape(NuvioTokens.Radius.sm)
@@ -92,8 +109,10 @@ internal fun StreamBadgeChip(
             .padding(horizontal = size.horizontalPadding, vertical = size.verticalPadding),
         contentAlignment = Alignment.Center,
     ) {
+        val platformContext = LocalPlatformContext.current
         AsyncImage(
             model = imageURL,
+            imageLoader = BadgeImageLoader.get(platformContext),
             contentDescription = name,
             modifier = Modifier
                 .height(size.imageHeight)
@@ -140,7 +159,7 @@ internal fun StreamFileSizeBadge(stream: StreamItem) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = stringResource(Res.string.streams_size, sizeLabel),
+            text = LocalStreamSizeLabelFormat.current(sizeLabel),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = StreamBadgeChipDefaults.fileSizeFontSize,
                 lineHeight = StreamBadgeChipDefaults.fileSizeLineHeight,

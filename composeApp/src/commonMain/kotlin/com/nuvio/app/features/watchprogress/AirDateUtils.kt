@@ -56,13 +56,13 @@ fun calculateReleaseAlertState(
     seedSeasonNumber: Int?,
     nextSeasonNumber: Int?,
     releasedIso: String?,
+    releaseEpochMs: Long? = parseReleaseDateToEpochMs(releasedIso),
+    nowEpochMs: Long = WatchProgressClock.nowEpochMs(),
 ): ReleaseAlertState {
-    if (releasedIso.isNullOrBlank()) return NoReleaseAlertState
-
-    val releaseEpoch = parseReleaseDateToEpochMs(releasedIso)
+    val releaseEpoch = releaseEpochMs
         ?: return NoReleaseAlertState
 
-    val nowMs = WatchProgressClock.nowEpochMs()
+    val nowMs = nowEpochMs
     if (nowMs < releaseEpoch) return NoReleaseAlertState
     if (releaseEpoch <= seedLastUpdatedEpochMs) return NoReleaseAlertState
     if (nowMs - releaseEpoch >= ReleaseAlertWindowMs) return NoReleaseAlertState
