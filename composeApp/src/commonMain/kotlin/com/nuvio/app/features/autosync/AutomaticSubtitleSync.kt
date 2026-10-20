@@ -15,8 +15,10 @@ import kotlin.math.roundToInt
  * [AutoSyncReferenceConsistency]) are dropped before scoring; the highest-scoring trusted
  * alignment wins. All confidence gates (minimum score/margin, segment stability) live in
  * [AutoSyncTimelineRetimer].
+ *
+ * Named separately from Android's `AutomaticSubtitleSync` object, which lives in androidMain.
  */
-internal object AutomaticSubtitleSync {
+internal object AutomaticDelaySyncEngine {
     internal data class ReferenceCues(
         val key: String,
         val cues: List<SubtitleSyncCue>,
