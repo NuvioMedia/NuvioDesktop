@@ -253,6 +253,7 @@ data class PlayerControlsState(
     val subtitleAutoSyncCues: List<PlayerControlSubtitleCueItem> = emptyList(),
     val subtitleAutoSyncIsLoading: Boolean = false,
     val subtitleAutoSyncErrorMessage: String = "",
+    val subtitleAutoSyncNote: String = "",
     val closeModalsToken: Long = 0L,
     val submitIntroContentKey: String = "",
     val submitIntroSuccessToken: Long = 0L,

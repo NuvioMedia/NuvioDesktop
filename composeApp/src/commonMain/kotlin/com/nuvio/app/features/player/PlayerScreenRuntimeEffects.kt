@@ -207,6 +207,21 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         subtitleAutoSyncState = SubtitleAutoSyncUiState()
     }
 
+    var lastAutoSyncedSubtitleKey by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(selectedAddonSubtitleId, useCustomSubtitles, addonSubtitles) {
+        if (!useCustomSubtitles) return@LaunchedEffect
+        val subtitle = selectedAddonSubtitle ?: return@LaunchedEffect
+        if (lastAutoSyncedSubtitleKey == subtitle.selectionKey) return@LaunchedEffect
+        if (autoSyncReferenceCandidates(subtitle).isEmpty()) return@LaunchedEffect
+        lastAutoSyncedSubtitleKey = subtitle.selectionKey
+        try {
+            runAutomaticSubtitleSync()
+        } finally {
+            subtitleAutoSyncState = subtitleAutoSyncState.copy(isLoading = false)
+        }
+    }
+
     LaunchedEffect(playerController, subtitleStyle, playerSettingsUiState.useLibass) {
         playerController?.applySubtitleStyle(subtitleStyle, playerSettingsUiState.useLibass)
     }

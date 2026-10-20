@@ -413,6 +413,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         subtitleAutoSyncCues = playerControlAutoSyncCues,
         subtitleAutoSyncIsLoading = subtitleAutoSyncState.isLoading,
         subtitleAutoSyncErrorMessage = subtitleAutoSyncState.errorMessage.orEmpty(),
+        subtitleAutoSyncNote = subtitleAutoSyncState.autoSyncNote.orEmpty(),
         closeModalsToken = playerControlsCloseModalsToken,
         submitIntroSuccessToken = playerControlsSubmitIntroSuccessToken,
         notificationMessage = playerNotificationMessage,

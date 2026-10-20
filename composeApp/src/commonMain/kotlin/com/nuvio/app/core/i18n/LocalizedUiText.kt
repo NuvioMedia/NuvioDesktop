@@ -1,5 +1,6 @@
 package com.nuvio.app.core.i18n
 
+import com.nuvio.app.features.player.DeviceLanguagePreferences
 import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_play
@@ -146,6 +147,25 @@ fun localizedNoSubtitleLinesFound(): String =
 
 fun localizedSubtitleLinesLoadError(): String =
     resourceString("Unable to load subtitle lines") { getString(Res.string.compose_player_subtitle_lines_load_error) }
+
+fun localizedAutoSyncApplied(delayMs: Int): String {
+    val signed = if (delayMs >= 0) "+$delayMs ms" else "$delayMs ms"
+    return if (localePrefersArabicText()) {
+        "تمت مزامنة الترجمة تلقائياً ($signed)"
+    } else {
+        "Auto-synced subtitles ($signed)"
+    }
+}
+
+fun localizedAutoSyncNoMatch(): String =
+    if (localePrefersArabicText()) {
+        "لا يوجد تطابق مزامنة موثوق"
+    } else {
+        "No confident sync match found"
+    }
+
+private fun localePrefersArabicText(): Boolean =
+    DeviceLanguagePreferences.preferredLanguageCodes().any { it.lowercase().startsWith("ar") }
 
 fun localizedBadgeImportFailed(): String =
     resourceString("Badge import failed.") { getString(Res.string.settings_stream_badge_import_failed) }

@@ -1592,16 +1592,17 @@ if (isLinuxHost) {
             doLast {
                 val effectiveLinuxPackageName = linuxPackageName.orNull ?: packageName.get().lowercase()
                 val effectiveLinuxAppRelease = linuxAppRelease.orNull ?: "1"
-                val artifactPrefix =
-                    "${effectiveLinuxPackageName}_${packageVersion.get()}-${effectiveLinuxAppRelease}_"
+                val versionPrefix = "${effectiveLinuxPackageName}_${packageVersion.get()}"
+                val releasePrefix = "${effectiveLinuxPackageName}_${packageVersion.get()}-${effectiveLinuxAppRelease}_"
                 val debs = destinationDir.get().asFile
                     .listFiles { file ->
-                        file.isFile && file.name.startsWith(artifactPrefix) && file.extension == "deb"
+                        file.isFile && file.extension == "deb" &&
+                            (file.name.startsWith(releasePrefix) || file.name.startsWith(versionPrefix))
                     }
                     ?.sortedBy { it.name }
                     .orEmpty()
                 require(debs.size == 1) {
-                    "Expected exactly one current Linux DEB matching $artifactPrefix in " +
+                    "Expected exactly one current Linux DEB matching $versionPrefix or $releasePrefix in " +
                         "${destinationDir.get().asFile.absolutePath}, found ${debs.size}."
                 }
                 val deb = debs.single()
