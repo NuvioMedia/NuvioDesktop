@@ -129,7 +129,7 @@ internal object DesktopPlayerPictureInPicture {
             transition = false
             return
         }
-        if (!player.reparentSurface(pipHost)) {
+        if (!player.reparentSurface(pipHost, window)) {
             log.w { "native surface reparent failed; closing PiP window" }
             window.dispose()
             pipWindow = null
@@ -153,6 +153,13 @@ internal object DesktopPlayerPictureInPicture {
         if (mainHost != null && mainHost.isDisplayable && player != null) {
             val restored = player.reparentSurface(mainHost)
             log.d { "restoring PiP native surface success=$restored" }
+            if (!restored) {
+                // The native video and controls are still children of the PiP
+                // window. Keep that parent alive so the user can retry instead
+                // of destroying the active native surfaces with the dialog.
+                transition = false
+                return
+            }
             mainHost.requestFocusInWindow()
         }
         runCatching {
@@ -169,7 +176,8 @@ internal object DesktopPlayerPictureInPicture {
 
     private fun isSupportedHost(): Boolean =
         DesktopHostOs.current == DesktopHostOs.WINDOWS ||
-            DesktopHostOs.current == DesktopHostOs.MACOS
+            DesktopHostOs.current == DesktopHostOs.MACOS ||
+            DesktopHostOs.current == DesktopHostOs.LINUX
 
     private fun videoAspectRatio(): Float =
         if (lastVideoSize.width > 0 && lastVideoSize.height > 0) {

@@ -28,6 +28,7 @@ internal class DesktopPlayerPipWindow(
 
     init {
         isUndecorated = true
+        defaultCloseOperation = DO_NOTHING_ON_CLOSE
         isResizable = true
         focusableWindowState = true
         background = Color.BLACK

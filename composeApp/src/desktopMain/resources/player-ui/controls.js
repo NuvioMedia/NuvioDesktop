@@ -27,6 +27,12 @@ const nextEpisodeButton = document.getElementById("nextEpisodeButton");
 const nextEpisodeButtonLabel = document.getElementById("nextEpisodeButtonLabel");
 const fullscreenButton = document.getElementById("fullscreenButton");
 const pipButton = document.getElementById("pipButton");
+const anime4kButton = document.getElementById("anime4kButton");
+const liveActionUpscalingButton = document.getElementById("liveActionUpscalingButton");
+const imagePresetButton = document.getElementById("imagePresetButton");
+const imagePresetButtonLabel = document.getElementById("imagePresetButtonLabel");
+const motionPresetButton = document.getElementById("motionPresetButton");
+const motionPresetButtonLabel = document.getElementById("motionPresetButtonLabel");
 const fullscreenIcon = document.getElementById("fullscreenIcon");
 const title = document.getElementById("title");
 const episode = document.getElementById("episode");
@@ -78,6 +84,12 @@ const subtitleModal = document.getElementById("subtitleModal");
 const speedModal = document.getElementById("speedModal");
 const speedOptionList = document.getElementById("speedOptionList");
 const speedPanelTitle = document.getElementById("speedPanelTitle");
+const imagePresetModal = document.getElementById("imagePresetModal");
+const imagePresetOptionList = document.getElementById("imagePresetOptionList");
+const imagePresetPanelTitle = document.getElementById("imagePresetPanelTitle");
+const motionPresetModal = document.getElementById("motionPresetModal");
+const motionPresetOptionList = document.getElementById("motionPresetOptionList");
+const motionPresetPanelTitle = document.getElementById("motionPresetPanelTitle");
 const audioPanelTitle = document.getElementById("audioPanelTitle");
 const audioTrackList = document.getElementById("audioTrackList");
 const subtitleTrackList = document.getElementById("subtitleTrackList");
@@ -192,6 +204,18 @@ let state = {
   sourcesLabel: "Sources",
   episodesLabel: "Episodes",
   externalPlayerLabel: "External",
+  anime4kAvailable: false,
+  anime4kEnabled: false,
+  anime4kLabel: "",
+  liveActionUpscalingAvailable: false,
+  liveActionUpscalingEnabled: false,
+  liveActionUpscalingLabel: "",
+  imagePresetAvailable: false,
+  imagePresetIndex: 0,
+  imagePresetLabel: "Original",
+  motionPresetAvailable: false,
+  motionPresetIndex: 0,
+  motionPresetLabel: "Desligado",
   playLabel: "Play",
   pauseLabel: "Pause",
   closeLabel: "Close player",
@@ -950,6 +974,8 @@ const modalByName = {
   audio: audioModal,
   subtitles: subtitleModal,
   speed: speedModal,
+  imagePreset: imagePresetModal,
+  motionPreset: motionPresetModal,
   sources: sourceModal,
   episodes: episodesModal,
   submitIntro: submitIntroModal,
@@ -1110,6 +1136,90 @@ const renderSpeedOptionList = () => {
     row.appendChild(labelElement);
     row.appendChild(buildCheckIcon());
     speedOptionList.appendChild(row);
+  });
+};
+
+const imagePresetOptions = [
+  { value: 0, label: "Desligado (Original)", description: "Sem filtros de imagem adicionais" },
+  { value: 1, label: "HQ Leve (CAS)", description: "FidelityFX Contrast Adaptive Sharpening" },
+  { value: 2, label: "AMD FSR", description: "FidelityFX Super Resolution (EASU + RCAS)" },
+  { value: 3, label: "Clarity Ultra", description: "Super Resolução + Deblur para 1080p e 4K" },
+  { value: 4, label: "Anime — A+A", description: "Anime4K Fast A+A" },
+];
+
+const renderImagePresetOptionList = () => {
+  if (!imagePresetOptionList) return;
+  imagePresetOptionList.textContent = "";
+  if (imagePresetPanelTitle) {
+    imagePresetPanelTitle.textContent = "Imagem e Upscale";
+  }
+
+  const currentIndex = Number(state.imagePresetIndex) || 0;
+
+  imagePresetOptions.forEach(opt => {
+    const isSelected = currentIndex === opt.value;
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `track-row audio-track-row${isSelected ? " selected" : ""}`;
+    row.addEventListener("click", event => {
+      event.stopPropagation();
+      send("setImagePreset", opt.value);
+      window.setTimeout(closePlayerModal, 120);
+    });
+    const copy = document.createElement("div");
+    copy.className = "track-copy";
+    const labelElement = document.createElement("span");
+    labelElement.className = "track-label";
+    labelElement.textContent = opt.label;
+    const descElement = document.createElement("span");
+    descElement.className = "audio-track-language";
+    descElement.textContent = opt.description;
+    copy.appendChild(labelElement);
+    copy.appendChild(descElement);
+    row.appendChild(copy);
+    row.appendChild(buildCheckIcon());
+    imagePresetOptionList.appendChild(row);
+  });
+};
+
+const motionPresetOptions = [
+  { value: 0, label: "Desligado", description: "Taxa de quadros original" },
+  { value: 1, label: "Lossless Scaling 2× (LSFG)", description: "Geração de quadros 2× direta na GPU Vulkan" },
+  { value: 2, label: "Lossless Scaling 3× (LSFG)", description: "Geração de quadros 3× direta na GPU Vulkan" },
+];
+
+const renderMotionPresetOptionList = () => {
+  if (!motionPresetOptionList) return;
+  motionPresetOptionList.textContent = "";
+  if (motionPresetPanelTitle) {
+    motionPresetPanelTitle.textContent = "Lossless Scaling (LSFG Vulkan)";
+  }
+
+  const currentIndex = Number(state.motionPresetIndex) || 0;
+
+  motionPresetOptions.forEach(opt => {
+    const isSelected = currentIndex === opt.value;
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `track-row audio-track-row${isSelected ? " selected" : ""}`;
+    row.addEventListener("click", event => {
+      event.stopPropagation();
+      send("setMotionPreset", opt.value);
+      window.setTimeout(closePlayerModal, 120);
+    });
+    const copy = document.createElement("div");
+    copy.className = "track-copy";
+    const labelElement = document.createElement("span");
+    labelElement.className = "track-label";
+    labelElement.textContent = opt.label;
+    const descElement = document.createElement("span");
+    descElement.className = "audio-track-language";
+    descElement.textContent = opt.description;
+    copy.appendChild(labelElement);
+    copy.appendChild(descElement);
+    row.appendChild(copy);
+    row.appendChild(buildCheckIcon());
+    motionPresetOptionList.appendChild(row);
   });
 };
 
@@ -2075,6 +2185,8 @@ const renderActiveModal = (modalOpened = false) => {
   if (activeModal === "audio") renderAudioTrackList();
   if (activeModal === "subtitles") renderSubtitleModal();
   if (activeModal === "speed") renderSpeedOptionList();
+  if (activeModal === "imagePreset") renderImagePresetOptionList();
+  if (activeModal === "motionPreset") renderMotionPresetOptionList();
   if (activeModal === "sources") renderSourceModal(modalOpened);
   if (activeModal === "episodes") renderEpisodesModal(modalOpened);
   if (activeModal === "submitIntro") renderSubmitIntroModal();
@@ -2442,6 +2554,46 @@ const renderChrome = () => {
     pipButton.setAttribute("aria-label", pipLabel);
     pipButton.setAttribute("title", pipLabel);
     pipButton.hidden = !pipLabel;
+  }
+  if (imagePresetButton) {
+    const available = Boolean(state.imagePresetAvailable);
+    const label = String(state.imagePresetLabel || "Original").trim();
+    const isCustom = (Number(state.imagePresetIndex) || 0) > 0;
+    imagePresetButton.hidden = !available;
+    imagePresetButton.classList.toggle("is-active", isCustom);
+    imagePresetButton.setAttribute("aria-pressed", isCustom ? "true" : "false");
+    imagePresetButton.setAttribute("aria-label", `Imagem e Upscale: ${label}`);
+    imagePresetButton.setAttribute("title", `Imagem e Upscale: ${label}`);
+    if (imagePresetButtonLabel) imagePresetButtonLabel.textContent = label;
+  }
+  if (motionPresetButton) {
+    const available = Boolean(state.motionPresetAvailable);
+    const label = String(state.motionPresetLabel || "Desligado").trim();
+    const isCustom = (Number(state.motionPresetIndex) || 0) > 0;
+    motionPresetButton.hidden = !available;
+    motionPresetButton.classList.toggle("is-active", isCustom);
+    motionPresetButton.setAttribute("aria-pressed", isCustom ? "true" : "false");
+    motionPresetButton.setAttribute("aria-label", `Suavização de Movimento: ${label}`);
+    motionPresetButton.setAttribute("title", `Suavização de Movimento: ${label}`);
+    if (motionPresetButtonLabel) motionPresetButtonLabel.textContent = label;
+  }
+  if (anime4kButton) {
+    const available = Boolean(state.anime4kAvailable) && !Boolean(state.imagePresetAvailable);
+    const enabled = Boolean(state.anime4kEnabled);
+    const label = String(state.anime4kLabel || "").trim() || (enabled ? "Disable Anime4K A+A" : "Enable Anime4K A+A");
+    anime4kButton.hidden = !available;
+    anime4kButton.setAttribute("aria-pressed", enabled ? "true" : "false");
+    anime4kButton.setAttribute("aria-label", label);
+    anime4kButton.setAttribute("title", label);
+  }
+  if (liveActionUpscalingButton) {
+    const available = Boolean(state.liveActionUpscalingAvailable) && !Boolean(state.imagePresetAvailable);
+    const enabled = Boolean(state.liveActionUpscalingEnabled);
+    const label = String(state.liveActionUpscalingLabel || "").trim() || (enabled ? "Disable Live Action HQ" : "Enable Live Action HQ");
+    liveActionUpscalingButton.hidden = !available;
+    liveActionUpscalingButton.setAttribute("aria-pressed", enabled ? "true" : "false");
+    liveActionUpscalingButton.setAttribute("aria-label", label);
+    liveActionUpscalingButton.setAttribute("title", label);
   }
   syncPipLockLabels();
   const showBuffering = Boolean(!showError && state.isLoading && !activeModal && !showOpening);
@@ -2852,6 +3004,14 @@ document.querySelectorAll("[data-command]").forEach(button => {
     }
     if (command === "speed") {
       openPlayerModal("speed");
+      return;
+    }
+    if (command === "imagePreset") {
+      openPlayerModal("imagePreset");
+      return;
+    }
+    if (command === "motionPreset") {
+      openPlayerModal("motionPreset");
       return;
     }
     if (command === "sources") {
@@ -3944,6 +4104,18 @@ document.addEventListener("keydown", event => {
   if (event.code === "KeyP") {
     event.preventDefault();
     send("pictureInPicture", 0);
+    return;
+  }
+  if (event.code === "KeyU") {
+    event.preventDefault();
+    if (activeModal === "imagePreset") closePlayerModal(true);
+    else openPlayerModal("imagePreset");
+    return;
+  }
+  if (event.code === "KeyR") {
+    event.preventDefault();
+    if (activeModal === "motionPreset") closePlayerModal(true);
+    else openPlayerModal("motionPreset");
     return;
   }
   if (event.code === "KeyI") {

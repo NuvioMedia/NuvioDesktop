@@ -850,6 +850,39 @@ button:disabled {
   background: var(--theme-selected-surface);
 }
 
+.upscaling-button {
+  width: auto;
+  min-width: var(--header-button);
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, .28);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.upscaling-button[hidden] {
+  display: none;
+}
+
+.upscaling-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.upscaling-button[aria-pressed="true"] {
+  background: var(--theme-selected-surface);
+  border-color: var(--theme-accent-strong);
+  box-shadow: 0 0 0 2px var(--theme-selected-ring);
+}
+
+.upscaling-button[aria-pressed="true"]:hover {
+  background: var(--theme-selected-surface-hover);
+}
+
 .side-control:hover,
 .play-control:hover,
 .action:hover {
