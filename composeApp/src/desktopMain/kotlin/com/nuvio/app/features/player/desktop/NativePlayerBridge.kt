@@ -58,6 +58,7 @@ internal object NativePlayerBridge {
         controlsPageUrl: String,
         decoderPriority: Int,
         nvidiaRtxSuperResolutionEnabled: Boolean,
+        audioPassthroughEnabled: Boolean,
         eventSink: NativePlayerEventSink,
     ): Long
 
