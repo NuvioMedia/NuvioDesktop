@@ -85,9 +85,20 @@ import nuvio.composeapp.generated.resources.compose_search_empty_no_results_mess
 import nuvio.composeapp.generated.resources.compose_search_empty_no_results_title
 import nuvio.composeapp.generated.resources.compose_search_empty_no_search_catalogs_message
 import nuvio.composeapp.generated.resources.compose_search_empty_no_search_catalogs_title
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import com.nuvio.app.features.tmdb.TmdbService
 import nuvio.composeapp.generated.resources.compose_search_placeholder
 import nuvio.composeapp.generated.resources.compose_search_recent_searches
 import nuvio.composeapp.generated.resources.compose_search_remove_recent_search
+import nuvio.composeapp.generated.resources.search_imdb_looking_up
+import nuvio.composeapp.generated.resources.search_imdb_not_found
+import nuvio.composeapp.generated.resources.search_imdb_open_details
+import nuvio.composeapp.generated.resources.search_imdb_title_found_message
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -135,6 +146,41 @@ fun SearchScreen(
     val fullyWatchedSeriesKeys by WatchedRepository.fullyWatchedSeriesKeys.collectAsStateWithLifecycle()
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
+    val imdbQuery = remember(query) { parseImdbIdQuery(query) }
+    val isImdbQuery = imdbQuery != null
+    var imdbResolution by remember { mutableStateOf<ImdbIdMatchUiState?>(null) }
+    val openImdbTitle: () -> Unit = {
+        val match = (imdbResolution as? ImdbIdMatchUiState.Found)?.match
+        if (match != null) {
+            focusRequester.freeFocus()
+            onPosterClick?.invoke(
+                MetaPreview(
+                    id = match.imdbId,
+                    type = match.type,
+                    name = match.name ?: match.imdbId,
+                    poster = match.posterPath?.takeIf { it.isNotBlank() }
+                        ?.let { "https://image.tmdb.org/t/p/w500$it" },
+                    releaseInfo = match.year,
+                ),
+            )
+        }
+    }
+    LaunchedEffect(imdbQuery?.imdbId) {
+        val imdbId = imdbQuery?.imdbId
+        if (imdbId == null) {
+            imdbResolution = null
+            return@LaunchedEffect
+        }
+        if (imdbResolution?.imdbId != imdbId) {
+            imdbResolution = ImdbIdMatchUiState.Resolving(imdbId)
+            val match = TmdbService.resolveImdbId(imdbId)
+            imdbResolution = if (match != null) {
+                ImdbIdMatchUiState.Found(match)
+            } else {
+                ImdbIdMatchUiState.NotFound(imdbId)
+            }
+        }
+    }
     var lastRequestedQuery by rememberSaveable { mutableStateOf<String?>(null) }
     var observedOfflineState by remember { mutableStateOf(false) }
     val discoverInFocus by remember(query, listState) {
@@ -163,7 +209,7 @@ fun SearchScreen(
     ScreenActivityEffect(query, addonRefreshKey, homeCatalogSettingsUiState.hideUnreleasedContent) { screenActive ->
         if (!screenActive) return@ScreenActivityEffect
         val normalizedQuery = query.trim()
-        if (normalizedQuery.isBlank()) {
+        if (normalizedQuery.isBlank() || isImdbQuery) {
             lastRequestedQuery = null
             SearchRepository.clear()
         } else {
@@ -194,7 +240,7 @@ fun SearchScreen(
     ScreenActivityEffect(query, lastRequestedQuery, uiState.isLoading, uiState.sections) { screenActive ->
         if (!screenActive) return@ScreenActivityEffect
         val normalizedQuery = query.trim()
-        if (normalizedQuery.isBlank()) return@ScreenActivityEffect
+        if (normalizedQuery.isBlank() || isImdbQuery) return@ScreenActivityEffect
         if (lastRequestedQuery != normalizedQuery) return@ScreenActivityEffect
         if (uiState.isLoading || uiState.sections.isEmpty()) return@ScreenActivityEffect
         SearchHistoryRepository.recordSearch(normalizedQuery)
@@ -219,7 +265,7 @@ fun SearchScreen(
                         addons = addonsUiState.addons,
                         forceRefresh = true,
                     )
-                } else {
+                } else if (!isImdbQuery) {
                     SearchRepository.search(
                         query = normalizedQuery,
                         addons = addonsUiState.addons,
@@ -290,12 +336,29 @@ fun SearchScreen(
                             placeholder = stringResource(Res.string.compose_search_placeholder),
                             modifier = Modifier
                                 .focusRequester(focusRequester)
+                                .onPreviewKeyEvent { event ->
+                                    if (event.key == Key.Enter && imdbResolution is ImdbIdMatchUiState.Found) {
+                                        if (event.type == KeyEventType.KeyUp) openImdbTitle()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
                                 .onFocusChanged {
                                     isSearchFocused = it.isFocused
                                     if (query.isNotBlank()) focusRequester.captureFocus()
                                 },
                             trailingContent = if (query.isNotBlank()) {
                                 {
+                                    if (imdbResolution is ImdbIdMatchUiState.Found) {
+                                        IconButton(onClick = openImdbTitle) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.PlayArrow,
+                                                contentDescription = stringResource(Res.string.search_imdb_open_details),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
+                                    }
                                     IconButton(onClick = { query = "" }) {
                                         Icon(
                                             imageVector = Icons.Rounded.Close,
@@ -349,6 +412,38 @@ fun SearchScreen(
                     onPosterClick = onPosterClick,
                     onPosterLongClick = onPosterLongClick,
                 )
+            } else if (isImdbQuery) {
+                item(key = "imdb_id_result") {
+                    val resolution = imdbResolution
+                    HomeEmptyStateCard(
+                        title = when (resolution) {
+                            is ImdbIdMatchUiState.Found -> buildString {
+                                append(resolution.match.name ?: resolution.match.imdbId)
+                                resolution.match.year?.takeIf { it.isNotBlank() }?.let { append(" (").append(it).append(")") }
+                            }
+                            is ImdbIdMatchUiState.Resolving -> resolution.imdbId
+                            is ImdbIdMatchUiState.NotFound, null -> resolution?.imdbId ?: ""
+                        },
+                        message = when (resolution) {
+                            is ImdbIdMatchUiState.Found ->
+                                stringResource(
+                                    Res.string.search_imdb_title_found_message,
+                                    resolution.match.type.replaceFirstChar(Char::uppercase),
+                                )
+                            is ImdbIdMatchUiState.Resolving ->
+                                stringResource(Res.string.search_imdb_looking_up)
+                            is ImdbIdMatchUiState.NotFound, null ->
+                                stringResource(Res.string.search_imdb_not_found)
+                        },
+                        actionLabel = if (resolution is ImdbIdMatchUiState.Found) {
+                            stringResource(Res.string.search_imdb_open_details)
+                        } else {
+                            null
+                        },
+                        onActionClick = if (resolution is ImdbIdMatchUiState.Found) openImdbTitle else null,
+                        modifier = Modifier.padding(horizontal = homeSectionPadding),
+                    )
+                }
             } else {
                 val normalizedQuery = query.trim()
                 val isWaitingForSearch = normalizedQuery.isNotBlank() && lastRequestedQuery != normalizedQuery
