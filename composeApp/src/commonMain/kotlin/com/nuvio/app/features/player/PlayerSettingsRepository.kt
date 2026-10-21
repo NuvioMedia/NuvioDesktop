@@ -114,6 +114,7 @@ data class PlayerSettingsUiState(
     val iosSaturation: Int = 0,
     val iosGamma: Int = 0,
     val nvidiaRtxSuperResolutionEnabled: Boolean = false,
+    val audioPassthroughEnabled: Boolean = false,
 )
 
 object PlayerSettingsRepository {
@@ -201,6 +202,7 @@ object PlayerSettingsRepository {
     private var iosSaturation = 0
     private var iosGamma = 0
     private var nvidiaRtxSuperResolutionEnabled = false
+    private var audioPassthroughEnabled = false
 
     fun ensureLoaded() {
         if (hasLoaded) return
@@ -294,6 +296,7 @@ object PlayerSettingsRepository {
         iosSaturation = 0
         iosGamma = 0
         nvidiaRtxSuperResolutionEnabled = false
+        audioPassthroughEnabled = false
         publish()
     }
 
@@ -471,6 +474,7 @@ object PlayerSettingsRepository {
         iosSaturation = PlayerSettingsStorage.loadIosSaturation() ?: 0
         iosGamma = PlayerSettingsStorage.loadIosGamma() ?: 0
         nvidiaRtxSuperResolutionEnabled = PlayerSettingsStorage.loadNvidiaRtxSuperResolutionEnabled() ?: false
+        audioPassthroughEnabled = PlayerSettingsStorage.loadAudioPassthroughEnabled() ?: false
         publish()
     }
 
@@ -1039,6 +1043,14 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveNvidiaRtxSuperResolutionEnabled(enabled)
     }
 
+    fun setAudioPassthroughEnabled(enabled: Boolean) {
+        ensureLoaded()
+        if (audioPassthroughEnabled == enabled) return
+        audioPassthroughEnabled = enabled
+        publish()
+        PlayerSettingsStorage.saveAudioPassthroughEnabled(enabled)
+    }
+
     fun setLibassRenderType(renderType: String) {
         ensureLoaded()
         if (libassRenderType == renderType) return
@@ -1310,6 +1322,7 @@ object PlayerSettingsRepository {
             iosSaturation = iosSaturation,
             iosGamma = iosGamma,
             nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
+            audioPassthroughEnabled = audioPassthroughEnabled,
         )
     }
 

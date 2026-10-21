@@ -1113,6 +1113,8 @@ actual object PlayerSettingsStorage {
         saveInt(iosGammaKey, value)
     }
 
+    actual fun loadAudioPassthroughEnabled(): Boolean? = null
+    actual fun saveAudioPassthroughEnabled(enabled: Boolean) {}
     actual fun loadNvidiaRtxSuperResolutionEnabled(): Boolean? {
         val defaults = NSUserDefaults.standardUserDefaults
         val key = ProfileScopedKey.of(nvidiaRtxSuperResolutionEnabledKey)
