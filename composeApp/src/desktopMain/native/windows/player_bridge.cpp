@@ -1134,7 +1134,13 @@ public:
         mpvApi().command(mpv, command);
     }
 
+    bool isPassthroughActive() {
+        std::string format = stringProperty("audio-out-params/format", "");
+        return format.rfind("spdif", 0) == 0;
+    }
+
     void setSpeed(double speed) {
+        if (isPassthroughActive()) return;
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         double clamped = std::max(0.25, std::min(4.0, speed));
@@ -1146,6 +1152,7 @@ public:
     }
 
     void adjustVolume(double delta) {
+        if (isPassthroughActive()) return;
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         double current = 100.0;
@@ -1155,6 +1162,7 @@ public:
     }
 
     void setVolume(double level) {
+        if (isPassthroughActive()) return;
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         double next = std::max(0.0, std::min(kMaxVolumePercent, level * 100.0));
