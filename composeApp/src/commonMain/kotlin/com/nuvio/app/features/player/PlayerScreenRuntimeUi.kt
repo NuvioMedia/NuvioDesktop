@@ -1735,7 +1735,7 @@ private fun BoxScope.RenderPlaybackOverlays(
                 showNextEpisodeCard = false
             },
             stillWatchingCountdown = stillWatchingCountdown,
-            onContinueStillWatching = { onStillWatchingContinue() },
+            onContinueStillWatching = { if (!partyBlocksControl()) onStillWatchingContinue() },
             onExitStillWatching = { exitFromStillWatching() },
             errorMessage = errorMessage,
             onDismissError = { requestBack() },
