@@ -250,6 +250,7 @@ internal fun PlayerScreenRuntime.switchToP2pEpisodeStream(
         pendingP2pSwitch = PendingPlayerP2pSwitch(stream = stream, episode = episode, isAutoPlay = isAutoPlay)
         return
     }
+    countEpisodeSwitch(isAutoPlay)
     resetEpisodePanelAndNextEpisodeState()
     flushWatchProgress()
     stopActiveP2pStream()
@@ -347,11 +348,16 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(
     episode: MetaVideo,
     serverResumeMs: Long? = null,
     saveForReuse: Boolean = true,
+    isAutoPlay: Boolean = false,
 ) {
-    if (prepareServerForPlayer(stream) { switchToEpisodeStream(it, episode, serverResumeMs = newerServerResumeMs(it, episode)) }) return
+    if (
+        prepareServerForPlayer(stream) {
+            switchToEpisodeStream(it, episode, serverResumeMs = newerServerResumeMs(it, episode), isAutoPlay = isAutoPlay)
+        }
+    ) return
     if (
         resolveYouTubeForPlayer(stream) { resolved ->
-            switchToEpisodeStream(resolved, episode, saveForReuse = false)
+            switchToEpisodeStream(resolved, episode, saveForReuse = false, isAutoPlay = isAutoPlay)
         }
     ) return
     if (
@@ -359,7 +365,7 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(
             stream = stream,
             season = episode.season,
             episode = episode.episode,
-            onResolved = { resolvedStream -> switchToEpisodeStream(resolvedStream, episode) },
+            onResolved = { resolvedStream -> switchToEpisodeStream(resolvedStream, episode, isAutoPlay = isAutoPlay) },
             onStale = {
                 PlayerStreamsRepository.loadEpisodeStreams(
                     type = contentType ?: parentMetaType,
@@ -372,11 +378,12 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(
         )
     ) return
     if (isP2pStream(stream)) {
-        switchToP2pEpisodeStream(stream, episode)
+        switchToP2pEpisodeStream(stream, episode, isAutoPlay)
         return
     }
     if (openExternalSourceUrl(stream)) return
     val url = stream.playableDirectUrl ?: return
+    countEpisodeSwitch(isAutoPlay)
     resetEpisodePanelAndNextEpisodeState()
     flushWatchProgress()
     stopActiveP2pStream()
@@ -394,8 +401,13 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(
     applyEpisodeStreamMetadata(stream, episode, resume)
 }
 
-internal fun PlayerScreenRuntime.switchToDownloadedEpisode(downloadItem: DownloadItem, episode: MetaVideo) {
+internal fun PlayerScreenRuntime.switchToDownloadedEpisode(
+    downloadItem: DownloadItem,
+    episode: MetaVideo,
+    isAutoPlay: Boolean = false,
+) {
     val localFileUri = DownloadsRepository.playableLocalFileUri(downloadItem) ?: return
+    countEpisodeSwitch(isAutoPlay)
     resetEpisodePanelAndNextEpisodeState()
     flushWatchProgress()
     stopActiveP2pStream()
@@ -472,10 +484,10 @@ internal fun PlayerScreenRuntime.playNextEpisode(automatic: Boolean = false) {
         settings = playerSettingsUiState,
         currentStreamBingeGroup = currentStreamBingeGroup,
         onDownloadedEpisodeSelected = { item, episode ->
-            if (isCurrentRequest()) switchToDownloadedEpisode(item, episode)
+            if (isCurrentRequest()) switchToDownloadedEpisode(item, episode, isAutoPlay = automatic)
         },
         onEpisodeStreamSelected = { stream, episode ->
-            if (isCurrentRequest()) switchToEpisodeStream(stream, episode)
+            if (isCurrentRequest()) switchToEpisodeStream(stream, episode, isAutoPlay = automatic)
         },
         onManualSelectionRequired = { nextVideo ->
             if (isCurrentRequest()) {
@@ -536,6 +548,7 @@ private fun PlayerScreenRuntime.resetEpisodePanelAndNextEpisodeState() {
     showEpisodesPanel = false
     episodeStreamsPanelState = EpisodeStreamsPanelState()
     cancelNextEpisodeAutoPlay()
+    cancelStillWatchingPrompt()
     PlayerStreamsRepository.clearEpisodeStreams()
 }
 

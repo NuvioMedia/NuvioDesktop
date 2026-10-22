@@ -72,6 +72,8 @@ const nextEpisodeHeader = document.getElementById("nextEpisodeHeader");
 const nextEpisodeTitle = document.getElementById("nextEpisodeTitle");
 const nextEpisodeStatus = document.getElementById("nextEpisodeStatus");
 const nextEpisodeAction = document.getElementById("nextEpisodeAction");
+const nextEpisodeExit = document.getElementById("nextEpisodeExit");
+const nextEpisodeExitLabel = document.getElementById("nextEpisodeExitLabel");
 const sourcesButton = document.getElementById("sourcesButton");
 const episodesButton = document.getElementById("episodesButton");
 const audioModal = document.getElementById("audioModal");
@@ -300,6 +302,7 @@ let state = {
   nextEpisodeStatus: "",
   nextEpisodeActionLabel: "Play",
   nextEpisodePlayable: false,
+  nextEpisodeExitLabel: "",
   showSubmitIntro: false,
   showVideoSettings: false,
   showSources: false,
@@ -2288,6 +2291,8 @@ const renderNativePlaybackPrompts = () => {
   nextEpisodeStatus.textContent = state.nextEpisodeStatus || "";
   nextEpisodeStatus.hidden = !state.nextEpisodeStatus;
   nextEpisodeAction.textContent = state.nextEpisodeActionLabel || "Play";
+  nextEpisodeExitLabel.textContent = state.nextEpisodeExitLabel || "";
+  nextEpisodeExit.hidden = !state.nextEpisodeExitLabel;
   nextEpisodeCard.setAttribute("aria-hidden", showNextEpisode ? "false" : "true");
   nextEpisodeCard.classList.toggle("visible", showNextEpisode);
   nextEpisodeCard.classList.toggle("playable", Boolean(state.nextEpisodePlayable));
@@ -3142,6 +3147,10 @@ skipPrompt.addEventListener("click", event => {
 
 nextEpisodeCard.addEventListener("click", event => {
   event.stopPropagation();
+  if (state.nextEpisodeExitLabel && event.target.closest("#nextEpisodeExit")) {
+    send("exitStillWatching", 0);
+    return;
+  }
   if (state.nextEpisodePlayable) {
     send("playNextEpisode", 0);
   }
