@@ -221,13 +221,17 @@ internal fun PlayerScreenRuntime.switchToP2pSourceStream(stream: StreamItem) {
     activeTorrentInfoHash = infoHash
     activeTorrentFileIdx = stream.p2pFileIdx
     activeTorrentFilename = stream.behaviorHints.filename
+    activeSourceFilename = stream.behaviorHints.filename
     activeTorrentTrackers = stream.p2pTrackers
     activeSourceIdentityKey = stream.playerSourceIdentityKey()
     activeStreamTitle = stream.streamLabel
     activeStreamSubtitle = stream.streamSubtitle
     activeProviderName = stream.addonName
     activeProviderAddonId = stream.addonId
+    activeStream = stream
     currentStreamBingeGroup = stream.behaviorHints.bingeGroup
+    currentStreamFilename = stream.behaviorHints.filename
+    currentStreamInfoHash = stream.infoHash
     activeInitialPositionMs = currentPositionMs
     activeInitialProgressFraction = null
     showSourcesPanel = false
@@ -323,11 +327,15 @@ internal fun PlayerScreenRuntime.switchToSource(
     activeSourceResponseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response)
     activeStreamType = stream.streamType
     activeSourceIdentityKey = sourceIdentityKey
+    activeSourceFilename = stream.behaviorHints.filename
     activeStreamTitle = stream.streamLabel
     activeStreamSubtitle = stream.streamSubtitle
     activeProviderName = stream.addonName
     activeProviderAddonId = stream.addonId
+    activeStream = stream
     currentStreamBingeGroup = stream.behaviorHints.bingeGroup
+    currentStreamFilename = stream.behaviorHints.filename
+    currentStreamInfoHash = stream.infoHash
     activeInitialPositionMs = currentPositionMs
     activeInitialProgressFraction = null
     showSourcesPanel = false
@@ -430,13 +438,17 @@ internal fun PlayerScreenRuntime.switchToDownloadedEpisode(
     activeSourceResponseHeaders = emptyMap()
     activeStreamType = null
     activeSourceIdentityKey = null
+    activeSourceFilename = null
     activeStreamTitle = downloadItem.streamTitle.ifBlank {
         episode.title.ifBlank { title }
     }
     activeStreamSubtitle = downloadItem.streamSubtitle
     activeProviderName = downloadItem.providerName.ifBlank { downloadedLabel }
     activeProviderAddonId = downloadItem.providerAddonId
+    activeStream = null
     currentStreamBingeGroup = null
+    currentStreamFilename = null
+    currentStreamInfoHash = null
     activeSeasonNumber = episode.season
     activeEpisodeNumber = episode.episode
     activeEpisodeTitle = episode.title
@@ -573,11 +585,15 @@ private fun PlayerScreenRuntime.applyEpisodeStreamMetadata(
     resume: EpisodeResume,
 ) {
     activeSourceIdentityKey = stream.playerSourceIdentityKey()
+    activeSourceFilename = stream.behaviorHints.filename
     activeStreamTitle = stream.streamLabel
     activeStreamSubtitle = stream.streamSubtitle
     activeProviderName = stream.addonName
     activeProviderAddonId = stream.addonId
+    activeStream = stream
     currentStreamBingeGroup = stream.behaviorHints.bingeGroup
+    currentStreamFilename = stream.behaviorHints.filename
+    currentStreamInfoHash = stream.infoHash
     activeSeasonNumber = episode.season
     activeEpisodeNumber = episode.episode
     activeEpisodeTitle = episode.title

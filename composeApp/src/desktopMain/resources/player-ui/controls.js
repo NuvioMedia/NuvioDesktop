@@ -33,6 +33,7 @@ const episode = document.getElementById("episode");
 const playbackMetadata = document.querySelector(".metadata");
 const streamTitle = document.getElementById("streamTitle");
 const providerName = document.getElementById("providerName");
+const playerBadges = document.getElementById("playerBadges");
 const resizeLabel = document.getElementById("resizeLabel");
 const speedLabel = document.getElementById("speedLabel");
 const subtitlesLabel = document.getElementById("subtitlesLabel");
@@ -185,6 +186,8 @@ let state = {
   pauseOverlayDescription: "",
   resizeModeLabel: "Fit",
   playbackSpeedLabel: "1x",
+  holdToSpeedEnabled: true,
+  holdToSpeedValue: 2.0,
   isFullscreen: false,
   volumeLevel: null,
   subtitlesLabel: "Subs",
@@ -264,9 +267,9 @@ let state = {
   themeSelectedSurfaceHoverColor: "#2d4565",
   themeSelectedRingColor: "rgba(47, 111, 237, .35)",
   themeTimelineFillColor: "#fff",
-  themeTimelineTrackColor: "rgba(255, 255, 255, .28)",
+  themeTimelineTrackColor: "rgba(255, 255, 255, .3)",
   themeBufferingColor: "#fff",
-  themeBufferingTrackColor: "rgba(255, 255, 255, .28)",
+  themeBufferingTrackColor: "rgba(255, 255, 255, .35)",
   themeControlForegroundColor: "#fff",
   themeSurfaceElevatedColor: "#16171d",
   themeSurfaceCardColor: "rgba(255, 255, 255, .08)",
@@ -307,6 +310,7 @@ let state = {
   showExternalPlayer: false,
   durationMs: 0,
   positionMs: 0,
+  bufferedPositionMs: 0,
   audioTracks: [],
   subtitleTracks: [],
   sourceIsLoading: false,
@@ -502,14 +506,15 @@ const syncFullscreenButtons = () => {
   if (openingFullscreenButton) openingFullscreenButton.setAttribute("aria-label", label);
 };
 
-const togglePlayerFullscreen = () => {
-  send("toggleFullscreen", 0);
+const togglePlayerFullscreen = (fromEscape = false) => {
+  send("toggleFullscreen", fromEscape ? 1 : 0);
 };
 
 const hidePlayerToast = token => {
   if (!playerToast || (token != null && token !== playerToastToken)) return;
   if (isSpeedBoosting) {
-    showPlayerToast("2x", { icon: "icon-speed", persistent: true });
+    const speedValueFormatted = formatSpeedBoostString(normalizedSpeedBoost());
+    showPlayerToast(`${speedValueFormatted}x`, { icon: "icon-speed", persistent: true });
     return;
   }
   playerToast.classList.remove("visible");
@@ -774,9 +779,9 @@ const applyTheme = () => {
   setColor("--theme-selected-surface-hover", state.themeSelectedSurfaceHoverColor, "#2d4565");
   setColor("--theme-selected-ring", state.themeSelectedRingColor, "rgba(47, 111, 237, .35)");
   setColor("--theme-timeline-fill", state.themeTimelineFillColor, "#fff");
-  setColor("--theme-timeline-track", state.themeTimelineTrackColor, "rgba(255, 255, 255, .28)");
+  setColor("--theme-timeline-track", state.themeTimelineTrackColor, "rgba(255, 255, 255, .3)");
   setColor("--theme-buffering", state.themeBufferingColor, "#fff");
-  setColor("--theme-buffering-track", state.themeBufferingTrackColor, "rgba(255, 255, 255, .28)");
+  setColor("--theme-buffering-track", state.themeBufferingTrackColor, "rgba(255, 255, 255, .35)");
   setColor("--theme-control-foreground", state.themeControlForegroundColor, "#fff");
   setColor("--theme-surface-elevated", state.themeSurfaceElevatedColor, "#16171d");
   setColor("--theme-surface-card", state.themeSurfaceCardColor, "rgba(255, 255, 255, .08)");
@@ -785,6 +790,7 @@ const applyTheme = () => {
   setColor("--theme-text-secondary", state.themeTextSecondaryColor, "rgba(255, 255, 255, .72)");
   setColor("--theme-text-muted", state.themeTextMutedColor, "rgba(255, 255, 255, .6)");
   setColor("--theme-border-default", state.themeBorderDefaultColor, "rgba(255, 255, 255, .12)");
+  setColor("--theme-danger", state.themeDangerColor, "#e36a8a");
 };
 
 const formatTime = milliseconds => {
@@ -798,10 +804,13 @@ const formatTime = milliseconds => {
     : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 };
 
-const setProgress = (positionMs, durationMs) => {
+const setProgress = (positionMs, durationMs, bufferedPositionMs) => {
   const percent = durationMs > 0 ? Math.max(0, Math.min(100, positionMs / durationMs * 100)) : 0;
+  const bufferPercent = bufferedPositionMs > 0 ?
+    Math.max(0, Math.min(100, bufferedPositionMs / durationMs * 100)) : 0;
   seek.value = Math.round(percent * 10);
   seek.style.setProperty("--progress", `${percent}%`);
+  seek.style.setProperty("--bufferProgress", `${bufferPercent}%`);
   positionLabel.textContent = formatTime(positionMs);
   durationLabel.textContent = formatTime(durationMs);
   if (timeLabel) {
@@ -818,6 +827,31 @@ const setProgress = (positionMs, durationMs) => {
 const setText = (element, text) => {
   element.textContent = text || "";
   element.hidden = !text;
+};
+
+let playerBadgesSignature = "";
+
+const renderPlayerBadges = () => {
+  const badges = Array.isArray(state.badges) ? state.badges : [];
+  const signature = JSON.stringify(badges);
+  if (signature === playerBadgesSignature) return;
+  playerBadgesSignature = signature;
+  playerBadges.textContent = "";
+  badges.forEach((badge) => {
+    const chip = document.createElement("span");
+    chip.className = "player-badge";
+    if (String(badge.tagStyle || "").toLowerCase() === "filled" && badge.tagColor) chip.style.background = badge.tagColor;
+    if (badge.borderColor) chip.style.borderColor = badge.borderColor;
+    const image = document.createElement("img");
+    image.alt = badge.name || "";
+    image.draggable = false;
+    image.addEventListener("error", () => chip.remove());
+    image.addEventListener("load", () => { playerBadges.hidden = !playerBadges.childElementCount; });
+    image.src = badge.imageUrl;
+    chip.appendChild(image);
+    playerBadges.appendChild(chip);
+  });
+  playerBadges.hidden = badges.length === 0;
 };
 
 const setVisible = (element, visible) => {
@@ -949,6 +983,7 @@ const modalByName = {
   episodes: episodesModal,
   submitIntro: submitIntroModal,
   p2pConsent: p2pConsentModal,
+  party: partyModal,
 };
 const modalElements = Object.values(modalByName);
 const modalCloseTimers = new Map();
@@ -1000,6 +1035,7 @@ const closePlayerModal = (notifyDismiss = false, animated = true) => {
     send("cancelP2pForPlayerControls", 0);
   }
   if (closingModal === "episodes") onEpisodesModalClosed();
+  if (closingModal === "party") onPartyModalClosed();
   renderChrome();
 };
 
@@ -1009,6 +1045,8 @@ const openPlayerModal = modal => {
     closePlayerModal(false);
     return;
   }
+  if (activeModal === "party" && modal !== "party") onPartyModalClosed();
+  if (modal === "party" && activeModal !== "party") onPartyModalOpened();
   activeModal = modal;
   if (modal === "submitIntro") {
     const contentKey = state.submitIntroContentKey || "";
@@ -2070,6 +2108,7 @@ const renderActiveModal = (modalOpened = false) => {
   if (activeModal === "episodes") renderEpisodesModal(modalOpened);
   if (activeModal === "submitIntro") renderSubmitIntroModal();
   if (activeModal === "p2pConsent") renderP2pConsentModal();
+  if (activeModal === "party") renderPartyModal();
 };
 
 window.nuvioNativeViewportChanged = () => {
@@ -2400,11 +2439,13 @@ const finishChromePointerInteraction = event => {
 const renderChrome = () => {
   const durationMs = Math.max(0, Number(state.durationMs) || 0);
   const positionMs = isScrubbing ? scrubPositionMs : Math.max(0, Number(state.positionMs) || 0);
+  const bufferedPositionMs = Math.max(0, Number(state.bufferedPositionMs) || 0);
   const isPlaying = Boolean(state.isPlaying);
   const showError = renderPlaybackError();
   root.classList.toggle("pip-mode", Boolean(state.isInPip));
   if (!state.isInPip && isPipLocked) setPipLocked(false);
   root.classList.toggle("chrome-hidden", Boolean(showError || !state.controlsVisible));
+  root.classList.toggle("modal-open", Boolean(activeModal));
   root.classList.toggle("source-visible", Boolean(!showError && !isPlaying && !state.isLoading && (state.streamTitle || state.providerName)));
   syncHiddenCursor();
   const showOpening = renderOpeningOverlay(showError);
@@ -2415,6 +2456,7 @@ const renderChrome = () => {
   setText(episode, state.episodeText);
   setText(streamTitle, state.streamTitle);
   setText(providerName, state.providerName);
+  renderPlayerBadges();
   resizeLabel.textContent = state.resizeModeLabel || "Fit";
   speedLabel.textContent = state.playbackSpeedLabel || "1x";
   subtitlesLabel.textContent = state.subtitlesLabel || "Subs";
@@ -2466,7 +2508,7 @@ const renderChrome = () => {
   backButton.setAttribute("aria-label", state.closeLabel || "Close player");
   submitIntroButton.setAttribute("aria-label", state.submitIntroLabel || "Submit Intro");
   videoSettingsButton.setAttribute("aria-label", state.videoSettingsLabel || "Video settings");
-  setProgress(positionMs, durationMs);
+  setProgress(positionMs, durationMs, bufferedPositionMs);
   if (showError) {
     skipPrompt.classList.remove("visible", "show-progress");
     skipPrompt.setAttribute("aria-hidden", "true");
@@ -2475,6 +2517,7 @@ const renderChrome = () => {
   } else {
     renderNativePlaybackPrompts();
   }
+  renderPartyChrome();
   syncChromeAutoHideTimer(showOpening);
 };
 
@@ -2627,6 +2670,16 @@ const keepChromeVisibleFromKeyboard = () => {
 let fineSeekTimer = 0;
 let fineSeekAccumulatedMs = 0;
 let fineSeekDirection = null;
+let partySeekTimer = 0;
+const partySeekSettleMs = 300;
+
+const finishPartySeek = () => {
+  partySeekTimer = 0;
+  isScrubbing = false;
+  state.positionMs = scrubPositionMs;
+  send("scrubFinish", scrubPositionMs);
+  render();
+};
 
 const fineSeek = isForward => {
   const direction = isForward ? "forward" : "backward";
@@ -2639,18 +2692,28 @@ const fineSeek = isForward => {
     fineSeekAccumulatedMs = stepMs;
   }
 
-  const currentPosMs = Math.max(0, Number(state.positionMs) || 0);
+  const partySeek = Boolean(partySeekTimer || currentParty().synced);
+  const currentPosMs = Math.max(0, Number(partySeekTimer ? scrubPositionMs : state.positionMs) || 0);
   const durationMs = Math.max(0, Number(state.durationMs) || 0);
+  const bufferedPositionMs = Math.max(0, Number(state.bufferedPositionMs) || 0);
   const targetPosMs = Math.max(0, durationMs > 0 ? Math.min(durationMs, currentPosMs + stepMs) : currentPosMs + stepMs);
 
   state.positionMs = targetPosMs;
-  setProgress(targetPosMs, durationMs);
+  setProgress(targetPosMs, durationMs, bufferedPositionMs);
 
   const deltaSec = Math.round(fineSeekAccumulatedMs / 1000);
   const sign = deltaSec > 0 ? "+" : "";
   showPlayerToast(`${sign}${deltaSec}s`);
 
-  send("scrubFinish", targetPosMs);
+  if (partySeek) {
+    isScrubbing = true;
+    scrubPositionMs = targetPosMs;
+    send("scrubChange", targetPosMs);
+    window.clearTimeout(partySeekTimer);
+    partySeekTimer = window.setTimeout(finishPartySeek, partySeekSettleMs);
+  } else {
+    send("scrubFinish", targetPosMs);
+  }
 
   if (fineSeekTimer) {
     window.clearTimeout(fineSeekTimer);
@@ -3097,7 +3160,7 @@ seek.addEventListener("input", () => {
   noteChromeActivity();
   isScrubbing = true;
   scrubPositionMs = rangePositionMs();
-  setProgress(scrubPositionMs, state.durationMs);
+  setProgress(scrubPositionMs, state.durationMs, state.bufferedPositionMs);
   send("scrubChange", scrubPositionMs);
 });
 
@@ -3147,6 +3210,7 @@ timeLabel.addEventListener("click", () => {
 window.playerUpdate = update => {
   const durationMs = Math.round((Number(update.duration) || 0) * 1000);
   const positionMs = Math.round((Number(update.position) || 0) * 1000);
+  const bufferedPositionMs = Math.round((Number(update.bufferedPosition) || 0) * 1000);
   const reportedVolumeLevel = Number(update.volumeLevel);
   const volumeLevel = Number.isFinite(reportedVolumeLevel)
     ? clampVolumeLevel(reportedVolumeLevel)
@@ -3166,6 +3230,7 @@ window.playerUpdate = update => {
     ...state,
     durationMs,
     positionMs,
+    bufferedPositionMs,
     isPlaying: pendingIsPlaying === null ? nativeIsPlaying : pendingIsPlaying,
     isLoading: Boolean(update.loading || update.isLoading),
     volumeLevel,
@@ -3202,6 +3267,8 @@ window.playerControls = nextState => {
   const previousEpisodeStreamsVisible = Boolean(state.episodeStreamsVisible);
   const previousSelectedSubtitleLanguageKey = state.selectedSubtitleLanguageKey || "__off__";
   const previousSelectedSubtitleOptionId = state.selectedSubtitleOptionId || "";
+  const previousParty = state.party;
+  const replayingParty = !hasReceivedPlayerControls;
   const currentPlaybackState = pendingIsPlaying === null
     ? state.isPlaying
     : pendingIsPlaying;
@@ -3231,6 +3298,7 @@ window.playerControls = nextState => {
   if (notificationToken !== previousNotificationToken) {
     showPlayerToast(state.notificationMessage);
   }
+  if (!replayingParty) applyPartyControls(previousParty);
   if (state.showP2pConsent && activeModal !== "p2pConsent") {
     openPlayerModal("p2pConsent");
   } else if (!state.showP2pConsent && activeModal === "p2pConsent") {
@@ -3380,20 +3448,35 @@ const clearSpaceHoldTimerAndStopSpeedBoost = () => {
   return false;
 }
 
+const normalizedSpeedBoost = () => {
+  const speedValue = Number(state.holdToSpeedValue);
+  return Number.isFinite(speedValue) ? Math.max(1.0, Math.min(4.0, speedValue)) : 2.0;
+};
+
+const formatSpeedBoostString = (speedValue) => {
+  return Number.isSafeInteger(speedValue) ? speedValue.toPrecision(1) : speedValue;
+};
+
+const getCurrentPlaybackSpeed = () => {
+  const currentSpeedStr = String(state.playbackSpeedLabel || "1x");
+  return parseFloat(currentSpeedStr.replace("x", "")) || 1.0;
+};
+
+const canSpeedBoostStart = () => {
+  return state.holdToSpeedEnabled && (getCurrentPlaybackSpeed() !== normalizedSpeedBoost());
+};
+
 const startSpeedBoost = () => {
   if (isSpeedBoosting) return;
   isSpeedBoosting = true;
-  if (preSpeedBoostRate == null) {
-    const currentSpeedStr = String(state.playbackSpeedLabel || "1x");
-    const currentSpeedNum = parseFloat(currentSpeedStr.replace("x", "")) || 1.0;
-    preSpeedBoostRate = currentSpeedNum === 2.0 ? 1.0 : currentSpeedNum;
-  }
+  if (preSpeedBoostRate == null) preSpeedBoostRate = getCurrentPlaybackSpeed();
   if (!state.isPlaying) {
     pausedBeforeSpeedBoosting = true;
     requestPlaybackState("setPlaybackStateQuiet", false);
   }
-  showPlayerToast("2x", { icon: "icon-speed", persistent: true });
-  send("setPlaybackSpeed", 2.0);
+  const speedBoostValue = normalizedSpeedBoost();
+  showPlayerToast(`${formatSpeedBoostString(speedBoostValue)}x`, { icon: "icon-speed", persistent: true });
+  send("setPlaybackSpeed", speedBoostValue);
 };
 
 const stopSpeedBoost = () => {
@@ -3417,7 +3500,7 @@ root.addEventListener("contextmenu", event => {
 });
 
 root.addEventListener("pointerdown", event => {
-  if (state.isInPip || playbackErrorText() || isControlsSurfaceEvent(event)) return;
+  if (!canSpeedBoostStart() || state.isInPip || playbackErrorText() || isControlsSurfaceEvent(event)) return;
   if (event.button !== 0) return;
 
   rootPointerStartX = event.clientX;
@@ -3618,6 +3701,11 @@ document.addEventListener("keyup", event => {
 });
 
 document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && isPartyConfirmOpen()) {
+    event.preventDefault();
+    closePartyConfirm();
+    return;
+  }
   if (event.key === "Escape" && activeModal) {
     clearSpaceHoldTimerAndStopSpeedBoost();
     event.preventDefault();
@@ -3631,7 +3719,7 @@ document.addEventListener("keydown", event => {
     if (state.isInPip) {
       send("pictureInPicture", 0);
     } else if (state.isFullscreen) {
-      togglePlayerFullscreen();
+      togglePlayerFullscreen(true);
     } else {
       send("back", 0);
     }
@@ -3735,7 +3823,7 @@ document.addEventListener("keydown", event => {
   }
 
   if (activeModal && event.code.startsWith("Arrow") && document.activeElement && document.activeElement.tagName !== "BODY" && document.activeElement !== root) {
-    const modalEl = modalByName[activeModal];
+    const modalEl = isPartyConfirmOpen() ? partyConfirm : modalByName[activeModal];
     if (!modalEl) return;
     const focusable = Array.from(modalEl.querySelectorAll('button:not([disabled]):not([hidden]), input:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'))
       .filter(el => el.offsetWidth > 0 || el.offsetHeight > 0);
@@ -3937,7 +4025,7 @@ document.addEventListener("keydown", event => {
     return;
   }
 
-  if (event.code === "Space") {
+  if (canSpeedBoostStart() && event.code === "Space") {
     event.preventDefault();
     if (event.repeat) {
       if (!isSpeedBoosting) {
@@ -3985,7 +4073,7 @@ document.addEventListener("keydown", event => {
   send(command, 0);
 });
 
-setProgress(0, 0);
+setProgress(0, 0, 0);
 focusShortcutRoot();
 render();
 send("controlsReady", 0);

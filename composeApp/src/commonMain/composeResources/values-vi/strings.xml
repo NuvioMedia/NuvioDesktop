@@ -1927,6 +1927,11 @@
     <string name="library_sort_released_asc">Đã phát hành đầu tiên</string>
     <string name="library_sort_released_desc">Đã phát hành gần đây</string>
     <string name="library_sort_title_asc">Tên A–Z</string>
+    <string name="library_status_watching">Đang xem</string>
+    <string name="library_status_plan_to_watch">Xem sau</string>
+    <string name="library_status_on_hold">Tạm dừng</string>
+    <string name="library_status_completed">Đã hoàn tất</string>
+    <string name="library_status_dropped">Đã bỏ</string>
     <string name="library_error_sort_failed">Không thể tải thứ tự sắp xếp. Đang hiển thị theo thứ tự của nhà cung cấp.</string>
     <string name="library_sort_title_desc">Tên Z–A</string>
     <string name="library_sort_provider_order">Thứ tự nguồn theo dõi</string>

@@ -542,10 +542,13 @@ fun HomeScreen(
                 continueWatchingPreferences.dismissedNextUpKeys
         }
     }
-    val shuffledContinueWatchingItems = rememberShuffleHomeItems(
+    val rawShuffledContinueWatchingItems = rememberShuffleHomeItems(
         activeProfileId, allContinueWatchingItems, shuffleCandidates,
         watchProgressUiState.entries, watchedUiState.watchedKeys, visibleContinueWatchingEntries,
-    ).withCustomPosterUrls(cwPosterPattern)
+    )
+    val shuffledContinueWatchingItems = remember(rawShuffledContinueWatchingItems, cwPosterPattern) {
+        rawShuffledContinueWatchingItems.withCustomPosterUrls(cwPosterPattern)
+    }
     val (continueWatchingItems, upcomingItems) = remember(
         shuffledContinueWatchingItems,
         continueWatchingPreferences.sortMode,

@@ -11,9 +11,11 @@ import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -23,7 +25,8 @@ internal actual fun NuvioDesktopVerticalScrollbar(
     backgroundColor: Color?,
 ) {
     VerticalScrollbar(
-        adapter = rememberScrollbarAdapter(state),
+        // A density change resizes items without necessarily changing the list's pixel width.
+        adapter = remember(state, LocalDensity.current) { MeasuredLazyListScrollbarAdapter(state) },
         modifier = modifier.recalculateWindowInsets().statusBarsPadding(),
         style = nuvioDesktopScrollbarStyle(backgroundColor),
     )

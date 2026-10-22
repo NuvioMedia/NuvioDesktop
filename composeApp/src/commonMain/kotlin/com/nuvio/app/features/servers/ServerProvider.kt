@@ -48,7 +48,8 @@ interface ServerProvider {
 
     suspend fun search(
         session: ServerSession,
-        library: ServerLibrary,
+        kind: ServerMediaKind,
+        libraries: List<ServerLibrary>,
         query: String,
         limit: Int,
     ): List<ServerTitle> = unsupported()

@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +53,15 @@ import com.nuvio.app.core.ui.SkeletonBlock
 import com.nuvio.app.features.debrid.DebridProviders
 import com.nuvio.app.isDesktop
 
+internal val LocalStreamHighlight = staticCompositionLocalOf<(StreamItem) -> String?> { { null } }
+
+internal data class SharedStream(
+    val label: String,
+    val stream: StreamItem,
+)
+
+internal val LocalSharedStream = staticCompositionLocalOf<SharedStream?> { null }
+
 @Composable
 internal fun StreamCard(
     stream: StreamItem,
@@ -66,7 +76,9 @@ internal fun StreamCard(
     modifier: Modifier = Modifier,
     isCurrent: Boolean = false,
     currentLabel: String? = null,
+    outlined: Boolean = false,
 ) {
+    val partyLabel = if (isCurrent) null else LocalStreamHighlight.current(stream)
     val cardShape = RoundedCornerShape(12.dp)
     val badgeImages = stream.badges.filter { it.imageURL.isNotBlank() }
     val hasBadges = badgeImages.isNotEmpty() || (showFileSizeBadges && stream.behaviorHints.videoSize != null)
@@ -90,7 +102,7 @@ internal fun StreamCard(
                 },
             )
             .then(
-                if (isCurrent) {
+                if (isCurrent || outlined) {
                     Modifier.border(
                         width = 1.dp,
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.52f),
@@ -141,6 +153,17 @@ internal fun StreamCard(
                 if (isCurrent && !currentLabel.isNullOrBlank()) {
                     Spacer(modifier = Modifier.width(8.dp))
                     CurrentStreamBadge(label = currentLabel)
+                }
+                if (partyLabel != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = partyLabel,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
 

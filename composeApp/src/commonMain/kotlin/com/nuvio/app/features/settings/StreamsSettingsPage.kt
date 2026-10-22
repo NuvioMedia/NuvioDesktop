@@ -88,6 +88,8 @@ import nuvio.composeapp.generated.resources.settings_stream_badge_urls_descripti
 import nuvio.composeapp.generated.resources.settings_stream_badge_urls_title
 import nuvio.composeapp.generated.resources.settings_stream_badges_section
 import nuvio.composeapp.generated.resources.settings_stream_size_badges_description
+import nuvio.composeapp.generated.resources.settings_stream_badges_in_player_description
+import nuvio.composeapp.generated.resources.settings_stream_badges_in_player_title
 import nuvio.composeapp.generated.resources.settings_stream_size_badges_title
 import nuvio.composeapp.generated.resources.settings_stream_addon_logo_title
 import nuvio.composeapp.generated.resources.settings_stream_addon_logo_description
@@ -133,6 +135,14 @@ internal fun LazyListScope.streamsSettingsContent(isTablet: Boolean) {
                     description = badgeRulesPreview(currentRules),
                     isTablet = isTablet,
                     onClick = { showBadgeImportDialog = true },
+                )
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_stream_badges_in_player_title),
+                    description = stringResource(Res.string.settings_stream_badges_in_player_description),
+                    checked = currentSettings.showInPlayer,
+                    enabled = currentRules.hasImport,
+                    isTablet = isTablet,
+                    onCheckedChange = StreamBadgeSettingsRepository::setShowInPlayer,
                 )
             }
         }

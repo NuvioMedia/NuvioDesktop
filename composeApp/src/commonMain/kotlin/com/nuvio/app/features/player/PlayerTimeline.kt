@@ -18,6 +18,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
@@ -39,8 +41,10 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.accentBrush
 import com.nuvio.app.core.ui.themePalette
 import com.nuvio.app.core.ui.nuvioTypeScale
+import com.nuvio.app.features.streams.StreamBadge
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import com.nuvio.app.core.i18n.localizedEpisodeTitle
 
 internal val PlayerTimelineContentInset = 2.dp
 
@@ -55,6 +59,8 @@ internal fun PlayerTimelineDetails(
     providerName: String,
     isPlaying: Boolean,
     metrics: PlayerLayoutMetrics,
+    badges: List<StreamBadge> = emptyList(),
+    onSourceLineHeightChanged: (Int) -> Unit = {},
 ) {
     val typeScale = MaterialTheme.nuvioTypeScale
     Column(Modifier.padding(horizontal = PlayerTimelineContentInset)) {
@@ -71,13 +77,17 @@ internal fun PlayerTimelineDetails(
         )
         if (seasonNumber != null && episodeNumber != null) {
             val episodeCode = stringResource(Res.string.compose_player_episode_code_full, seasonNumber, episodeNumber)
+            val displayEpisodeTitle = localizedEpisodeTitle(episodeTitle, episodeNumber)
             Text(
-                text = if (episodeTitle.isNullOrBlank()) episodeCode else "$episodeCode • $episodeTitle",
+                text = if (displayEpisodeTitle.isNullOrBlank()) episodeCode else "$episodeCode • $displayEpisodeTitle",
                 style = typeScale.bodyMd.copy(fontSize = metrics.episodeInfoSize),
                 color = Color.White.copy(alpha = 0.9f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        if (badges.isNotEmpty()) {
+            PlayerBadges(badges = badges, modifier = Modifier.padding(vertical = 4.dp))
         }
         if (!releaseInfo.isNullOrBlank()) {
             Text(
@@ -90,12 +100,16 @@ internal fun PlayerTimelineDetails(
         }
         val source = streamTitle.ifBlank { providerName }.replace("\n", " · ")
         if (!isPlaying && source.isNotBlank()) {
+            DisposableEffect(Unit) {
+                onDispose { onSourceLineHeightChanged(0) }
+            }
             Text(
                 text = stringResource(Res.string.compose_player_via, source),
                 style = typeScale.labelSm.copy(fontSize = metrics.metadataSize),
                 color = Color.White.copy(alpha = 0.68f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.onSizeChanged { onSourceLineHeightChanged(it.height) },
             )
         }
     }

@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.features.player.EnterImmersivePlayerMode
 import com.nuvio.app.features.player.PlatformPlayerSurface
+import com.nuvio.app.features.player.PlayerControlsAction
 import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.player.PlayerPlaybackSnapshot
 import com.nuvio.app.features.player.PlayerResizeMode
@@ -42,6 +43,9 @@ internal fun TrailerPlayer(
     modifier: Modifier = Modifier,
     title: String = "",
     onExitFullscreen: (() -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
+    onToggleFullscreen: (() -> Unit)? = null,
+    onEscapeFullscreen: (() -> Unit)? = null,
 ) {
     val error = errorMessage ?: state.error
     EnterImmersivePlayerMode(keepScreenAwake = error == null && state.playWhenReady && !state.snapshot.isEnded)
@@ -51,6 +55,9 @@ internal fun TrailerPlayer(
                 source = source,
                 state = state,
                 resizeMode = PlayerResizeMode.Fit,
+                onBack = onBack,
+                onToggleFullscreen = onToggleFullscreen,
+                onEscapeFullscreen = onEscapeFullscreen,
             )
         }
         when {
@@ -93,6 +100,9 @@ private fun TrailerPlaybackSurface(
     source: TrailerPlaybackSource,
     state: TrailerPlaybackState,
     resizeMode: PlayerResizeMode,
+    onBack: (() -> Unit)?,
+    onToggleFullscreen: (() -> Unit)?,
+    onEscapeFullscreen: (() -> Unit)?,
 ) {
     val presentationId = remember { state.presentationId }
     val resumePositionMs = remember { state.snapshot.positionMs }
@@ -123,6 +133,13 @@ private fun TrailerPlaybackSurface(
             presentationId == state.presentationId,
         resizeMode = resizeMode,
         useNativeController = false,
+        onPlayerControlsAction = { action ->
+            action == PlayerControlsAction.Back && onBack.invokeIfPresent()
+        },
+        onPlayerControlsEvent = { type, value ->
+            type == "toggleFullscreen" &&
+                (if (value >= 0.5) onEscapeFullscreen else onToggleFullscreen).invokeIfPresent()
+        },
         onControllerReady = {
             controller = it
             if (presentationId == state.presentationId) state.controller = it
@@ -136,4 +153,9 @@ private fun TrailerPlaybackSurface(
     if (restoringPosition) {
         Box(Modifier.fillMaxSize().background(Color.Black))
     }
+}
+
+private fun (() -> Unit)?.invokeIfPresent(): Boolean {
+    this?.invoke() ?: return false
+    return true
 }

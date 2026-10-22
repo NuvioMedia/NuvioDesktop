@@ -2,6 +2,7 @@ package com.nuvio.app.features.servers.mediabrowser
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 internal data class PublicInfo(
@@ -9,6 +10,7 @@ internal data class PublicInfo(
     @SerialName("Version") val version: String? = null,
     @SerialName("ProductName") val productName: String? = null,
     @SerialName("Id") val id: String? = null,
+    @SerialName("aiostreams") val aioStreams: JsonElement? = null,
 )
 
 @Serializable
@@ -98,6 +100,7 @@ internal data class UserItemData(
 @Serializable
 internal data class MediaSource(
     @SerialName("Id") val id: String,
+    @SerialName("Type") val type: String? = null,
     @SerialName("Name") val name: String? = null,
     @SerialName("Path") val path: String? = null,
     @SerialName("Container") val container: String? = null,
@@ -108,7 +111,10 @@ internal data class MediaSource(
     @SerialName("TranscodingUrl") val transcodingUrl: String? = null,
     @SerialName("DefaultAudioStreamIndex") val defaultAudioStreamIndex: Int? = null,
     @SerialName("MediaStreams") val mediaStreams: List<MediaStream> = emptyList(),
-)
+) {
+    val isPlaceholder: Boolean
+        get() = type.equals("Placeholder", ignoreCase = true)
+}
 
 @Serializable
 internal data class MediaStream(
@@ -137,6 +143,7 @@ internal data class PlaybackInfoRequest(
     @SerialName("AllowVideoStreamCopy") val allowVideoStreamCopy: Boolean = true,
     @SerialName("AllowAudioStreamCopy") val allowAudioStreamCopy: Boolean = true,
     @SerialName("AutoOpenLiveStream") val autoOpenLiveStream: Boolean = false,
+    @SerialName("IsPlayback") val isPlayback: Boolean = true,
     @SerialName("DeviceProfile") val deviceProfile: DeviceProfile,
 )
 

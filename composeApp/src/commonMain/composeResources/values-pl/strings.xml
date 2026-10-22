@@ -1611,7 +1611,7 @@
     <string name="player_ios_preset_compatibility_label">Kompatybilność</string>
     <string name="player_ios_preset_custom_desc">Użyj własnych zaawansowanych wartości poniżej.</string>
     <string name="player_ios_preset_custom_label">Własne</string>
-    <string name="player_ios_preset_native_edr_desc">Najlepsze dla iPhone\'ów i iPadów z obsługą HDR.</string>
+    <string name="player_ios_preset_native_edr_desc">Najlepsze dla iPhone'ów i iPadów z obsługą HDR.</string>
     <string name="player_ios_preset_native_edr_label">Natywne EDR</string>
     <string name="player_ios_preset_sdr_tone_mapped_desc">Bardziej przewidywalne biele i czernie na wyjściu SDR.</string>
     <string name="player_ios_preset_sdr_tone_mapped_label">Mapowanie tonalne SDR</string>

@@ -136,6 +136,7 @@ data class StreamItem(
         get() = serverTarget != null && playableDirectUrl == null
 }
 
+@Serializable
 data class StreamBadge(
     val name: String,
     val imageURL: String = "",

@@ -945,6 +945,8 @@
     <string name="settings_stream_badges_section">FUSION STYLE</string>
     <string name="settings_stream_size_badges_title">Size badges</string>
     <string name="settings_stream_size_badges_description">Show file size badges in stream results and player source panels.</string>
+    <string name="settings_stream_badges_in_player_title">Show in player</string>
+    <string name="settings_stream_badges_in_player_description">Show badges for the video and audio that is playing under the player title.</string>
     <string name="settings_stream_addon_logo_title">Addon logo</string>
     <string name="settings_stream_addon_logo_description">Show addon logo and name next to stream sources.</string>
     <string name="settings_stream_display_section">DISPLAY</string>
@@ -2004,7 +2006,12 @@
     <string name="library_sort_released_asc">Oldest released</string>
     <string name="library_sort_released_desc">Recently released</string>
     <string name="library_sort_title_asc">Title A–Z</string>
-    <string name="library_error_sort_failed">Couldn\'t load sort order. Showing provider order.</string>
+    <string name="library_status_watching">Watching</string>
+    <string name="library_status_plan_to_watch">Plan to Watch</string>
+    <string name="library_status_on_hold">On Hold</string>
+    <string name="library_status_completed">Completed</string>
+    <string name="library_status_dropped">Dropped</string>
+    <string name="library_error_sort_failed">Couldn't load sort order. Showing provider order.</string>
     <string name="library_sort_title_desc">Title Z–A</string>
     <string name="library_sort_provider_order">Tracker order</string>
     <string name="library_source_cloud">Cloud</string>
@@ -2522,6 +2529,8 @@
     <string name="cd_switch_player_engine">Switch player engine</string>
     <string name="cd_stream_info">Stream info</string>
     <string name="player_engine_switching_manual_message">Switching to %1$s...</string>
+    <string name="player_engine_switch_title">Switch to %1$s?</string>
+    <string name="player_engine_switch_message">The video will reload from where you are.</string>
     <string name="stream_info_section_source">SOURCE</string>
     <string name="stream_info_section_video">VIDEO</string>
     <string name="stream_info_section_audio">AUDIO</string>

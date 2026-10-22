@@ -834,6 +834,7 @@ val windowsPlayerBridgeCommand = if (missingWindowsPlayerBridgeInputs.isNotEmpty
         "Gdi32.lib",
         "Dwmapi.lib",
         "Shell32.lib",
+        "D3d11.lib",
     ).joinToString(" ")
     val powershellCompileCommand = compileCommand.replace("\"", "__DQ__")
     val powershellCommand = """
@@ -1184,7 +1185,7 @@ kotlin {
                 implementation(libs.ksoup)
                 implementation(libs.sentry.jvm)
                 implementation(libs.jna)
-                implementation(files("libs/nuvio-engine-jvm-0.1.4.jar"))
+                implementation(files("libs/nuvio-engine-jvm-0.1.5.jar"))
             }
         }
         val androidHostTest by getting {
@@ -1235,6 +1236,7 @@ kotlin {
             implementation(libs.supabase.auth)
             implementation(libs.supabase.functions)
             implementation(libs.supabase.storage)
+            implementation(libs.supabase.realtime)
             implementation(libs.reorderable)
         }
         val desktopTest by getting {

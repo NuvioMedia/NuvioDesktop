@@ -17,6 +17,7 @@ import coil3.svg.SvgDecoder
 import com.nuvio.app.core.poster.CustomPosterFallbackInterceptor
 import com.nuvio.app.core.ui.NativeProfileSwitcherController
 import com.nuvio.app.core.ui.NuvioTheme
+import com.nuvio.app.core.ui.addPlatformDecoders
 import com.nuvio.app.core.ui.configurePlatformImageLoader
 import com.nuvio.app.core.ui.desktopUiScaleForWindow
 import com.nuvio.app.core.ui.platformProvidesImageLoader
@@ -82,6 +83,7 @@ internal fun AppEnvironment(content: @Composable () -> Unit) {
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .components {
                     add(CustomPosterFallbackInterceptor())
+                    addPlatformDecoders()
                     add(SvgDecoder.Factory())
                     add(
                         coil3.network.ktor3.KtorNetworkFetcherFactory(

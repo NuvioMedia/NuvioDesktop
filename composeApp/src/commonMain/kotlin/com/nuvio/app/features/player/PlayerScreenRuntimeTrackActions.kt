@@ -139,7 +139,9 @@ internal fun PlayerScreenRuntime.restorePersistedTrackPreferenceIfNeeded(): Bool
                     selectedAddonSubtitleId = preference.addonSubtitleId ?: persistedUrl
                     selectedSubtitleIndex = -1
                     useCustomSubtitles = true
-                    playerController?.setSubtitleUri(persistedUrl)
+                    if (!maybeAutoSyncRestoredSubtitleAtStart(persistedUrl)) {
+                        playerController?.setSubtitleUri(persistedUrl)
+                    }
                     preferredSubtitleSelectionApplied = true
                     isUserExplicitSubtitleSelection = true
                 } else if (belongsToCurrentItem) {
@@ -293,7 +295,9 @@ private fun PlayerScreenRuntime.tryAutoSelectPreferredSubtitleFromAvailableTrack
                 selectedAddonSubtitleId = primaryAddonMatch.selectionKey
                 selectedSubtitleIndex = -1
                 useCustomSubtitles = true
-                playerController?.setSubtitleUri(primaryAddonMatch.url)
+                if (!maybeAutoSyncPreferredSubtitleAtStart(primaryAddonMatch)) { // AutoSync hook
+                    playerController?.setSubtitleUri(primaryAddonMatch.url)
+                }
                 return
             }
         }
@@ -355,6 +359,7 @@ private fun PlayerScreenRuntime.tryAutoSelectPreferredSubtitleFromAvailableTrack
         )
         if (selectedMatchesPrimary) {
             preferredSubtitleSelectionApplied = true
+            maybeAutoSyncPreferredSubtitleAtStart(selectedAddon) // AutoSync hook
             return
         }
     }
@@ -373,7 +378,9 @@ private fun PlayerScreenRuntime.tryAutoSelectPreferredSubtitleFromAvailableTrack
         selectedAddonSubtitleId = addonMatch.selectionKey
         selectedSubtitleIndex = -1
         useCustomSubtitles = true
-        playerController?.setSubtitleUri(addonMatch.url)
+        if (!maybeAutoSyncPreferredSubtitleAtStart(addonMatch)) { // AutoSync hook
+            playerController?.setSubtitleUri(addonMatch.url)
+        }
     } else if (!preferredSubtitleSelectionApplied) {
         disableAutomaticSubtitleSelection()
         preferredSubtitleSelectionApplied = true
