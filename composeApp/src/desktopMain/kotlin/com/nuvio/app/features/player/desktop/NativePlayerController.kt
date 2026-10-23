@@ -2,6 +2,7 @@ package com.nuvio.app.features.player.desktop
 
 import androidx.compose.ui.graphics.Color
 import co.touchlab.kermit.Logger
+import com.nuvio.app.features.player.LiveDurationGrowth
 import com.nuvio.app.features.player.PlayerControlAddonSubtitleItem
 import com.nuvio.app.features.player.PlayerControlEpisodeItem
 import com.nuvio.app.features.player.PlayerControlFilterItem
@@ -72,9 +73,6 @@ internal class NativePlayerController(
         /** Cap on waiting for the previous player's teardown so a hung one cannot block playback. */
         const val TEARDOWN_WAIT_MS = 5_000L
 
-        /** A duration growing this far past the first one seen is a live stream's. */
-        const val LIVE_DURATION_GROWTH_MS = 10_000L
-
         @Volatile
         var rememberedVolumeLevel: Float = DesktopPlayerVolumeStorage.loadVolumeLevel() ?: 1f
 
@@ -101,12 +99,8 @@ internal class NativePlayerController(
 
     @Volatile
     private var pendingSource: PendingSource? = null
-    // mpv reports a live HLS stream's duration as what it has loaded so far, so it keeps growing
-    // while a VOD's stays put: the player whose duration is tracked, its first duration, and
-    // whether it grew
-    private var durationTrackedHandle = 0L
-    private var firstDurationMs = 0L
-    private var durationGrows = false
+    // Whether the current player's duration keeps growing (live, see LiveDurationGrowth)
+    private var liveDurationGrowth = LiveDurationGrowth()
     @Volatile
     private var releaseRequested: Boolean = false
     val isReleasing: Boolean
@@ -706,15 +700,13 @@ internal class NativePlayerController(
             val isLoading = NativePlayerBridge.isLoading(current)
             val isEnded = NativePlayerBridge.isEnded(current)
             val durationMs = NativePlayerBridge.durationMs(current)
-            if (current != durationTrackedHandle) {
-                durationTrackedHandle = current
-                firstDurationMs = 0L
-                durationGrows = false
-            }
-            if (durationMs > 0L) {
-                if (firstDurationMs == 0L) firstDurationMs = durationMs
-                else if (durationMs > firstDurationMs + LIVE_DURATION_GROWTH_MS) durationGrows = true
-            }
+            // Each source gets its own player, so its handle is the media key and every reading
+            // is the requested media's
+            liveDurationGrowth = liveDurationGrowth.next(
+                mediaKey = current.toString(),
+                durationMs = durationMs,
+                fromRequestedMedia = true,
+            )
             PlayerPlaybackSnapshot(
                 isLoading = isLoading,
                 isPlaying = !NativePlayerBridge.isPaused(current) && !isLoading && !isEnded,
@@ -723,7 +715,7 @@ internal class NativePlayerController(
                 positionMs = NativePlayerBridge.positionMs(current),
                 bufferedPositionMs = NativePlayerBridge.bufferedPositionMs(current),
                 playbackSpeed = NativePlayerBridge.speed(current),
-                isLive = durationGrows,
+                isLive = liveDurationGrowth.grew,
             )
         }.getOrDefault(PlayerPlaybackSnapshot(isLoading = true))
     }
