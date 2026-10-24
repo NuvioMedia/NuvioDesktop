@@ -2113,6 +2113,9 @@
     <string name="settings_playback_nvidia_rtx_video_section">NVIDIA RTX Video</string>
     <string name="settings_playback_nvidia_rtx_super_resolution">RTX Video Super Resolution</string>
     <string name="settings_playback_nvidia_rtx_super_resolution_desc">Upscale low-resolution video using NVIDIA RTX AI Super Resolution.</string>
+    <string name="settings_playback_audio_passthrough_section">Audio output</string>
+    <string name="settings_playback_audio_passthrough">Audio passthrough</string>
+    <string name="settings_playback_audio_passthrough_desc">Send Dolby Digital, Dolby Digital Plus, DTS and TrueHD audio to your receiver or TV without decoding. Requires a compatible HDMI or optical device. Volume control in Nuvio does not work while this is on.</string>
     <!-- Playback settings iOS video output -->
     <string name="settings_playback_ios_video_output">iOS VIDEO OUTPUT</string>
     <string name="settings_playback_ios_hardware_decoder">Hardware decoder</string>
