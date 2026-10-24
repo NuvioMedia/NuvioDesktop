@@ -78,7 +78,7 @@ class NativePlayerControllerTeardownTest {
         val disposedHandles = Collections.synchronizedList(mutableListOf<Long>())
         val controller = NativePlayerController(
             host = NativePlayerHost(),
-            nativeCreate = { _, source, _, _, _, _, _, _, _ ->
+            nativeCreate = { _, source, _, _, _, _, _, _, _, _ ->
                 createdSources += source
                 when (source) {
                     sourceA -> {
