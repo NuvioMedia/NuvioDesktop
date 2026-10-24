@@ -2,6 +2,7 @@ package com.nuvio.app.features.player.desktop
 
 import androidx.compose.ui.graphics.Color
 import co.touchlab.kermit.Logger
+import com.nuvio.app.features.player.LiveDurationGrowth
 import com.nuvio.app.features.player.PlayerControlAddonSubtitleItem
 import com.nuvio.app.features.player.PlayerControlEpisodeItem
 import com.nuvio.app.features.player.PlayerControlFilterItem
@@ -98,6 +99,8 @@ internal class NativePlayerController(
 
     @Volatile
     private var pendingSource: PendingSource? = null
+    // Whether the current player's duration keeps growing (live, see LiveDurationGrowth)
+    private var liveDurationGrowth = LiveDurationGrowth()
     @Volatile
     private var releaseRequested: Boolean = false
     val isReleasing: Boolean
@@ -696,14 +699,23 @@ internal class NativePlayerController(
         return runCatching {
             val isLoading = NativePlayerBridge.isLoading(current)
             val isEnded = NativePlayerBridge.isEnded(current)
+            val durationMs = NativePlayerBridge.durationMs(current)
+            // Each source gets its own player, so its handle is the media key and every reading
+            // is the requested media's
+            liveDurationGrowth = liveDurationGrowth.next(
+                mediaKey = current.toString(),
+                durationMs = durationMs,
+                fromRequestedMedia = true,
+            )
             PlayerPlaybackSnapshot(
                 isLoading = isLoading,
                 isPlaying = !NativePlayerBridge.isPaused(current) && !isLoading && !isEnded,
                 isEnded = isEnded,
-                durationMs = NativePlayerBridge.durationMs(current),
+                durationMs = durationMs,
                 positionMs = NativePlayerBridge.positionMs(current),
                 bufferedPositionMs = NativePlayerBridge.bufferedPositionMs(current),
                 playbackSpeed = NativePlayerBridge.speed(current),
+                isLive = liveDurationGrowth.grew,
             )
         }.getOrDefault(PlayerPlaybackSnapshot(isLoading = true))
     }
