@@ -33,6 +33,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.awt.Component
+import java.awt.Window
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.util.concurrent.CountDownLatch
@@ -109,6 +110,13 @@ internal class NativePlayerController(
     private var releaseTimedOut: Boolean = false
     private var terminalReleaseFailure: String? = null
     private var controlsState = PlayerControlsState()
+    // Kept separately from Compose's periodically supplied controls snapshot:
+    // these effects belong to this native player and must not reset when
+    // unrelated progress/metadata updates arrive.
+    private var anime4kEnabled = false
+    private var liveActionUpscalingEnabled = false
+    private var currentImagePreset = 0
+    private var currentMotionPreset = 0
     @Volatile
     private var currentVolumeLevel = rememberedVolumeLevel.coerceDesktopPlayerVolumeLevel()
     private var pendingSubtitleDelayMs: Int? = null
@@ -282,6 +290,10 @@ internal class NativePlayerController(
             if (!releaseRequested && pendingSource === pending) pending.onError(terminalFailure)
             return
         }
+        anime4kEnabled = false
+        liveActionUpscalingEnabled = false
+        currentImagePreset = 0
+        currentMotionPreset = 0
         // Resolving the AWT peer must happen on the EDT; everything after it must not.
         val hostViewPtr = runCatching { resolveHostView() }
             .getOrElse { error ->
@@ -439,6 +451,22 @@ internal class NativePlayerController(
                 currentLevel = currentVolumeLevel,
                 rememberedLevel = rememberedVolumeLevel,
             ),
+            anime4kAvailable = DesktopHostOs.current == DesktopHostOs.LINUX,
+            anime4kEnabled = anime4kEnabled,
+            anime4kLabel = if (anime4kEnabled) "Disable Anime4K A+A" else "Enable Anime4K A+A",
+            liveActionUpscalingAvailable = DesktopHostOs.current == DesktopHostOs.LINUX,
+            liveActionUpscalingEnabled = liveActionUpscalingEnabled,
+            liveActionUpscalingLabel = if (liveActionUpscalingEnabled) {
+                "Disable Live Action HQ"
+            } else {
+                "Enable Live Action HQ"
+            },
+            imagePresetAvailable = DesktopHostOs.current == DesktopHostOs.LINUX,
+            imagePresetIndex = currentImagePreset,
+            imagePresetLabel = imagePresetLabelFor(currentImagePreset),
+            motionPresetAvailable = DesktopHostOs.current == DesktopHostOs.LINUX,
+            motionPresetIndex = currentMotionPreset,
+            motionPresetLabel = motionPresetLabelFor(currentMotionPreset),
         )
         currentVolumeLevel = stateWithVolume.volumeLevel ?: currentVolumeLevel
         controlsState = stateWithVolume
@@ -473,13 +501,19 @@ internal class NativePlayerController(
         requestKeyboardFocus()
     }
 
-    fun reparentSurface(host: Component): Boolean {
+    fun reparentSurface(host: Component, pipWindow: Window? = null): Boolean {
         val current = handle.takeIf { it != 0L } ?: return false
         if (!host.isDisplayable) return false
         val pointer = runCatching { AwtNativeViewResolver.resolveNativeViewPointer(host) }
             .onFailure { error -> log.w(error) { "failed to resolve PiP native host ${host.javaClass.name}" } }
             .getOrNull() ?: return false
-        return NativePlayerBridge.reparentSurface(current, pointer)
+        val pipWindowPointer = pipWindow?.let {
+            runCatching { AwtNativeViewResolver.resolveNativeViewPointer(it) }
+                .onFailure { error -> log.w(error) { "failed to resolve PiP top-level window" } }
+                .getOrNull()
+        } ?: 0L
+        if (pipWindow != null && pipWindowPointer == 0L) return false
+        return NativePlayerBridge.reparentSurface(current, pointer, pipWindowPointer)
     }
 
     fun layoutNativeSubviews() {
@@ -536,6 +570,10 @@ internal class NativePlayerController(
             log.d { "event received handle=$handle type=$type value=$value" }
         }
         when (type) {
+            "toggleAnime4k" -> toggleAnime4k()
+            "toggleLiveActionUpscaling" -> toggleLiveActionUpscaling()
+            "setImagePreset" -> setImagePreset(value.toInt())
+            "setMotionPreset" -> setMotionPreset(value.toInt())
             "cursorActivity" -> host.noteCursorActivity()
             "scrubChange" -> {
                 val handled = onScrubChange(value.toLong())
@@ -562,6 +600,11 @@ internal class NativePlayerController(
                 }
             }
             "dragWindow" -> NativePlayerBridge.beginWindowDrag(handle)
+            "resizeWindow" -> {
+                if (DesktopHostOs.current == DesktopHostOs.LINUX) {
+                    NativePlayerBridge.beginWindowResize(handle, value.toInt())
+                }
+            }
             "volumeChange" -> setFallbackVolume(value.toFloat())
             "volumeChangeTemporary" -> setTemporaryVolume(value.toFloat())
             "setPlaybackSpeed" -> {
@@ -583,6 +626,116 @@ internal class NativePlayerController(
                 }
             }
         }
+    }
+
+    private fun imagePresetLabelFor(index: Int): String = when (index) {
+        1 -> "HQ Leve"
+        2 -> "AMD FSR"
+        3 -> "Clarity Ultra"
+        4 -> "Anime A+A"
+        else -> "Original"
+    }
+
+    private fun motionPresetLabelFor(index: Int): String = when (index) {
+        1 -> "LSFG 2×"
+        2 -> "LSFG 3×"
+        else -> "Desligado"
+    }
+
+    private fun setImagePreset(presetIndex: Int) {
+        val current = handle.takeIf { it != 0L } ?: return
+        if (DesktopHostOs.current != DesktopHostOs.LINUX) return
+        val clampedPreset = presetIndex.coerceIn(0, 4)
+        val shaderPaths = when (clampedPreset) {
+            1 -> NativePlayerBridge.casShaderPaths()
+            2 -> NativePlayerBridge.fsrShaderPaths()
+            3 -> NativePlayerBridge.clarityUltraShaderPaths()
+            4 -> NativePlayerBridge.anime4kShaderPaths()
+            else -> emptyArray()
+        }
+        val ok = runCatching {
+            NativePlayerBridge.setImagePreset(current, clampedPreset, shaderPaths)
+        }.getOrDefault(false)
+
+        if (!ok) {
+            log.w { "Image preset $clampedPreset was rejected by mpv" }
+            refreshUpscalingControls()
+            return
+        }
+
+        currentImagePreset = clampedPreset
+        liveActionUpscalingEnabled = (clampedPreset == 1)
+        anime4kEnabled = (clampedPreset == 4)
+        refreshUpscalingControls()
+    }
+
+    private fun setMotionPreset(presetIndex: Int) {
+        val current = handle.takeIf { it != 0L } ?: return
+        if (DesktopHostOs.current != DesktopHostOs.LINUX) return
+        val clampedPreset = presetIndex.coerceIn(0, 2)
+        val multiplier = when (clampedPreset) {
+            1 -> 2
+            2 -> 3
+            else -> 1
+        }
+        NativePlayerBridge.setLsfgMultiplier(multiplier)
+        runCatching {
+            NativePlayerBridge.setMotionPreset(current, clampedPreset, "")
+        }
+
+        currentMotionPreset = clampedPreset
+        refreshUpscalingControls()
+    }
+
+    private fun toggleAnime4k() {
+        if (currentImagePreset == 4) {
+            setImagePreset(0)
+        } else {
+            setImagePreset(4)
+        }
+    }
+
+    private fun toggleLiveActionUpscaling() {
+        if (currentImagePreset == 1) {
+            setImagePreset(0)
+        } else {
+            setImagePreset(1)
+        }
+    }
+
+    private fun setAnime4kNative(current: Long, enabled: Boolean): Boolean = runCatching {
+        NativePlayerBridge.setImagePreset(
+            current,
+            if (enabled) 4 else 0,
+            if (enabled) NativePlayerBridge.anime4kShaderPaths() else emptyArray(),
+        )
+    }.onFailure { error -> log.w(error) { "Anime4K shader toggle failed" } }.getOrDefault(false)
+
+    private fun setLiveActionUpscalingNative(current: Long, enabled: Boolean): Boolean = runCatching {
+        NativePlayerBridge.setImagePreset(
+            current,
+            if (enabled) 1 else 0,
+            if (enabled) NativePlayerBridge.casShaderPaths() else emptyArray(),
+        )
+    }.onFailure { error -> log.w(error) { "Live action upscaling toggle failed" } }.getOrDefault(false)
+
+    private fun refreshUpscalingControls() {
+        controlsState = controlsState.copy(
+            anime4kAvailable = DesktopHostOs.current == DesktopHostOs.LINUX,
+            anime4kEnabled = anime4kEnabled,
+            anime4kLabel = if (anime4kEnabled) "Disable Anime4K A+A" else "Enable Anime4K A+A",
+            liveActionUpscalingAvailable = DesktopHostOs.current == DesktopHostOs.LINUX,
+            liveActionUpscalingEnabled = liveActionUpscalingEnabled,
+            liveActionUpscalingLabel = if (liveActionUpscalingEnabled) "Disable Live Action HQ" else "Enable Live Action HQ",
+            imagePresetAvailable = DesktopHostOs.current == DesktopHostOs.LINUX,
+            imagePresetIndex = currentImagePreset,
+            imagePresetLabel = imagePresetLabelFor(currentImagePreset),
+            motionPresetAvailable = DesktopHostOs.current == DesktopHostOs.LINUX,
+            motionPresetIndex = currentMotionPreset,
+            motionPresetLabel = motionPresetLabelFor(currentMotionPreset),
+        )
+        lastSentControlsStructureKey = null
+        updateControls(controlsState)
     }
 
     @Synchronized
@@ -1302,6 +1455,30 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         append(',')
         appendJsonField("externalPlayerLabel", externalPlayerLabel)
         append(',')
+        appendJsonField("anime4kAvailable", anime4kAvailable)
+        append(',')
+        appendJsonField("anime4kEnabled", anime4kEnabled)
+        append(',')
+        appendJsonField("anime4kLabel", anime4kLabel)
+        append(',')
+        appendJsonField("liveActionUpscalingAvailable", liveActionUpscalingAvailable)
+        append(',')
+        appendJsonField("liveActionUpscalingEnabled", liveActionUpscalingEnabled)
+        append(',')
+        appendJsonField("liveActionUpscalingLabel", liveActionUpscalingLabel)
+        append(',')
+        appendJsonField("imagePresetAvailable", imagePresetAvailable)
+        append(',')
+        appendJsonField("imagePresetIndex", imagePresetIndex)
+        append(',')
+        appendJsonField("imagePresetLabel", imagePresetLabel)
+        append(',')
+        appendJsonField("motionPresetAvailable", motionPresetAvailable)
+        append(',')
+        appendJsonField("motionPresetIndex", motionPresetIndex)
+        append(',')
+        appendJsonField("motionPresetLabel", motionPresetLabel)
+        append(',')
         appendJsonField("playLabel", playLabel)
         append(',')
         appendJsonField("pauseLabel", pauseLabel)
@@ -1479,7 +1656,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         appendJsonField(
             "pipLabel",
             if (DesktopHostOs.current == DesktopHostOs.WINDOWS ||
-                DesktopHostOs.current == DesktopHostOs.MACOS
+                DesktopHostOs.current == DesktopHostOs.MACOS ||
+                DesktopHostOs.current == DesktopHostOs.LINUX
             ) {
                 pipLabel
             } else {

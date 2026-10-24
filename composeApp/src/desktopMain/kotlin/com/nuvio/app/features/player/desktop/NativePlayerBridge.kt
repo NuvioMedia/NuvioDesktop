@@ -63,18 +63,64 @@ internal object NativePlayerBridge {
 
     external fun dispose(handle: Long)
     external fun updateControls(handle: Long, controlsJson: String)
+    external fun setAnime4kEnabled(handle: Long, enabled: Boolean, shaderPaths: Array<String>): Boolean
+    external fun setLiveActionUpscalingEnabled(handle: Long, enabled: Boolean, shaderPaths: Array<String>): Boolean
+    external fun setImagePreset(handle: Long, presetIndex: Int, shaderPaths: Array<String>): Boolean
+    external fun setMotionPreset(handle: Long, presetIndex: Int, scriptPath: String): Boolean
+
+    fun anime4kShaderPaths(): Array<String> = anime4kShaderAssets.shaderPaths.copyOf()
+    fun liveActionShaderPaths(): Array<String> = casShaderAssets.shaderPaths.copyOf()
+    fun casShaderPaths(): Array<String> = casShaderAssets.shaderPaths.copyOf()
+    fun fsrShaderPaths(): Array<String> = fsrShaderAssets.shaderPaths.copyOf()
+    fun clarityUltraShaderPaths(): Array<String> = (fsrShaderAssets.shaderPaths + casShaderAssets.shaderPaths).copyOf()
+
+    fun setLsfgMultiplier(multiplier: Int) {
+        val userHome = System.getProperty("user.home") ?: System.getenv("HOME") ?: ""
+        if (userHome.isBlank()) return
+        val confFile = File(userHome, ".config/lsfg-vk/conf.toml")
+        if (!confFile.exists()) return
+
+        runCatching {
+            val content = confFile.readText(Charsets.UTF_8)
+            val parts = content.split("[[profile]]").toMutableList()
+            var found = false
+            for (i in 1 until parts.size) {
+                if (parts[i].contains("name = \"Nuvio\"")) {
+                    parts[i] = parts[i].replaceFirst(Regex("""multiplier\s*=\s*\d+"""), "multiplier = $multiplier")
+                    found = true
+                    break
+                }
+            }
+            if (!found && parts.isNotEmpty()) {
+                val nuvioProfile = """
+                    active_in = [ "Nuvio", "java", "mpv" ]
+                    flow_scale = 1.0
+                    multiplier = $multiplier
+                    name = "Nuvio"
+                    override_present_mode = true
+                    pacing_mode = "vsync"
+                    performance_mode = false
+                    preserve_swapchain_image_count = false
+
+                """.trimIndent()
+                parts.add(1, "\n" + nuvioProfile + "\n")
+            }
+            confFile.writeText(parts.joinToString("[[profile]]"), Charsets.UTF_8)
+        }
+    }
 
     /** macOS only: title, episode line, and poster for the system now-playing widget (Control Center). */
     external fun setNowPlayingMetadata(handle: Long, title: String, subtitle: String, artworkUrl: String)
     external fun requestFocus(handle: Long)
     external fun beginWindowDrag(handle: Long)
+    external fun beginWindowResize(handle: Long, edge: Int)
     external fun setWindowResizable(windowHwnd: Long, enabled: Boolean)
     external fun setWindowAspectRatio(windowHwnd: Long, ratio: Float)
     external fun layoutNativeSubviews(handle: Long)
-    private external fun reparentSurfaceNative(handle: Long, hostViewPtr: Long)
+    private external fun reparentSurfaceNative(handle: Long, hostViewPtr: Long, pipWindowPtr: Long)
 
-    fun reparentSurface(handle: Long, hostViewPtr: Long): Boolean =
-        runCatching { reparentSurfaceNative(handle, hostViewPtr) }.isSuccess
+    fun reparentSurface(handle: Long, hostViewPtr: Long, pipWindowPtr: Long = 0L): Boolean =
+        runCatching { reparentSurfaceNative(handle, hostViewPtr, pipWindowPtr) }.isSuccess
     external fun setPaused(handle: Long, paused: Boolean)
     external fun seekTo(handle: Long, positionMs: Long)
     external fun seekBy(handle: Long, offsetMs: Long)
@@ -138,6 +184,47 @@ internal object NativePlayerBridge {
         controlsPageAssets.url
     }
     private val controlsPageAssets: ControlsPageAssets by lazy { exportControlsPageAssets() }
+    private val anime4kShaderAssets: Anime4kShaderAssets by lazy { exportAnime4kShaderAssets() }
+    private val casShaderAssets: CasShaderAssets by lazy { exportCasShaderAssets() }
+    private val fsrShaderAssets: CasShaderAssets by lazy { exportFsrShaderAssets() }
+
+    private fun exportAnime4kShaderAssets(): Anime4kShaderAssets {
+        // Anime4K v4.0.1's official Mode A+A (Fast) chain for lower-end GPUs.
+        val shaderNames = listOf(
+            "Anime4K_Clamp_Highlights.glsl",
+            "Anime4K_Restore_CNN_M.glsl",
+            "Anime4K_Upscale_CNN_x2_M.glsl",
+            "Anime4K_Restore_CNN_S.glsl",
+            "Anime4K_AutoDownscalePre_x2.glsl",
+            "Anime4K_AutoDownscalePre_x4.glsl",
+            "Anime4K_Upscale_CNN_x2_S.glsl",
+        )
+        val files = shaderNames.associateWith { name ->
+            readResourceBytes("/anime4k/$name")
+        }
+        val directory = DesktopCache.installVersionedFiles("anime4k-shaders", files).toFile()
+        return Anime4kShaderAssets(shaderNames.map { directory.resolve(it).absolutePath }.toTypedArray())
+    }
+
+    private fun exportCasShaderAssets(): CasShaderAssets {
+        // AMD FidelityFX Contrast Adaptive Sharpening (CAS) for live action
+        val shaderNames = listOf("CAS.glsl")
+        val files = shaderNames.associateWith { name ->
+            readResourceBytes("/cas/$name")
+        }
+        val directory = DesktopCache.installVersionedFiles("cas-shaders", files).toFile()
+        return CasShaderAssets(shaderNames.map { directory.resolve(it).absolutePath }.toTypedArray())
+    }
+
+    private fun exportFsrShaderAssets(): CasShaderAssets {
+        // AMD FidelityFX Super Resolution (FSR) 1.0.2 (EASU + RCAS)
+        val shaderNames = listOf("FSR.glsl")
+        val files = shaderNames.associateWith { name ->
+            readResourceBytes("/fsr/$name")
+        }
+        val directory = DesktopCache.installVersionedFiles("fsr-shaders", files).toFile()
+        return CasShaderAssets(shaderNames.map { directory.resolve(it).absolutePath }.toTypedArray())
+    }
 
     fun preloadAsync() {
         if (!preloadStarted.compareAndSet(false, true)) return
@@ -363,6 +450,15 @@ internal object NativePlayerBridge {
     private data class ControlsPageAssets(
         val url: String,
     )
+
+    private data class Anime4kShaderAssets(
+        val shaderPaths: Array<String>,
+    )
+
+    private data class CasShaderAssets(
+        val shaderPaths: Array<String>,
+    )
+
 }
 
 internal fun preloadNativePlayerBridgeAsync() {

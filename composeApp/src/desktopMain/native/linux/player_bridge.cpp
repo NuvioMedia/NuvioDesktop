@@ -33,6 +33,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 // Diagnostic logging is opt-in via NUVIO_BRIDGE_DEBUG=1 so a normal run is quiet;
@@ -61,7 +62,8 @@ struct Player {
     // Phase 2: WebKitGTK controls overlay, all touched only on the GTK thread
     GtkWidget *gtkWindow = nullptr;
     WebKitWebView *webview = nullptr;
-    Window hostXid = 0;
+    Window hostXid = 0;         // current mpv `wid` parent and controls-overlay parent
+    Window pipWindowXid = 0;     // top-level AWT window currently hosting the PiP surface
     Window overlayXid = 0;   // controls window, composite-redirected offscreen
                              // (invisible on screen but still receives input)
     guint updateTimer = 0;    // 200ms: state push + input raise
@@ -92,6 +94,13 @@ struct Player {
     GCancellable *snapCancel = nullptr;  // cancels the in-flight snapshot, owned
     int snapCooldownTicks = 0;  // watchdog backoff before the next request
     int snapResets = 0;         // consecutive watchdog resets without a snapshot
+    // Live-action HQ scaler values are restored when the in-player toggle is
+    // turned off. This state is scoped to this libmpv instance.
+    int currentImagePreset = 0;
+    int currentMotionPreset = 0;
+    bool liveActionUpscalingEnabled = false;
+    std::vector<std::pair<std::string, std::string>> previousScalerOptions;
+    std::vector<std::string> appliedLiveActionShaders;
     // Controls-state payload buffering (macOS/Windows parity): the first
     // updateControls arrives before the page defines window.playerControls, so a
     // fire-and-forget eval loses it and the loading screen shows a bare spinner
@@ -142,6 +151,19 @@ std::once_flag gGtkOnce;
 std::atomic<bool> gGtkReady{false};
 std::thread gGtkThread;
 
+static int (*gPreviousXErrorHandler)(Display *, XErrorEvent *) = nullptr;
+
+static int nuvioXErrorHandler(Display *dpy, XErrorEvent *ev) {
+    if (ev->error_code == BadWindow || ev->error_code == BadDrawable || ev->error_code == BadMatch) {
+        // Benign asynchronous X11 race during subwindow reparenting / destruction
+        return 0;
+    }
+    if (gPreviousXErrorHandler) {
+        return gPreviousXErrorHandler(dpy, ev);
+    }
+    return 0;
+}
+
 void gtkThreadMain() {
     // Force the X11 GDK backend. On Wayland sessions (e.g. KDE Plasma) GTK would
     // otherwise pick the Wayland backend and the controls window would be a
@@ -150,6 +172,9 @@ void gtkThreadMain() {
     // always provides X11, so this is safe and matches GDK_BACKEND=x11.
     gdk_set_allowed_backends("x11");
     gtk_init(nullptr, nullptr);
+    if (!gPreviousXErrorHandler) {
+        gPreviousXErrorHandler = XSetErrorHandler(nuvioXErrorHandler);
+    }
     gGtkReady.store(true);
     gtk_main();
 }
@@ -256,6 +281,20 @@ int64_t mpvGetInt(mpv_handle *mpv, const char *name) {
     int64_t out = 0;
     if (mpv_get_property(mpv, name, MPV_FORMAT_INT64, &out) < 0) return 0;
     return out;
+}
+
+// The mpv `wid` property is update-vo capable: changing it asks libmpv to
+// recreate its own native output under the new parent. Keep video-window
+// ownership with mpv instead of manually reparenting its active X11 child.
+bool mpvSetWid(mpv_handle *mpv, Window wid) {
+    if (!mpv || wid == 0) return false;
+    int64_t value = static_cast<int64_t>(wid);
+    int result = mpv_set_property(mpv, "wid", MPV_FORMAT_INT64, &value);
+    if (result < 0) {
+        NUVIO_ERR("mpv rejected wid update: %s", mpv_error_string(result));
+        return false;
+    }
+    return true;
 }
 
 bool mpvGetFlag(mpv_handle *mpv, const char *name) {
@@ -1374,6 +1413,9 @@ gboolean destroyWebviewOnGtk(gpointer data) {
         GdkDisplay *destroyDisplay = gtk_widget_get_display(player->gtkWindow);
         gdk_x11_display_error_trap_push(destroyDisplay);
         gtk_widget_destroy(player->gtkWindow);
+        if (destroyDisplay && GDK_IS_X11_DISPLAY(destroyDisplay)) {
+            XSync(GDK_DISPLAY_XDISPLAY(destroyDisplay), False);
+        }
         gdk_x11_display_error_trap_pop_ignored(destroyDisplay);
         player->gtkWindow = nullptr;
         player->webview = nullptr;
@@ -1536,6 +1578,9 @@ JNIEXPORT jboolean JNICALL NP(initGtkEarly)(JNIEnv *, jobject) {
         NUVIO_ERR("initGtkEarly: gtk_init_check failed");
         return JNI_FALSE;
     }
+    if (!gPreviousXErrorHandler) {
+        gPreviousXErrorHandler = XSetErrorHandler(nuvioXErrorHandler);
+    }
     NUVIO_LOG("initGtkEarly: GTK initialized before AWT/Skia");
     return JNI_TRUE;
 }
@@ -1662,8 +1707,8 @@ JNIEXPORT jlong JNICALL NP(create)(
     bool ctxPinned = gpuCtxEnv && *gpuCtxEnv;
     struct Attempt { const char *ctx; const char *hwdec; };
     Attempt attempts[2] = {
-        {ctxPinned ? gpuCtxEnv : "x11egl", (hwdecEnv && *hwdecEnv) ? hwdecEnv : "auto"},
-        {"x11vk", (hwdecEnv && *hwdecEnv) ? hwdecEnv : "nvdec-copy"},
+        {ctxPinned ? gpuCtxEnv : "x11vk", (hwdecEnv && *hwdecEnv) ? hwdecEnv : "auto"},
+        {"x11egl", (hwdecEnv && *hwdecEnv) ? hwdecEnv : "auto"},
     };
     int nAttempts = ctxPinned ? 1 : 2;
     int initResult = MPV_ERROR_GENERIC;
@@ -1763,6 +1808,132 @@ JNIEXPORT void JNICALL NP(dispose)(JNIEnv *env, jobject, jlong handle) {
 JNIEXPORT void JNICALL NP(setPaused)(JNIEnv *, jobject, jlong handle, jboolean paused) {
     Player *p = asPlayer(handle);
     if (p) mpvSetFlag(p->mpv, "pause", paused == JNI_TRUE);
+}
+
+JNIEXPORT jboolean JNICALL NP(setImagePreset)(JNIEnv *env, jobject, jlong handle,
+                                              jint presetIndex, jobjectArray shaderPaths) {
+    Player *p = asPlayer(handle);
+    if (!p || !p->mpv) return JNI_FALSE;
+
+    auto changeShader = [&](const char *operation, const std::string &path) {
+        const char *cmd[] = {"change-list", "glsl-shaders", operation, path.c_str(), nullptr};
+        return mpv_command(p->mpv, cmd) >= 0;
+    };
+
+    static const std::vector<std::pair<std::string, std::string>> hqOptions = {
+        {"scale", "ewa_lanczossharp"},
+        {"cscale", "ewa_lanczossharp"},
+        {"dscale", "mitchell"},
+        {"correct-downscaling", "yes"},
+        {"sigmoid-upscaling", "yes"},
+        {"linear-downscaling", "yes"},
+    };
+
+    // Remove any previously applied shaders
+    for (const auto &path : p->appliedLiveActionShaders) {
+        changeShader("remove", path);
+    }
+    p->appliedLiveActionShaders.clear();
+
+    if (presetIndex == 0) {
+        mpv_set_property_string(p->mpv, "glsl-shaders", "");
+    }
+
+    // Manage scaler options: enable high-quality scalers for any active preset (1..4)
+    if (presetIndex >= 1 && presetIndex <= 4) {
+        if (!p->liveActionUpscalingEnabled) {
+            std::vector<std::pair<std::string, std::string>> originals;
+            originals.reserve(hqOptions.size());
+            for (const auto &option : hqOptions) {
+                char *value = mpv_get_property_string(p->mpv, option.first.c_str());
+                if (value) {
+                    originals.emplace_back(option.first, value);
+                    mpv_free(value);
+                }
+            }
+            for (const auto &option : hqOptions) {
+                mpv_set_property_string(p->mpv, option.first.c_str(), option.second.c_str());
+            }
+            p->previousScalerOptions = std::move(originals);
+            p->liveActionUpscalingEnabled = true;
+        }
+    } else {
+        if (p->liveActionUpscalingEnabled) {
+            for (const auto &option : p->previousScalerOptions) {
+                mpv_set_property_string(p->mpv, option.first.c_str(), option.second.c_str());
+            }
+            p->previousScalerOptions.clear();
+            p->liveActionUpscalingEnabled = false;
+        }
+    }
+
+    // Apply new shaders if requested
+    if (presetIndex > 0 && shaderPaths) {
+        const jsize count = env->GetArrayLength(shaderPaths);
+        if (count > 0 && !env->ExceptionCheck()) {
+            std::vector<std::string> paths;
+            paths.reserve(static_cast<size_t>(count));
+            for (jsize i = 0; i < count; ++i) {
+                auto value = static_cast<jstring>(env->GetObjectArrayElement(shaderPaths, i));
+                if (!value) continue;
+                paths.push_back(jstringToUtf8(env, value));
+                env->DeleteLocalRef(value);
+                if (env->ExceptionCheck()) return JNI_FALSE;
+            }
+
+            size_t appended = 0;
+            for (; appended < paths.size(); ++appended) {
+                if (!changeShader("append", paths[appended])) {
+                    while (appended > 0) changeShader("remove", paths[--appended]);
+                    NUVIO_ERR("setImagePreset: failed to append shader %s", paths[appended].c_str());
+                    return JNI_FALSE;
+                }
+            }
+            p->appliedLiveActionShaders = std::move(paths);
+        }
+    }
+
+    p->currentImagePreset = presetIndex;
+    return JNI_TRUE;
+}
+
+JNIEXPORT jboolean JNICALL NP(setMotionPreset)(JNIEnv *env, jobject, jlong handle,
+                                               jint presetIndex, jstring scriptPath) {
+    Player *p = asPlayer(handle);
+    if (!p || !p->mpv) return JNI_FALSE;
+
+    if (presetIndex <= 0 || !scriptPath) {
+        int res = mpv_set_property_string(p->mpv, "vf", "");
+        p->currentMotionPreset = 0;
+        return res >= 0 ? JNI_TRUE : JNI_FALSE;
+    }
+
+    std::string path = jstringToUtf8(env, scriptPath);
+    if (path.empty()) {
+        mpv_set_property_string(p->mpv, "vf", "");
+        p->currentMotionPreset = 0;
+        return JNI_TRUE;
+    }
+
+    std::string vfValue = "vapoursynth=file=" + path + ":buffered-frames=4:concurrent-frames=2";
+    int res = mpv_set_property_string(p->mpv, "vf", vfValue.c_str());
+    if (res < 0) {
+        NUVIO_ERR("setMotionPreset: mpv rejected vf '%s': %s", vfValue.c_str(), mpv_error_string(res));
+        return JNI_FALSE;
+    }
+    p->currentMotionPreset = presetIndex;
+    NUVIO_LOG("setMotionPreset: applied vf '%s'", vfValue.c_str());
+    return JNI_TRUE;
+}
+
+JNIEXPORT jboolean JNICALL NP(setAnime4kEnabled)(JNIEnv *env, jobject thiz, jlong handle,
+                                                  jboolean enabled, jobjectArray shaderPaths) {
+    return NP(setImagePreset)(env, thiz, handle, enabled == JNI_TRUE ? 4 : 0, shaderPaths);
+}
+
+JNIEXPORT jboolean JNICALL NP(setLiveActionUpscalingEnabled)(JNIEnv *env, jobject thiz, jlong handle,
+                                                               jboolean enabled, jobjectArray shaderPaths) {
+    return NP(setImagePreset)(env, thiz, handle, enabled == JNI_TRUE ? 1 : 0, shaderPaths);
 }
 
 JNIEXPORT void JNICALL NP(seekTo)(JNIEnv *, jobject, jlong handle, jlong positionMs) {
@@ -2038,6 +2209,9 @@ JNIEXPORT void JNICALL NP(shutdownWebView2Warmup)(JNIEnv *, jobject) {
                                       gtk_widget_get_display(gWarmupWindow);
                                   gdk_x11_display_error_trap_push(d);
                                   gtk_widget_destroy(gWarmupWindow);
+                                  if (d && GDK_IS_X11_DISPLAY(d)) {
+                                      XSync(GDK_DISPLAY_XDISPLAY(d), False);
+                                  }
                                   gdk_x11_display_error_trap_pop_ignored(d);
                                   // The view/ucm die with their window — null
                                   // them too or the adoption gate could later
@@ -2053,11 +2227,169 @@ JNIEXPORT void JNICALL NP(shutdownWebView2Warmup)(JNIEnv *, jobject) {
 JNIEXPORT jboolean JNICALL NP(setWindowsDisplaySleepInhibited)(JNIEnv *, jobject, jboolean) {
     return JNI_FALSE;
 }
-JNIEXPORT void JNICALL NP(beginWindowDrag)(JNIEnv *, jobject, jlong) {}
+static void sendWmMoveResize(Player *p, int direction) {
+    if (!p || !p->pipWindowXid) return;
+    gtkSync([p, direction] {
+        GdkDisplay *gd = gdk_display_get_default();
+        if (!gd || !GDK_IS_X11_DISPLAY(gd)) return;
+        Display *display = GDK_DISPLAY_XDISPLAY(gd);
+        // The browser/GTK toolkit can still own the implicit pointer grab from
+        // the pressed mouse button. EWMH move/resize only works after the client
+        // releases that grab so the window manager can take it over.
+        GdkSeat *seat = gdk_display_get_default_seat(gd);
+        if (seat) gdk_seat_ungrab(seat);
+        XUngrabPointer(display, CurrentTime);
+        XSync(display, False);
+        gdk_x11_display_error_trap_push(gd);
+        Window root = DefaultRootWindow(display), child = 0;
+        int rootX = 0, rootY = 0, winX = 0, winY = 0;
+        unsigned int mask = 0;
+        if (XQueryPointer(display, root, &root, &child, &rootX, &rootY, &winX, &winY, &mask)) {
+            XEvent event{};
+            event.xclient.type = ClientMessage;
+            event.xclient.window = p->pipWindowXid;
+            event.xclient.message_type = XInternAtom(display, "_NET_WM_MOVERESIZE", False);
+            event.xclient.format = 32;
+            event.xclient.data.l[0] = rootX;
+            event.xclient.data.l[1] = rootY;
+            event.xclient.data.l[2] = direction;
+            event.xclient.data.l[3] = Button1;
+            event.xclient.data.l[4] = 1; // application source
+            XSendEvent(display, root, False,
+                       SubstructureRedirectMask | SubstructureNotifyMask, &event);
+            XFlush(display);
+        }
+        XSync(display, False);
+        gdk_x11_display_error_trap_pop_ignored(gd);
+    });
+}
+JNIEXPORT void JNICALL NP(beginWindowDrag)(JNIEnv *, jobject, jlong handle) {
+    sendWmMoveResize(asPlayer(handle), 8); // _NET_WM_MOVERESIZE_MOVE
+}
+JNIEXPORT void JNICALL NP(beginWindowResize)(JNIEnv *, jobject, jlong handle, jint edge) {
+    // Player UI edge IDs -> EWMH directions (top-left, top, top-right, right,
+    // bottom-right, bottom, bottom-left, left).
+    int direction = -1;
+    switch (edge) {
+        case 13: direction = 0; break;
+        case 12: direction = 1; break;
+        case 14: direction = 2; break;
+        case 11: direction = 3; break;
+        case 17: direction = 4; break;
+        case 15: direction = 5; break;
+        case 16: direction = 6; break;
+        case 10: direction = 7; break;
+        default: return;
+    }
+    sendWmMoveResize(asPlayer(handle), direction);
+}
 JNIEXPORT void JNICALL NP(setWindowResizable)(JNIEnv *, jobject, jlong, jboolean) {}
 JNIEXPORT void JNICALL NP(setWindowAspectRatio)(JNIEnv *, jobject, jlong, jfloat) {}
-JNIEXPORT void JNICALL NP(layoutNativeSubviews)(JNIEnv *, jobject, jlong) {}
-JNIEXPORT void JNICALL NP(reparentSurfaceNative)(JNIEnv *, jobject, jlong, jlong) {}
+JNIEXPORT void JNICALL NP(layoutNativeSubviews)(JNIEnv *, jobject, jlong handle) {
+    Player *p = asPlayer(handle);
+    if (!p || !p->hostXid) return;
+    gtkSync([p] {
+        GdkDisplay *gd = gdk_display_get_default();
+        if (!gd || !GDK_IS_X11_DISPLAY(gd)) return;
+        Display *display = GDK_DISPLAY_XDISPLAY(gd);
+        gdk_x11_display_error_trap_push(gd);
+        XWindowAttributes attrs{};
+        if (XGetWindowAttributes(display, p->hostXid, &attrs) && attrs.width > 0 && attrs.height > 0) {
+            if (p->overlayXid) {
+                XMoveResizeWindow(display, p->overlayXid, 0, 0,
+                                  static_cast<unsigned int>(attrs.width), static_cast<unsigned int>(attrs.height));
+            }
+        }
+        XSync(display, False);
+        gdk_x11_display_error_trap_pop_ignored(gd);
+    });
+}
+JNIEXPORT void JNICALL NP(reparentSurfaceNative)(JNIEnv *env, jobject, jlong handle,
+                                                  jlong hostViewPtr, jlong pipWindowPtr) {
+    Player *p = asPlayer(handle);
+    Window target = static_cast<Window>(hostViewPtr);
+    if (!p || !p->mpv || !p->hostXid || !target) {
+        jclass ex = env->FindClass("java/lang/IllegalStateException");
+        if (ex) env->ThrowNew(ex, "Linux PiP video surface is unavailable");
+        return;
+    }
+    bool moved = false;
+    const Window previousHost = p->hostXid;
+    gtkSync([p, target, pipWindowPtr, previousHost, &moved] {
+        GdkDisplay *gd = gdk_display_get_default();
+        if (!gd || !GDK_IS_X11_DISPLAY(gd)) return;
+        Display *display = GDK_DISPLAY_XDISPLAY(gd);
+        gdk_x11_display_error_trap_push(gd);
+        XWindowAttributes targetAttrs{};
+        bool valid = XGetWindowAttributes(display, target, &targetAttrs) &&
+                     targetAttrs.width > 0 && targetAttrs.height > 0;
+        GdkWindow *overlayGdk = p->gtkWindow ? gtk_widget_get_window(p->gtkWindow) : nullptr;
+        const bool overlayExpected = p->gtkWindow != nullptr;
+        GdkWindow *targetGdk = valid && overlayExpected
+                                   ? gdk_x11_window_foreign_new_for_display(gd, target)
+                                   : nullptr;
+        const bool overlayReady = !overlayExpected || (overlayGdk && targetGdk);
+        if (valid && overlayReady) {
+            if (target == previousHost) {
+                p->pipWindowXid = static_cast<Window>(pipWindowPtr);
+                moved = true;
+                XSync(display, False);
+                gdk_x11_display_error_trap_pop_ignored(gd);
+                if (targetGdk) g_object_unref(targetGdk);
+                return;
+            }
+            // Let mpv recreate and resize its VO under the new parent. Moving
+            // the already-active X11 child directly can strand gpu VO's
+            // presentation surface and leave the video frozen in PiP.
+            if (mpvSetWid(p->mpv, target)) {
+                if (overlayGdk && targetGdk) {
+                    gdk_window_reparent(overlayGdk, targetGdk, 0, 0);
+                    gdk_window_raise(overlayGdk);
+                }
+            } else {
+                XSync(display, False);
+                gdk_x11_display_error_trap_pop_ignored(gd);
+                if (targetGdk) g_object_unref(targetGdk);
+                return;
+            }
+            XSync(display, False);
+            moved = gdk_x11_display_error_trap_pop(gd) == 0;
+            if (moved) {
+                p->hostXid = target;
+                p->pipWindowXid = static_cast<Window>(pipWindowPtr);
+                if (p->gtkWindow) gtk_widget_queue_resize(p->gtkWindow);
+            } else {
+                // X requests are asynchronous and can partially apply before a
+                // BadWindow is reported. Restore mpv's original parent and the
+                // controls overlay before Kotlin disposes the PiP dialog.
+                const bool mpvRestored = mpvSetWid(p->mpv, previousHost);
+                gdk_x11_display_error_trap_push(gd);
+                GdkWindow *oldHostGdk = gdk_x11_window_foreign_new_for_display(gd, previousHost);
+                if (overlayGdk && oldHostGdk) {
+                    gdk_window_reparent(overlayGdk, oldHostGdk, 0, 0);
+                    gdk_window_raise(overlayGdk);
+                }
+                XSync(display, False);
+                const int rollbackXError = gdk_x11_display_error_trap_pop(gd);
+                if (oldHostGdk) g_object_unref(oldHostGdk);
+                if (!mpvRestored || rollbackXError != 0) {
+                    NUVIO_ERR("PiP surface rollback incomplete (mpv=%s, x11=%s)",
+                              mpvRestored ? "restored" : "failed",
+                              rollbackXError == 0 ? "restored" : "failed");
+                }
+            }
+        } else {
+            XSync(display, False);
+            gdk_x11_display_error_trap_pop_ignored(gd);
+        }
+        if (targetGdk) g_object_unref(targetGdk);
+    });
+    if (!moved) {
+        jclass ex = env->FindClass("java/lang/IllegalStateException");
+        if (ex) env->ThrowNew(ex, "Could not safely move the Nuvio video and controls into the PiP window");
+        return;
+    }
+}
 
 #undef NP
 } // extern "C"
