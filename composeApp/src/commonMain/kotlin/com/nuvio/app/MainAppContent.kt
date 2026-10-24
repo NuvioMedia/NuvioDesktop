@@ -202,6 +202,7 @@ import com.nuvio.app.core.ui.AppPresenceState
 import com.nuvio.app.core.ui.PresenceSnapshot
 import androidx.compose.ui.ExperimentalComposeUiApi
 import com.nuvio.app.features.player.dispatchNavigationBack
+import com.nuvio.app.core.ui.PlatformEscapeShortcut
 
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -1355,19 +1356,23 @@ internal fun MainAppContent(
                     LocalUseNativeNavigation provides useNativeNavigation,
                     LocalNativeNavigationBarHidden provides (currentRoute?.hidesNavigationBar == true),
                 ) {
+                val navigateBack = {
+                    val routeAtRequest = navController.currentRoute
+                    dispatchNavigationBack(
+                        isPlayerRoute = routeAtRequest is PlayerRoute,
+                        playerBack = registeredPlayerSystemBack
+                            ?.takeIf { (route, _) -> route == routeAtRequest }
+                            ?.second,
+                        pop = { navController.popBackStack() },
+                    )
+                }
+
+                PlatformEscapeShortcut(navigateBack)
+
                 NavDisplay(
                     backStack = navBackStack,
                     modifier = Modifier.fillMaxSize(),
-                    onBack = {
-                        val routeAtRequest = navController.currentRoute
-                        dispatchNavigationBack(
-                            isPlayerRoute = routeAtRequest is PlayerRoute,
-                            playerBack = registeredPlayerSystemBack
-                                ?.takeIf { (route, _) -> route == routeAtRequest }
-                                ?.second,
-                            pop = { navController.popBackStack() },
-                        )
-                    },
+                    onBack = navigateBack,
                     entryDecorators = listOf(
                         rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
                         routeDisposalDecorator,

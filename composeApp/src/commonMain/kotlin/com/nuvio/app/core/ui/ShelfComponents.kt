@@ -114,7 +114,8 @@ fun <T> NuvioShelfSection(
         }
         LazyRow(
             state = state,
-            modifier = rowModifier.nuvioDesktopDragScroll(state),
+            modifier = rowModifier
+                .nuvioDesktopDragScroll(state),
             contentPadding = rowContentPadding,
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {
@@ -272,6 +273,7 @@ fun NuvioPosterCard(
                     shape = cardShape,
                     surface = NuvioCardDepthSurface.Posters,
                 )
+                .nuvioFocusBorder(cardShape)
                 .posterCardClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
@@ -406,7 +408,10 @@ private fun NuvioShelfSectionHeader(
                 text = title,
                 modifier = Modifier
                     .weight(1f)
-                    .then(if (onTitleClick != null) Modifier.clickable(onClick = onTitleClick) else Modifier),
+                    .then(if (onTitleClick != null) {
+                        Modifier.nuvioFocusBorder(RoundedCornerShape(NuvioTokens.Radius.md))
+                            .clickable(onClick = onTitleClick)
+                    } else Modifier),
                 style = MaterialTheme.typography.titleLarge,
                 color = tokens.colors.textPrimary,
                 maxLines = 1,
@@ -439,14 +444,14 @@ private fun NuvioViewAllPill(
     val iconSize = if (size == NuvioViewAllPillSize.Compact) NuvioTokens.Icon.sm else tokens.icons.md
     val viewAllText = stringResource(Res.string.home_view_all)
 
+    val pillShape = RoundedCornerShape(NuvioTokens.Radius.xl)
     Box(
         modifier = modifier
             .size(actionSize)
-            .background(
-                color = tokens.colors.surface,
-                shape = RoundedCornerShape(NuvioTokens.Radius.xl),
-            )
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            .background(color = tokens.colors.surface, shape = pillShape)
+            .then(if (onClick != null) {
+                Modifier.nuvioFocusBorder(pillShape).clickable(onClick = onClick)
+            } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
