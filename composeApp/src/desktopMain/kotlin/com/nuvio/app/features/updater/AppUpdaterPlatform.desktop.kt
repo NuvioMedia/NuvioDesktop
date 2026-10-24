@@ -193,8 +193,10 @@ private enum class DesktopUpdaterOs {
     fun assetSelector(linuxInstallMethod: LinuxInstallMethod): AppUpdateAssetSelector {
         val archFragments = desktopArchitectureFragments()
         return when (this) {
+            // Only the MSI: releases also carry Nuvio-Windows-x64-Setup.exe,
+            // a web installer that would download that same MSI a second time.
             WINDOWS -> AppUpdateAssetSelector(
-                fileExtensions = listOf(".msi", ".exe"),
+                fileExtensions = listOf(".msi"),
                 preferredNameFragments = archFragments + listOf("windows", "win"),
                 fallbackNameFragments = listOf("universal", "all"),
             )
