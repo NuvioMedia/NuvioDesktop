@@ -20,6 +20,7 @@ import com.nuvio.app.features.servers.ServerCatalog
 import com.nuvio.app.features.trakt.TraktPublicListSourceResolver
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import com.nuvio.app.isDesktop
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,6 +32,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlin.math.absoluteValue
 import kotlin.random.Random
 
@@ -92,39 +96,42 @@ object HomeRepository {
                 putAll(cachedSections)
             }
             var firstErrorMessage: String? = null
-            var batchIndex = 0
-
-            prioritizedRequests.chunked(HOME_CATALOG_FETCH_BATCH_SIZE).forEach { batch ->
-                if (activeRequestKey != requestKey) return@launch
-                val results = batch.map { request ->
-                    async {
+            val semaphore = Semaphore(HOME_CATALOG_FETCH_CONCURRENCY)
+            val pending = prioritizedRequests.map { request ->
+                async {
+                    semaphore.withPermit {
                         request to runCatching {
                             request.toSection(forceRefresh = force)
+                        }.onFailure { error ->
+                            if (error is CancellationException) throw error
                         }
                     }
-                }.awaitAll()
+                }
+            }.toMutableList()
+
+            while (pending.isNotEmpty()) {
+                val (completed, response) = select {
+                    pending.forEach { deferred ->
+                        deferred.onAwait { deferred to it }
+                    }
+                }
+                pending.remove(completed)
+                val (request, result) = response
 
                 if (activeRequestKey != requestKey) return@launch
 
-                results.mapNotNull { (request, result) ->
-                    result.getOrNull()?.let { section -> request.cacheKey to section }
-                }.forEach { (cacheKey, section) ->
-                    loadedSections[cacheKey] = section
+                result.getOrNull()?.let { section ->
+                    loadedSections[request.cacheKey] = section
                 }
                 if (firstErrorMessage == null) {
-                    firstErrorMessage = results.firstNotNullOfOrNull { (_, result) ->
-                        result.exceptionOrNull()?.message
-                    }
+                    firstErrorMessage = result.exceptionOrNull()?.message
                 }
                 cachedSections = loadedSections.toMap()
                 lastErrorMessage = firstErrorMessage
-                if (batchIndex == 0 || (batchIndex + 1) % HOME_CATALOG_PUBLISH_INTERVAL == 0) {
-                    publishCurrentState(
-                        isLoading = true,
-                        requestKey = requestKey,
-                    )
-                }
-                batchIndex++
+                publishCurrentState(
+                    isLoading = true,
+                    requestKey = requestKey,
+                )
             }
 
             if (activeRequestKey != requestKey) return@launch
@@ -493,11 +500,10 @@ object HomeRepository {
 private const val HOME_HERO_ITEM_LIMIT = 8
 private const val HOME_COLLECTION_HERO_SOURCE_LIMIT = 6
 private const val HOME_COLLECTION_HERO_SOURCE_ITEM_LIMIT = 8
-private const val HOME_CATALOG_FETCH_BATCH_SIZE = 4
+private const val HOME_CATALOG_FETCH_CONCURRENCY = 4
 private const val HOME_CATALOG_PREVIEW_FETCH_LIMIT = 18
 private const val DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT = 64
 private const val DESKTOP_HOME_CATALOG_PREVIEW_MAX_PAGES = 4
-private const val HOME_CATALOG_PUBLISH_INTERVAL = 2
 
 private fun prioritizeDefinitions(
     definitions: List<HomeCatalogDefinition>,
