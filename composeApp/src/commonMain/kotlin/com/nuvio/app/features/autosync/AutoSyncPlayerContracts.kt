@@ -18,4 +18,7 @@ internal interface AutoSyncPlayerController {
     fun setAutoSyncAppliedListener(
         listener: ((subtitleUrl: String, delayMs: Int) -> Unit)?,
     )
+    fun setAutoSyncFailureListener(listener: ((AutoSyncFailure) -> Unit)?) {}
 }
+
+internal enum class AutoSyncFailure { NO_REFERENCE, FAILED }

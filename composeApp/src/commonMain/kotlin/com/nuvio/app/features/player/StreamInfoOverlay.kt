@@ -267,3 +267,84 @@ private fun formatDecimal(value: Double, decimals: Int): String {
     repeat(decimals) { factor *= 10 }
     return ((value * factor).roundToInt() / factor).toString().removeSuffix(".0")
 }
+
+@Composable
+internal fun rememberStreamInfoSections(
+    addonName: String,
+    addonLogo: String?,
+    streamName: String,
+    streamDescription: String?,
+    playbackEngine: AndroidPlaybackEngine?,
+    serverPlayback: String?,
+    mediaInfo: PlayerMediaInfo,
+    audioTrack: AudioTrack?,
+    subtitleTrack: SubtitleTrack?,
+    addonSubtitle: AddonSubtitle?,
+): List<PlayerControlInfoSection> {
+    fun items(vararg pairs: Pair<String, String?>) =
+        pairs.mapNotNull { (label, value) -> value?.let { PlayerControlInfoItem(label, it) } }
+
+    val source = PlayerControlInfoSection(
+        title = stringResource(Res.string.stream_info_section_source),
+        logo = addonLogo?.takeIf { it.isNotBlank() },
+        name = addonName,
+        subtitle = streamName.takeIf { it.isNotBlank() && it != addonName },
+        description = streamDescription?.takeIf { it.isNotBlank() }?.replace("\n", " · "),
+        items = items(
+            stringResource(Res.string.stream_info_player_engine) to playbackEngine?.label,
+            stringResource(Res.string.stream_info_server) to serverPlayback,
+        ),
+    )
+    val video = if (mediaInfo.videoCodec != null || mediaInfo.videoWidth != null || mediaInfo.videoFrameRate != null) {
+        PlayerControlInfoSection(
+            title = stringResource(Res.string.stream_info_section_video),
+            items = items(
+                stringResource(Res.string.stream_info_codec) to mediaInfo.videoCodec,
+                stringResource(Res.string.stream_info_resolution) to
+                    if (mediaInfo.videoWidth != null && mediaInfo.videoHeight != null) {
+                        formatResolution(mediaInfo.videoWidth, mediaInfo.videoHeight)
+                    } else null,
+                stringResource(Res.string.stream_info_frame_rate) to
+                    mediaInfo.videoFrameRate?.let { "${formatDecimal(it.toDouble(), 3)} fps" },
+                stringResource(Res.string.stream_info_bitrate) to mediaInfo.videoBitrate?.let(::formatBitrate),
+            ),
+        )
+    } else null
+    val audio = if (mediaInfo.audioCodec != null || mediaInfo.audioChannels != null || audioTrack?.language != null) {
+        PlayerControlInfoSection(
+            title = stringResource(Res.string.stream_info_section_audio),
+            items = items(
+                stringResource(Res.string.stream_info_codec) to mediaInfo.audioCodec,
+                stringResource(Res.string.stream_info_channels) to mediaInfo.audioChannels?.let(::formatChannelLayout),
+                stringResource(Res.string.stream_info_sample_rate) to
+                    mediaInfo.audioSampleRate?.let { "${formatDecimal(it / 1000.0, 1)} kHz" },
+                stringResource(Res.string.stream_info_language) to
+                    audioTrack?.language?.takeIf { it.isNotBlank() }?.let { languageLabelForCode(it) },
+            ),
+        )
+    } else null
+    val subtitle = if (addonSubtitle != null || subtitleTrack != null) {
+        PlayerControlInfoSection(
+            title = stringResource(Res.string.stream_info_section_subtitle),
+            items = items(
+                stringResource(Res.string.stream_info_name) to (
+                    addonSubtitle?.display ?: subtitleTrack?.let {
+                        localizedTrackDisplayName(it.label, it.language, it.index)
+                    }
+                    ),
+                stringResource(Res.string.stream_info_language) to
+                    (addonSubtitle?.language ?: subtitleTrack?.language)
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { languageLabelForCode(it) },
+                stringResource(Res.string.stream_info_source) to stringResource(
+                    if (addonSubtitle != null) {
+                        Res.string.stream_info_subtitle_source_addon
+                    } else {
+                        Res.string.stream_info_subtitle_source_embedded
+                    },
+                ),
+            ),
+        )
+    } else null
+    return listOfNotNull(source, video, audio, subtitle)
+}

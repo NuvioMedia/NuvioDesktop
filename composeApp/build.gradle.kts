@@ -1137,7 +1137,8 @@ kotlin {
                 implementation("androidx.recyclerview:recyclerview:1.4.0")
                 implementation("com.squareup.okhttp3:okhttp:4.12.0")
                 implementation("com.google.code.gson:gson:2.11.0")
-                implementation("io.github.peerless2012:ass-media:0.5.1")
+                // libass - atlas-based subtitle rendering (from NuvioMedia/nuvio-libass)
+                implementation(files("libs/nuvio-libass-release.aar"))
                 implementation(libs.ktor.client.okhttp)
                 implementation(libs.sentry.android)
                 implementation(libs.androidx.media3.exoplayer.hls)
@@ -1185,7 +1186,7 @@ kotlin {
                 implementation(libs.ksoup)
                 implementation(libs.sentry.jvm)
                 implementation(libs.jna)
-                implementation(files("libs/nuvio-engine-jvm-0.1.5.jar"))
+                implementation(files("libs/nuvio-engine-jvm-0.1.6.jar"))
             }
         }
         val androidHostTest by getting {
@@ -1213,7 +1214,7 @@ kotlin {
             implementation("io.coil-kt.coil3:coil-svg:${libs.versions.coil.get()}") {
                 exclude(group = "org.jetbrains.skiko", module = "skiko")
             }
-            implementation("dev.chrisbanes.haze:haze:1.7.2")
+            implementation("dev.chrisbanes.haze:haze:1.7.3")
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)

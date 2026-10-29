@@ -76,6 +76,18 @@ const nextEpisodeExit = document.getElementById("nextEpisodeExit");
 const nextEpisodeExitLabel = document.getElementById("nextEpisodeExitLabel");
 const sourcesButton = document.getElementById("sourcesButton");
 const episodesButton = document.getElementById("episodesButton");
+const chaptersButton = document.getElementById("chaptersButton");
+const chaptersLabel = document.getElementById("chaptersLabel");
+const chapterTitle = document.getElementById("chapterTitle");
+const chapterMarks = document.getElementById("chapterMarks");
+const chaptersModal = document.getElementById("chaptersModal");
+const streamInfoButton = document.getElementById("streamInfoButton");
+const streamInfoLabel = document.getElementById("streamInfoLabel");
+const streamInfoModal = document.getElementById("streamInfoModal");
+const streamInfoContent = document.getElementById("streamInfoContent");
+const chaptersPanelTitle = document.getElementById("chaptersPanelTitle");
+const chaptersCloseButton = document.getElementById("chaptersCloseButton");
+const chapterList = document.getElementById("chapterList");
 const audioModal = document.getElementById("audioModal");
 const subtitleModal = document.getElementById("subtitleModal");
 const speedModal = document.getElementById("speedModal");
@@ -981,6 +993,8 @@ const modalByName = {
   speed: speedModal,
   sources: sourceModal,
   episodes: episodesModal,
+  chapters: chaptersModal,
+  streamInfo: streamInfoModal,
   submitIntro: submitIntroModal,
   p2pConsent: p2pConsentModal,
   party: partyModal,
@@ -1063,7 +1077,7 @@ const openPlayerModal = modal => {
   if (modal === "subtitles") {
     resetSubtitleSelectionState();
   }
-  renderActiveModal();
+  renderActiveModal(modal === "chapters");
   modalElements.forEach(modalElement => {
     setModalVisibility(modalElement, modalElement === targetModal);
   });
@@ -1203,6 +1217,7 @@ const subtitleSelectionOptions = () => normalizeItems(state.subtitleOptionItems)
   title: String(item.title || ""),
   metadata: String(item.metadata || ""),
   selected: Boolean(item.isSelected),
+  autoSynced: Boolean(item.isAutoSynced),
   index: Number(item.index) || 0,
 }));
 
@@ -1272,10 +1287,22 @@ const appendSubtitleOptionRow = option => {
   });
   const copy = document.createElement("span");
   copy.className = "subtitle-option-copy";
+  const sourceRow = document.createElement("span");
+  sourceRow.className = "subtitle-source-row";
   const source = document.createElement("span");
   source.className = "subtitle-source-chip";
   source.textContent = option.sourceLabel;
-  copy.appendChild(source);
+  sourceRow.appendChild(source);
+  if (option.autoSynced) {
+    const chip = document.createElement("span");
+    chip.className = "autosynced-chip";
+    chip.innerHTML = '<svg aria-hidden="true"><use href="#icon-sync"></use></svg>';
+    const text = document.createElement("span");
+    text.textContent = state.autoSyncedLabel || "Auto synced";
+    chip.appendChild(text);
+    sourceRow.appendChild(chip);
+  }
+  copy.appendChild(sourceRow);
   const title = document.createElement("span");
   title.className = "subtitle-option-title";
   title.textContent = option.title;
@@ -2100,12 +2127,200 @@ const renderP2pConsentModal = () => {
   p2pConsentEnableButton.textContent = state.p2pConsentEnableLabel || "Enable P2P";
 };
 
+const formatChapterClock = ms => {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const pad = value => String(value).padStart(2, "0");
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
+};
+
+const currentChapterIndex = chapters => {
+  const positionMs = Math.max(0, Number(state.positionMs) || 0);
+  let index = -1;
+  chapters.forEach((chapter, i) => {
+    if (chapter.startMs <= positionMs) index = i;
+  });
+  return index;
+};
+
+let chapterListSignature = "";
+
+let streamInfoSignature = "";
+
+const renderStreamInfoModal = () => {
+  const sections = Array.isArray(state.streamInfoSections) ? state.streamInfoSections : [];
+  const signature = JSON.stringify(sections);
+  if (signature === streamInfoSignature) return;
+  streamInfoSignature = signature;
+  streamInfoContent.textContent = "";
+  sections.forEach(section => {
+    const block = document.createElement("div");
+    block.className = "stream-info-section";
+    const title = document.createElement("div");
+    title.className = "stream-info-section-title";
+    title.textContent = String(section.title || "").toUpperCase();
+    block.appendChild(title);
+    if (section.name) {
+      const head = document.createElement("div");
+      head.className = "stream-info-source";
+      if (section.logo) {
+        const logo = document.createElement("img");
+        logo.className = "stream-info-logo";
+        logo.alt = "";
+        logo.draggable = false;
+        logo.addEventListener("error", () => logo.remove());
+        logo.src = section.logo;
+        head.appendChild(logo);
+      }
+      const names = document.createElement("div");
+      names.className = "stream-info-names";
+      const name = document.createElement("div");
+      name.className = "stream-info-name";
+      name.textContent = section.name;
+      names.appendChild(name);
+      if (section.subtitle) {
+        const subtitle = document.createElement("div");
+        subtitle.className = "stream-info-secondary";
+        subtitle.textContent = section.subtitle;
+        names.appendChild(subtitle);
+      }
+      head.appendChild(names);
+      block.appendChild(head);
+      if (section.description) {
+        const description = document.createElement("div");
+        description.className = "stream-info-secondary";
+        description.textContent = section.description;
+        block.appendChild(description);
+      }
+    }
+    if (Array.isArray(section.items) && section.items.length) {
+      const row = document.createElement("div");
+      row.className = "stream-info-row";
+      section.items.forEach(item => {
+        const cell = document.createElement("div");
+        cell.className = "stream-info-item";
+        const label = document.createElement("div");
+        label.className = "stream-info-label";
+        label.textContent = item.label;
+        const value = document.createElement("div");
+        value.className = "stream-info-value";
+        value.textContent = item.value;
+        cell.append(label, value);
+        row.appendChild(cell);
+      });
+      block.appendChild(row);
+    }
+    streamInfoContent.appendChild(block);
+  });
+};
+
+const renderChaptersModal = (modalOpened = false) => {
+  const chapters = Array.isArray(state.chapters) ? state.chapters : [];
+  const durationMs = Math.max(0, Number(state.durationMs) || 0);
+  const positionMs = Math.max(0, Number(state.positionMs) || 0);
+  chaptersPanelTitle.textContent = state.chaptersPanelTitle || "Chapters";
+  chaptersCloseButton.textContent = state.panelCloseLabel || "Close";
+  const signature = JSON.stringify(chapters);
+  if (signature !== chapterListSignature) {
+    chapterListSignature = signature;
+    chapterList.textContent = "";
+    chapters.forEach((chapter, index) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "chapter-row";
+      row.addEventListener("click", event => {
+        event.stopPropagation();
+        send("selectChapter", index);
+        window.setTimeout(closePlayerModal, 120);
+      });
+      const main = document.createElement("span");
+      main.className = "chapter-row-main";
+      const lead = document.createElement("span");
+      lead.className = "chapter-row-lead";
+      lead.textContent = String(index + 1);
+      const name = document.createElement("span");
+      name.className = "chapter-row-name";
+      name.textContent = chapter.title;
+      const time = document.createElement("span");
+      time.className = "chapter-row-time";
+      time.textContent = formatChapterClock(chapter.startMs);
+      main.append(lead, name, time);
+      const extra = document.createElement("span");
+      extra.className = "chapter-row-extra";
+      extra.hidden = true;
+      const bar = document.createElement("span");
+      bar.className = "chapter-row-bar";
+      bar.appendChild(document.createElement("span"));
+      const remaining = document.createElement("span");
+      remaining.className = "chapter-row-remaining";
+      extra.append(bar, remaining);
+      row.append(main, extra);
+      chapterList.appendChild(row);
+    });
+  }
+  const current = currentChapterIndex(chapters);
+  Array.from(chapterList.children).forEach((row, index) => {
+    const isCurrent = index === current;
+    row.classList.toggle("current", isCurrent);
+    const lead = row.querySelector(".chapter-row-lead");
+    const hasIcon = lead.firstElementChild !== null;
+    if (isCurrent && !hasIcon) {
+      lead.innerHTML = '<svg aria-hidden="true"><use href="#icon-play"></use></svg>';
+    } else if (!isCurrent && hasIcon) {
+      lead.textContent = String(index + 1);
+    }
+    const extra = row.querySelector(".chapter-row-extra");
+    extra.hidden = !isCurrent;
+    if (!isCurrent) return;
+    const startMs = chapters[index].startMs;
+    const endMs = chapters[index + 1] ? chapters[index + 1].startMs : durationMs;
+    if (endMs > startMs) {
+      const fraction = Math.min(1, Math.max(0, (positionMs - startMs) / (endMs - startMs)));
+      row.querySelector(".chapter-row-bar > span").style.width = `${fraction * 100}%`;
+      row.querySelector(".chapter-row-remaining").textContent = (state.chapterRemainingTemplate || "{time} left")
+        .replace("{time}", formatChapterClock(Math.max(0, endMs - positionMs)));
+    }
+  });
+  if (modalOpened && current >= 0) {
+    const row = chapterList.children[current];
+    if (row) row.scrollIntoView({ block: "center" });
+  }
+};
+
+let chapterMarksSignature = "";
+
+const renderChapterMarks = () => {
+  const chapters = Array.isArray(state.chapters) ? state.chapters : [];
+  const durationMs = Math.max(0, Number(state.durationMs) || 0);
+  const signature = `${durationMs}|${JSON.stringify(chapters.map(chapter => chapter.startMs))}`;
+  if (signature !== chapterMarksSignature) {
+    chapterMarksSignature = signature;
+    chapterMarks.textContent = "";
+    if (durationMs > 0) {
+      chapters.forEach(chapter => {
+        const fraction = chapter.startMs / durationMs;
+        if (fraction <= 0 || fraction >= 1) return;
+        const mark = document.createElement("span");
+        mark.className = "chapter-mark";
+        mark.style.left = `${fraction * 100}%`;
+        chapterMarks.appendChild(mark);
+      });
+    }
+  }
+  const index = currentChapterIndex(chapters);
+  setText(chapterTitle, index >= 0 ? chapters[index].title : "");
+};
+
 const renderActiveModal = (modalOpened = false) => {
   if (activeModal === "audio") renderAudioTrackList();
   if (activeModal === "subtitles") renderSubtitleModal();
   if (activeModal === "speed") renderSpeedOptionList();
   if (activeModal === "sources") renderSourceModal(modalOpened);
   if (activeModal === "episodes") renderEpisodesModal(modalOpened);
+  if (activeModal === "chapters") renderChaptersModal(modalOpened);
+  if (activeModal === "streamInfo") renderStreamInfoModal();
   if (activeModal === "submitIntro") renderSubmitIntroModal();
   if (activeModal === "p2pConsent") renderP2pConsentModal();
   if (activeModal === "party") renderPartyModal();
@@ -2446,6 +2661,7 @@ const renderChrome = () => {
   if (!state.isInPip && isPipLocked) setPipLocked(false);
   root.classList.toggle("chrome-hidden", Boolean(showError || !state.controlsVisible));
   root.classList.toggle("modal-open", Boolean(activeModal));
+  root.classList.toggle("info-open", activeModal === "streamInfo");
   root.classList.toggle("source-visible", Boolean(!showError && !isPlaying && !state.isLoading && (state.streamTitle || state.providerName)));
   syncHiddenCursor();
   const showOpening = renderOpeningOverlay(showError);
@@ -2485,6 +2701,14 @@ const renderChrome = () => {
   setVisible(videoSettingsButton, Boolean(state.showVideoSettings));
   setVisible(sourcesButton, Boolean(state.showSources));
   setVisible(episodesButton, Boolean(state.showEpisodes));
+  const hasChapters = Array.isArray(state.chapters) && state.chapters.length > 0;
+  setVisible(chaptersButton, hasChapters);
+  chaptersLabel.textContent = state.chaptersLabel || "Chapters";
+  setActionButtonLabel("chapters", state.chaptersLabel || "Chapters");
+  streamInfoLabel.textContent = state.streamInfoLabel || "Stream info";
+  setActionButtonLabel("streamInfo", state.streamInfoLabel || "Stream info");
+  renderChapterMarks();
+  if (!hasChapters && activeModal === "chapters") closePlayerModal(false);
   syncActionFocusState();
 
   const playPauseLabel = isPlaying ? state.pauseLabel : state.playLabel;
@@ -2898,6 +3122,16 @@ document.querySelectorAll("[data-command]").forEach(button => {
       send("episodes", 0);
       return;
     }
+    if (command === "chapters") {
+      openPlayerModal("chapters");
+      return;
+    }
+    if (command === "streamInfo") {
+      streamInfoSignature = "";
+      send("streamInfo", 0);
+      openPlayerModal("streamInfo");
+      return;
+    }
     if (command === "submitIntro") {
       openPlayerModal("submitIntro");
       return;
@@ -3022,6 +3256,11 @@ sourceList.addEventListener("scroll", () => {
     requestSourceVirtualRender();
   }
 }, { passive: true });
+chaptersCloseButton.addEventListener("click", event => {
+  event.stopPropagation();
+  closePlayerModal();
+});
+
 episodesCloseButton.addEventListener("click", event => {
   event.stopPropagation();
   closePlayerModal();

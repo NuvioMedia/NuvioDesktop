@@ -8,8 +8,11 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.drawscope.DrawScope.Companion.DefaultFilterQuality
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
+import coil3.compose.LocalPlatformContext
 
 @Composable
 internal actual fun NuvioAsyncImage(
@@ -29,9 +32,12 @@ internal actual fun NuvioAsyncImage(
     filterQuality: FilterQuality?,
     clipToBounds: Boolean,
     desktopImageScaling: NuvioDesktopImageScaling,
+    imageLoader: ImageLoader?,
+    desktopAnimation: NuvioDesktopAnimation,
 ) {
     AsyncImage(
         model = model,
+        imageLoader = imageLoader ?: SingletonImageLoader.get(LocalPlatformContext.current),
         contentDescription = contentDescription,
         modifier = modifier,
         placeholder = placeholder,

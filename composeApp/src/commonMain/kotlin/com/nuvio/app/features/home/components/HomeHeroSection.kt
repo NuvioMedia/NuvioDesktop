@@ -1,5 +1,7 @@
 package com.nuvio.app.features.home.components
 
+import androidx.compose.animation.animateContentSize
+import com.nuvio.app.core.ui.NuvioDesktopAnimation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.MutatePriority
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
@@ -70,7 +73,10 @@ import com.nuvio.app.core.ui.heroStretchHeight
 import com.nuvio.app.core.ui.ScreenActivityEffect
 import com.nuvio.app.core.ui.heroStretchZoom
 import com.nuvio.app.core.ui.ultrawideViewportProgress
+import com.nuvio.app.core.ui.centeredVerticalBarPadding
+import com.nuvio.app.core.ui.withVerticalBar
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.tmdb.originalTmdbImageUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -123,6 +129,8 @@ fun HomeHeroSection(
     sectionPadding: Dp? = null,
     listState: LazyListState? = null,
     stretchPx: () -> Float = { 0f },
+    showImdbRating: Boolean = true,
+    showMdbListRatings: Boolean = false,
     onItemClick: ((MetaPreview) -> Unit)? = null,
 ) {
     if (items.isEmpty()) return
@@ -233,6 +241,8 @@ fun HomeHeroSection(
                     stretchPx = stretchPx,
                     includePagerNeighbors = pagerDragActive,
                     coroutineScope = coroutineScope,
+                    showImdbRating = showImdbRating,
+                    showMdbListRatings = showMdbListRatings,
                     onItemClick = onItemClick,
                 )
             }
@@ -275,6 +285,7 @@ private fun HeroBackgroundLayers(
         AsyncImage(
             model = if (desktopFrame) originalTmdbImageUrl(imageUrl) else imageUrl,
             contentDescription = item.name,
+            desktopAnimation = NuvioDesktopAnimation.Always,
             modifier = backgroundModifier
                 .graphicsLayer {
                     val pageOffset = heroPageOffset(pagerState, page)
@@ -316,6 +327,8 @@ private fun HeroContentLayers(
     pagerState: PagerState,
     layout: HomeHeroLayout,
     heroWidthPx: Float,
+    showImdbRating: Boolean,
+    showMdbListRatings: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
     includePagerNeighbors: Boolean,
 ) {
@@ -326,19 +339,24 @@ private fun HeroContentLayers(
     )
 
     layerPages.forEach { page ->
-        Box(
-            modifier = Modifier.graphicsLayer {
-                val pageOffset = heroPageOffset(pagerState, page)
+        val item = items[page % items.size]
+        key(item.stableKey()) {
+            Box(
+                modifier = Modifier.graphicsLayer {
+                    val pageOffset = heroPageOffset(pagerState, page)
 
-                alpha = heroPageVisibility(pageOffset)
-                translationX = -pageOffset * heroWidthPx * HERO_CONTENT_PARALLAX
-            },
-        ) {
-            HeroContentBlock(
-                item = items[page % items.size],
-                layout = layout,
-                onItemClick = onItemClick,
-            )
+                    alpha = heroPageVisibility(pageOffset)
+                    translationX = -pageOffset * heroWidthPx * HERO_CONTENT_PARALLAX
+                },
+            ) {
+                HeroContentBlock(
+                    item = item,
+                    layout = layout,
+                    showImdbRating = showImdbRating,
+                    showMdbListRatings = showMdbListRatings,
+                    onItemClick = onItemClick,
+                )
+            }
         }
     }
 }
@@ -422,6 +440,8 @@ private fun DefaultHomeHeroFrame(
     stretchPx: () -> Float,
     includePagerNeighbors: Boolean,
     coroutineScope: CoroutineScope,
+    showImdbRating: Boolean,
+    showMdbListRatings: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
 ) {
     Box(
@@ -473,9 +493,13 @@ private fun DefaultHomeHeroFrame(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(
-                    horizontal = layout.contentHorizontalPadding,
-                    vertical = layout.contentVerticalPadding,
-                ),
+                    if (layout.isTablet) {
+                        PaddingValues(horizontal = layout.contentHorizontalPadding).withVerticalBar()
+                    } else {
+                        centeredVerticalBarPadding(layout.contentHorizontalPadding)
+                    },
+                )
+                .padding(vertical = layout.contentVerticalPadding),
             horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
         ) {
             Box(
@@ -489,6 +513,8 @@ private fun DefaultHomeHeroFrame(
                     pagerState = pagerState,
                     layout = layout,
                     heroWidthPx = heroWidthPx,
+                    showImdbRating = showImdbRating,
+                    showMdbListRatings = showMdbListRatings,
                     onItemClick = onItemClick,
                     includePagerNeighbors = includePagerNeighbors,
                 )
@@ -811,6 +837,8 @@ fun HomeHeroReservedSpace(
 private fun HeroContentBlock(
     item: MetaPreview,
     layout: HomeHeroLayout,
+    showImdbRating: Boolean,
+    showMdbListRatings: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
 ) {
     var logoLoadError by remember(item.type, item.id, item.logo) {
@@ -819,7 +847,9 @@ private fun HeroContentBlock(
     val logoUrl = item.logo?.takeIf { it.isNotBlank() }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
         horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
     ) {
         if (logoUrl != null && !logoLoadError) {
@@ -858,25 +888,12 @@ private fun HeroContentBlock(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = if (layout.isTablet) {
-                Arrangement.spacedBy(8.dp, Alignment.Start)
-            } else {
-                Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-            },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            HeroMetaText(text = item.type.replaceFirstChar(Char::uppercase))
-            item.genres.firstOrNull()?.let { genre ->
-                HeroMetaDot()
-                HeroMetaText(text = genre)
-            }
-            item.releaseInfo?.takeIf { it.isNotBlank() }?.let { info ->
-                HeroMetaDot()
-                HeroMetaText(text = formatReleaseDateForDisplay(info))
-            }
-        }
+        HomeHeroMetaRows(
+            item = item,
+            isTablet = layout.isTablet,
+            showImdbRating = showImdbRating,
+            showMdbListRatings = showMdbListRatings,
+        )
     }
 }
 

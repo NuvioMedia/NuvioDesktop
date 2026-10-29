@@ -456,6 +456,12 @@ internal fun PlayerScreenRuntime.switchPlaybackEngine() {
     )
 }
 
+internal fun PlayerScreenRuntime.refreshStreamInfo() {
+    refreshTracks()
+    val controller = playerController ?: return
+    scope.launch { streamMediaInfo = controller.getMediaInfo() }
+}
+
 internal fun PlayerScreenRuntime.openStreamInfo() {
     refreshTracks()
     val controller = playerController

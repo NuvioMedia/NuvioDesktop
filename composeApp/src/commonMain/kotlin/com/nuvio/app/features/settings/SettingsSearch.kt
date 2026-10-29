@@ -694,6 +694,7 @@ internal fun settingsSearchEntries(
             icon = Icons.Rounded.PlayArrow,
             rows = buildList {
                 add(PlaybackSearchRow("decoder-priority", stringResource(Res.string.settings_playback_decoder_priority)))
+                add(PlaybackSearchRow("exo-chapters", stringResource(Res.string.settings_playback_exo_chapters), stringResource(if (isDesktop) Res.string.settings_playback_chapters_description else Res.string.settings_playback_exo_chapters_description)))
                 if (!isDesktop) {
                     add(PlaybackSearchRow("dv7-hevc", stringResource(Res.string.settings_playback_map_dv7_to_hevc), stringResource(Res.string.settings_playback_map_dv7_to_hevc_description)))
                     add(PlaybackSearchRow("tunneled-playback", stringResource(Res.string.settings_playback_tunneled_playback), stringResource(Res.string.settings_playback_tunneled_playback_description)))
@@ -786,6 +787,7 @@ internal fun settingsSearchEntries(
         PlaybackSearchRow("poster-radius", stringResource(Res.string.settings_poster_card_radius)),
         PlaybackSearchRow("poster-landscape", stringResource(Res.string.settings_poster_landscape_mode)),
         PlaybackSearchRow("poster-hide-labels", stringResource(Res.string.settings_poster_hide_labels)),
+        PlaybackSearchRow("poster-animated-artwork", stringResource(Res.string.settings_poster_animated_artwork)),
     ).forEach { row ->
         addRow(
             page = SettingsPage.PosterCustomization,
@@ -947,6 +949,7 @@ internal fun settingsSearchEntries(
 
     listOf(
         PlaybackSearchRow("mdb-enable", stringResource(Res.string.settings_mdb_enable_ratings), stringResource(Res.string.settings_mdb_enable_ratings_description), stringResource(Res.string.settings_mdb_section_title)),
+        PlaybackSearchRow("mdb-show-on-hero", stringResource(Res.string.settings_mdb_show_on_hero), stringResource(Res.string.settings_mdb_show_on_hero_description), stringResource(Res.string.settings_mdb_section_title)),
         PlaybackSearchRow("mdb-api-key", stringResource(Res.string.settings_mdb_api_key_title), stringResource(Res.string.settings_mdb_api_key_description), stringResource(Res.string.settings_mdb_section_api_key)),
         PlaybackSearchRow("mdb-imdb", stringResource(Res.string.source_imdb), "", stringResource(Res.string.settings_mdb_section_rating_providers)),
         PlaybackSearchRow("mdb-tmdb", stringResource(Res.string.source_tmdb), "", stringResource(Res.string.settings_mdb_section_rating_providers)),

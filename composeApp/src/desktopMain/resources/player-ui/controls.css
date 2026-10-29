@@ -196,7 +196,12 @@ button:disabled {
 .player.chrome-hidden .metadata,
 .player.chrome-hidden .header-actions,
 .player.chrome-hidden .center-controls,
-.player.chrome-hidden .progress {
+.player.chrome-hidden .progress,
+.player.info-open .top-gradient,
+.player.info-open .bottom-gradient,
+.player.info-open .metadata,
+.player.info-open .center-controls,
+.player.info-open .progress {
   opacity: 0;
   pointer-events: none;
 }
@@ -1645,6 +1650,134 @@ button:disabled {
 .scrub:active::-webkit-slider-thumb {
   transform: none;
   box-shadow: none;
+}
+
+.chapter-title {
+  max-width: min(760px, 100%);
+  padding-bottom: 6px;
+  font-size: var(--meta);
+  line-height: 1.3;
+  color: rgba(255, 255, 255, .9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chapter-marks {
+  position: relative;
+  height: 10px;
+  margin-top: -10px;
+  pointer-events: none;
+}
+
+.chapter-marks[hidden] {
+  display: none;
+}
+
+.chapter-mark {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  background: rgba(0, 0, 0, .6);
+}
+
+#chapterList {
+  gap: 8px;
+}
+
+.chapter-row {
+  width: 100%;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--theme-surface-card);
+  color: var(--theme-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.chapter-row.current {
+  box-shadow: inset 0 0 0 2px var(--theme-focus);
+}
+
+.chapter-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chapter-row-lead {
+  width: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--theme-text-muted);
+}
+
+.chapter-row-lead svg {
+  width: 20px;
+  height: 20px;
+  fill: var(--theme-accent);
+}
+
+.chapter-row-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: 16px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-row.current .chapter-row-name {
+  color: var(--theme-accent);
+}
+
+.chapter-row-time {
+  flex: none;
+  font-size: 14px;
+  color: var(--theme-text-secondary);
+}
+
+.chapter-row-extra {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding-left: 40px;
+}
+
+.chapter-row-extra[hidden] {
+  display: none;
+}
+
+.chapter-row-bar {
+  height: 4px;
+  flex: 1 1 auto;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .2);
+  overflow: hidden;
+}
+
+.chapter-row-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--theme-accent);
+}
+
+.chapter-row-remaining {
+  flex: none;
+  font-size: 12px;
+  color: var(--theme-text-muted);
 }
 
 .time-row {
@@ -3490,4 +3623,114 @@ svg {
   fill: currentColor;
   stroke: none;
   pointer-events: none;
+}
+
+.stream-info-modal {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 20px 44px;
+  background:
+    linear-gradient(to top, rgba(0, 0, 0, .6), rgba(0, 0, 0, .4) 30%, rgba(0, 0, 0, .2) 60%, transparent),
+    linear-gradient(to right, rgba(0, 0, 0, .88), transparent),
+    rgba(0, 0, 0, .34);
+}
+
+.stream-info-content {
+  display: flex;
+  max-width: 100%;
+  max-height: 100%;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  color: #fff;
+}
+
+.stream-info-section-title {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  color: rgba(255, 255, 255, .5);
+}
+
+.stream-info-source {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stream-info-logo {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+.stream-info-names {
+  min-width: 0;
+}
+
+.stream-info-name {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stream-info-secondary {
+  overflow: hidden;
+  font-size: 14px;
+  color: rgba(255, 255, 255, .7);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stream-info-source + .stream-info-secondary {
+  margin-top: 2px;
+}
+
+.stream-info-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin-top: 6px;
+}
+
+.stream-info-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, .5);
+}
+
+.stream-info-value {
+  overflow: hidden;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.autosynced-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-on-accent) 14%, transparent);
+  color: color-mix(in srgb, var(--theme-on-accent) 90%, transparent);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.autosynced-chip svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.subtitle-source-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }

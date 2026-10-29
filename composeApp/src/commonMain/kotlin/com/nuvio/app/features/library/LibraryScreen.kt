@@ -77,6 +77,8 @@ import com.nuvio.app.features.home.components.posterGridColumnCountForWidth
 import com.nuvio.app.isDesktop
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.shimmer
+import com.nuvio.app.core.ui.LocalVerticalBarPadding
+import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
 import com.nuvio.app.features.cloud.CloudLibraryFile
 import com.nuvio.app.features.cloud.CloudLibraryItem
 import com.nuvio.app.features.cloud.CloudLibraryItemType
@@ -313,7 +315,11 @@ fun LibraryScreen(
             listState = listState,
         ) {
             stickyHeader {
-                Box(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current),
+                ) {
                     Box(
                         modifier = Modifier
                             .matchParentSize()
@@ -321,7 +327,9 @@ fun LibraryScreen(
                             .nuvioConsumePointerEvents(),
                     )
                     androidx.compose.foundation.layout.Column(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(LocalVerticalBarPadding.current),
                     ) {
                         NuvioScreenHeader(
                             title = if (sourceMode != LibraryViewMode.Saved) {

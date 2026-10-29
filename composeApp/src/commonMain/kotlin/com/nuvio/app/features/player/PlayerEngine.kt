@@ -48,6 +48,8 @@ interface PlayerEngineController {
     }
 
     suspend fun getMediaInfo(): PlayerMediaInfo = PlayerMediaInfo()
+    /** The loaded file's chapters, unsorted; empty when the engine cannot read them. */
+    suspend fun getChapters(): List<PlayerChapter> = emptyList()
 }
 
 enum class PlayerControlsAction {
@@ -76,6 +78,25 @@ enum class PlayerControlsAction {
     DoubleTapSeekBack,
     DoubleTapSeekForward,
 }
+
+data class PlayerControlChapter(
+    val startMs: Long,
+    val title: String,
+)
+
+data class PlayerControlInfoItem(
+    val label: String,
+    val value: String,
+)
+
+data class PlayerControlInfoSection(
+    val title: String,
+    val logo: String? = null,
+    val name: String? = null,
+    val subtitle: String? = null,
+    val description: String? = null,
+    val items: List<PlayerControlInfoItem> = emptyList(),
+)
 
 data class PlayerControlsState(
     val title: String = "",
@@ -266,6 +287,13 @@ data class PlayerControlsState(
     val notificationToken: Long = 0L,
     val party: PlayerControlPartyState = PlayerControlPartyState(),
     val badges: List<StreamBadge> = emptyList(),
+    val chapters: List<PlayerControlChapter> = emptyList(),
+    val chaptersLabel: String = "Chapters",
+    val chaptersPanelTitle: String = "Chapters",
+    val chapterRemainingTemplate: String = "{time} left",
+    val autoSyncedLabel: String = "Auto synced",
+    val streamInfoLabel: String = "Stream info",
+    val streamInfoSections: List<PlayerControlInfoSection> = emptyList(),
 )
 
 data class PlayerControlFilterItem(
@@ -345,6 +373,7 @@ data class PlayerControlSubtitleOptionItem(
     val title: String = "",
     val metadata: String = "",
     val isSelected: Boolean = false,
+    val isAutoSynced: Boolean = false,
 )
 
 data class PlayerControlSubtitleCueItem(

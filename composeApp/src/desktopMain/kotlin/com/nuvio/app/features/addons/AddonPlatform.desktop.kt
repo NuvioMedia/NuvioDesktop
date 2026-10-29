@@ -43,7 +43,7 @@ internal actual object AddonStorage {
     }
 }
 
-private val desktopHttpClient = OkHttpClient.Builder()
+internal val desktopHttpClient = OkHttpClient.Builder()
     .dns(DesktopIPv4FirstDns())
     .connectTimeout(60, TimeUnit.SECONDS)
     .readTimeout(60, TimeUnit.SECONDS)

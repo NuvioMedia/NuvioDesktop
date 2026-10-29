@@ -1,5 +1,6 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.NuvioDesktopAnimation
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -151,6 +152,7 @@ fun DesktopDetailBackdrop(
             AsyncImage(
                 model = originalTmdbImageUrl(imageUrl),
                 contentDescription = meta.name,
+                desktopAnimation = NuvioDesktopAnimation.Always,
                 modifier = artworkModifier,
                 alignment = BiasAlignment(0f, DesktopBackdropVerticalBias),
                 contentScale = if (useWideArtworkFrame && !cropSideBackdrop) ContentScale.Fit else ContentScale.Crop,

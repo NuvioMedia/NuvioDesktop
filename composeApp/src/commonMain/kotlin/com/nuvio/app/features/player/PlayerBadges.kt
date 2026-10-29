@@ -33,8 +33,9 @@ internal fun PlayerScreenRuntime.rememberPlayerBadges(): List<StreamBadge> {
     val track = audioTracks.firstOrNull { it.index == selectedAudioIndex }
     val languageName = track?.language?.let(::languageLabelResForCode)?.let { stringResource(it) }
     val text = playbackMatchText(streamMediaInfo, listOfNotNull(track?.language, languageName))
-    return remember(text, settings.rules) {
-        StreamBadgeMatcher.matchedBadges(listOfNotNull(text.takeIf { it.isNotBlank() }), StreamBadgeMatcher.compile(settings.rules))
+    return remember(text, settings.rules, settings.playerBadgeSource) {
+        val rules = settings.rules.forPlayer(settings.playerBadgeSource)
+        StreamBadgeMatcher.matchedBadges(listOfNotNull(text.takeIf { it.isNotBlank() }), StreamBadgeMatcher.compile(rules))
             .filter { it.imageURL.isNotBlank() }
     }
 }

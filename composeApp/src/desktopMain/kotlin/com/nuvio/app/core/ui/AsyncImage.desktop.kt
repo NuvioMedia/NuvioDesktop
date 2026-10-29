@@ -1,6 +1,11 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,7 +23,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import coil3.BitmapImage
 import coil3.Image
+import coil3.ImageLoader
 import coil3.PlatformContext
+import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.compose.LocalPlatformContext
@@ -41,6 +48,10 @@ private val IsWindowsDesktop: Boolean =
         ?.startsWith("Windows", ignoreCase = true)
         ?: false
 
+private val AlwaysPlaying: () -> Boolean = { true }
+private val NeverPlaying: () -> Boolean = { false }
+private val NeverHovered: State<Boolean> = mutableStateOf(false)
+
 @Composable
 internal actual fun NuvioAsyncImage(
     model: Any?,
@@ -59,31 +70,51 @@ internal actual fun NuvioAsyncImage(
     filterQuality: FilterQuality?,
     clipToBounds: Boolean,
     desktopImageScaling: NuvioDesktopImageScaling,
+    imageLoader: ImageLoader?,
+    desktopAnimation: NuvioDesktopAnimation,
 ) {
+    // Hover tracking only exists for On hover, so the common case pays nothing for it.
+    val hoverSource = remember { MutableInteractionSource() }
+    val hovered: State<Boolean> =
+        if (desktopAnimation == NuvioDesktopAnimation.OnHover) hoverSource.collectIsHoveredAsState() else NeverHovered
+    val playing: () -> Boolean = when (desktopAnimation) {
+        NuvioDesktopAnimation.Always -> AlwaysPlaying
+        NuvioDesktopAnimation.OnHover -> remember(hovered) { { hovered.value } }
+        NuvioDesktopAnimation.Off -> NeverPlaying
+    }
+    val imageModifier =
+        if (desktopAnimation == NuvioDesktopAnimation.OnHover) modifier.hoverable(hoverSource) else modifier
+    val animated = desktopAnimation != NuvioDesktopAnimation.Off
+
     val context = LocalPlatformContext.current
     val effectiveDesktopImageScaling = remember(desktopImageScaling) {
         if (IsWindowsDesktop) desktopImageScaling else NuvioDesktopImageScaling.Disabled
     }
-    val requestModel = remember(context, model, effectiveDesktopImageScaling) {
-        if (effectiveDesktopImageScaling == NuvioDesktopImageScaling.Disabled) {
-            model
-        } else {
-            model.withDesktopHighQualitySize(context)
-        }
+    val requestModel = remember(context, model, effectiveDesktopImageScaling, animated) {
+        model.withDesktopImageOptions(
+            context = context,
+            highQualitySize = effectiveDesktopImageScaling != NuvioDesktopImageScaling.Disabled,
+            animated = animated,
+        )
     }
     val transform: (AsyncImagePainter.State) -> AsyncImagePainter.State = remember(
         placeholder,
         error,
         fallback,
         effectiveDesktopImageScaling,
+        playing,
     ) {
-        { state ->
+        transform@{ state ->
             when (state) {
                 is AsyncImagePainter.State.Loading -> {
                     placeholder?.let { state.copy(painter = it) } ?: state
                 }
                 is AsyncImagePainter.State.Success -> {
-                    state.result.image.toScaledBitmapPainter(effectiveDesktopImageScaling)
+                    val image = state.result.image
+                    if (image is AnimatedSkiaImage) {
+                        return@transform state.copy(painter = image.painter(playing))
+                    }
+                    image.toScaledBitmapPainter(effectiveDesktopImageScaling)
                         ?.let { state.copy(painter = it) }
                         ?: state
                 }
@@ -116,8 +147,9 @@ internal actual fun NuvioAsyncImage(
 
     AsyncImage(
         model = requestModel,
+        imageLoader = imageLoader ?: SingletonImageLoader.get(context),
         contentDescription = contentDescription,
-        modifier = modifier,
+        modifier = imageModifier,
         transform = transform,
         onState = onState,
         alignment = alignment,
@@ -129,19 +161,31 @@ internal actual fun NuvioAsyncImage(
     )
 }
 
-private fun Any?.withDesktopHighQualitySize(context: PlatformContext): Any? {
+/**
+ * Prepares the request. Animated playback is opt-in; the memory-cache key records it so an animated and a
+ * still copy of one URL never share an entry.
+ */
+private fun Any?.withDesktopImageOptions(
+    context: PlatformContext,
+    highQualitySize: Boolean,
+    animated: Boolean,
+): Any? {
     if (this == null) return null
+    if (!highQualitySize && !animated) return this
 
-    return if (this is ImageRequest) {
+    val builder = if (this is ImageRequest) {
         newBuilder()
-            .size(MaxDesktopSourceSizePx)
-            .build()
     } else {
-        ImageRequest.Builder(context)
-            .data(this)
-            .size(MaxDesktopSourceSizePx)
-            .build()
+        ImageRequest.Builder(context).data(this)
     }
+    builder.apply {
+        if (highQualitySize) size(MaxDesktopSourceSizePx)
+        if (animated) {
+            extras[NuvioAnimatedImageKey] = true
+            memoryCacheKeyExtra("nuvio.animated", "true")
+        }
+    }
+    return builder.build()
 }
 
 private fun Image.toScaledBitmapPainter(desktopImageScaling: NuvioDesktopImageScaling): Painter? {

@@ -74,7 +74,9 @@ internal expect object PlayerSettingsStorage {
     fun loadAndroidLibmpvHardwareDecodingEnabled(): Boolean?
     fun saveAndroidLibmpvHardwareDecodingEnabled(enabled: Boolean)
     fun loadAndroidLibmpvYuv420pEnabled(): Boolean?
+    fun loadAndroidExoChaptersEnabled(): Boolean?
     fun saveAndroidLibmpvYuv420pEnabled(enabled: Boolean)
+    fun saveAndroidExoChaptersEnabled(enabled: Boolean)
     fun loadDecoderPriority(): Int?
     fun saveDecoderPriority(priority: Int)
     fun loadMapDV7ToHevc(): Boolean?
@@ -156,6 +158,8 @@ internal expect object PlayerSettingsStorage {
     fun saveUseLibass(enabled: Boolean)
     fun loadLibassRenderType(): String?
     fun saveLibassRenderType(renderType: String)
+    fun loadLibassRenderScale(): String?
+    fun saveLibassRenderScale(scale: String)
     fun loadIosVideoOutputPreset(): String?
     fun saveIosVideoOutputPreset(preset: String)
     fun loadIosToneMappingMode(): String?

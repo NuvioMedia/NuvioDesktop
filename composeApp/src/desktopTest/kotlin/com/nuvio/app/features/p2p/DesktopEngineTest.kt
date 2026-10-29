@@ -74,7 +74,7 @@ class DesktopEngineTest {
     @Test
     fun bundledLibraryLoadsAndCreatesEngine() {
         val runtime = NuvioEngineRuntime.load(DesktopEngineLibrary.resolve())
-        assertEquals("0.1.5", runtime.version)
+        assertEquals("0.1.6", runtime.version)
 
         val root = Files.createTempDirectory("nuvio-engine-desktop-").toFile()
         try {

@@ -21,6 +21,7 @@ internal actual object MdbListSettingsStorage {
     private const val useLetterboxdKey = "mdblist_use_letterboxd"
     private const val useAudienceKey = "mdblist_use_audience"
     private const val useMalKey = "mdblist_use_mal"
+    private const val showOnHeroKey = "mdblist_show_on_hero"
     private val syncKeys = listOf(
         enabledKey,
         apiKey,
@@ -32,6 +33,7 @@ internal actual object MdbListSettingsStorage {
         useLetterboxdKey,
         useAudienceKey,
         useMalKey,
+        showOnHeroKey,
     )
     private val store = DesktopStorage.store("nuvio_mdblist_settings")
 
@@ -55,6 +57,8 @@ internal actual object MdbListSettingsStorage {
     actual fun saveUseAudience(enabled: Boolean) = saveBoolean(useAudienceKey, enabled)
     actual fun loadUseMal(): Boolean? = loadBoolean(useMalKey)
     actual fun saveUseMal(enabled: Boolean) = saveBoolean(useMalKey, enabled)
+    actual fun loadShowOnHero(): Boolean? = loadBoolean(showOnHeroKey)
+    actual fun saveShowOnHero(enabled: Boolean) = saveBoolean(showOnHeroKey, enabled)
 
     private fun loadString(key: String): String? = store.getString(ProfileScopedKey.of(key))
     private fun saveString(key: String, value: String) = store.putString(ProfileScopedKey.of(key), value)
@@ -72,6 +76,7 @@ internal actual object MdbListSettingsStorage {
         loadUseLetterboxd()?.let { put(useLetterboxdKey, encodeSyncBoolean(it)) }
         loadUseAudience()?.let { put(useAudienceKey, encodeSyncBoolean(it)) }
         loadUseMal()?.let { put(useMalKey, encodeSyncBoolean(it)) }
+        loadShowOnHero()?.let { put(showOnHeroKey, encodeSyncBoolean(it)) }
     }
 
     actual fun replaceFromSyncPayload(payload: JsonObject) {
@@ -86,5 +91,6 @@ internal actual object MdbListSettingsStorage {
         payload.decodeSyncBoolean(useLetterboxdKey)?.let(::saveUseLetterboxd)
         payload.decodeSyncBoolean(useAudienceKey)?.let(::saveUseAudience)
         payload.decodeSyncBoolean(useMalKey)?.let(::saveUseMal)
+        payload.decodeSyncBoolean(showOnHeroKey)?.let(::saveShowOnHero)
     }
 }
