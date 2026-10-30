@@ -244,10 +244,13 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     }
     val nativeSkipAction = nativeSkipInterval?.internalSkipAction(skipIntervals, playbackSnapshot.durationMs)
     val nextEpisodeForControls = nextEpisodeInfo.takeIf { 
-        isSeries && (showNextEpisodeCard || nextEpisodeAutoPlaySearching || nextEpisodeAutoPlayCountdown != null) 
+        isSeries && (showNextEpisodeCard || nextEpisodeAutoPlaySearching || nextEpisodeAutoPlayCountdown != null ||
+            stillWatchingCountdown != null)
     }
     val nextEpisodeStatus = when {
         nextEpisodeForControls == null -> ""
+        stillWatchingCountdown != null ->
+            stringResource(Res.string.player_still_watching_countdown, stillWatchingCountdown ?: 0)
         !nextEpisodeForControls.hasAired && !nextEpisodeForControls.unairedMessage.isNullOrBlank() ->
             nextEpisodeForControls.unairedMessage.orEmpty()
         nextEpisodeAutoPlaySearching -> stringResource(Res.string.player_next_episode_finding_source)
@@ -293,7 +296,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         episodeText = episodeText,
         streamTitle = activeStreamTitle,
         providerName = activeProviderName,
-        pauseOverlayEnabled = playerSettingsUiState.pauseOverlayEnabled,
+        pauseOverlayEnabled = playerSettingsUiState.pauseOverlayEnabled && stillWatchingCountdown == null,
         pauseOverlayWatchingLabel = stringResource(Res.string.compose_player_youre_watching),
         pauseOverlayLogo = logo,
         pauseOverlayEpisodeInfo = if (seasonNumber != null && episodeNumber != null) {
@@ -487,8 +490,12 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         skipPromptStartMs = ((nativeSkipInterval?.startTime ?: 0.0) * 1000).toLong().coerceAtLeast(0L),
         skipPromptEndMs = nativeSkipAction?.targetMs?.coerceAtLeast(0L) ?: 0L,
         skipPromptDismissed = skipIntervalDismissed,
-        nextEpisodeVisible = nextEpisodeForControls != null && !playerControlsLocked,
-        nextEpisodeHeaderLabel = stringResource(Res.string.player_next_episode),
+        nextEpisodeVisible = nextEpisodeForControls != null && (!playerControlsLocked || stillWatchingCountdown != null),
+        nextEpisodeHeaderLabel = if (stillWatchingCountdown != null) {
+            stringResource(Res.string.player_still_watching_title)
+        } else {
+            stringResource(Res.string.player_next_episode)
+        },
         nextEpisodeTitle = nextEpisodeForControls?.let {
             stringResource(
                 Res.string.compose_player_episode_title_format,
@@ -506,6 +513,11 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             stringResource(Res.string.player_next_episode_unaired)
         },
         nextEpisodePlayable = nextEpisodeInfo?.hasAired == true,
+        nextEpisodeExitLabel = if (stillWatchingCountdown != null) {
+            stringResource(Res.string.player_still_watching_exit)
+        } else {
+            ""
+        },
     )
     val gestureCallbacks = rememberSurfaceGestureCallbacks()
     val fold = LocalFold.current?.takeIf { !isInPip }
@@ -900,7 +912,7 @@ internal fun releaseRetainedPlayerBeforeNavigation(
     }
 }
 
-private fun PlayerScreenRuntime.requestBack() {
+internal fun PlayerScreenRuntime.requestBack() {
     flushWatchProgress()
     val exitingController = playerLifecycleController
     args.onBack { afterRelease, releaseFailed ->
@@ -1094,10 +1106,13 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         "submitIntroCommit" -> submitIntroFromPlayerControls()
         "skipInterval" -> activeSkipInterval?.let { skipInterval(it) }
         "playNextEpisode" -> {
-            if (nextEpisodeInfo?.hasAired == true && !nextEpisodeAutoPlaySearching && nextEpisodeAutoPlayCountdown == null) {
+            if (stillWatchingCountdown != null) {
+                if (!partyBlocksControl()) onStillWatchingContinue()
+            } else if (nextEpisodeInfo?.hasAired == true && !nextEpisodeAutoPlaySearching && nextEpisodeAutoPlayCountdown == null) {
                 if (!partyBlocksControl()) playNextEpisode()
             }
         }
+        "exitStillWatching" -> exitFromStillWatching()
         "enableP2pForPlayerControls" -> enableP2pForPlayerControls()
         "cancelP2pForPlayerControls" -> {
             playerControlsPendingP2pSwitch = null
@@ -1830,6 +1845,9 @@ private fun BoxScope.RenderPlaybackOverlays(
                 nextEpisodeCardDismissed = true
                 showNextEpisodeCard = false
             },
+            stillWatchingCountdown = stillWatchingCountdown,
+            onContinueStillWatching = { if (!partyBlocksControl()) onStillWatchingContinue() },
+            onExitStillWatching = { exitFromStillWatching() },
             errorMessage = errorMessage,
             onDismissError = { requestBack() },
         )
