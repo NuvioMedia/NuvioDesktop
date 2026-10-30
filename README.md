@@ -75,6 +75,12 @@ Linux:
 
 The shared app is built with Kotlin Multiplatform and Compose Multiplatform.
 
+## Home catalog loading
+
+Home loads up to four catalogs concurrently and displays each completed shelf without waiting for the other requests. Shelves retain their configured order as results arrive. A slow or unavailable provider can still delay its own catalogs.
+
+For slow-loading reports, distinguish the Home catalog shelves from the saved Library tab, and note whether all shelves remain placeholders or only specific catalogs are missing.
+
 ## License
 
 [GNU General Public License v3.0](./LICENSE)
