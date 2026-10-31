@@ -2296,9 +2296,9 @@ Bu özelliği tamamen kendi sorumluluğunuzda kullanırsınız. P2P istediğiniz
     <string name="server_error_save">Sunucu yapılandırması kaydedilemedi.</string>
     <string name="server_error_session_clear">Geçerli oturum güvenli bir şekilde temizlenemedi. Sunucu değiştirilmedi.</string>
     <string name="server_error_restart">Sunucu kaydedildi ancak uygulama otomatik olarak yeniden başlatılamadı. Lütfen manuel olarak yeniden başlatın.</string>
-    <string name="compose_player_chapters">Bölümler</string>
-    <string name="compose_player_panel_chapters">Bölümler (%1$d)</string>
-    <string name="compose_player_chapter_number">Bölüm %1$d</string>
+    <string name="compose_player_chapters">Sahneler</string>
+    <string name="compose_player_panel_chapters">Sahneler (%1$d)</string>
+    <string name="compose_player_chapter_number">Sahne %1$d</string>
     <string name="compose_player_chapter_remaining">%1$s kaldı</string>
     <string name="compose_player_playback_speed">Oynatma Hızı</string>
     <string name="compose_player_resize_stretch">Uzat</string>
@@ -2432,9 +2432,9 @@ Bu özelliği tamamen kendi sorumluluğunuzda kullanırsınız. P2P istediğiniz
     <string name="settings_playback_auto_skip_recap_description">Özet bölümlerini otomatik olarak atlayın.</string>
     <string name="settings_playback_auto_skip_outro">Kapanış / Bitiş</string>
     <string name="settings_playback_auto_skip_outro_description">Kapanışları ve anime bitişlerini otomatik olarak atlayın.</string>
-    <string name="settings_playback_exo_chapters">Bölümleri Göster</string>
-    <string name="settings_playback_chapters_description">Videonun bölümlerini ilerleme çubuğunda işaretleyin ve oynatıcıda listeleyin.</string>
-    <string name="settings_playback_exo_chapters_description">MKV dosyalarının bölümlerini okuyarak ilerleme çubuğunda işaretler ve oynatıcıda listeler. Oynatma başladığında birkaç küçük ek istek yapar. libmpv bölümleri her zaman gösterir.</string>
+    <string name="settings_playback_exo_chapters">Sahneleri Göster</string>
+    <string name="settings_playback_chapters_description">Videonun sahnelerini ilerleme çubuğunda işaretleyin ve oynatıcıda listeleyin.</string>
+    <string name="settings_playback_exo_chapters_description">MKV dosyalarının sahnelerini okuyarak ilerleme çubuğunda işaretler ve oynatıcıda listeler. Oynatma başladığında birkaç küçük ek istek yapar. libmpv sahneleri her zaman gösterir.</string>
     <string name="settings_tmdb_api_key_label">API anahtarı</string>
     <string name="settings_tmdb_api_key_override_description">Kendi TMDB API anahtarınızı kullanın veya varsayılanı kullanmak için boş bırakın.</string>
     <string name="settings_tmdb_personal_api_key">Kişisel API anahtarı</string>
