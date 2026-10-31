@@ -171,6 +171,56 @@ class LinuxUpdateInstallTest {
     }
 
     @Test
+    fun `only installs the updater can update are updated in the app`() {
+        assertTrue(linuxInstallsUpdatesInApp(LinuxInstallMethod.APP_IMAGE))
+        assertTrue(linuxInstallsUpdatesInApp(LinuxInstallMethod.RPM))
+        assertTrue(linuxInstallsUpdatesInApp(LinuxInstallMethod.DEB))
+        assertFalse(linuxInstallsUpdatesInApp(LinuxInstallMethod.FLATPAK))
+        assertFalse(linuxInstallsUpdatesInApp(LinuxInstallMethod.UNKNOWN))
+    }
+
+    // An unresolved install is not updated in the app, but the check must still
+    // find the release so the banner can point to its page.
+    @Test
+    fun `an unresolved install still finds the release page of an update`() {
+        val update = AppUpdaterRepository.selectUpdate(
+            responseBody = """
+                [
+                  {
+                    "tag_name": "v0.1.27-alpha",
+                    "name": "Nuvio 0.1.27-alpha",
+                    "prerelease": true,
+                    "html_url": "https://github.com/NuvioMedia/NuvioDesktop/releases/tag/v0.1.27-alpha",
+                    "assets": [
+                      {
+                        "name": "Nuvio-Linux-x86_64-0.1.27-alpha.AppImage",
+                        "browser_download_url": "https://example.test/Nuvio-Linux-x86_64-0.1.27-alpha.AppImage"
+                      },
+                      {
+                        "name": "Nuvio-Linux-x86_64-0.1.27-alpha.deb",
+                        "browser_download_url": "https://example.test/Nuvio-Linux-x86_64-0.1.27-alpha.deb"
+                      }
+                    ]
+                  }
+                ]
+            """.trimIndent(),
+            channel = UpdateChannel.ALL_RELEASES,
+            supportedAbis = emptyList(),
+            selector = AppUpdateAssetSelector(
+                fileExtensions = linuxUpdateFileExtensions(LinuxInstallMethod.UNKNOWN),
+                preferredNameFragments = listOf("x64", "x86_64", "amd64", "linux"),
+                fallbackNameFragments = listOf("universal", "all"),
+            ),
+        )
+
+        assertEquals("v0.1.27-alpha", update?.tag)
+        assertEquals(
+            "https://github.com/NuvioMedia/NuvioDesktop/releases/tag/v0.1.27-alpha",
+            update?.releaseUrl,
+        )
+    }
+
+    @Test
     fun `a package install is handed to the desktop package handler`() {
         val command = linuxInstallerCommand(
             method = LinuxInstallMethod.RPM,
