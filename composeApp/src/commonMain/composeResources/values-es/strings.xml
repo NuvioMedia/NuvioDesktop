@@ -2285,15 +2285,7 @@
     <string name="collections_editor_trakt_list_title_format">Lista de rutas %1$s</string>
     <string name="external_player_android_system">reproductor del sistema android</string>
     <string name="p2p_consent_title">Transmisión P2P</string>
-    <string name="p2p_consent_body">Esta transmisión utiliza tecnología peer-to-peer (P2P). Al activar P2P, reconoces y aceptas que:
-
-• Tu dirección IP será visible para otros pares de la red
-• Eres el único responsable del contenido al que accedes
-• Confirmas que tienes el derecho legal de reproducir este contenido en tu jurisdicción
-• Nuvio no aloja, distribuye ni controla ningún contenido P2P
-• Nuvio no asume ninguna responsabilidad por las consecuencias legales derivadas de tu uso del streaming P2P
-
-Utilizas esta función bajo tu propia responsabilidad. P2P se puede desactivar en cualquier momento en Ajustes.</string>
+    <string name="p2p_consent_body">Esta transmisión utiliza tecnología peer-to-peer (P2P). Al activar P2P, reconoces y aceptas que:\n\n• Tu dirección IP será visible para otros pares de la red\n• Eres el único responsable del contenido al que accedes\n• Confirmas que tienes el derecho legal de reproducir este contenido en tu jurisdicción\n• Nuvio no aloja, distribuye ni controla ningún contenido P2P\n• Nuvio no asume ninguna responsabilidad por las consecuencias legales derivadas de tu uso del streaming P2P\n\nUtilizas esta función bajo tu propia responsabilidad. P2P se puede desactivar en cualquier momento en Ajustes.</string>
     <string name="p2p_consent_enable">Habilitar P2P</string>
     <string name="p2p_consent_cancel">Cancelar</string>
     <string name="p2p_error_unknown">Error de torrent desconocido</string>
