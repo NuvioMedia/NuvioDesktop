@@ -1324,6 +1324,23 @@ private fun PlaybackSettingsSection(
             }
         }
 
+        if (isWindows) {
+            SettingsSection(
+                title = stringResource(Res.string.settings_playback_audio_passthrough_section),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_audio_passthrough),
+                        description = stringResource(Res.string.settings_playback_audio_passthrough_desc),
+                        checked = autoPlayPlayerSettings.audioPassthroughEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setAudioPassthroughEnabled,
+                    )
+                }
+            }
+        }
+
         if (isIos) {
             SettingsSection(
                 title = stringResource(Res.string.settings_playback_ios_audio_output_section),
