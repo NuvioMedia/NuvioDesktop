@@ -2386,6 +2386,7 @@
     <string name="updates_update_asset_missing">No compatible update asset found in the release</string>
     <string name="updates_download_failed_http">Download failed with HTTP %1$d</string>
     <string name="updates_downloaded_file_missing">Downloaded update file is missing.</string>
+    <string name="updates_checksum_unverified">The downloaded update does not match the checksum published with its release. Install it again from the release page.</string>
     <string name="updates_empty_download_body">Empty download body</string>
     <string name="updates_github_api_error">GitHub releases API error: %1$d</string>
     <string name="updates_no_channel_release">No update has been published yet.</string>
