@@ -1,5 +1,6 @@
 package com.nuvio.app.features.addons
 
+import com.nuvio.app.core.network.API_RESPONSE_MAX_BYTES
 import com.nuvio.app.core.storage.DesktopStorage
 import com.nuvio.app.core.network.DesktopIPv4FirstDns
 import kotlinx.coroutines.Dispatchers
@@ -231,13 +232,5 @@ private fun readResponseBodyLimited(body: ResponseBody?, maxBytes: Int): String 
     return if (readResult.truncated) decoded + truncationSuffix else decoded
 }
 
-private fun readResponseBody(body: ResponseBody?): String {
-    if (body == null) return ""
-    val bytes = body.bytes()
-    return runCatching {
-        val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
-        String(bytes, charset)
-    }.getOrElse {
-        String(bytes, Charsets.UTF_8)
-    }
-}
+private fun readResponseBody(body: ResponseBody?): String =
+    readResponseBodyLimited(body, API_RESPONSE_MAX_BYTES)
