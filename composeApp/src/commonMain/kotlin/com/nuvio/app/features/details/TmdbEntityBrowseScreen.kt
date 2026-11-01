@@ -484,9 +484,15 @@ private fun EntityIdentitySidebar(
                     EntitySidebarFact(
                         label = stringResource(Res.string.entity_browse_catalogue),
                         value = if (catalogueCount == 1) {
-                            stringResource(Res.string.entity_browse_title_count_one, catalogueCount)
+                            String.format(
+                                stringResource(Res.string.entity_browse_title_count_one),
+                                catalogueCount,
+                            )
                         } else {
-                            stringResource(Res.string.entity_browse_title_count_other, catalogueCount)
+                            String.format(
+                                stringResource(Res.string.entity_browse_title_count_other),
+                                catalogueCount,
+                            )
                         },
                     )
                 }
