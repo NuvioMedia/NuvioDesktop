@@ -540,8 +540,21 @@ internal fun findPersistedSubtitleTrackIndex(
     tracks: List<SubtitleTrack>,
     preference: PersistedPlayerTrackPreference,
 ): Int {
+    // Picks saved without the flag (older desktop builds) still carry it in the name, e.g. "English-FORCED-PGS".
+    val wantsForced = preference.subtitleIsForced ?: inferForcedSubtitleTrack(
+        label = preference.subtitleName,
+        language = preference.subtitleLanguage,
+        trackId = null,
+    )
+    // Track ids are positional (mpv "3", Exo "0:3"), so the same id in another episode or
+    // release can be a different track. Only trust it when language and forced still match.
     preference.subtitleTrackId?.takeIf { it.isNotBlank() }?.let { trackId ->
-        tracks.firstOrNull { it.id == trackId }?.let { return it.index }
+        tracks.firstOrNull { track ->
+            track.id == trackId &&
+                (!wantsForced || track.isForced) &&
+                (preference.subtitleLanguage.isNullOrBlank() || track.language.isNullOrBlank() ||
+                    SubtitleLanguageMatching.matchesLanguageCode(track.language, preference.subtitleLanguage))
+        }?.let { return it.index }
     }
 
     val languageCandidates = preference.subtitleLanguage?.takeIf { it.isNotBlank() }?.let { language ->
@@ -550,7 +563,7 @@ internal fun findPersistedSubtitleTrackIndex(
                 subtitleTrackMatchesLanguage(tracks[index], language)
         }
     }.orEmpty()
-    val forcedFiltered = if (preference.subtitleIsForced == true) {
+    val forcedFiltered = if (wantsForced) {
         languageCandidates.filter { index -> tracks[index].isForced }
     } else {
         languageCandidates
@@ -574,7 +587,7 @@ internal fun findPersistedSubtitleTrackIndex(
 
     preference.subtitleName?.takeIf { it.isNotBlank() }?.let { name ->
         val nameMatches = tracks.filter { it.label.equals(name, ignoreCase = true) }
-        val forcedNameMatches = if (preference.subtitleIsForced == true) {
+        val forcedNameMatches = if (wantsForced) {
             nameMatches.filter { it.isForced }
         } else {
             nameMatches

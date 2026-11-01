@@ -281,6 +281,51 @@ class PlayerTrackSelectionTest {
     }
 
     @Test
+    fun restoreIgnoresSameTrackIdWithDifferentLanguage() {
+        // Episode 1 saved English at id "track-1"; episode 2 has Russian at that id.
+        // Desktop doesn't save the forced flag, so subtitleIsForced stays null.
+        val selectedIndex = findPersistedSubtitleTrackIndex(
+            tracks = listOf(
+                subtitleTrack(index = 0, language = "eng", isForced = true),
+                subtitleTrack(index = 1, language = "rus", isForced = false),
+            ),
+            preference = PersistedPlayerTrackPreference(
+                subtitleType = PersistedSubtitleSelectionType.INTERNAL,
+                subtitleLanguage = "eng",
+                subtitleTrackId = "track-1",
+            ),
+        )
+
+        assertEquals(0, selectedIndex)
+    }
+
+    @Test
+    fun forcedPickSavedWithoutFlagRestoresForcedTrackNotFullOne() {
+        // Older desktop builds saved no forced flag; the name still says forced.
+        val preference = PersistedPlayerTrackPreference(
+            subtitleType = PersistedSubtitleSelectionType.INTERNAL,
+            subtitleLanguage = "eng",
+            subtitleName = "English-FORCED-PGS",
+            subtitleTrackId = "track-0",
+        )
+
+        val withForced = findPersistedSubtitleTrackIndex(
+            tracks = listOf(
+                subtitleTrack(index = 0, language = "eng", isForced = false),
+                subtitleTrack(index = 1, language = "eng", isForced = true),
+            ),
+            preference = preference,
+        )
+        val withoutForced = findPersistedSubtitleTrackIndex(
+            tracks = listOf(subtitleTrack(index = 0, language = "eng", isForced = false)),
+            preference = preference,
+        )
+
+        assertEquals(1, withForced)
+        assertEquals(-1, withoutForced)
+    }
+
+    @Test
     fun forcedAddonMatchIgnoresRegularTranslationAddons() {
         val regular = addonSubtitle(id = "english", language = "en")
         val forced = addonSubtitle(

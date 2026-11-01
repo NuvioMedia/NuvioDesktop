@@ -8,6 +8,7 @@ internal actual object PlayerTrackPreferenceStorage {
     private const val subtitleLanguageKey = "subtitle_language"
     private const val subtitleNameKey = "subtitle_name"
     private const val subtitleTrackIdKey = "subtitle_track_id"
+    private const val subtitleIsForcedKey = "subtitle_is_forced"
     private const val addonSubtitleIdKey = "addon_subtitle_id"
     private const val addonSubtitleUrlKey = "addon_subtitle_url"
     private const val addonSubtitleItemIdKey = "addon_subtitle_item_id"
@@ -25,6 +26,7 @@ internal actual object PlayerTrackPreferenceStorage {
             subtitleLanguage = loadString(subtitleLanguageKey, id),
             subtitleName = loadString(subtitleNameKey, id),
             subtitleTrackId = loadString(subtitleTrackIdKey, id),
+            subtitleIsForced = store.getBoolean(scopedKey(subtitleIsForcedKey, id)),
             addonSubtitleId = loadString(addonSubtitleIdKey, id),
             addonSubtitleUrl = loadString(addonSubtitleUrlKey, id),
             addonSubtitleItemId = loadString(addonSubtitleItemIdKey, id),
@@ -56,6 +58,8 @@ internal actual object PlayerTrackPreferenceStorage {
         putOptionalString(subtitleLanguageKey, id, preference.subtitleLanguage)
         putOptionalString(subtitleNameKey, id, preference.subtitleName)
         putOptionalString(subtitleTrackIdKey, id, preference.subtitleTrackId)
+        val forcedKey = scopedKey(subtitleIsForcedKey, id)
+        preference.subtitleIsForced?.let { store.putBoolean(forcedKey, it) } ?: store.remove(forcedKey)
         putOptionalString(addonSubtitleIdKey, id, preference.addonSubtitleId)
         putOptionalString(addonSubtitleUrlKey, id, preference.addonSubtitleUrl)
         putOptionalString(addonSubtitleItemIdKey, id, preference.addonSubtitleItemId)
