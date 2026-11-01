@@ -10,8 +10,8 @@ class ForcedSubtitleAutoSelectionTest {
         // The player auto-selected a Russian forced track (container default flag).
         val controller = RecordingController(
             subtitles = listOf(
-                SubtitleTrack(index = 0, id = "1", label = "English", language = "eng", isForced = false),
-                SubtitleTrack(index = 1, id = "2", label = "Russian Forced", language = "rus", isForced = true, isSelected = true),
+                subtitleTrack(index = 0, language = "eng", isForced = false),
+                subtitleTrack(index = 1, language = "rus", isForced = true, isSelected = true),
             ),
         )
         val runtime = runtime(controller).apply { isLoadingAddonSubtitles = true }
@@ -27,8 +27,8 @@ class ForcedSubtitleAutoSelectionTest {
     fun matchingForcedTrackIsKeptWhileAddonSubtitlesLoad() {
         val controller = RecordingController(
             subtitles = listOf(
-                SubtitleTrack(index = 0, id = "1", label = "English", language = "eng", isForced = false),
-                SubtitleTrack(index = 1, id = "2", label = "English Forced", language = "eng", isForced = true, isSelected = true),
+                subtitleTrack(index = 0, language = "eng", isForced = false),
+                subtitleTrack(index = 1, language = "eng", isForced = true, isSelected = true),
             ),
         )
         val runtime = runtime(controller).apply { isLoadingAddonSubtitles = true }
@@ -89,11 +89,24 @@ class ForcedSubtitleAutoSelectionTest {
             trackPreferenceRestoreApplied = true
         }
 
+    private fun subtitleTrack(
+        index: Int,
+        language: String,
+        isForced: Boolean,
+        isSelected: Boolean = false,
+    ) = SubtitleTrack(
+        index = index,
+        id = "track-$index",
+        label = "Track $index",
+        language = language,
+        isSelected = isSelected,
+        isForced = isForced,
+    )
+
     private class RecordingController(var subtitles: List<SubtitleTrack>) : PlayerEngineController {
         val subtitleSelections = mutableListOf<Int>()
-        private val audio = listOf(AudioTrack(index = 0, id = "1", label = "English", language = "eng", isSelected = true))
 
-        override fun getAudioTracks() = audio
+        override fun getAudioTracks() = listOf(AudioTrack(0, "1", "English", "eng", true))
         override fun getSubtitleTracks() = subtitles
         override fun applyAudioLanguagePreferences(languages: List<String>) = Unit
         override fun selectAudioTrack(index: Int) = Unit

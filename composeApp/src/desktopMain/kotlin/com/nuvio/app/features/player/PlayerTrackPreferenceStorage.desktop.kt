@@ -26,7 +26,7 @@ internal actual object PlayerTrackPreferenceStorage {
             subtitleLanguage = loadString(subtitleLanguageKey, id),
             subtitleName = loadString(subtitleNameKey, id),
             subtitleTrackId = loadString(subtitleTrackIdKey, id),
-            subtitleIsForced = store.getBoolean(scopedKey(subtitleIsForcedKey, id)),
+            subtitleIsForced = loadBoolean(subtitleIsForcedKey, id),
             addonSubtitleId = loadString(addonSubtitleIdKey, id),
             addonSubtitleUrl = loadString(addonSubtitleUrlKey, id),
             addonSubtitleItemId = loadString(addonSubtitleItemIdKey, id),
@@ -58,8 +58,7 @@ internal actual object PlayerTrackPreferenceStorage {
         putOptionalString(subtitleLanguageKey, id, preference.subtitleLanguage)
         putOptionalString(subtitleNameKey, id, preference.subtitleName)
         putOptionalString(subtitleTrackIdKey, id, preference.subtitleTrackId)
-        val forcedKey = scopedKey(subtitleIsForcedKey, id)
-        preference.subtitleIsForced?.let { store.putBoolean(forcedKey, it) } ?: store.remove(forcedKey)
+        putOptionalBoolean(subtitleIsForcedKey, id, preference.subtitleIsForced)
         putOptionalString(addonSubtitleIdKey, id, preference.addonSubtitleId)
         putOptionalString(addonSubtitleUrlKey, id, preference.addonSubtitleUrl)
         putOptionalString(addonSubtitleItemIdKey, id, preference.addonSubtitleItemId)
@@ -84,6 +83,18 @@ internal actual object PlayerTrackPreferenceStorage {
 
     private fun loadString(field: String, contentId: String): String? =
         store.getString(scopedKey(field, contentId))?.takeIf { it.isNotBlank() }
+
+    private fun loadBoolean(field: String, contentId: String): Boolean? =
+        store.getBoolean(scopedKey(field, contentId))
+
+    private fun putOptionalBoolean(field: String, contentId: String, value: Boolean?) {
+        val key = scopedKey(field, contentId)
+        if (value == null) {
+            store.remove(key)
+        } else {
+            store.putBoolean(key, value)
+        }
+    }
 
     private fun putOptionalString(field: String, contentId: String, value: String?) {
         val key = scopedKey(field, contentId)

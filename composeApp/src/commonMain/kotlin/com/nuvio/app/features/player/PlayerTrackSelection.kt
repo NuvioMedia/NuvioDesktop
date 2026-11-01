@@ -540,20 +540,20 @@ internal fun findPersistedSubtitleTrackIndex(
     tracks: List<SubtitleTrack>,
     preference: PersistedPlayerTrackPreference,
 ): Int {
-    // Picks saved without the flag (older desktop builds) still carry it in the name, e.g. "English-FORCED-PGS".
+    // Older desktop builds saved no forced flag; the name still says it (e.g. "English-FORCED-PGS").
     val wantsForced = preference.subtitleIsForced ?: inferForcedSubtitleTrack(
         label = preference.subtitleName,
         language = preference.subtitleLanguage,
         trackId = null,
     )
-    // Track ids are positional (mpv "3", Exo "0:3"), so the same id in another episode or
-    // release can be a different track. Only trust it when language and forced still match.
+    // Track ids are positional (mpv "3"), so the same id can be another track in a later episode.
+    val savedLanguage = preference.subtitleLanguage?.takeIf { it.isNotBlank() }
     preference.subtitleTrackId?.takeIf { it.isNotBlank() }?.let { trackId ->
         tracks.firstOrNull { track ->
             track.id == trackId &&
                 (!wantsForced || track.isForced) &&
-                (preference.subtitleLanguage.isNullOrBlank() || track.language.isNullOrBlank() ||
-                    SubtitleLanguageMatching.matchesLanguageCode(track.language, preference.subtitleLanguage))
+                (savedLanguage == null || track.language.isNullOrBlank() ||
+                    SubtitleLanguageMatching.matchesLanguageCode(track.language, savedLanguage))
         }?.let { return it.index }
     }
 

@@ -326,11 +326,10 @@ private fun PlayerScreenRuntime.tryAutoSelectPreferredSubtitleFromAvailableTrack
         if (!hasScannedTextTracksOnce) return
         if (isLoadingAddonSubtitles) {
             val currentTrack = subtitleTracks.firstOrNull { it.index == selectedSubtitleIndex }
-            // Keep only a forced track in the wanted language; the player may have auto-picked
-            // another language's forced track (e.g. a container "default" flag).
-            if (currentTrack != null &&
-                !(currentTrack.isForced && subtitleTrackMatchesLanguage(currentTrack, requiredForcedTarget))
-            ) {
+            // The player may auto-select another language's forced track; keep only the wanted one.
+            val keepCurrentTrack = currentTrack != null && currentTrack.isForced &&
+                subtitleTrackMatchesLanguage(currentTrack, requiredForcedTarget)
+            if (currentTrack != null && !keepCurrentTrack) {
                 disableAutomaticSubtitleSelection()
             }
             return
