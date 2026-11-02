@@ -13,6 +13,11 @@ internal actual object AppIconPlatform {
 
     private val store = DesktopStorage.store("nuvio_app_icon")
     private const val selectedIconKey = "selected_icon"
+    private const val selectedIconKeyKey = "selected_icon_key"
+
+    actual fun loadSelectedIconKey(): String? = store.getString(selectedIconKeyKey)
+
+    actual fun saveSelectedIconKey(key: String) = store.putString(selectedIconKeyKey, key)
 
     actual fun currentIconName(): String? = store.getString(selectedIconKey)
 

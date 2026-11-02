@@ -556,30 +556,35 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 }
             ),
     ) {
+        val playbackKey = activePlaybackKey
+        val sourcePlaybackKey = playbackKey.copy(playbackEngine = null)
+
+        LaunchedEffect(sourcePlaybackKey) {
+            engineFailoverTriggered = false
+            engineFailoverDisarmed = false
+            playbackEngineOverride = null
+        }
+
+        val resolvedAutoEngineState = remember(sourcePlaybackKey) {
+            mutableStateOf<AndroidPlaybackEngine?>(null)
+        }
+        if (!initialLoadCompleted || resolvedAutoEngineState.value == null) {
+            resolvedAutoEngineState.value = resolveAutoPlaybackEngine(
+                playbackEngineSetting = playerSettingsUiState.androidPlaybackEngine,
+                videoId = activeVideoId,
+                streamFilename = activeTorrentFilename ?: activeStreamFilename,
+                streamName = activeStreamTitle,
+                streamDescription = activeStreamSubtitle,
+                contentTitle = title,
+                genres = playerMeta?.genres.orEmpty(),
+                country = playerMeta?.country,
+            )
+        }
+        val resolvedAutoEngine = resolvedAutoEngineState.value
+
         if (renderPlayerSurface) {
             val surfaceSource = currentPlayerSurfaceSource
             val sourceAvailable = surfaceSource != null
-            val playbackKey = activePlaybackKey
-            val resolvedAutoEngineState =
-                remember(playbackKey.copy(playbackEngine = null)) { mutableStateOf<AndroidPlaybackEngine?>(null) }
-            if (!initialLoadCompleted || resolvedAutoEngineState.value == null) {
-                resolvedAutoEngineState.value = resolveAutoPlaybackEngine(
-                    playbackEngineSetting = playerSettingsUiState.androidPlaybackEngine,
-                    videoId = activeVideoId,
-                    streamFilename = activeTorrentFilename ?: activeStreamFilename,
-                    streamName = activeStreamTitle,
-                    streamDescription = activeStreamSubtitle,
-                    contentTitle = title,
-                    genres = playerMeta?.genres.orEmpty(),
-                    country = playerMeta?.country,
-                )
-            }
-            val resolvedAutoEngine = resolvedAutoEngineState.value
-            LaunchedEffect(playbackKey.copy(playbackEngine = null)) {
-                engineFailoverTriggered = false
-                engineFailoverDisarmed = false
-                playbackEngineOverride = null
-            }
             PlatformPlayerSurface(
                 sourceUrl = surfaceSource?.sourceUrl.orEmpty(),
                 sourceAvailable = sourceAvailable,
