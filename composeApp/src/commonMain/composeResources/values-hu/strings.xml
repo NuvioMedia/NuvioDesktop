@@ -1902,8 +1902,8 @@
     <string name="entity_browse_type">Típus</string>
     <string name="entity_browse_catalogue">Katalógus</string>
     <string name="entity_browse_about">Névjegy</string>
-    <string name="entity_browse_title_count_one">%d cím</string>
-    <string name="entity_browse_title_count_other">%d cím</string>
+    <string name="entity_browse_title_count_one">%1$d cím</string>
+    <string name="entity_browse_title_count_other">%1$d cím</string>
     <string name="player_external_loading_subtitles">Feliratok betöltése a kiegészítőkből...</string>
     <string name="player_external_downloading_subtitles">Feliratok letöltése...</string>
     <plurals name="entity_browse_title_count">

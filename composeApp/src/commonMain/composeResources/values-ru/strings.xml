@@ -2235,6 +2235,8 @@
         <item quantity="many">%d названий</item>
         <item quantity="other">%d названия</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d название</string>
+    <string name="entity_browse_title_count_other">%1$d названия</string>
     <string name="layout_overall_ratings">Общие рейтинги</string>
     <string name="layout_overall_ratings_sub_on">Показываются стандартные рейтинги и рейтинги TMDB.</string>
     <string name="layout_overall_ratings_sub_off">Стандартные рейтинги и рейтинги TMDB скрыты. На страницах с описанием приоритет имеют настройки провайдера MDBList.</string>

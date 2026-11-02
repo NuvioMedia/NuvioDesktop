@@ -2327,6 +2327,8 @@
         <item quantity="one">%dটি শিরোনাম</item>
         <item quantity="other">%dটি শিরোনাম</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$dটি শিরোনাম</string>
+    <string name="entity_browse_title_count_other">%1$dটি শিরোনাম</string>
     <string name="settings_playback_auto_skip_segments">স্বয়ংক্রিয় স্কিপিং</string>
     <string name="settings_playback_auto_skip_none">কোনোটিই নয়</string>
     <string name="settings_playback_auto_skip_intro">ইন্ট্রো / ওপেনিং</string>

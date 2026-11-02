@@ -2248,6 +2248,8 @@
         <item quantity="one">%d titel</item>
         <item quantity="other">%d titels</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d titel</string>
+    <string name="entity_browse_title_count_other">%1$d titels</string>
     <string name="layout_overall_ratings">Algemene beoordelingen</string>
     <string name="layout_overall_ratings_sub_on">Standaard- en TMDB-beoordelingen worden getoond.</string>
     <string name="layout_overall_ratings_sub_off">Standaard- en TMDB-beoordelingen zijn verborgen. Instellingen van MDBList-providers hebben voorrang op detailpagina's.</string>

@@ -2393,8 +2393,8 @@
     <string name="entity_browse_type">Type</string>
     <string name="entity_browse_catalogue">Catalogue</string>
     <string name="entity_browse_about">À propos</string>
-    <string name="entity_browse_title_count_one">%d titre</string>
-    <string name="entity_browse_title_count_other">%d titres</string>
+    <string name="entity_browse_title_count_one">%1$d titre</string>
+    <string name="entity_browse_title_count_other">%1$d titres</string>
     <string name="player_external_loading_subtitles">Chargement des sous-titres depuis les addons…</string>
     <string name="player_external_downloading_subtitles">Téléchargement des sous-titres…</string>
     <plurals name="entity_browse_title_count">

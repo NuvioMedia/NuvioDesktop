@@ -2454,4 +2454,6 @@
         <item quantity="one">%d titolo</item>
         <item quantity="other">%d titoli</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d titolo</string>
+    <string name="entity_browse_title_count_other">%1$d titoli</string>
 </resources>

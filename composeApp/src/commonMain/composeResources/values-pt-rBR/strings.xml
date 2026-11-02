@@ -2392,6 +2392,8 @@
         <item quantity="one">%d título</item>
         <item quantity="other">%d títulos</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d título</string>
+    <string name="entity_browse_title_count_other">%1$d títulos</string>
     <string name="settings_playback_auto_switch_engine_on_error">Trocar de motor automaticamente em erro de reprodução</string>
     <string name="settings_playback_auto_switch_engine_on_error_description">Troca para o outro motor de reprodução quando a reprodução falha, independentemente do motor selecionado.</string>
     <string name="settings_playback_auto_skip_segments">Pular Automaticamente</string>

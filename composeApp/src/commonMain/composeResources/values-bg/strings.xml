@@ -2340,6 +2340,8 @@
         <item quantity="one">%d заглавие</item>
         <item quantity="other">%d заглавия</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d заглавие</string>
+    <string name="entity_browse_title_count_other">%1$d заглавия</string>
     <string name="settings_playback_auto_skip_segments">Автоматично пропускане</string>
     <string name="settings_playback_auto_skip_none">Няма</string>
     <string name="settings_playback_auto_skip_intro">Встъпление / Начало</string>
