@@ -25,6 +25,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.stopScroll
@@ -121,24 +122,30 @@ fun <T> NuvioShelfSection(
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {
             if (duplicateSafeEntries != null) {
-                items(
+                itemsIndexed(
                     items = duplicateSafeEntries,
-                    key = { entry -> entry.lazyKey },
-                    contentType = { "poster" },
-                ) { keyedEntry ->
-                    if (animatePlacement) {
-                        Box(modifier = Modifier.animateItem()) { itemContent(keyedEntry.value) }
+                    key = { _, entry -> entry.lazyKey },
+                    contentType = { _, _ -> "poster" },
+                ) { index, keyedEntry ->
+                    val placement = if (animatePlacement) Modifier.animateItem() else Modifier
+                    // The first card of every row is a candidate for the screen's focus entry
+                    // point, so a screen can open on posters instead of a hero or a header.
+                    val seed = if (index == 0) Modifier.nuvioFirstPosterCandidate() else Modifier
+                    if (animatePlacement || index == 0) {
+                        Box(modifier = placement.then(seed)) { itemContent(keyedEntry.value) }
                     } else {
                         itemContent(keyedEntry.value)
                     }
                 }
             } else {
-                items(
+                itemsIndexed(
                     items = entries,
-                    contentType = { "poster" },
-                ) { entry ->
-                    if (animatePlacement) {
-                        Box(modifier = Modifier.animateItem()) { itemContent(entry) }
+                    contentType = { _, _ -> "poster" },
+                ) { index, entry ->
+                    val placement = if (animatePlacement) Modifier.animateItem() else Modifier
+                    val seed = if (index == 0) Modifier.nuvioFirstPosterCandidate() else Modifier
+                    if (animatePlacement || index == 0) {
+                        Box(modifier = placement.then(seed)) { itemContent(entry) }
                     } else {
                         itemContent(entry)
                     }
@@ -274,6 +281,7 @@ fun NuvioPosterCard(
                     shape = cardShape,
                     surface = NuvioCardDepthSurface.Posters,
                 )
+                .nuvioFocusBorder(cardShape)
                 .posterCardClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
@@ -409,7 +417,10 @@ private fun NuvioShelfSectionHeader(
                 text = title,
                 modifier = Modifier
                     .weight(1f)
-                    .then(if (onTitleClick != null) Modifier.clickable(onClick = onTitleClick) else Modifier),
+                    .then(if (onTitleClick != null) {
+                        Modifier.nuvioFocusBorder(RoundedCornerShape(NuvioTokens.Radius.md))
+                            .clickable(onClick = onTitleClick)
+                    } else Modifier),
                 style = MaterialTheme.typography.titleLarge,
                 color = tokens.colors.textPrimary,
                 maxLines = 1,
@@ -442,14 +453,14 @@ private fun NuvioViewAllPill(
     val iconSize = if (size == NuvioViewAllPillSize.Compact) NuvioTokens.Icon.sm else tokens.icons.md
     val viewAllText = stringResource(Res.string.home_view_all)
 
+    val pillShape = RoundedCornerShape(NuvioTokens.Radius.xl)
     Box(
         modifier = modifier
             .size(actionSize)
-            .background(
-                color = tokens.colors.surface,
-                shape = RoundedCornerShape(NuvioTokens.Radius.xl),
-            )
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            .background(color = tokens.colors.surface, shape = pillShape)
+            .then(if (onClick != null) {
+                Modifier.nuvioFocusBorder(pillShape).clickable(onClick = onClick)
+            } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
