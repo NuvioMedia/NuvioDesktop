@@ -2093,8 +2093,8 @@ static void nuvioMpvWakeup(void *ctx) {
 /**
  * Posts the write straight to the mpv core from whatever thread asked.
  *
- * mpv_set_property_async enqueues the request and returns ‚Äî unlike
- * mpv_set_property it never waits on the core ‚Äî so there is nothing to move off
+ * mpv_set_property_async enqueues the request and returns — unlike
+ * mpv_set_property it never waits on the core — so there is nothing to move off
  * the calling thread.
  *
  * In particular this must NOT be dispatched to _mpvEventQueue. That queue is
@@ -2114,7 +2114,7 @@ static void nuvioMpvWakeup(void *ctx) {
  *
  * With avfoundation the audible path is: softvol gain -> mpv buffer ->
  * AVSampleBufferAudioRenderer's queue -> output. mpv reports that AO as
- * "device buffer: 96000 samples" plus a 96000-sample soft buffer ‚Äî at 48 kHz
+ * "device buffer: 96000 samples" plus a 96000-sample soft buffer — at 48 kHz
  * that is up to ~4 s of audio already carrying the old gain, which is how long a
  * softvol change took to become audible. The renderer's own volume applies at
  * the output instantly, and mpv exposes it as ao-volume (0..100). So the
