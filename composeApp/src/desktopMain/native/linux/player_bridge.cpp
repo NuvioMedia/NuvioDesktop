@@ -558,6 +558,8 @@ void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
         cairo_surface_destroy(surf);
         return;
     }
+    int displayW = cairo_image_surface_get_width(surf);
+    int displayH = cairo_image_surface_get_height(surf);
     // Drop snapshots taken at a stale size (requested mid-resize): pushing one
     // would paint mis-scaled controls over the video. The overlay was already
     // removed when the mismatch was detected; the next tick requests a fresh
@@ -566,22 +568,30 @@ void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
         GdkWindow *ovGw = gtk_widget_get_window(player->gtkWindow);
         XWindowAttributes wa;
         if (ovGw && player->overlayXid &&
-            XGetWindowAttributes(GDK_WINDOW_XDISPLAY(ovGw), player->overlayXid, &wa) &&
-            (cairo_image_surface_get_width(surf) != wa.width ||
-             cairo_image_surface_get_height(surf) != wa.height)) {
-            cairo_surface_destroy(surf);
-            return;
+            XGetWindowAttributes(GDK_WINDOW_XDISPLAY(ovGw), player->overlayXid, &wa)) {
+            const int scale = gdk_window_get_scale_factor(ovGw);
+            if (cairo_image_surface_get_width(surf) !=
+                    gtk_widget_get_allocated_width(GTK_WIDGET(player->webview)) * scale ||
+                cairo_image_surface_get_height(surf) !=
+                    gtk_widget_get_allocated_height(GTK_WIDGET(player->webview)) * scale) {
+                cairo_surface_destroy(surf);
+                return;
+            }
+            displayW = wa.width;
+            displayH = wa.height;
         }
     }
     cairo_surface_flush(surf);
-    char addr[32], sw[16], sh[16], sstride[16];
+    char addr[32], sw[16], sh[16], sstride[16], dw[16], dh[16];
     snprintf(addr, sizeof addr, "&%zu",
              (size_t)(uintptr_t)cairo_image_surface_get_data(surf));
     snprintf(sw, sizeof sw, "%d", cairo_image_surface_get_width(surf));
     snprintf(sh, sizeof sh, "%d", cairo_image_surface_get_height(surf));
     snprintf(sstride, sizeof sstride, "%d", cairo_image_surface_get_stride(surf));
+    snprintf(dw, sizeof dw, "%d", displayW);
+    snprintf(dh, sizeof dh, "%d", displayH);
     const char *cmd[] = {"overlay-add", "0", "0", "0", addr, "0",
-                         "bgra", sw, sh, sstride, nullptr};
+                         "bgra", sw, sh, sstride, dw, dh, nullptr};
     mpv_command(player->mpv, cmd);
     player->overlayPushed = true;
     if (player->snapSurfPrev) cairo_surface_destroy(player->snapSurfPrev);
@@ -1121,7 +1131,62 @@ gboolean createWebviewOnGtk(gpointer data) {
                      }),
                      player);
 
-    if (!adopted) gtk_container_add(GTK_CONTAINER(win), GTK_WIDGET(wv));
+    {
+        // Keep the input window full-size, but allocate only one device pixel per
+        // logical layout pixel to WebKit. Layout zoom preserves the original CSS
+        // viewport after mpv stretches the bitmap back to the host dimensions.
+        if (adopted) {
+            g_object_ref(wv);
+            gtk_container_remove(GTK_CONTAINER(win), GTK_WIDGET(wv));
+        }
+        GtkWidget *input = gtk_event_box_new();
+        GtkWidget *fixed = gtk_fixed_new();
+        gtk_event_box_set_above_child(GTK_EVENT_BOX(input), TRUE);
+        gtk_widget_add_events(input, GDK_POINTER_MOTION_MASK | GDK_BUTTON_PRESS_MASK |
+            GDK_BUTTON_RELEASE_MASK | GDK_SCROLL_MASK | GDK_SMOOTH_SCROLL_MASK |
+            GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
+        gtk_container_add(GTK_CONTAINER(win), input);
+        gtk_container_add(GTK_CONTAINER(input), fixed);
+        gtk_fixed_put(GTK_FIXED(fixed), GTK_WIDGET(wv), 0, 0);
+        if (adopted) g_object_unref(wv);
+        g_signal_connect(fixed, "size-allocate", G_CALLBACK((+[](GtkWidget *, GtkAllocation *a, gpointer data) {
+            auto *view = GTK_WIDGET(data);
+            const int scale = std::max(1, gtk_widget_get_scale_factor(view));
+            const double zoom = 1.0 / scale;
+            if (webkit_web_view_get_zoom_level(WEBKIT_WEB_VIEW(view)) != zoom)
+                webkit_web_view_set_zoom_level(WEBKIT_WEB_VIEW(view), zoom);
+            GtkAllocation small = {0, 0, std::max(1, a->width / scale), std::max(1, a->height / scale)};
+            int oldW, oldH;
+            gtk_widget_get_size_request(view, &oldW, &oldH);
+            if (oldW != small.width || oldH != small.height)
+                gtk_widget_set_size_request(view, small.width, small.height);
+            gtk_widget_size_allocate(view, &small);
+        })), wv);
+        g_signal_connect(input, "event", G_CALLBACK((+[](GtkWidget *box, GdkEvent *event, gpointer data) -> gboolean {
+            auto *view = GTK_WIDGET(data);
+            double x, y;
+            if (!gdk_event_get_coords(event, &x, &y)) return FALSE;
+            GdkWindow *target = gtk_widget_get_window(view);
+            if (!target) return TRUE;
+            const double sx = double(gtk_widget_get_allocated_width(view)) / std::max(1, gtk_widget_get_allocated_width(box));
+            const double sy = double(gtk_widget_get_allocated_height(view)) / std::max(1, gtk_widget_get_allocated_height(box));
+            GdkEvent *copy = gdk_event_copy(event);
+            if (copy->any.window) g_object_unref(copy->any.window);
+            copy->any.window = GDK_WINDOW(g_object_ref(target));
+            switch (copy->type) {
+                case GDK_MOTION_NOTIFY: copy->motion.x = x*sx; copy->motion.y = y*sy; break;
+                case GDK_BUTTON_PRESS: case GDK_2BUTTON_PRESS: case GDK_3BUTTON_PRESS:
+                case GDK_BUTTON_RELEASE: copy->button.x = x*sx; copy->button.y = y*sy; break;
+                case GDK_SCROLL: copy->scroll.x = x*sx; copy->scroll.y = y*sy; break;
+                case GDK_ENTER_NOTIFY: case GDK_LEAVE_NOTIFY:
+                    copy->crossing.x = x*sx; copy->crossing.y = y*sy; break;
+                default: gdk_event_free(copy); return FALSE;
+            }
+            gtk_widget_event(view, copy);
+            gdk_event_free(copy);
+            return TRUE;
+        })), wv);
+    }
 
     // Make sure the overlay actually asks the X server for pointer/keyboard
     // events; without an explicit mask WebKit gets no DOM pointer events once the
