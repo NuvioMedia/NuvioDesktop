@@ -1,6 +1,7 @@
 package com.nuvio.app
 
 import com.nuvio.app.features.autosync.AutoSyncPreferencesDesktop
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.awt.SwingWindow
@@ -35,6 +36,7 @@ import com.nuvio.app.features.player.desktop.NativePlayerBridge
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
 import com.nuvio.app.features.player.desktop.configureMacosWindowBeforePeer
 import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcuts
+import com.nuvio.app.features.player.desktop.macosTitleBarDoubleClick
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
 import com.nuvio.app.features.player.desktop.registerDesktopAppFullscreenToggle
 import com.nuvio.app.features.player.desktop.trackMaximizedBoundsForCurrentScreen
@@ -216,8 +218,16 @@ fun main(args: Array<String>) {
             }
 
             if (smokePlayerUrl == null) {
-                ProvideDesktopWindowInsets(isFullscreen = windowState.placement == WindowPlacement.Fullscreen) {
-                    MiddleClickAutoscroll { App() }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .macosTitleBarDoubleClick(window = window, windowState = windowState),
+                ) {
+                    ProvideDesktopWindowInsets(
+                        isFullscreen = windowState.placement == WindowPlacement.Fullscreen,
+                    ) {
+                        MiddleClickAutoscroll { App() }
+                    }
                 }
             } else {
                 // The player surface reads LocalNuvioPlatformDensity, which only
