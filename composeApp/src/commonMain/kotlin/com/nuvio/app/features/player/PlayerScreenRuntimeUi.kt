@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -261,6 +260,22 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     }
     val partyControls = if (isDesktop) rememberPartyControlsState() else PlayerControlPartyState()
     val playerBadges = if (isDesktop) rememberPlayerBadges() else emptyList()
+    val installedSubtitleFonts = remember(showSubtitleModal, subtitleFontsRevision) { if (isDesktop) SubtitleFonts.installed() else emptyList() }
+    if (isDesktop) {
+        val importSubtitleFont = rememberSubtitleFontImporter { result ->
+            subtitleFontImportFailed = result.isFailure
+            result.getOrNull()?.let {
+                subtitleFontsRevision++
+                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(appearance = subtitleStyle.appearance.copy(fontId = it.id)))
+            }
+        }
+        LaunchedEffect(subtitleFontImportToken) {
+            if (subtitleFontImportToken > 0) importSubtitleFont()
+        }
+    }
+    val subtitleFontItems = BuiltInSubtitleFonts.map {
+        PlayerControlSubtitleFont(it, subtitleFontLabel(it, installedSubtitleFonts))
+    } + installedSubtitleFonts.map { PlayerControlSubtitleFont(it.id, it.name) }
     val streamInfoSections = if (isDesktop) {
         rememberStreamInfoSections(
             addonName = activeProviderName,
@@ -379,8 +394,21 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         colorLabel = stringResource(Res.string.compose_player_color),
         textOpacityLabel = stringResource(Res.string.compose_player_text_opacity),
         outlineColorLabel = stringResource(Res.string.compose_player_outline_color),
+        fontLabel = stringResource(Res.string.subtitle_font),
+        backgroundColorLabel = stringResource(Res.string.settings_playback_subtitle_background_color),
+        backgroundOpacityLabel = stringResource(Res.string.subtitle_background_opacity),
+        fontImportLabel = stringResource(Res.string.subtitle_font_import),
+        fontImportHint = stringResource(Res.string.subtitle_font_import_hint),
+        fontImportError = stringResource(Res.string.subtitle_font_import_error),
+        doneLabel = stringResource(Res.string.action_done),
+        fontRemoveLabel = stringResource(Res.string.subtitle_font_remove, "{name}"),
+        subtitleFontImportFailed = subtitleFontImportFailed,
+        shadowLabel = stringResource(Res.string.subtitle_shadow),
+        shadowOpacityLabel = stringResource(Res.string.subtitle_shadow_opacity),
+        shadowSizeLabel = stringResource(Res.string.subtitle_shadow_size),
+        subtitleFonts = if (isDesktop) subtitleFontItems else emptyList(),
         noSubtitleLinesFoundLabel = stringResource(Res.string.compose_player_no_subtitle_lines_found),
-        resetDefaultsLabel = stringResource(Res.string.compose_player_reset_defaults),
+        resetDefaultsLabel = stringResource(Res.string.subtitle_reset_appearance),
         onLabel = stringResource(Res.string.compose_action_on),
         offLabel = stringResource(Res.string.compose_action_off),
         themeAccentColor = themeColors.accent.toCssColorString(),
@@ -1192,17 +1220,60 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
             }
         }
         "subtitleOutlineColor" -> {
-            SubtitleOutlineColorSwatches.getOrNull(value.toInt())?.let { color ->
-                PlayerSettingsRepository.setSubtitleStyle(
-                    subtitleStyle.copy(outlineEnabled = true, outlineColor = color),
-                )
+            SubtitleColorSwatches.getOrNull(value.toInt())?.let { color ->
+                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(outlineColor = color))
+            }
+        }
+        "subtitleBackgroundColor" -> {
+            SubtitleColorSwatches.getOrNull(value.toInt())?.let { color ->
+                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(backgroundColor = color.copy(alpha = subtitleStyle.backgroundColor.alpha)))
+            }
+        }
+        "subtitleBackgroundOpacity" -> {
+            val alpha = (value.toFloat() / 100f).coerceIn(0f, 1f)
+            PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(backgroundColor = subtitleStyle.backgroundColor.copy(alpha = alpha)))
+        }
+        "subtitleFontImport" -> {
+            subtitleFontImportFailed = false
+            subtitleFontImportToken++
+        }
+        "subtitleFontRemove" -> {
+            val fonts = SubtitleFonts.installed()
+            fonts.getOrNull(value.toInt() - BuiltInSubtitleFonts.size)?.let { font ->
+                SubtitleFonts.remove(font.id)
+                subtitleFontsRevision++
+                if (subtitleStyle.appearance.fontId == font.id) {
+                    PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(appearance = subtitleStyle.appearance.copy(fontId = "default")))
+                }
             }
         }
         "subtitleTextOpacity" -> {
             val alpha = (value.toFloat() / 100f).coerceIn(0f, 1f)
             PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(textColor = subtitleStyle.textColor.copy(alpha = alpha)))
         }
-        "subtitleStyleReset" -> PlayerSettingsRepository.setSubtitleStyle(SubtitleStyleState.DEFAULT)
+        "subtitleFont" -> {
+            val fonts = BuiltInSubtitleFonts + SubtitleFonts.installed().map { it.id }
+            fonts.getOrNull(value.toInt())?.let { id ->
+                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(appearance = subtitleStyle.appearance.copy(fontId = id)))
+            }
+        }
+        "subtitleShadowToggle" -> {
+            val appearance = subtitleStyle.appearance
+            PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(appearance = appearance.copy(shadowEnabled = !appearance.shadowEnabled)))
+        }
+        "subtitleShadowOpacityDelta" -> {
+            val appearance = subtitleStyle.appearance
+            PlayerSettingsRepository.setSubtitleStyle(
+                subtitleStyle.copy(appearance = appearance.copy(shadowOpacity = (appearance.shadowOpacity + value.toInt()).coerceIn(0, 100))),
+            )
+        }
+        "subtitleShadowSizeDelta" -> {
+            val appearance = subtitleStyle.appearance
+            PlayerSettingsRepository.setSubtitleStyle(
+                subtitleStyle.copy(appearance = appearance.copy(shadowSize = (appearance.shadowSize + value.toInt()).coerceIn(1, 8))),
+            )
+        }
+        "subtitleStyleReset" -> PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.resetAppearance())
         "parentalGuideComplete" -> {
             showParentalGuide = false
         }

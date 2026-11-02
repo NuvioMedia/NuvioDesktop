@@ -66,3 +66,48 @@ internal actual fun rememberSubtitleFontImporter(onResult: (Result<SubtitleFont>
         }
     }
 }
+
+internal object SubtitleFontResolver {
+    private val activeDir: Path by lazy { DesktopStorage.cacheDir.resolve("subtitle-font-active") }
+
+    fun mpvFontName(id: String): String = when (id) {
+        "serif" -> "serif"
+        "mono" -> "monospace"
+        "default", "sans" -> "sans-serif"
+        else -> activate(id) ?: "sans-serif"
+    }
+
+    fun fontsDir(): String = activeDir.takeIf(Files::isDirectory)?.toString().orEmpty()
+
+    private fun activate(id: String): String? {
+        val bytes = SubtitleFontStorage.read(id) ?: return null
+        val family = familyName(bytes) ?: return null
+        Files.createDirectories(activeDir)
+        Files.list(activeDir).use { it.forEach(Files::deleteIfExists) }
+        Files.write(activeDir.resolve("$id.ttf"), bytes)
+        return family
+    }
+
+    private fun familyName(bytes: ByteArray): String? = runCatching {
+        fun u16(offset: Int) = ((bytes[offset].toInt() and 255) shl 8) or (bytes[offset + 1].toInt() and 255)
+        fun u32(offset: Int) = (u16(offset) shl 16) or u16(offset + 2)
+        val tableCount = u16(4)
+        val nameTable = (0 until tableCount)
+            .map { 12 + it * 16 }
+            .first { String(bytes, it, 4, Charsets.US_ASCII) == "name" }
+            .let { u32(it + 8) }
+        val count = u16(nameTable + 2)
+        val strings = nameTable + u16(nameTable + 4)
+        val records = (0 until count).map { nameTable + 6 + it * 12 }
+        fun read(nameId: Int): String? = records
+            .filter { u16(it + 6) == nameId }
+            .sortedBy { if (u16(it) == 3) 0 else 1 }
+            .firstNotNullOfOrNull { record ->
+                val length = u16(record + 8)
+                val offset = strings + u16(record + 10)
+                val charset = if (u16(record) == 3 || u16(record) == 0) Charsets.UTF_16BE else Charsets.ISO_8859_1
+                String(bytes, offset, length, charset).takeIf { it.isNotBlank() }
+            }
+        read(16) ?: read(1)
+    }.getOrNull()
+}

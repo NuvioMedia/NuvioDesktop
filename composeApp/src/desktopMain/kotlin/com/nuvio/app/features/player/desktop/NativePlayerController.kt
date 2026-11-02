@@ -26,6 +26,7 @@ import com.nuvio.app.features.player.SUBTITLE_DELAY_MAX_MS
 import com.nuvio.app.features.player.findPreferredAudioTrackIndex
 import com.nuvio.app.features.player.SUBTITLE_DELAY_MIN_MS
 import com.nuvio.app.features.player.SubtitleColorSwatches
+import com.nuvio.app.features.player.SubtitleFontResolver
 import com.nuvio.app.features.player.SubtitleOutlineColorSwatches
 import com.nuvio.app.features.player.SubtitleStyleState
 import com.nuvio.app.features.player.SubtitleTrack
@@ -1137,6 +1138,14 @@ internal class NativePlayerController(
             useLibass = useLibass,
             stripSdh = style.stripSdh,
         )
+        val shadowAlpha = if (style.appearance.shadowEnabled) (style.appearance.shadowOpacity * 255 / 100) else 0
+        NativePlayerBridge.setSubtitleAppearance(
+            handle = handle,
+            font = SubtitleFontResolver.mpvFontName(style.appearance.fontId),
+            fontsDir = SubtitleFontResolver.fontsDir(),
+            shadowColor = "#" + shadowAlpha.toHexByte() + "000000",
+            shadowOffset = if (style.appearance.shadowEnabled) style.appearance.shadowSize.toFloat() else 0f,
+        )
     }
 
     private fun decodeTracks(readJson: (Long) -> String): List<NativeMpvTrack> {
@@ -1437,6 +1446,36 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         appendJsonField("textOpacityLabel", textOpacityLabel)
         append(',')
         appendJsonField("outlineColorLabel", outlineColorLabel)
+        append(',')
+        appendJsonField("fontLabel", fontLabel)
+        append(',')
+        appendJsonField("backgroundColorLabel", backgroundColorLabel)
+        append(',')
+        appendJsonField("backgroundOpacityLabel", backgroundOpacityLabel)
+        append(',')
+        appendJsonField("fontImportLabel", fontImportLabel)
+        append(',')
+        appendJsonField("fontImportHint", fontImportHint)
+        append(',')
+        appendJsonField("fontImportError", fontImportError)
+        append(',')
+        appendJsonField("doneLabel", doneLabel)
+        append(',')
+        appendJsonField("fontRemoveLabel", fontRemoveLabel)
+        append(',')
+        appendJsonField("subtitleFontImportFailed", subtitleFontImportFailed)
+        append(',')
+        appendJsonField("shadowLabel", shadowLabel)
+        append(',')
+        appendJsonField("shadowOpacityLabel", shadowOpacityLabel)
+        append(',')
+        appendJsonField("shadowSizeLabel", shadowSizeLabel)
+        append(',')
+        appendJsonArrayField("subtitleFonts", subtitleFonts) {
+            append("{\"id\":").append(it.id.toJsonString())
+            append(",\"label\":").append(it.label.toJsonString())
+            append('}')
+        }
         append(',')
         appendJsonField("noSubtitleLinesFoundLabel", noSubtitleLinesFoundLabel)
         append(',')
@@ -1931,6 +1970,14 @@ private fun StringBuilder.appendSubtitleStyleJson(style: SubtitleStyleState) {
     appendJsonField("fontSizeSp", style.fontSizeSp)
     append(',')
     appendJsonField("bottomOffset", style.bottomOffset)
+    append(',')
+    appendJsonField("fontId", style.appearance.fontId)
+    append(',')
+    appendJsonField("shadowEnabled", style.appearance.shadowEnabled)
+    append(',')
+    appendJsonField("shadowOpacity", style.appearance.shadowOpacity)
+    append(',')
+    appendJsonField("shadowSize", style.appearance.shadowSize)
     append('}')
 }
 

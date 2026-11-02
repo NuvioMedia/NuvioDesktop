@@ -129,6 +129,13 @@ internal object NativePlayerBridge {
         useLibass: Boolean,
         stripSdh: Boolean,
     )
+    external fun setSubtitleAppearance(
+        handle: Long,
+        font: String,
+        fontsDir: String,
+        shadowColor: String,
+        shadowOffset: Float,
+    )
     external fun warmupWebView2(controlsPageUrl: String): Boolean
     external fun shutdownWebView2Warmup()
     external fun setWindowsDisplaySleepInhibited(inhibited: Boolean): Boolean

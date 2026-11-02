@@ -2479,6 +2479,56 @@ button:disabled {
   pointer-events: none;
 }
 
+.custom-subtitle-style-controls.disabled > .style-always {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.font-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.font-row-chevron {
+  color: rgba(255, 255, 255, .7);
+  font-size: 22px;
+}
+
+.font-picker-panel {
+  width: min(460px, 92vw);
+  max-height: 80vh;
+  gap: 12px;
+}
+
+.font-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.font-option .track-row {
+  flex: 1;
+}
+
+.font-option-sample {
+  display: inline-block;
+  width: 32px;
+  font-size: 18px;
+}
+
+.font-picker-error {
+  color: #ff6b6b;
+}
+
 .style-control-row {
   display: flex;
   align-items: center;
