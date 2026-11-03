@@ -24,6 +24,7 @@ import com.nuvio.app.features.player.IosTargetTransfer
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
+import com.nuvio.app.isWindows
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -103,6 +104,22 @@ internal fun PlaybackVideoSettings(
                             enabled = exoOptionsEnabled,
                             isTablet = isTablet,
                             onCheckedChange = PlayerSettingsRepository::setTunnelingEnabled,
+                        )
+                    }
+                }
+            }
+            if (isWindows) {
+                SettingsSection(
+                    title = stringResource(Res.string.settings_playback_nvidia_rtx_video_section),
+                    isTablet = isTablet,
+                ) {
+                    SettingsGroup(isTablet = isTablet) {
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_playback_nvidia_rtx_super_resolution),
+                            description = stringResource(Res.string.settings_playback_nvidia_rtx_super_resolution_desc),
+                            checked = settings.nvidiaRtxSuperResolutionEnabled,
+                            isTablet = isTablet,
+                            onCheckedChange = PlayerSettingsRepository::setNvidiaRtxSuperResolutionEnabled,
                         )
                     }
                 }
