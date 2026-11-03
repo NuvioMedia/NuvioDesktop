@@ -11,9 +11,12 @@ import com.nuvio.app.features.watched.releasedMainSeasonEpisodes
 import com.nuvio.app.features.watched.toEpisodeWatchedItem
 import com.nuvio.app.features.watched.toSeriesWatchedItem
 import com.nuvio.app.features.watched.toWatchedItem
+import com.nuvio.app.features.cloud.CloudLibraryContentType
+import com.nuvio.app.features.watchprogress.ContinueWatchingItem
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import com.nuvio.app.features.watchprogress.WatchProgressEntry
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
+import com.nuvio.app.features.watching.domain.isReleasedBy
 import com.nuvio.app.features.watching.domain.isSeriesLikeWatchingContentType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -182,6 +185,20 @@ object WatchingActions {
         }
     }
 
+    fun markContinueWatchingWatched(item: ContinueWatchingItem) {
+        if (!item.canMarkWatched()) return
+        WatchedRepository.markWatched(item.toWatchedItem())
+        WatchProgressRepository.clearProgress(
+            videoId = item.videoId,
+            parentMetaId = item.parentMetaId,
+        )
+        if (!item.parentMetaType.isSeriesLikeWatchingContentType()) return
+        actionScope.launch {
+            MetaDetailsRepository.fetch(type = item.parentMetaType, id = item.parentMetaId)
+                ?.let { meta -> reconcileSeriesWatchedState(meta) }
+        }
+    }
+
     private fun toggleEpisodesWatched(
         meta: MetaDetails,
         episodes: Collection<MetaVideo>,
@@ -205,3 +222,23 @@ object WatchingActions {
         reconcileSeriesWatchedState(meta)
     }
 }
+
+/** Cloud files have no catalog entry to track, and unreleased episodes cannot be watched yet. */
+internal fun ContinueWatchingItem.canMarkWatched(
+    todayIsoDate: String = CurrentDateProvider.todayIsoDate(),
+): Boolean =
+    !parentMetaType.equals(CloudLibraryContentType, ignoreCase = true) &&
+        (!isNextUp || isReleasedBy(todayIsoDate, released))
+
+/** Same shape as the details screen builds, so tracker sync takes the same path. */
+internal fun ContinueWatchingItem.toWatchedItem(markedAtEpochMs: Long = 0L): WatchedItem =
+    WatchedItem(
+        id = parentMetaId,
+        type = parentMetaType,
+        name = episodeTitle?.takeIf { it.isNotBlank() } ?: title,
+        poster = episodeThumbnail ?: background ?: poster,
+        season = seasonNumber,
+        episode = episodeNumber,
+        videoId = videoId,
+        markedAtEpochMs = markedAtEpochMs,
+    )
