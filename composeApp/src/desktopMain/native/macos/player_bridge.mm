@@ -2544,7 +2544,7 @@ static void nuvioMpvWakeup(void *ctx) {
                                 stripSdh:(BOOL)stripSdh {
     if (!_mpv) return;
     double size = MAX(18.0, MIN(96.0, fontSize));
-    double scale = useLibass ? size / 54.0 : 1.0;
+    double scale = 1.0;
     int64_t position = MAX(0, MIN(150, subPos));
     double outline = MAX(0.0, MIN(8.0, outlineSize));
     NSString *resolvedTextColor = textColor ?: @"#FFFFFFFF";
@@ -2564,16 +2564,10 @@ static void nuvioMpvWakeup(void *ctx) {
     BOOL stripSdhChanged = !_hasAppliedSubtitleStyle || _appliedSubtitleStripSdh != stripSdh;
 
     if (modeChanged) {
-        [self setStringProperty:"sub-ass-override" value:useLibass ? @"scale" : @"force"];
+        [self setStringProperty:"sub-ass-override" value:@"scale"];
     }
-    if (modeChanged || (!useLibass && boldChanged)) {
-        const char *styleOverridesCommand[] = {
-            "change-list",
-            "sub-ass-style-overrides",
-            useLibass ? "clr" : "set",
-            useLibass ? "" : (bold ? "Bold=1" : "Bold=0"),
-            NULL,
-        };
+    if (modeChanged) {
+        const char *styleOverridesCommand[] = {"change-list", "sub-ass-style-overrides", "clr", "", NULL};
         mpv_command(_mpv, styleOverridesCommand);
     }
     if (modeChanged || sizeChanged) {
@@ -2584,14 +2578,14 @@ static void nuvioMpvWakeup(void *ctx) {
         mpv_set_property(_mpv, "sub-pos", MPV_FORMAT_INT64, &position);
     }
 
-    if (!useLibass) {
+    {
         if (modeChanged || textColorChanged) {
             [self setStringProperty:"sub-color" value:resolvedTextColor];
         }
         if (modeChanged || backgroundColorChanged) {
             [self setStringProperty:"sub-back-color" value:resolvedBackgroundColor];
             [self setStringProperty:"sub-border-style"
-                              value:[resolvedBackgroundColor hasPrefix:@"#00"] ? @"outline-and-shadow" : @"opaque-box"];
+                              value:[resolvedBackgroundColor hasPrefix:@"#00"] ? @"outline-and-shadow" : @"background-box"];
         }
         if (modeChanged || outlineColorChanged) {
             [self setStringProperty:"sub-outline-color" value:resolvedOutlineColor];

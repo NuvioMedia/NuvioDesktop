@@ -1,5 +1,6 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.isDesktop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,8 +45,8 @@ internal fun SubtitleAppearanceSettings(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(stringResource(Res.string.subtitle_preview), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
-            Box(Modifier.fillMaxWidth().heightIn(min = 88.dp), contentAlignment = Alignment.Center) {
-                StyledSubtitleText(stringResource(Res.string.subtitle_preview_text), style)
+            Box(Modifier.fillMaxWidth().heightIn(min = if (isDesktop) 200.dp else 88.dp), contentAlignment = Alignment.Center) {
+                StyledSubtitleText(stringResource(Res.string.subtitle_preview_text), style, scale = if (isDesktop) 2f else 1f)
             }
         }
         Text(

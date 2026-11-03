@@ -480,7 +480,6 @@
     <string name="compose_player_seek_forward_10">Seek forward 10 seconds</string>
     <string name="compose_player_sources">Sources</string>
     <string name="compose_player_style">Style</string>
-    <string name="compose_player_use_custom_styling">Use custom styling</string>
     <string name="compose_player_select_addon_subtitle_first">Select an addon subtitle first</string>
     <string name="compose_player_subs">Subs</string>
     <string name="compose_player_subtitle_delay">Subtitle Delay</string>

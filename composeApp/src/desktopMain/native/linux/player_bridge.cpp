@@ -1965,17 +1965,14 @@ JNIEXPORT void JNICALL NP(applySubtitleStyle)(
     jboolean useLibass, jboolean stripSdh) {
     Player *p = asPlayer(handle);
     if (!p) return;
-    // Keep the track's own ASS styling when libass rendering is on, and let the
-    // settings below take over when it is off (matching the Windows bridge).
-    mpv_set_property_string(p->mpv, "sub-ass-override",
-                            useLibass == JNI_TRUE ? "scale" : "force");
+    mpv_set_property_string(p->mpv, "sub-ass-override", "scale");
     mpv_set_property_string(p->mpv, "sub-color", jstringToUtf8(env, textColor).c_str());
     mpv_set_property_string(p->mpv, "sub-border-color", jstringToUtf8(env, outlineColor).c_str());
     std::string background = jstringToUtf8(env, backgroundColor);
     if (background.empty()) background = "#00000000";
     mpv_set_property_string(p->mpv, "sub-back-color", background.c_str());
     mpv_set_property_string(p->mpv, "sub-border-style",
-                            background.rfind("#00", 0) == 0 ? "outline-and-shadow" : "opaque-box");
+                            background.rfind("#00", 0) == 0 ? "outline-and-shadow" : "background-box");
     std::string border = std::to_string(outlineSize);
     mpv_set_property_string(p->mpv, "sub-border-size", border.c_str());
     mpv_set_property_string(p->mpv, "sub-bold", bold == JNI_TRUE ? "yes" : "no");

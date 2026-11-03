@@ -2463,25 +2463,8 @@ button:disabled {
   min-width: 0;
 }
 
-.style-toggle-section {
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-}
-
 .custom-subtitle-style-controls {
   display: contents;
-}
-
-.custom-subtitle-style-controls.disabled > * {
-  opacity: .42;
-  pointer-events: none;
-}
-
-.custom-subtitle-style-controls.disabled > .style-always {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .font-row {
@@ -2507,6 +2490,10 @@ button:disabled {
   width: min(460px, 92vw);
   max-height: 80vh;
   gap: 12px;
+}
+
+.font-picker-panel .panel-actions {
+  justify-content: center;
 }
 
 .font-option {
