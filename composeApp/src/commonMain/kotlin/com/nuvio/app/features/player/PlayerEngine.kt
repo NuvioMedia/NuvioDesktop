@@ -34,6 +34,7 @@ interface PlayerEngineController {
         hasActiveSubtitle: Boolean,
         useCustomSubtitles: Boolean = false,
     ) {}
+    fun setSubtitleVisible(visible: Boolean) {}
     fun setSubtitleDelayMs(delayMs: Int) {}
     fun configureIosVideoOutput(settings: PlayerSettingsUiState) {}
     fun updateNowPlayingMetadata(info: PlayerNowPlayingInfo) {}

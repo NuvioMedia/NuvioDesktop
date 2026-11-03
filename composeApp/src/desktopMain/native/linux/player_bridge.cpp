@@ -1949,6 +1949,11 @@ JNIEXPORT void JNICALL NP(clearExternalSubtitlesAndSelect)(JNIEnv *, jobject, jl
     else mpv_set_property(p->mpv, "sid", MPV_FORMAT_INT64, &id);
 }
 
+JNIEXPORT void JNICALL NP(setSubtitleVisible)(JNIEnv *, jobject, jlong handle, jboolean visible) {
+    Player *p = asPlayer(handle);
+    if (p) mpv_set_property_string(p->mpv, "sub-visibility", visible ? "yes" : "no");
+}
+
 JNIEXPORT void JNICALL NP(setSubtitleDelayMs)(JNIEnv *, jobject, jlong handle, jint delayMs) {
     Player *p = asPlayer(handle);
     if (p) mpvSetDouble(p->mpv, "sub-delay", delayMs / 1000.0);

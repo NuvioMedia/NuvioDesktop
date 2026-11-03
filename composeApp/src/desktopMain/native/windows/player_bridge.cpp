@@ -1267,6 +1267,12 @@ public:
         }
     }
 
+    void setSubtitleVisible(bool visible) {
+        std::lock_guard<std::mutex> lock(mpvMutex);
+        if (!mpv) return;
+        mpvApi().setPropertyString(mpv, "sub-visibility", visible ? "yes" : "no");
+    }
+
     void setSubtitleDelayMs(int delayMs) {
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
@@ -2987,6 +2993,12 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowBorderles
         width,
         height
     );
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSubtitleVisible(JNIEnv *, jobject, jlong handle, jboolean visible) {
+    auto player = playerFromHandle(handle);
+    if (player) player->setSubtitleVisible(visible == JNI_TRUE);
 }
 
 extern "C" JNIEXPORT void JNICALL

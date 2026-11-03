@@ -1279,6 +1279,7 @@ const appendSubtitleLanguageRow = item => {
     activeSubtitleLanguageKey = item.key;
     const options = subtitleSelectionOptions().filter(option => option.languageKey === item.key);
     pendingSubtitleOptionId = options.some(option => option.id === pendingSubtitleOptionId) ? pendingSubtitleOptionId : "";
+    showHiddenSubtitles();
     if (item.key === "__off__") send("selectBuiltInSubtitleTrack", -1);
     renderSubtitleModal();
     if (event.detail === 0 && item.key !== "__off__") {
@@ -1309,6 +1310,7 @@ const appendSubtitleOptionRow = option => {
   row.addEventListener("click", event => {
     event.stopPropagation();
     pendingSubtitleOptionId = option.id;
+    showHiddenSubtitles();
     if (option.kind === "builtIn") send("selectBuiltInSubtitleTrack", option.index);
     else send("selectAddonSubtitle", option.index);
     renderSubtitleModal();
@@ -3568,6 +3570,13 @@ volumeSlider.addEventListener("input", event => {
 });
 
 let preMuteVolumeLevel = 1.0;
+let subtitlesHidden = false;
+
+function showHiddenSubtitles() {
+  if (!subtitlesHidden) return;
+  subtitlesHidden = false;
+  send("subtitleVisibility", 1);
+}
 
 volumeButton.addEventListener("click", () => {
   noteChromeActivity();
@@ -4297,7 +4306,9 @@ document.addEventListener("keydown", event => {
   if (event.code === "KeyV") {
     event.preventDefault();
     const isOff = !normalizeTracks(state.subtitleTracks).some(t => t.selected);
-    if (isOff) {
+    if (subtitlesHidden && !isOff) {
+      showHiddenSubtitles();
+    } else if (isOff) {
       if (window.lastActiveSubtitle) {
         if (window.lastActiveSubtitle.kind === "builtIn") send("selectBuiltInSubtitleTrack", window.lastActiveSubtitle.index);
         else send("selectAddonSubtitle", window.lastActiveSubtitle.index);
@@ -4311,14 +4322,8 @@ document.addEventListener("keydown", event => {
         }
       }
     } else {
-      const activeOption = selectedSubtitleOption(subtitleSelectionOptions());
-      if (activeOption) {
-        window.lastActiveSubtitle = activeOption;
-      } else {
-        const activeTrack = normalizeTracks(state.subtitleTracks).find(t => t.selected);
-        if (activeTrack) window.lastActiveSubtitle = { kind: "builtIn", index: activeTrack.index };
-      }
-      send("selectBuiltInSubtitleTrack", -1);
+      subtitlesHidden = true;
+      send("subtitleVisibility", 0);
     }
     return;
   }
