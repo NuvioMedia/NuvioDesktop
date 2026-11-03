@@ -493,31 +493,31 @@ button:disabled {
 .player-badges {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   max-width: min(760px, 100%);
-  padding: 4px 0;
+  padding: 6px 0;
   overflow: hidden;
 }
 
 .player-badge {
   flex: none;
   box-sizing: border-box;
-  height: 17px;
-  padding: 2px 3px;
+  height: 28px;
+  padding: 3px 5px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .player-badge img {
   display: block;
-  height: 13px;
-  min-width: 28px;
-  max-width: 78px;
+  height: 22px;
+  min-width: 46px;
+  max-width: 128px;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .parental-guide {
@@ -2478,20 +2478,57 @@ button:disabled {
   min-width: 0;
 }
 
-.style-toggle-section {
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-}
-
 .custom-subtitle-style-controls {
   display: contents;
 }
 
-.custom-subtitle-style-controls.disabled > * {
-  opacity: .42;
-  pointer-events: none;
+.font-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.font-row-chevron {
+  color: rgba(255, 255, 255, .7);
+  font-size: 22px;
+}
+
+.font-picker-panel {
+  width: min(460px, 92vw);
+  max-height: 80vh;
+  gap: 12px;
+}
+
+.font-picker-panel .panel-actions {
+  justify-content: center;
+}
+
+.font-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.font-option .track-row {
+  flex: 1;
+}
+
+.font-option-sample {
+  display: inline-block;
+  width: 32px;
+  font-size: 18px;
+}
+
+.font-picker-error {
+  color: #ff6b6b;
 }
 
 .style-control-row {

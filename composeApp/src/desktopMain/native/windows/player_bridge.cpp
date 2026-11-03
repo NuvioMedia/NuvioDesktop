@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <clocale>
 #include <cmath>
 #include <condition_variable>
 #include <cctype>
@@ -1266,12 +1267,32 @@ public:
         }
     }
 
+    void setSubtitleVisible(bool visible) {
+        std::lock_guard<std::mutex> lock(mpvMutex);
+        if (!mpv) return;
+        mpvApi().setPropertyString(mpv, "sub-visibility", visible ? "yes" : "no");
+    }
+
     void setSubtitleDelayMs(int delayMs) {
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         int clamped = std::max(-60000, std::min(60000, delayMs));
         double delaySeconds = (double)clamped / 1000.0;
         mpvApi().setProperty(mpv, "sub-delay", MPV_FORMAT_DOUBLE, &delaySeconds);
+    }
+
+    void applySubtitleAppearance(
+        const std::string &font,
+        const std::string &fontsDir,
+        const std::string &shadowColor,
+        double shadowOffset
+    ) {
+        if (!fontsDir.empty()) setStringProperty("sub-fonts-dir", fontsDir);
+        setStringProperty("sub-font", font);
+        setStringProperty("sub-shadow-color", shadowColor);
+        std::lock_guard<std::mutex> lock(mpvMutex);
+        if (!mpv) return;
+        mpvApi().setProperty(mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadowOffset);
     }
 
     void applySubtitleStyle(
@@ -1287,7 +1308,7 @@ public:
     ) {
         double size = std::max(18.0, std::min(96.0, fontSize));
         int64_t position = std::max(0, std::min(150, subPos));
-        double scale = useLibass ? size / 54.0 : 1.0;
+        double scale = 1.0;
         double outline = std::max(0.0, std::min(8.0, outlineSize));
         std::string resolvedTextColor = textColor.empty() ? "#FFFFFFFF" : textColor;
         std::string resolvedBackgroundColor = backgroundColor.empty() ? "#00000000" : backgroundColor;
@@ -1306,18 +1327,12 @@ public:
         bool stripSdhChanged = !hasAppliedSubtitleStyle || appliedSubtitleStripSdh != stripSdh;
 
         if (modeChanged) {
-            setStringProperty("sub-ass-override", useLibass ? "scale" : "force");
+            setStringProperty("sub-ass-override", "scale");
         }
-        if (modeChanged || (!useLibass && boldChanged)) {
+        if (modeChanged) {
             std::lock_guard<std::mutex> lock(mpvMutex);
             if (!mpv) return;
-            const char *styleOverridesCommand[] = {
-                "change-list",
-                "sub-ass-style-overrides",
-                useLibass ? "clr" : "set",
-                useLibass ? "" : (bold ? "Bold=1" : "Bold=0"),
-                nullptr,
-            };
+            const char *styleOverridesCommand[] = {"change-list", "sub-ass-style-overrides", "clr", "", nullptr};
             mpvApi().command(mpv, styleOverridesCommand);
         }
         if (modeChanged || sizeChanged || positionChanged) {
@@ -1332,7 +1347,7 @@ public:
             }
         }
 
-        if (!useLibass) {
+        {
             if (modeChanged || textColorChanged) {
                 setStringProperty("sub-color", resolvedTextColor);
             }
@@ -1340,7 +1355,7 @@ public:
                 setStringProperty("sub-back-color", resolvedBackgroundColor);
                 setStringProperty(
                     "sub-border-style",
-                    resolvedBackgroundColor.rfind("#00", 0) == 0 ? "outline-and-shadow" : "opaque-box"
+                    resolvedBackgroundColor.rfind("#00", 0) == 0 ? "outline-and-shadow" : "background-box"
                 );
             }
             if (modeChanged || outlineColorChanged) {
@@ -1716,6 +1731,12 @@ private:
         bool fastProfile = !nvidiaRtxSuperResolutionEnabled && unifiedMemoryGpu();
         {
             std::lock_guard<std::mutex> lock(mpvMutex);
+            // libmpv requires LC_NUMERIC=C: non-"C" locales that use comma
+            // decimals make mpv_create fail. The JVM formats numbers through
+            // java.util.Locale, so this C-level change does not affect Java.
+            if (setlocale(LC_NUMERIC, "C") == nullptr) {
+                throw std::runtime_error("setlocale(LC_NUMERIC, \"C\") failed.");
+            }
             mpv = api.create();
             if (!mpv) {
                 throw std::runtime_error("mpv_create failed.");
@@ -2969,6 +2990,12 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowBorderles
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSubtitleVisible(JNIEnv *, jobject, jlong handle, jboolean visible) {
+    auto player = playerFromHandle(handle);
+    if (player) player->setSubtitleVisible(visible == JNI_TRUE);
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSubtitleDelayMs(JNIEnv *, jobject, jlong handle, jint delayMs) {
     auto player = playerFromHandle(handle);
     if (player) player->setSubtitleDelayMs(delayMs);
@@ -3001,5 +3028,25 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
         subPos,
         useLibass == JNI_TRUE,
         stripSdh == JNI_TRUE
+    );
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSubtitleAppearance(
+    JNIEnv *env,
+    jobject,
+    jlong handle,
+    jstring font,
+    jstring fontsDir,
+    jstring shadowColor,
+    jfloat shadowOffset
+) {
+    auto player = playerFromHandle(handle);
+    if (!player) return;
+    player->applySubtitleAppearance(
+        jstringToUtf8(env, font),
+        jstringToUtf8(env, fontsDir),
+        jstringToUtf8(env, shadowColor),
+        shadowOffset
     );
 }

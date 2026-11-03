@@ -540,8 +540,21 @@ internal fun findPersistedSubtitleTrackIndex(
     tracks: List<SubtitleTrack>,
     preference: PersistedPlayerTrackPreference,
 ): Int {
+    // Older desktop builds saved no forced flag; the name still says it (e.g. "English-FORCED-PGS").
+    val wantsForced = preference.subtitleIsForced ?: inferForcedSubtitleTrack(
+        label = preference.subtitleName,
+        language = preference.subtitleLanguage,
+        trackId = null,
+    )
+    // Track ids are positional (mpv "3"), so the same id can be another track in a later episode.
+    val savedLanguage = preference.subtitleLanguage?.takeIf { it.isNotBlank() }
     preference.subtitleTrackId?.takeIf { it.isNotBlank() }?.let { trackId ->
-        tracks.firstOrNull { it.id == trackId }?.let { return it.index }
+        tracks.firstOrNull { track ->
+            track.id == trackId &&
+                (!wantsForced || track.isForced) &&
+                (savedLanguage == null || track.language.isNullOrBlank() ||
+                    SubtitleLanguageMatching.matchesLanguageCode(track.language, savedLanguage))
+        }?.let { return it.index }
     }
 
     val languageCandidates = preference.subtitleLanguage?.takeIf { it.isNotBlank() }?.let { language ->
@@ -550,7 +563,7 @@ internal fun findPersistedSubtitleTrackIndex(
                 subtitleTrackMatchesLanguage(tracks[index], language)
         }
     }.orEmpty()
-    val forcedFiltered = if (preference.subtitleIsForced == true) {
+    val forcedFiltered = if (wantsForced) {
         languageCandidates.filter { index -> tracks[index].isForced }
     } else {
         languageCandidates
@@ -574,7 +587,7 @@ internal fun findPersistedSubtitleTrackIndex(
 
     preference.subtitleName?.takeIf { it.isNotBlank() }?.let { name ->
         val nameMatches = tracks.filter { it.label.equals(name, ignoreCase = true) }
-        val forcedNameMatches = if (preference.subtitleIsForced == true) {
+        val forcedNameMatches = if (wantsForced) {
             nameMatches.filter { it.isForced }
         } else {
             nameMatches

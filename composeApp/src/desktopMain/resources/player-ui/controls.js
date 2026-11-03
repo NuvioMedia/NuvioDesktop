@@ -103,9 +103,6 @@ const subtitleStyleRail = document.getElementById("subtitleStyleRail");
 const subtitleStyleRailTitle = document.getElementById("subtitleStyleRailTitle");
 const addonSubtitleList = document.getElementById("addonSubtitleList");
 const subtitleStylePanel = document.getElementById("subtitleStylePanel");
-const customSubtitleStyleLabel = document.getElementById("customSubtitleStyleLabel");
-const customSubtitleStyleToggle = document.getElementById("customSubtitleStyleToggle");
-const customSubtitleStyleControls = document.getElementById("customSubtitleStyleControls");
 const subtitleDelayLabel = document.getElementById("subtitleDelayLabel");
 const subtitleDelayMinus = document.getElementById("subtitleDelayMinus");
 const subtitleDelayValue = document.getElementById("subtitleDelayValue");
@@ -122,6 +119,36 @@ const fontSizeValue = document.getElementById("fontSizeValue");
 const fontSizePlus = document.getElementById("fontSizePlus");
 const outlineLabel = document.getElementById("outlineLabel");
 const outlineToggle = document.getElementById("outlineToggle");
+const subtitleFontLabel = document.getElementById("subtitleFontLabel");
+const subtitleFontRow = document.getElementById("subtitleFontRow");
+const subtitleFontName = document.getElementById("subtitleFontName");
+const subtitleFontModal = document.getElementById("subtitleFontModal");
+const subtitleFontModalTitle = document.getElementById("subtitleFontModalTitle");
+const subtitleFontList = document.getElementById("subtitleFontList");
+const subtitleFontHint = document.getElementById("subtitleFontHint");
+const subtitleFontError = document.getElementById("subtitleFontError");
+const subtitleFontImport = document.getElementById("subtitleFontImport");
+const subtitleFontDone = document.getElementById("subtitleFontDone");
+const backgroundColorLabel = document.getElementById("backgroundColorLabel");
+const backgroundColorSwatches = document.getElementById("backgroundColorSwatches");
+const backgroundOpacityLabel = document.getElementById("backgroundOpacityLabel");
+const backgroundOpacityValue = document.getElementById("backgroundOpacityValue");
+const backgroundOpacityMinus = document.getElementById("backgroundOpacityMinus");
+const backgroundOpacityPlus = document.getElementById("backgroundOpacityPlus");
+const outlineColorSection = document.getElementById("outlineColorSection");
+const shadowOpacitySection = document.getElementById("shadowOpacitySection");
+const shadowSizeSection = document.getElementById("shadowSizeSection");
+let fontPickerOpen = false;
+const shadowLabel = document.getElementById("shadowLabel");
+const shadowToggle = document.getElementById("shadowToggle");
+const shadowOpacityLabel = document.getElementById("shadowOpacityLabel");
+const shadowOpacityValue = document.getElementById("shadowOpacityValue");
+const shadowOpacityMinus = document.getElementById("shadowOpacityMinus");
+const shadowOpacityPlus = document.getElementById("shadowOpacityPlus");
+const shadowSizeLabel = document.getElementById("shadowSizeLabel");
+const shadowSizeValue = document.getElementById("shadowSizeValue");
+const shadowSizeMinus = document.getElementById("shadowSizeMinus");
+const shadowSizePlus = document.getElementById("shadowSizePlus");
 const boldLabel = document.getElementById("boldLabel");
 const boldToggle = document.getElementById("boldToggle");
 const bottomOffsetLabel = document.getElementById("bottomOffsetLabel");
@@ -248,7 +275,6 @@ let state = {
   subtitleBuiltInTabLabel: "Built-in",
   subtitleAddonsTabLabel: "Addons",
   subtitleStyleTabLabel: "Style",
-  customSubtitleStyleLabel: "Use custom styling",
   forcedLabel: "Forced",
   noneLabel: "None",
   fetchSubtitlesLabel: "Tap to fetch subtitles",
@@ -351,7 +377,6 @@ let state = {
   isLoadingAddonSubtitles: false,
   selectedAddonSubtitleId: "",
   useCustomSubtitles: false,
-  customSubtitleStylingEnabled: true,
   subtitleDelayMs: 0,
   hasSelectedAddonSubtitle: false,
   subtitleAutoSyncCapturedPositionMs: -1,
@@ -399,8 +424,6 @@ let pendingIsPlaying = null;
 let pendingPlaybackTimer = 0;
 let lastNativeIsPlaying = true;
 let suppressNextPointerToggleClick = false;
-let pendingCustomSubtitleStyling = null;
-let pendingCustomSubtitleStylingTimer = 0;
 let pendingSpeedIndex = null;
 let pendingSpeedTimer = 0;
 let submitIntroDraft = {
@@ -1042,6 +1065,7 @@ const setModalVisibility = (modal, visible, animated = true) => {
 const closePlayerModal = (notifyDismiss = false, animated = true) => {
   const closingModal = activeModal;
   activeModal = "";
+  if (fontPickerOpen) setFontPickerOpen(false);
   modalElements.forEach(modal => {
     setModalVisibility(modal, false, animated);
   });
@@ -1251,6 +1275,7 @@ const appendSubtitleLanguageRow = item => {
     activeSubtitleLanguageKey = item.key;
     const options = subtitleSelectionOptions().filter(option => option.languageKey === item.key);
     pendingSubtitleOptionId = options.some(option => option.id === pendingSubtitleOptionId) ? pendingSubtitleOptionId : "";
+    showHiddenSubtitles();
     if (item.key === "__off__") send("selectBuiltInSubtitleTrack", -1);
     renderSubtitleModal();
     if (event.detail === 0 && item.key !== "__off__") {
@@ -1281,6 +1306,7 @@ const appendSubtitleOptionRow = option => {
   row.addEventListener("click", event => {
     event.stopPropagation();
     pendingSubtitleOptionId = option.id;
+    showHiddenSubtitles();
     if (option.kind === "builtIn") send("selectBuiltInSubtitleTrack", option.index);
     else send("selectAddonSubtitle", option.index);
     renderSubtitleModal();
@@ -1449,27 +1475,12 @@ const renderAutoSyncCues = () => {
 
 const renderSubtitleStylePanel = () => {
   const style = state.subtitleStyle || {};
-  const storedCustomStyling = state.customSubtitleStylingEnabled !== false;
-  if (pendingCustomSubtitleStyling !== null && pendingCustomSubtitleStyling === storedCustomStyling) {
-    pendingCustomSubtitleStyling = null;
-    window.clearTimeout(pendingCustomSubtitleStylingTimer);
-    pendingCustomSubtitleStylingTimer = 0;
-  }
-  const customStylingEnabled = pendingCustomSubtitleStyling ?? storedCustomStyling;
   subtitleDelayLabel.textContent = state.subtitleDelayLabel || "Subtitle Delay";
   subtitleDelayValue.textContent = formatDelay(state.subtitleDelayMs);
   subtitleDelayReset.textContent = state.resetLabel || "Reset";
   autoSyncLabel.textContent = state.autoSyncLabel || "Auto Sync";
   autoSyncReload.textContent = state.reloadSmallLabel || "Reload";
   autoSyncCapture.textContent = state.captureLineLabel || "Capture";
-  customSubtitleStyleLabel.textContent = state.customSubtitleStyleLabel || "Use custom styling";
-  customSubtitleStyleToggle.textContent = customStylingEnabled
-    ? (state.onLabel || "On")
-    : (state.offLabel || "Off");
-  customSubtitleStyleToggle.classList.toggle("primary", customStylingEnabled);
-  customSubtitleStyleToggle.setAttribute("aria-pressed", customStylingEnabled ? "true" : "false");
-  customSubtitleStyleControls.classList.toggle("disabled", !customStylingEnabled);
-  customSubtitleStyleControls.setAttribute("aria-disabled", customStylingEnabled ? "false" : "true");
   fontSizeLabel.textContent = state.fontSizeLabel || "Font Size";
   fontSizeValue.textContent = `${Number(style.fontSizeSp) || 18}sp`;
   outlineLabel.textContent = state.outlineLabel || "Outline";
@@ -1486,9 +1497,82 @@ const renderSubtitleStylePanel = () => {
   textOpacityValue.textContent = `${textAlpha}%`;
   outlineColorLabel.textContent = state.outlineColorLabel || "Outline Color";
   subtitleStyleReset.textContent = state.resetDefaultsLabel || "Reset Defaults";
+  subtitleFontLabel.textContent = state.fontLabel || "Font";
+  const activeFont = (state.subtitleFonts || []).find(font => font.id === (style.fontId || "default"));
+  subtitleFontName.textContent = activeFont ? activeFont.label : ((state.subtitleFonts || [])[0] || {}).label || "";
+  renderFontPicker();
+  shadowLabel.textContent = state.shadowLabel || "Drop shadow";
+  shadowToggle.textContent = style.shadowEnabled ? (state.onLabel || "On") : (state.offLabel || "Off");
+  shadowToggle.classList.toggle("primary", Boolean(style.shadowEnabled));
+  shadowOpacityLabel.textContent = state.shadowOpacityLabel || "Shadow opacity";
+  shadowOpacityValue.textContent = `${Number(style.shadowOpacity) || 0}%`;
+  shadowSizeLabel.textContent = state.shadowSizeLabel || "Shadow size";
+  shadowSizeValue.textContent = String(Number(style.shadowSize) || 1);
   renderSwatches(subtitleColorSwatches, state.subtitleColorSwatches, style.textColor, "subtitleTextColor");
-  renderSwatches(outlineColorSwatches, state.subtitleOutlineColorSwatches, style.outlineColor, "subtitleOutlineColor");
+  renderSwatches(outlineColorSwatches, state.subtitleColorSwatches, style.outlineColor, "subtitleOutlineColor");
+  backgroundColorLabel.textContent = state.backgroundColorLabel || "Background Color";
+  backgroundOpacityLabel.textContent = state.backgroundOpacityLabel || "Background opacity";
+  backgroundOpacityValue.textContent = `${Math.round((parseArgb(style.backgroundColor).alpha / 255) * 100)}%`;
+  renderSwatches(backgroundColorSwatches, state.subtitleColorSwatches, style.backgroundColor, "subtitleBackgroundColor");
+  outlineColorSection.hidden = !style.outlineEnabled;
+  shadowOpacitySection.hidden = !style.shadowEnabled;
+  shadowSizeSection.hidden = !style.shadowEnabled;
   renderAutoSyncCues();
+};
+
+const isBuiltInFont = id => ["default", "sans", "serif", "mono"].includes(id);
+const fontSampleFamily = id => ({ sans: "sans-serif", serif: "serif", mono: "monospace" })[id] || "inherit";
+
+const renderFontPicker = () => {
+  subtitleFontModalTitle.textContent = state.fontLabel || "Font";
+  subtitleFontImport.textContent = state.fontImportLabel || "Import font";
+  subtitleFontDone.textContent = state.doneLabel || "Done";
+  subtitleFontHint.textContent = state.fontImportHint || "";
+  subtitleFontError.textContent = state.fontImportError || "";
+  subtitleFontError.hidden = !state.subtitleFontImportFailed;
+  if (!fontPickerOpen) return;
+  const selectedId = (state.subtitleStyle || {}).fontId || "default";
+  subtitleFontList.textContent = "";
+  (state.subtitleFonts || []).forEach((font, index) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "font-option";
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `track-row${font.id === selectedId ? " selected" : ""}`;
+    row.addEventListener("click", event => {
+      event.stopPropagation();
+      send("subtitleFont", index);
+    });
+    const sample = document.createElement("span");
+    sample.className = "font-option-sample";
+    sample.style.fontFamily = fontSampleFamily(font.id);
+    sample.textContent = "Aa";
+    const label = document.createElement("span");
+    label.className = "track-label";
+    label.textContent = font.label;
+    row.append(sample, label);
+    if (font.id === selectedId) row.appendChild(buildCheckIcon());
+    wrapper.appendChild(row);
+    if (!isBuiltInFont(font.id)) {
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "panel-button";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", (state.fontRemoveLabel || "Remove {name}").replace("{name}", font.label));
+      remove.addEventListener("click", event => {
+        event.stopPropagation();
+        send("subtitleFontRemove", index);
+      });
+      wrapper.appendChild(remove);
+    }
+    subtitleFontList.appendChild(wrapper);
+  });
+};
+
+const setFontPickerOpen = open => {
+  fontPickerOpen = open;
+  if (open) renderFontPicker();
+  setModalVisibility(subtitleFontModal, open);
 };
 
 const renderSubtitleModal = () => {
@@ -3189,19 +3273,6 @@ autoSyncCapture.addEventListener("click", event => {
   event.stopPropagation();
   send("subtitleAutoSyncCapture", 0);
 });
-customSubtitleStyleToggle.addEventListener("click", event => {
-  event.stopPropagation();
-  if (pendingCustomSubtitleStyling !== null) return;
-  pendingCustomSubtitleStyling = !(state.customSubtitleStylingEnabled !== false);
-  renderSubtitleStylePanel();
-  send("subtitleCustomStyleToggle", 0);
-  window.clearTimeout(pendingCustomSubtitleStylingTimer);
-  pendingCustomSubtitleStylingTimer = window.setTimeout(() => {
-    pendingCustomSubtitleStyling = null;
-    pendingCustomSubtitleStylingTimer = 0;
-    renderSubtitleStylePanel();
-  }, 1500);
-});
 fontSizeMinus.addEventListener("click", event => {
   event.stopPropagation();
   send("subtitleFontSizeDelta", -2);
@@ -3229,14 +3300,60 @@ bottomOffsetPlus.addEventListener("click", event => {
 textOpacityMinus.addEventListener("click", event => {
   event.stopPropagation();
   const style = state.subtitleStyle || {};
-  const next = Math.max(0, Math.round((parseArgb(style.textColor).alpha / 255) * 100) - 10);
+  const next = Math.max(0, Math.round((parseArgb(style.textColor).alpha / 255) * 100) - 5);
   send("subtitleTextOpacity", next);
 });
 textOpacityPlus.addEventListener("click", event => {
   event.stopPropagation();
   const style = state.subtitleStyle || {};
-  const next = Math.min(100, Math.round((parseArgb(style.textColor).alpha / 255) * 100) + 10);
+  const next = Math.min(100, Math.round((parseArgb(style.textColor).alpha / 255) * 100) + 5);
   send("subtitleTextOpacity", next);
+});
+backgroundOpacityMinus.addEventListener("click", event => {
+  event.stopPropagation();
+  const style = state.subtitleStyle || {};
+  send("subtitleBackgroundOpacity", Math.max(0, Math.round((parseArgb(style.backgroundColor).alpha / 255) * 100) - 5));
+});
+backgroundOpacityPlus.addEventListener("click", event => {
+  event.stopPropagation();
+  const style = state.subtitleStyle || {};
+  send("subtitleBackgroundOpacity", Math.min(100, Math.round((parseArgb(style.backgroundColor).alpha / 255) * 100) + 5));
+});
+subtitleFontRow.addEventListener("click", event => {
+  event.stopPropagation();
+  setFontPickerOpen(true);
+});
+subtitleFontDone.addEventListener("click", event => {
+  event.stopPropagation();
+  setFontPickerOpen(false);
+});
+subtitleFontImport.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleFontImport", 0);
+});
+subtitleFontModal.addEventListener("click", event => {
+  event.stopPropagation();
+  if (event.target === subtitleFontModal) setFontPickerOpen(false);
+});
+shadowToggle.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleShadowToggle", 0);
+});
+shadowOpacityMinus.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleShadowOpacityDelta", -5);
+});
+shadowOpacityPlus.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleShadowOpacityDelta", 5);
+});
+shadowSizeMinus.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleShadowSizeDelta", -1);
+});
+shadowSizePlus.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleShadowSizeDelta", 1);
 });
 subtitleStyleReset.addEventListener("click", event => {
   event.stopPropagation();
@@ -3427,6 +3544,13 @@ volumeSlider.addEventListener("input", event => {
 });
 
 let preMuteVolumeLevel = 1.0;
+let subtitlesHidden = false;
+
+function showHiddenSubtitles() {
+  if (!subtitlesHidden) return;
+  subtitlesHidden = false;
+  send("subtitleVisibility", 1);
+}
 
 volumeButton.addEventListener("click", () => {
   noteChromeActivity();
@@ -4156,7 +4280,9 @@ document.addEventListener("keydown", event => {
   if (event.code === "KeyV") {
     event.preventDefault();
     const isOff = !normalizeTracks(state.subtitleTracks).some(t => t.selected);
-    if (isOff) {
+    if (subtitlesHidden && !isOff) {
+      showHiddenSubtitles();
+    } else if (isOff) {
       if (window.lastActiveSubtitle) {
         if (window.lastActiveSubtitle.kind === "builtIn") send("selectBuiltInSubtitleTrack", window.lastActiveSubtitle.index);
         else send("selectAddonSubtitle", window.lastActiveSubtitle.index);
@@ -4170,14 +4296,8 @@ document.addEventListener("keydown", event => {
         }
       }
     } else {
-      const activeOption = selectedSubtitleOption(subtitleSelectionOptions());
-      if (activeOption) {
-        window.lastActiveSubtitle = activeOption;
-      } else {
-        const activeTrack = normalizeTracks(state.subtitleTracks).find(t => t.selected);
-        if (activeTrack) window.lastActiveSubtitle = { kind: "builtIn", index: activeTrack.index };
-      }
-      send("selectBuiltInSubtitleTrack", -1);
+      subtitlesHidden = true;
+      send("subtitleVisibility", 0);
     }
     return;
   }

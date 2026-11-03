@@ -54,7 +54,8 @@ data class PlayerSettingsUiState(
     val subtitleStyle: SubtitleStyleState = SubtitleStyleState.DEFAULT,
     val streamReuseLastLinkEnabled: Boolean = false,
     val streamReuseLastLinkCacheHours: Int = 24,
-    val androidPlaybackEngine: AndroidPlaybackEngine = AndroidPlaybackEngine.Auto,
+    val androidPlaybackEngine: AndroidPlaybackEngine = AndroidPlaybackEngine.ExoPlayer,
+    val autoSwitchPlaybackEngineOnError: Boolean = true,
     val androidLibmpvVideoOutput: AndroidLibmpvVideoOutput = AndroidLibmpvVideoOutput.GpuNext,
     val androidLibmpvHardwareDecodingEnabled: Boolean = true,
     val androidLibmpvYuv420pEnabled: Boolean = false,
@@ -98,6 +99,7 @@ data class PlayerSettingsUiState(
     val useLibass: Boolean = true,
     val libassRenderType: String = "CUES",
     val libassRenderScale: String = "FULL",
+    val libassRenderMode: String = "OVERLAY",
     val iosVideoOutputPreset: IosVideoOutputPreset = IosVideoOutputPreset.NativeEdr,
     val iosToneMappingMode: IosToneMappingMode = IosToneMappingMode.Auto,
     val iosTargetPrimaries: IosTargetPrimaries = IosTargetPrimaries.Auto,
@@ -141,7 +143,8 @@ object PlayerSettingsRepository {
     private var subtitleStyle = SubtitleStyleState.DEFAULT
     private var streamReuseLastLinkEnabled = false
     private var streamReuseLastLinkCacheHours = 24
-    private var androidPlaybackEngine = AndroidPlaybackEngine.Auto
+    private var androidPlaybackEngine = AndroidPlaybackEngine.ExoPlayer
+    private var autoSwitchPlaybackEngineOnError = true
     private var androidLibmpvVideoOutput = AndroidLibmpvVideoOutput.GpuNext
     private var androidLibmpvHardwareDecodingEnabled = true
     private var androidLibmpvYuv420pEnabled = false
@@ -185,6 +188,7 @@ object PlayerSettingsRepository {
     private var useLibass = true
     private var libassRenderType = "OVERLAY_OPEN_GL"
     private var libassRenderScale = "FULL"
+    private var libassRenderMode = "OVERLAY"
     private var iosVideoOutputPreset = IosVideoOutputPreset.NativeEdr
     private var iosToneMappingMode = IosToneMappingMode.Auto
     private var iosTargetPrimaries = IosTargetPrimaries.Auto
@@ -233,7 +237,8 @@ object PlayerSettingsRepository {
         subtitleStyle = SubtitleStyleState.DEFAULT
         streamReuseLastLinkEnabled = false
         streamReuseLastLinkCacheHours = 24
-        androidPlaybackEngine = AndroidPlaybackEngine.Auto
+        androidPlaybackEngine = AndroidPlaybackEngine.ExoPlayer
+        autoSwitchPlaybackEngineOnError = true
         androidLibmpvVideoOutput = AndroidLibmpvVideoOutput.GpuNext
         androidLibmpvHardwareDecodingEnabled = true
         androidLibmpvYuv420pEnabled = false
@@ -278,6 +283,7 @@ object PlayerSettingsRepository {
         useLibass = true
         libassRenderType = "OVERLAY_OPEN_GL"
         libassRenderScale = "FULL"
+        libassRenderMode = "OVERLAY"
         iosVideoOutputPreset = IosVideoOutputPreset.NativeEdr
         iosToneMappingMode = IosToneMappingMode.Auto
         iosTargetPrimaries = IosTargetPrimaries.Auto
@@ -356,12 +362,14 @@ object PlayerSettingsRepository {
                 ?: SubtitleStyleState.DEFAULT.useForcedSubtitles,
             showOnlyPreferredLanguages = PlayerSettingsStorage.loadSubtitleShowOnlyPreferredLanguages()
                 ?: SubtitleStyleState.DEFAULT.showOnlyPreferredLanguages,
+            appearance = decodeSubtitleAppearance(PlayerSettingsStorage.loadSubtitleAppearance()),
         )
         streamReuseLastLinkEnabled = PlayerSettingsStorage.loadStreamReuseLastLinkEnabled() ?: false
         streamReuseLastLinkCacheHours = PlayerSettingsStorage.loadStreamReuseLastLinkCacheHours() ?: 24
         androidPlaybackEngine = PlayerSettingsStorage.loadAndroidPlaybackEngine()
             ?.let { runCatching { AndroidPlaybackEngine.valueOf(it) }.getOrNull() }
-            ?: AndroidPlaybackEngine.Auto
+            ?: AndroidPlaybackEngine.ExoPlayer
+        autoSwitchPlaybackEngineOnError = PlayerSettingsStorage.loadAutoSwitchPlaybackEngineOnError() ?: true
         androidLibmpvVideoOutput = PlayerSettingsStorage.loadAndroidLibmpvVideoOutput()
             ?.let { runCatching { AndroidLibmpvVideoOutput.valueOf(it) }.getOrNull() }
             ?: AndroidLibmpvVideoOutput.GpuNext
@@ -447,6 +455,7 @@ object PlayerSettingsRepository {
         useLibass = PlayerSettingsStorage.loadUseLibass() ?: true
         libassRenderType = PlayerSettingsStorage.loadLibassRenderType() ?: "CUES"
         libassRenderScale = PlayerSettingsStorage.loadLibassRenderScale() ?: "FULL"
+        libassRenderMode = PlayerSettingsStorage.loadLibassRenderMode() ?: "OVERLAY"
         iosVideoOutputPreset = PlayerSettingsStorage.loadIosVideoOutputPreset()
             ?.let { runCatching { IosVideoOutputPreset.valueOf(it) }.getOrNull() }
             ?: IosVideoOutputPreset.NativeEdr
@@ -634,12 +643,17 @@ object PlayerSettingsRepository {
 
     fun setSubtitleStyle(style: SubtitleStyleState) {
         ensureLoaded()
-        val normalized = style.copy(fontSizeSp = style.fontSizeSp.coerceIn(subtitleFontSizeRangeSp))
+        val normalized = style.copy(
+            fontSizeSp = style.fontSizeSp.coerceIn(subtitleFontSizeRangeSp),
+            bottomOffset = style.bottomOffset.coerceIn(0, 200),
+            appearance = style.appearance.normalized(),
+        )
         if (subtitleStyle == normalized) return
         subtitleStyle = normalized
         publish()
         PlayerSettingsStorage.saveSubtitleTextColor(normalized.textColor.toStorageHexString())
         PlayerSettingsStorage.saveSubtitleBackgroundColor(normalized.backgroundColor.toStorageHexString())
+        PlayerSettingsStorage.saveSubtitleAppearance(normalized.appearance.encode())
         PlayerSettingsStorage.saveSubtitleOutlineColor(normalized.outlineColor.toStorageHexString())
         PlayerSettingsStorage.saveSubtitleOutlineEnabled(normalized.outlineEnabled)
         PlayerSettingsStorage.saveSubtitleOutlineWidth(normalized.outlineWidth)
@@ -673,6 +687,14 @@ object PlayerSettingsRepository {
         androidPlaybackEngine = engine
         publish()
         PlayerSettingsStorage.saveAndroidPlaybackEngine(engine.name)
+    }
+
+    fun setAutoSwitchPlaybackEngineOnError(enabled: Boolean) {
+        ensureLoaded()
+        if (autoSwitchPlaybackEngineOnError == enabled) return
+        autoSwitchPlaybackEngineOnError = enabled
+        publish()
+        PlayerSettingsStorage.saveAutoSwitchPlaybackEngineOnError(enabled)
     }
 
     fun setAndroidLibmpvVideoOutput(output: AndroidLibmpvVideoOutput) {
@@ -1066,6 +1088,14 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveLibassRenderScale(scale)
     }
 
+    fun setLibassRenderMode(mode: String) {
+        ensureLoaded()
+        if (libassRenderMode == mode) return
+        libassRenderMode = mode
+        publish()
+        PlayerSettingsStorage.saveLibassRenderMode(mode)
+    }
+
     fun setIosVideoOutputPreset(preset: IosVideoOutputPreset) {
         ensureLoaded()
         iosVideoOutputPreset = preset
@@ -1254,6 +1284,7 @@ object PlayerSettingsRepository {
             streamReuseLastLinkEnabled = streamReuseLastLinkEnabled,
             streamReuseLastLinkCacheHours = streamReuseLastLinkCacheHours,
             androidPlaybackEngine = androidPlaybackEngine,
+            autoSwitchPlaybackEngineOnError = autoSwitchPlaybackEngineOnError,
             androidLibmpvVideoOutput = androidLibmpvVideoOutput,
             androidLibmpvHardwareDecodingEnabled = androidLibmpvHardwareDecodingEnabled,
             androidLibmpvYuv420pEnabled = androidLibmpvYuv420pEnabled,
@@ -1297,6 +1328,7 @@ object PlayerSettingsRepository {
             useLibass = useLibass,
             libassRenderType = libassRenderType,
             libassRenderScale = libassRenderScale,
+            libassRenderMode = libassRenderMode,
             iosVideoOutputPreset = iosVideoOutputPreset,
             iosToneMappingMode = iosToneMappingMode,
             iosTargetPrimaries = iosTargetPrimaries,

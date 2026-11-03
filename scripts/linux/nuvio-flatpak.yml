@@ -34,6 +34,7 @@ finish-args:
   - --filesystem=xdg-run/pipewire-0:ro
   - --filesystem=xdg-run/discord-ipc-0
   - --filesystem=xdg-run/app/com.discordapp.Discord:create
+  - --persist=.java
   - --env=LD_LIBRARY_PATH=/app/lib:/app/lib64:/app/opt/Nuvio/lib
   - --env=XDG_DATA_DIRS=/app/share:/usr/share
   

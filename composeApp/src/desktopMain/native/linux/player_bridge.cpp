@@ -1949,23 +1949,30 @@ JNIEXPORT void JNICALL NP(clearExternalSubtitlesAndSelect)(JNIEnv *, jobject, jl
     else mpv_set_property(p->mpv, "sid", MPV_FORMAT_INT64, &id);
 }
 
+JNIEXPORT void JNICALL NP(setSubtitleVisible)(JNIEnv *, jobject, jlong handle, jboolean visible) {
+    Player *p = asPlayer(handle);
+    if (p) mpv_set_property_string(p->mpv, "sub-visibility", visible ? "yes" : "no");
+}
+
 JNIEXPORT void JNICALL NP(setSubtitleDelayMs)(JNIEnv *, jobject, jlong handle, jint delayMs) {
     Player *p = asPlayer(handle);
     if (p) mpvSetDouble(p->mpv, "sub-delay", delayMs / 1000.0);
 }
 
 JNIEXPORT void JNICALL NP(applySubtitleStyle)(
-    JNIEnv *env, jobject, jlong handle, jstring textColor, jstring /*backgroundColor*/,
+    JNIEnv *env, jobject, jlong handle, jstring textColor, jstring backgroundColor,
     jstring outlineColor, jfloat outlineSize, jboolean bold, jfloat fontSize, jint subPos,
     jboolean useLibass, jboolean stripSdh) {
     Player *p = asPlayer(handle);
     if (!p) return;
-    // Keep the track's own ASS styling when libass rendering is on, and let the
-    // settings below take over when it is off (matching the Windows bridge).
-    mpv_set_property_string(p->mpv, "sub-ass-override",
-                            useLibass == JNI_TRUE ? "scale" : "force");
+    mpv_set_property_string(p->mpv, "sub-ass-override", "scale");
     mpv_set_property_string(p->mpv, "sub-color", jstringToUtf8(env, textColor).c_str());
     mpv_set_property_string(p->mpv, "sub-border-color", jstringToUtf8(env, outlineColor).c_str());
+    std::string background = jstringToUtf8(env, backgroundColor);
+    if (background.empty()) background = "#00000000";
+    mpv_set_property_string(p->mpv, "sub-back-color", background.c_str());
+    mpv_set_property_string(p->mpv, "sub-border-style",
+                            background.rfind("#00", 0) == 0 ? "outline-and-shadow" : "background-box");
     std::string border = std::to_string(outlineSize);
     mpv_set_property_string(p->mpv, "sub-border-size", border.c_str());
     mpv_set_property_string(p->mpv, "sub-bold", bold == JNI_TRUE ? "yes" : "no");
@@ -1976,6 +1983,19 @@ JNIEXPORT void JNICALL NP(applySubtitleStyle)(
     // Strip captions written for deaf and hard-of-hearing viewers.
     mpv_set_property_string(p->mpv, "sub-filter-sdh", stripSdh == JNI_TRUE ? "yes" : "no");
     mpv_set_property_string(p->mpv, "sub-filter-sdh-harder", stripSdh == JNI_TRUE ? "yes" : "no");
+}
+
+JNIEXPORT void JNICALL NP(setSubtitleAppearance)(
+    JNIEnv *env, jobject, jlong handle, jstring font, jstring fontsDir, jstring shadowColor,
+    jfloat shadowOffset) {
+    Player *p = asPlayer(handle);
+    if (!p) return;
+    std::string dir = jstringToUtf8(env, fontsDir);
+    if (!dir.empty()) mpv_set_property_string(p->mpv, "sub-fonts-dir", dir.c_str());
+    mpv_set_property_string(p->mpv, "sub-font", jstringToUtf8(env, font).c_str());
+    mpv_set_property_string(p->mpv, "sub-shadow-color", jstringToUtf8(env, shadowColor).c_str());
+    std::string offset = std::to_string(shadowOffset);
+    mpv_set_property_string(p->mpv, "sub-shadow-offset", offset.c_str());
 }
 
 // ---- Phase 2 stubs: webview controls / window chrome / focus ------------

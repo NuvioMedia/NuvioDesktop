@@ -1,6 +1,8 @@
 package com.nuvio.app.features.player
 
 import com.nuvio.app.core.i18n.localizedSeasonEpisodeCode
+import com.nuvio.app.core.network.NetworkCondition
+import com.nuvio.app.core.network.NetworkStatusRepository
 import com.nuvio.app.core.ui.LocalFold
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.party.PartyRepository
@@ -12,6 +14,7 @@ import com.nuvio.app.features.shuffle.shuffleEpisodeProgress
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +32,7 @@ import com.nuvio.app.features.player.skip.SkipIntervalLookup
 import com.nuvio.app.features.player.skip.autoSkipKey
 import com.nuvio.app.features.player.skip.autoSkipKeysCompletedBy
 import com.nuvio.app.features.player.skip.resolveSkipIntervalLookup
+import com.nuvio.app.features.player.skip.segmentCategory
 import com.nuvio.app.features.player.skip.shouldAutoSkip
 import com.nuvio.app.features.player.skip.internalSkipAction
 import com.nuvio.app.features.player.skip.intervalsAtSeekPositions
@@ -46,11 +50,40 @@ import com.nuvio.app.features.watching.application.WatchingState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
+private const val SKIP_INTERVAL_RESOLVE_TIMEOUT_MS = 4_000L
+
+/**
+ * Coarse view of the playback snapshot. The engine publishes a snapshot every 250ms, while the
+ * effects below only care about the state flags and about the position at second granularity.
+ */
+private data class PlayerSnapshotSignals(
+    val isPlaying: Boolean,
+    val isLoading: Boolean,
+    val isEnded: Boolean,
+    val durationMs: Long,
+    val positionSeconds: Long,
+)
+
+/**
+ * True when the app already knows it has no usable connection. Unknown/Checking states are
+ * treated as "not offline" so we never suppress work we are not sure about.
+ */
+internal fun isNetworkOffline(): Boolean =
+    NetworkStatusRepository.uiState.value.isOfflineLike
+
+@Composable
+private fun rememberNetworkCondition(): NetworkCondition {
+    val uiState by remember { NetworkStatusRepository.uiState }.collectAsStateWithLifecycle()
+    return uiState.condition
+}
+
 @Composable
 internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
+    val networkCondition = rememberNetworkCondition()
     val currentFeedback = liveGestureFeedback ?: gestureFeedback
     LaunchedEffect(currentFeedback) {
         if (currentFeedback != null) {
@@ -123,6 +156,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         showChaptersPanel = false
         chapters = emptyList()
         chaptersLoadedForSourceUrl = null
+        clearChapterSkipState()
         episodeStreamsPanelState = EpisodeStreamsPanelState()
         PlayerStreamsRepository.clearEpisodeStreams()
         SubtitleRepository.clear()
@@ -270,12 +304,20 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
 
     LaunchedEffect(
         activeSourceUrl,
+        p2pResolvedSourceUrl,
         addonSubtitleFetchKey,
+        networkCondition,
     ) {
         if (activeSourceUrl.startsWith("file:") && externalSubtitles.isNotEmpty()) return@LaunchedEffect
         val fetchKey = addonSubtitleFetchKey ?: return@LaunchedEffect
-        if (autoFetchedAddonSubtitlesForKey == fetchKey) return@LaunchedEffect
-        autoFetchedAddonSubtitlesForKey = fetchKey
+        // For P2P streams, wait until the local engine URL is available before
+        // triggering the fetch so that hash computation can use the real HTTP URL.
+        if (activeTorrentInfoHash != null && p2pResolvedSourceUrl == null) return@LaunchedEffect
+        val effectiveFetchKey = if (p2pResolvedSourceUrl != null) "$fetchKey|p2p" else fetchKey
+        if (autoFetchedAddonSubtitlesForKey == effectiveFetchKey) return@LaunchedEffect
+        // Offline: leave the key unset so the fetch can run once connectivity returns.
+        if (isNetworkOffline()) return@LaunchedEffect
+        autoFetchedAddonSubtitlesForKey = effectiveFetchKey
         fetchAddonSubtitlesForActiveItem()
     }
 
@@ -324,6 +366,24 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
             delay(300)
         }
     }
+
+    // A pending carry-over is re-applied as soon as the new engine exposes its tracks; poll
+    // briefly, then give up.
+    LaunchedEffect(playerController, pendingEngineSwitchTrackPreference != null) {
+        if (playerController == null) return@LaunchedEffect
+        if (pendingEngineSwitchTrackPreference == null) return@LaunchedEffect
+
+        repeat(30) {
+            refreshTracks()
+            if (pendingEngineSwitchTrackPreference == null) return@LaunchedEffect
+            delay(300)
+        }
+
+        val pending = pendingEngineSwitchTrackPreference ?: return@LaunchedEffect
+        if (playerController?.playbackEngine == pending.targetEngine) {
+            // The new engine never exposed a matching track: drop the carry-over.
+            clearPendingEngineSwitchTrackPreference()
+        }    }
 
     LaunchedEffect(
         playerController,
@@ -393,7 +453,13 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
     DisposableEffect(Unit) {
         PlayerStreamsRepository.pauseSearchForPlayback()
         onDispose {
-            args.launchId?.let { launchId -> PlayerLaunchStore.update(launchId) { currentLaunch(it) } }
+            args.launchId?.let { launchId ->
+                PlayerLaunchStore.update(launchId) { currentLaunch(it) }
+                // The player is gone: release the launch payload once the restore window has
+                // passed (a configuration change recreates the composition and the player
+                // re-reads its launch from the store).
+                PlayerLaunchStore.markExited(launchId)
+            }
             playerController?.clearNowPlayingInfo()
             P2pStreamingEngine.shutdown()
             cancelNextEpisodePreload()
@@ -405,13 +471,30 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
 @Composable
 private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
     val folded = LocalFold.current != null
+
+    // The engine publishes a playback snapshot every 250ms. Reading the raw snapshot here
+    // would restart these effects four times per second, so the state flags and the position
+    // are read through a derived state that only changes when the values really change.
+    val snapshotSignals by remember(this) {
+        derivedStateOf {
+            val snapshot = playbackSnapshot
+            PlayerSnapshotSignals(
+                isPlaying = snapshot.isPlaying,
+                isLoading = snapshot.isLoading,
+                isEnded = snapshot.isEnded,
+                durationMs = snapshot.durationMs,
+                positionSeconds = snapshot.positionMs / 1000L,
+            )
+        }
+    }
+
     LaunchedEffect(
         folded,
         controlsVisible,
         controlsActivityTick,
         isScrubbingTimeline,
-        playbackSnapshot.isPlaying,
-        playbackSnapshot.isLoading,
+        snapshotSignals.isPlaying,
+        snapshotSignals.isLoading,
         showParentalGuide,
         errorMessage,
     ) {
@@ -437,9 +520,9 @@ private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
 
     LaunchedEffect(
         playerSettingsUiState.pauseOverlayEnabled,
-        playbackSnapshot.isPlaying,
-        playbackSnapshot.isLoading,
-        playbackSnapshot.durationMs,
+        snapshotSignals.isPlaying,
+        snapshotSignals.isLoading,
+        snapshotSignals.durationMs,
         errorMessage,
         stillWatchingCountdown != null,
     ) {
@@ -453,12 +536,15 @@ private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
         pausedOverlayVisible = true
     }
 
+    // Keyed on the position in whole seconds: the work below (server progress reporting, the
+    // scrobble state machine and the 60s persist tick) does not need the 250ms resolution of
+    // the engine snapshot, and restarting it that often steals time from the decoder.
     LaunchedEffect(
-        playbackSnapshot.positionMs,
-        playbackSnapshot.isPlaying,
-        playbackSnapshot.isLoading,
-        playbackSnapshot.isEnded,
-        playbackSnapshot.durationMs,
+        snapshotSignals.positionSeconds,
+        snapshotSignals.isPlaying,
+        snapshotSignals.isLoading,
+        snapshotSignals.isEnded,
+        snapshotSignals.durationMs,
     ) {
         ServerPlayback.onPlaybackSnapshot(
             url = activeSourceUrl,
@@ -501,6 +587,7 @@ private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
 
 @Composable
 private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
+    val networkCondition = rememberNetworkCondition()
     val shuffleProfile by remember {
         EpisodeShuffleRepository.ensureLoaded()
         EpisodeShuffleRepository.uiState
@@ -511,11 +598,23 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         profile.settings(parentMetaId, parentMetaType)
     }
 
-    LaunchedEffect(activeVideoId, activeSeasonNumber, activeEpisodeNumber, parentMetaId, parentMetaType) {
+    LaunchedEffect(
+        activeVideoId,
+        activeSeasonNumber,
+        activeEpisodeNumber,
+        parentMetaId,
+        parentMetaType,
+        playerSettingsUiState.showParentalGuide,
+        networkCondition,
+    ) {
         parentalWarnings = emptyList()
         showParentalGuide = false
         parentalGuideHasShown = false
         playbackStartedForParentalGuide = false
+
+        // The guide is only shown when the setting is enabled, and it needs the network.
+        if (!playerSettingsUiState.showParentalGuide) return@LaunchedEffect
+        if (networkCondition != NetworkCondition.Online) return@LaunchedEffect
 
         val imdbId = resolveParentalGuideImdbId() ?: return@LaunchedEffect
         val guide = ParentalGuideRepository.getParentalGuide(imdbId) ?: return@LaunchedEffect
@@ -540,8 +639,11 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         parentMetaType,
         contentType,
         playerSettingsUiState.skipIntroEnabled,
+        networkCondition,
     ) {
         skipIntervals = emptyList()
+        apiSkipIntervals = emptyList()
+        clearChapterSkipState()
         autoSkippedIntervals.clear()
         lastManualSkipSeekPositions = null
         activeSkipInterval = null
@@ -555,7 +657,9 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         if (!playerSettingsUiState.skipIntroEnabled) return@LaunchedEffect
 
         if ((contentType ?: parentMetaType).equals("movie", ignoreCase = true)) {
-            skipIntervals = SkipIntroRepository.getMovieSkipIntervals(parentMetaId, activeVideoId)
+            val api = SkipIntroRepository.getMovieSkipIntervals(parentMetaId, activeVideoId)
+            apiSkipIntervals = api
+            recomputeMergedSkipIntervals()
             return@LaunchedEffect
         }
 
@@ -564,35 +668,39 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
             season = activeSeasonNumber,
             episode = activeEpisodeNumber,
         ) ?: return@LaunchedEffect
+        if (isNetworkOffline()) return@LaunchedEffect
 
         launch {
-            val imdbFromContent = parentMetaId.takeIf { it.startsWith("tt") }
-                ?: (metaUiState.meta ?: playerMeta)
-                    ?.takeIf { it.id == parentMetaId }
-                    ?.imdbId
-                    ?.takeIf { it.startsWith("tt") }
-            val intervals = when (lookup) {
-                is SkipIntervalLookup.Imdb -> SkipIntroRepository.getSkipIntervals(
-                    imdbId = lookup.imdbId,
-                    season = lookup.season,
-                    episode = lookup.episode,
-                )
-                is SkipIntervalLookup.Mal -> SkipIntroRepository.getSkipIntervalsForMal(
-                    malId = lookup.malId,
-                    episode = lookup.episode,
-                    imdbId = imdbFromContent,
-                    imdbSeason = activeSeasonNumber,
-                    imdbEpisode = activeEpisodeNumber ?: lookup.episode,
-                )
-                is SkipIntervalLookup.Kitsu -> SkipIntroRepository.getSkipIntervalsForKitsu(
-                    kitsuId = lookup.kitsuId,
-                    episode = lookup.episode,
-                    imdbId = imdbFromContent,
-                    imdbSeason = activeSeasonNumber,
-                    imdbEpisode = activeEpisodeNumber ?: lookup.episode,
-                )
+            val intervals = withTimeoutOrNull(SKIP_INTERVAL_RESOLVE_TIMEOUT_MS) {
+                val imdbFromContent = parentMetaId.takeIf { it.startsWith("tt") }
+                    ?: (metaUiState.meta ?: playerMeta)
+                        ?.takeIf { it.id == parentMetaId }
+                        ?.imdbId
+                        ?.takeIf { it.startsWith("tt") }
+                when (lookup) {
+                    is SkipIntervalLookup.Imdb -> SkipIntroRepository.getSkipIntervals(
+                        imdbId = lookup.imdbId,
+                        season = lookup.season,
+                        episode = lookup.episode,
+                    )
+                    is SkipIntervalLookup.Mal -> SkipIntroRepository.getSkipIntervalsForMal(
+                        malId = lookup.malId,
+                        episode = lookup.episode,
+                        imdbId = imdbFromContent,
+                        imdbSeason = activeSeasonNumber,
+                        imdbEpisode = activeEpisodeNumber ?: lookup.episode,
+                    )
+                    is SkipIntervalLookup.Kitsu -> SkipIntroRepository.getSkipIntervalsForKitsu(
+                        kitsuId = lookup.kitsuId,
+                        episode = lookup.episode,
+                        imdbId = imdbFromContent,
+                        imdbSeason = activeSeasonNumber,
+                        imdbEpisode = activeEpisodeNumber ?: lookup.episode,
+                    )
+                }
             }
-            skipIntervals = intervals
+            apiSkipIntervals = intervals ?: return@launch
+            recomputeMergedSkipIntervals()
         }
     }
 
@@ -614,6 +722,7 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         playerControllerSourceUrl,
         activeSourceUrl,
     ) {
+        recomputeChapterSkipIntervalsIfNeeded()
         if (skipIntervals.isEmpty()) {
             activeSkipInterval = null
             return@LaunchedEffect
@@ -637,8 +746,28 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
                 interval.internalSkipAction(skipIntervals, playbackSnapshot.durationMs) != null
         }
         if (current != activeSkipInterval) {
-            activeSkipInterval = current
-            if (current != null) skipIntervalDismissed = false
+            if (current != null) {
+                // Keep dismissed state when replacing same segment type (e.g. API recap -> chapter recap)
+                val keepDismissed = activeSkipInterval != null &&
+                    segmentCategory(activeSkipInterval?.type ?: "") == segmentCategory(current.type)
+                activeSkipInterval = current
+                if (!keepDismissed) skipIntervalDismissed = false
+            } else if (activeSkipInterval != null) {
+                // Position is outside all intervals. Keep the button only if the same type
+                // starts within 2s (chapter replacing API with a slightly later start).
+                val posSec = playbackSnapshot.positionMs / 1000.0
+                val nearby = skipIntervals.firstOrNull {
+                    segmentCategory(it.type) == segmentCategory(activeSkipInterval?.type ?: "") &&
+                        posSec < it.startTime &&
+                        it.startTime - posSec <= 2.0
+                }
+                if (nearby != null) {
+                    activeSkipInterval = nearby
+                } else {
+                    activeSkipInterval = null
+                    skipIntervalDismissed = false
+                }
+            }
         }
         if (current != null) {
             val segmentType = AutoSkipSegmentType.fromSkipIntervalType(current.type)
@@ -933,10 +1062,12 @@ internal fun PlayerScreenRuntime.tryRefreshCredentialedSourceAfterError(message:
             activeStreamType = stream.streamType
             activeStreamTitle = stream.streamLabel
             activeStreamSubtitle = stream.streamSubtitle
+            activeStreamFilename = streamPlaybackFilename(stream, refreshedUrl)
             activeProviderName = stream.addonName
             activeProviderAddonId = stream.addonId
             activeStream = stream
             currentStreamBingeGroup = stream.behaviorHints.bingeGroup
+            activeSubtitleExtras = SubtitleRequestExtras.from(stream.behaviorHints, refreshedUrl)
             currentStreamFilename = stream.behaviorHints.filename
             currentStreamInfoHash = stream.infoHash
             activeInitialPositionMs = savedPositionMs

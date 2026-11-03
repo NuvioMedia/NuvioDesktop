@@ -1923,6 +1923,8 @@
         <item quantity="one">%d titlu</item>
         <item quantity="other">%d titluri</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d titlu</string>
+    <string name="entity_browse_title_count_other">%1$d titluri</string>
     <string name="series_status_ended">Încheiat</string>
     <string name="series_status_continuing">În desfășurare</string>
     <string name="series_status_current">Actual</string>

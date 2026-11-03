@@ -13,6 +13,7 @@ import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.servers.ServerPlayback
 import com.nuvio.app.features.servers.serverPlaybackMessage
+import com.nuvio.app.features.streams.StreamBehaviorHints
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
 import com.nuvio.app.features.streams.YouTubeStreamResolver
@@ -163,7 +164,21 @@ internal fun PlayerScreenRuntime.stopActiveP2pStream() {
     activeTorrentFilename = null
     activeTorrentTrackers = emptyList()
     p2pResolvedSourceUrl = null
+    activeStreamFilename = null
 }
+
+/**
+ * Filename used by the auto engine resolver for a direct stream, mirroring NuvioTV:
+ * the stream's `behaviorHints.filename` when present, otherwise the URL path basename
+ * (query string stripped, only when it looks like a file with an extension).
+ */
+internal fun streamPlaybackFilename(stream: StreamItem, url: String): String? =
+    stream.behaviorHints.filename?.takeIf { it.isNotBlank() }
+        ?: sourceFilenameFromUrl(url)
+
+internal fun sourceFilenameFromUrl(url: String?): String? =
+    url?.substringBefore('?')?.substringAfterLast('/')
+        ?.takeIf { it.isNotBlank() && it.contains('.') }
 
 internal fun PlayerScreenRuntime.saveP2pStreamForReuse(
     stream: StreamItem,
@@ -189,11 +204,14 @@ internal fun PlayerScreenRuntime.saveP2pStreamForReuse(
         requestHeaders = emptyMap(),
         responseHeaders = emptyMap(),
         filename = stream.behaviorHints.filename,
+        videoHash = stream.behaviorHints.videoHash,
         videoSize = stream.behaviorHints.videoSize,
         infoHash = infoHash,
         fileIdx = stream.p2pFileIdx,
         sources = stream.sources,
         bingeGroup = stream.behaviorHints.bingeGroup,
+        addonLogo = stream.addonLogo,
+        streamDescription = stream.streamSubtitle,
     )
 }
 
@@ -231,6 +249,7 @@ internal fun PlayerScreenRuntime.switchToP2pSourceStream(stream: StreamItem) {
     activeProviderAddonId = stream.addonId
     activeStream = stream
     currentStreamBingeGroup = stream.behaviorHints.bingeGroup
+    activeSubtitleExtras = SubtitleRequestExtras.from(stream.behaviorHints)
     currentStreamFilename = stream.behaviorHints.filename
     currentStreamInfoHash = stream.infoHash
     activeInitialPositionMs = currentPositionMs
@@ -273,6 +292,7 @@ internal fun PlayerScreenRuntime.switchToP2pEpisodeStream(
     activeTorrentFileIdx = stream.p2pFileIdx
     activeTorrentFilename = stream.behaviorHints.filename
     activeTorrentTrackers = stream.p2pTrackers
+    activeSubtitleExtras = SubtitleRequestExtras.from(stream.behaviorHints)
     applyEpisodeStreamMetadata(stream, episode, resume)
 }
 
@@ -331,10 +351,12 @@ internal fun PlayerScreenRuntime.switchToSource(
     activeSourceFilename = stream.behaviorHints.filename
     activeStreamTitle = stream.streamLabel
     activeStreamSubtitle = stream.streamSubtitle
+    activeStreamFilename = streamPlaybackFilename(stream, url)
     activeProviderName = stream.addonName
     activeProviderAddonId = stream.addonId
     activeStream = stream
     currentStreamBingeGroup = stream.behaviorHints.bingeGroup
+    activeSubtitleExtras = SubtitleRequestExtras.from(stream.behaviorHints, url)
     currentStreamFilename = stream.behaviorHints.filename
     currentStreamInfoHash = stream.infoHash
     activeInitialPositionMs = currentPositionMs
@@ -399,6 +421,7 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(
     activeSourceHeaders = sanitizePlaybackHeaders(stream.behaviorHints.proxyHeaders?.request)
     activeSourceResponseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response)
     activeStreamType = stream.streamType
+    activeSubtitleExtras = SubtitleRequestExtras.from(stream.behaviorHints, url)
     applyEpisodeStreamMetadata(stream, episode, resume)
 }
 
@@ -444,10 +467,12 @@ internal fun PlayerScreenRuntime.switchToDownloadedEpisode(
         episode.title.ifBlank { title }
     }
     activeStreamSubtitle = downloadItem.streamSubtitle
+    activeStreamFilename = sourceFilenameFromUrl(localFileUri)
     activeProviderName = downloadItem.providerName.ifBlank { downloadedLabel }
     activeProviderAddonId = downloadItem.providerAddonId
     activeStream = null
     currentStreamBingeGroup = null
+    activeSubtitleExtras = null
     currentStreamFilename = null
     currentStreamInfoHash = null
     activeSeasonNumber = episode.season
@@ -592,6 +617,7 @@ private fun PlayerScreenRuntime.applyEpisodeStreamMetadata(
     activeSourceFilename = stream.behaviorHints.filename
     activeStreamTitle = stream.streamLabel
     activeStreamSubtitle = stream.streamSubtitle
+    activeStreamFilename = streamPlaybackFilename(stream, stream.playableDirectUrl.orEmpty())
     activeProviderName = stream.addonName
     activeProviderAddonId = stream.addonId
     activeStream = stream
@@ -633,9 +659,14 @@ private fun PlayerScreenRuntime.saveDirectStreamForReuse(
         requestHeaders = sanitizePlaybackHeaders(stream.behaviorHints.proxyHeaders?.request),
         responseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response),
         filename = stream.behaviorHints.filename,
+        videoHash = stream.behaviorHints.videoHash,
         videoSize = stream.behaviorHints.videoSize,
+        infoHash = stream.p2pInfoHash,
+        fileIdx = stream.p2pFileIdx,
         bingeGroup = stream.behaviorHints.bingeGroup,
         streamType = stream.streamType,
         contentLanguage = contentLanguage,
+        addonLogo = stream.addonLogo,
+        streamDescription = stream.streamSubtitle,
     )
 }

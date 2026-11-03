@@ -2317,6 +2317,8 @@
         <item quantity="one">%d title</item>
         <item quantity="other">%d titles</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d title</string>
+    <string name="entity_browse_title_count_other">%1$d titles</string>
     <string name="settings_playback_auto_skip_segments">خودکار Skip</string>
     <string name="settings_playback_auto_skip_none">کوئی نہیں</string>
     <string name="settings_playback_auto_skip_intro">انٹرو / اوپننگ</string>

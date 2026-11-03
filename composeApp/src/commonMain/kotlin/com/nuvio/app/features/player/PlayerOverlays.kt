@@ -54,6 +54,7 @@ import nuvio.composeapp.generated.resources.compose_player_youre_watching
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.max
+import com.nuvio.app.core.i18n.localizedEpisodeTitle
 
 internal enum class GestureFeedbackIcon {
     Speed,
@@ -252,7 +253,7 @@ internal fun PauseMetadataOverlay(
 
             if (!episodeTitle.isNullOrBlank()) {
                 Text(
-                    text = episodeTitle,
+                    text = localizedEpisodeTitle(episodeTitle, episodeNumber) ?: episodeTitle,
                     style = MaterialTheme.nuvioTypeScale.titleLg,
                     color = Color.White,
                     maxLines = if (compactHeight) 1 else 2,
