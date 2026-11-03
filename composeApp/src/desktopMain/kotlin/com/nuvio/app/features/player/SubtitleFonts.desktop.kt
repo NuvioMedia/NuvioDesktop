@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.FileDialog
+import javax.swing.SwingUtilities
 import java.awt.Frame
 import java.nio.file.Files
 import java.nio.file.Path
@@ -51,12 +52,16 @@ internal actual fun rememberSubtitleFontImporter(onResult: (Result<SubtitleFont>
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val dialog = FileDialog(null as Frame?, "Import font", FileDialog.LOAD).apply {
-                        setFilenameFilter { _, name -> name.lowercase().let { it.endsWith(".ttf") || it.endsWith(".otf") } }
-                        isVisible = true
+                    var picked: Path? = null
+                    SwingUtilities.invokeAndWait {
+                        val dialog = FileDialog(null as Frame?, "Import font", FileDialog.LOAD).apply {
+                            setFilenameFilter { _, name -> name.lowercase().let { it.endsWith(".ttf") || it.endsWith(".otf") } }
+                            isVisible = true
+                        }
+                        picked = dialog.file?.let { Path.of(dialog.directory, it) }
                     }
-                    val name = dialog.file ?: return@runCatching null
-                    val path = Path.of(dialog.directory, name)
+                    val path = picked ?: return@runCatching null
+                    val name = path.fileName.toString()
                     require(Files.size(path) <= MaxSubtitleFontBytes)
                     SubtitleFonts.import(name, Files.readAllBytes(path))
                 }
