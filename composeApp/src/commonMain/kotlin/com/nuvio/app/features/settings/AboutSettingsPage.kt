@@ -125,8 +125,8 @@ internal fun LazyListScope.settingsFooterContent(isTablet: Boolean) {
             Text(
                 text = stringResource(
                     Res.string.compose_about_version_format,
-                    AppVersionConfig.VERSION_NAME,
-                    AppVersionConfig.VERSION_CODE,
+                    AppVersionConfig.DESKTOP_VERSION_NAME,
+                    AppVersionConfig.DESKTOP_VERSION_CODE,
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall,

@@ -1893,6 +1893,7 @@ button:disabled {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-shadow: 0 2px 12px rgba(0, 0, 0, .7);
+  cursor: pointer;
 }
 
 .action-pill {
