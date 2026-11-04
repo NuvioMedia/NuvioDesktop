@@ -3607,7 +3607,8 @@ window.playerUpdate = update => {
   }
   renderChrome();
   if ((audioTracksChanged && activeModal === "audio") ||
-      (subtitleTracksChanged && activeModal === "subtitles")) {
+      (subtitleTracksChanged && activeModal === "subtitles") ||
+      (nativeIsPlaying && activeModal === "chapters")) {
     renderActiveModal();
   }
 };
