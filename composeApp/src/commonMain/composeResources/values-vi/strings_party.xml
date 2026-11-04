@@ -3,13 +3,13 @@
     <string name="party_start_title">Xem cùng nhau</string>
     <string name="party_start_description">Mời bạn bè. Mỗi người phát từ nguồn riêng và luôn được đồng bộ.</string>
     <string name="party_start_action">Tạo phòng xem chung</string>
-    <string name="party_sign_in_required">Đăng nhập vào tài khoản Nuvio để sử dụng phòng xem chung.</string>
+    <string name="party_sign_in_required">Đăng nhập vào tài khoản DRAME TV để sử dụng phòng xem chung.</string>
     <string name="party_unavailable">Xem chung hiện không có sẵn.</string>
     <string name="party_experimental">Xem chung đang ở giai đoạn thử nghiệm và có thể không hoạt động như mong đợi.</string>
     <string name="party_code_label">Mã phòng</string>
     <string name="party_copy_invite">Sao chép lời mời</string>
     <string name="party_invite_copied">Đã sao chép lời mời</string>
-    <string name="party_invite_message">Tham gia phòng xem chung Nuvio của tôi bằng mã %1$s\n%2$s</string>
+    <string name="party_invite_message">Tham gia phòng xem chung DRAME TV của tôi bằng mã %1$s\n%2$s</string>
     <string name="party_seats">%1$d trong số %2$d chỗ</string>
     <string name="party_host">Chủ phòng</string>
     <string name="party_you">Bạn</string>

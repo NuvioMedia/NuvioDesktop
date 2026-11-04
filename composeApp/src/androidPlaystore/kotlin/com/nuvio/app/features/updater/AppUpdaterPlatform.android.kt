@@ -12,10 +12,10 @@ actual object AppUpdaterPlatform {
     actual val hasSingleUpdateChannel: Boolean = false
 
     actual val releaseSource: AppUpdateReleaseSource = AppUpdateReleaseSource(
-        owner = "NuvioMedia",
-        repo = "NuvioMobile",
-        channelBranch = "cmp-rewrite",
-        userAgent = "NuvioMobile",
+        owner = "jundullah06", // TODO: set to your GitHub account before release,
+        repo = "DRAME-TV",
+        channelBranch = null,
+        userAgent = "DRAME-TV",
     )
 
     actual val assetSelector: AppUpdateAssetSelector = AppUpdateAssetSelector(

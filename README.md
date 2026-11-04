@@ -1,80 +1,52 @@
 <div align="center">
 
-  <img src="https://nuvio.tv/assets/nuvio-app-logo-wordmark.webp" alt="Nuvio" width="320" />
+  <img src="branding/dtv-logo-wordmark-black.png" alt="DRAME TV" width="320" />
 
   <p>
-    A free, open-source media app for Windows, macOS, and Linux.
+    DRAME TV (DTV): une application de médiathèque et de streaming personnalisée, noir et or.
     <br />
-    Bring your own sources. Nuvio turns them into a library with artwork, ratings, subtitles, and your place saved on every screen.
+    Basée sur <a href="https://github.com/NuvioMedia/NuvioDesktop">NuvioDesktop</a> 0.1.34-alpha (GPL-3.0).
   </p>
-
-  [Website](https://nuvio.tv) · [GitHub releases](https://github.com/NuvioMedia/NuvioDesktop/releases/latest) · [Support Nuvio](https://nuvio.tv/support)
 
 </div>
 
-## ⚠️ Alpha Software - Slow Development - Testers Only
+## Statut
 
-Nuvio Desktop is currently in alpha and is intended only for testers. It is under development and is not suitable for daily use.
+DRAME TV est une variante personnalisée (marque, logo, thème) de NuvioDesktop, un projet alpha.
+Les fonctionnalités d'origine sont conservées. Aucun comportement métier n'a été retiré.
 
-Expect breaking changes with every update. Features, settings, stored data, and compatibility may change or stop working without notice. Do not rely on this build as your primary media app, and report any issues you encounter during testing.
+**Cette version n'a pas encore été compilée.** Les modifications ont été préparées dans un environnement sans accès aux dépôts Maven/Gradle. La première compilation doit être faite par GitHub Actions (voir `docs/DRAME-TV-GUIDE.md`). Aucun installateur n'est fourni tant que cette compilation n'a pas réussi.
 
-## Get Nuvio Desktop
+## Plateformes dans le code source
 
-Download the latest build from [GitHub Releases](https://github.com/NuvioMedia/NuvioDesktop/releases/latest).
+| Plateforme | Présent dans ce dépôt | Remarque |
+|---|---|---|
+| Windows (MSI) | Oui | Workflow `desktop-release.yml` |
+| macOS (DMG) | Oui | Signature et notarisation Apple optionnelles (compte payant) |
+| Linux (DEB, RPM, AppImage, Flatpak) | Oui | Workflow `desktop-release.yml` |
+| Android (APK) | Oui (`androidApp`) | Workflow `android-release.yml`, keystore requis |
+| iPhone (IPA) | Oui (`iosApp`) | Nécessite macOS, Xcode, certificats Apple |
+| Android TV | Non | Client séparé chez NuvioMedia, non rattaché ici |
+| Web | Non | Aucune cible web dans le projet |
 
-- Windows: MSI installer
-- macOS: DMG installer
-- Linux: DEB, RPM, Flatpak, or AppImage
-
-## Build from source
-
-```bash
-git clone https://github.com/NuvioMedia/NuvioDesktop.git
-cd NuvioDesktop
-```
-
-### Run the app
+## Compiler
 
 ```bash
-./gradlew :composeApp:run
+./gradlew :composeApp:run                                  # lancer en local
+./gradlew :composeApp:packageReleaseDistributionForCurrentOS   # paquet pour l'OS courant
 ```
 
-On Windows PowerShell:
+Le détail (secrets, LFS, publication) est dans [`docs/DRAME-TV-GUIDE.md`](docs/DRAME-TV-GUIDE.md).
 
-```powershell
-.\gradlew.bat :composeApp:run
-```
+## Identité visuelle
 
-### Package the app
+Noir `#080808`, noir secondaire `#151515`, cartes `#202020`, or `#D7B65D`, or clair `#F0D98C`, blanc `#FFFFFF`, gris `#A0A0A0`.
+Le logo (lettres DTV uniquement) et ses sources sont dans [`branding/`](branding/).
 
-Build a release package for the current host:
+## Licence et crédits
 
-```bash
-./gradlew :composeApp:packageReleaseDistributionForCurrentOS
-```
+DRAME TV est distribué sous la **GNU General Public License v3.0** (voir [`LICENSE`](LICENSE)), comme le projet d'origine.
+Le code source des versions distribuées doit rester disponible publiquement.
 
-For platform-specific packaging:
-
-Windows PowerShell:
-
-```powershell
-.\gradlew.bat :composeApp:packageReleaseMsi --rerun-tasks
-```
-
-macOS:
-
-```bash
-./scripts/build-macos-release-dmgs.sh --package-only
-```
-
-Linux:
-
-```bash
-./gradlew :composeApp:packageReleaseDeb
-```
-
-The shared app is built with Kotlin Multiplatform and Compose Multiplatform.
-
-## License
-
-[GNU General Public License v3.0](./LICENSE)
+Projet d'origine : NuvioDesktop © NuvioMedia et contributeurs. Voir [`NOTICE.md`](NOTICE.md).
+DRAME TV n'est ni affilié ni approuvé par NuvioMedia.

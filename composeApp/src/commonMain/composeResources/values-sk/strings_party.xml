@@ -3,13 +3,13 @@
     <string name="party_start_title">Sledovať spolu</string>
     <string name="party_start_description">Pozvite svojich priateľov. Každý prehráva z vlastných zdrojov a synchronizuje sa s ostatnými.</string>
     <string name="party_start_action">Spustiť spoločné sledovanie</string>
-    <string name="party_sign_in_required">Ak chcete používať spoločné sledovanie, prihláste sa do svojho účtu Nuvio.</string>
+    <string name="party_sign_in_required">Ak chcete používať spoločné sledovanie, prihláste sa do svojho účtu DRAME TV.</string>
     <string name="party_unavailable">Spoločné sledovanie momentálne nie je k dispozícii.</string>
     <string name="party_experimental">Spoločné sledovanie je vo fáze testovania a nemusí fungovať podľa očakávaní.</string>
     <string name="party_code_label">Kód skupiny</string>
     <string name="party_copy_invite">Kopírovať pozvánku</string>
     <string name="party_invite_copied">Pozvánka skopírovaná</string>
-    <string name="party_invite_message">Pripojte sa k môjmu spoločnému sledovaniu v aplikácii Nuvio s kódom %1$s\n%2$s</string>
+    <string name="party_invite_message">Pripojte sa k môjmu spoločnému sledovaniu v aplikácii DRAME TV s kódom %1$s\n%2$s</string>
     <string name="party_seats">%1$d z %2$d miest</string>
     <string name="party_host">Hostiteľ</string>
     <string name="party_you">Vy</string>

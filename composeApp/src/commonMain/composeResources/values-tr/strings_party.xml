@@ -4,13 +4,13 @@
     <string name="party_start_title">Birlikte izleyin</string>
     <string name="party_start_description">Arkadaşlarınızı çağırın. Herkes kendi kaynağından oynatır, herkes aynı anda kalır.</string>
     <string name="party_start_action">Birlikte izlemeyi başlat</string>
-    <string name="party_sign_in_required">Birlikte izlemeyi kullanmak için Nuvio hesabınıza giriş yapın.</string>
+    <string name="party_sign_in_required">Birlikte izlemeyi kullanmak için DRAME TV hesabınıza giriş yapın.</string>
     <string name="party_unavailable">Birlikte izleme şu anda kullanılamıyor.</string>
     <string name="party_experimental">Birlikte izleme deneme aşamasında; her zaman beklendiği gibi çalışmayabilir.</string>
     <string name="party_code_label">Oda kodu</string>
     <string name="party_copy_invite">Daveti kopyala</string>
     <string name="party_invite_copied">Davet kopyalandı</string>
-    <string name="party_invite_message">Nuvio izleme partime katıl! Kod: %1$s\n%2$s</string>
+    <string name="party_invite_message">DRAME TV izleme partime katıl! Kod: %1$s\n%2$s</string>
     <string name="party_seats">%1$d / %2$d yer</string>
     <string name="party_host">Ev sahibi</string>
     <string name="party_you">Siz</string>

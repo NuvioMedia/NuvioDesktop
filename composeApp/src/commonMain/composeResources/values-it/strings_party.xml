@@ -3,13 +3,13 @@
     <string name="party_start_title">Guarda insieme</string>
     <string name="party_start_description">Invita i tuoi amici. Ognuno riproduce dalle proprie sorgenti e resta sincronizzato.</string>
     <string name="party_start_action">Avvia watch party</string>
-    <string name="party_sign_in_required">Accedi al tuo account Nuvio per usare le watch party.</string>
+    <string name="party_sign_in_required">Accedi al tuo account DRAME TV per usare le watch party.</string>
     <string name="party_unavailable">Le watch party non sono disponibili al momento.</string>
     <string name="party_experimental">Le watch party sono sperimentali e potrebbero non funzionare come previsto.</string>
     <string name="party_code_label">Codice party</string>
     <string name="party_copy_invite">Copia invito</string>
     <string name="party_invite_copied">Invito copiato</string>
-    <string name="party_invite_message">Unisciti alla mia watch party su Nuvio con il codice %1$s\n%2$s</string>
+    <string name="party_invite_message">Unisciti alla mia watch party su DRAME TV con il codice %1$s\n%2$s</string>
     <string name="party_seats">%1$d di %2$d posti</string>
     <string name="party_host">Host</string>
     <string name="party_you">Tu</string>

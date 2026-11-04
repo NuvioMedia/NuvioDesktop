@@ -65,7 +65,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-app_dir="$work_dir/Nuvio.AppDir"
+app_dir="$work_dir/DRAME-TV.AppDir"
 mkdir -p "$app_dir"
 cp -a "$app_root"/. "$app_dir/"
 
@@ -78,7 +78,7 @@ if [[ -n "$update_information" ]]; then
     printf 'X-AppImage-UpdateInformation=%s\n' "$update_information" >> "$desktop_file"
 fi
 
-icon_source="$app_dir/lib/Nuvio.png"
+icon_source="$app_dir/lib/DRAME-TV.png"
 if [[ ! -f "$icon_source" ]]; then
     echo "Expected AppImage icon at $icon_source" >&2
     exit 1
@@ -90,9 +90,9 @@ cat > "$app_dir/AppRun" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-executable_path="$here/bin/Nuvio"
+executable_path="$here/bin/DRAME-TV"
 if [[ ! -x "$executable_path" ]]; then
-    executable_path="$here/bin/nuvio"
+    executable_path="$here/bin/drame-tv"
 fi
 exec "$executable_path" "$@"
 EOF

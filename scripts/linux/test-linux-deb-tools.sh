@@ -38,13 +38,13 @@ printf 'fixture\n' > "$package_root/usr/share/nuvio-test/data file.txt"
 
 # jpackage's own generated entry plus the xdg-desktop-menu hooks that
 # register it — the patch is supposed to get rid of both.
-mkdir -p "$package_root/opt/nuvio/lib"
-cat > "$package_root/opt/nuvio/lib/nuvio-Nuvio.desktop" <<'JPACKAGE'
+mkdir -p "$package_root/opt/drame-tv/lib"
+cat > "$package_root/opt/drame-tv/lib/nuvio-Nuvio.desktop" <<'JPACKAGE'
 [Desktop Entry]
 Name=Nuvio
 Comment=Nuvio
-Exec=/opt/nuvio/bin/Nuvio
-Icon=/opt/nuvio/lib/Nuvio.png
+Exec=/opt/drame-tv/bin/DRAME-TV
+Icon=/opt/drame-tv/lib/DRAME-TV.png
 Terminal=false
 Type=Application
 Categories=Nuvio
@@ -55,7 +55,7 @@ cat > "$package_root/DEBIAN/postinst" <<'POSTINST'
 set -e
 case "$1" in
     configure)
-xdg-desktop-menu install /opt/nuvio/lib/nuvio-Nuvio.desktop
+xdg-desktop-menu install /opt/drame-tv/lib/nuvio-Nuvio.desktop
     ;;
 esac
 exit 0
@@ -65,7 +65,7 @@ cat > "$package_root/DEBIAN/prerm" <<'PRERM'
 set -e
 case "$1" in
     remove|upgrade|deconfigure)
-xdg-desktop-menu uninstall /opt/nuvio/lib/nuvio-Nuvio.desktop
+xdg-desktop-menu uninstall /opt/drame-tv/lib/nuvio-Nuvio.desktop
     ;;
 esac
 exit 0

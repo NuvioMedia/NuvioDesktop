@@ -53,11 +53,11 @@ actual object AppUpdaterPlatform {
         get() = currentOs != DesktopUpdaterOs.UNKNOWN && linuxInstallMethod != LinuxInstallMethod.FLATPAK
 
     actual val releaseSource: AppUpdateReleaseSource = AppUpdateReleaseSource(
-        owner = "NuvioMedia",
-        repo = "NuvioDesktop",
+        owner = "jundullah06", // TODO: set to your GitHub account before release,
+        repo = "DRAME-TV",
         channelBranch = null,
         includePrereleases = true,
-        userAgent = "NuvioDesktop",
+        userAgent = "DRAME-TV",
     )
 
     actual val assetSelector: AppUpdateAssetSelector

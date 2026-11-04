@@ -170,17 +170,20 @@ object ThemeColors {
         backgroundCard = Color(0xFF241A1F),
     )
 
+    // DRAME TV brand palette (black and gold). This replaces the original default
+    // "White" palette so every user gets the brand look without any gating change.
     val White = ThemeColorPalette(
-        secondary = Color(0xFFF5F5F5),
-        secondaryVariant = Color(0xFFE0E0E0),
-        nativeAccentHex = "#F5F5F5",
-        onSecondary = Color(0xFF111111),
-        onSecondaryVariant = Color(0xFF111111),
-        focusRing = Color(0xFFFFFFFF),
-        focusBackground = Color(0xFF303030),
-        background = Color(0xFF0D0D0D),
-        backgroundElevated = Color(0xFF1A1A1A),
-        backgroundCard = Color(0xFF222222),
+        secondary = Color(0xFFD7B65D),            // Or principal
+        secondaryVariant = Color(0xFFF0D98C),     // Or clair
+        accentGradient = listOf(Color(0xFFD7B65D), Color(0xFFF0D98C)),
+        nativeAccentHex = "#D7B65D",
+        onSecondary = Color(0xFF080808),
+        onSecondaryVariant = Color(0xFF080808),
+        focusRing = Color(0xFFF0D98C),
+        focusBackground = Color(0xFF2B2413),
+        background = Color(0xFF080808),           // Noir principal
+        backgroundElevated = Color(0xFF151515),   // Noir secondaire
+        backgroundCard = Color(0xFF202020),       // Noir des cartes
     )
 
     fun getColorPalette(

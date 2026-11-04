@@ -3,13 +3,13 @@
     <string name="party_start_title">Assistir junto</string>
     <string name="party_start_description">Convide seus amigos. Cada um reproduz de suas próprias fontes e todos ficam sincronizados.</string>
     <string name="party_start_action">Iniciar sessão em grupo</string>
-    <string name="party_sign_in_required">Entre na sua conta Nuvio para usar as sessões em grupo.</string>
+    <string name="party_sign_in_required">Entre na sua conta DRAME TV para usar as sessões em grupo.</string>
     <string name="party_unavailable">As sessões em grupo não estão disponíveis no momento.</string>
     <string name="party_experimental">As sessões em grupo são experimentais e podem não funcionar como esperado.</string>
     <string name="party_code_label">Código da sessão</string>
     <string name="party_copy_invite">Copiar convite</string>
     <string name="party_invite_copied">Convite copiado</string>
-    <string name="party_invite_message">Entre na minha sessão em grupo do Nuvio com o código %1$s\n%2$s</string>
+    <string name="party_invite_message">Entre na minha sessão em grupo do DRAME TV com o código %1$s\n%2$s</string>
     <string name="party_seats">%1$d de %2$d vagas</string>
     <string name="party_host">Anfitrião</string>
     <string name="party_you">Você</string>

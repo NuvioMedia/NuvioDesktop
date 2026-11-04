@@ -4,13 +4,13 @@
     <string name="party_start_title">Ver juntos</string>
     <string name="party_start_description">Invita a tus amigos. Cada persona reproduce desde sus propias fuentes y todos se mantienen sincronizados.</string>
     <string name="party_start_action">Iniciar una sesión para ver en grupo</string>
-    <string name="party_sign_in_required">Inicia sesión en tu cuenta de Nuvio para usar las sesiones para ver en grupo.</string>
+    <string name="party_sign_in_required">Inicia sesión en tu cuenta de DRAME TV para usar las sesiones para ver en grupo.</string>
     <string name="party_unavailable">Las sesiones para ver en grupo no están disponibles en este momento.</string>
     <string name="party_experimental">Las sesiones para ver en grupo son experimentales y podrían no funcionar como se espera.</string>
     <string name="party_code_label">Código de grupo</string>
     <string name="party_copy_invite">Copiar invitación</string>
     <string name="party_invite_copied">Invitación copiada</string>
-    <string name="party_invite_message">Únete a mi sesión de Nuvio para ver en grupo con el código %1$s\n%2$s</string>
+    <string name="party_invite_message">Únete a mi sesión de DRAME TV para ver en grupo con el código %1$s\n%2$s</string>
     <string name="party_seats">%1$d de %2$d plazas</string>
     <string name="party_host">Anfitrión</string>
     <string name="party_you">Tú</string>

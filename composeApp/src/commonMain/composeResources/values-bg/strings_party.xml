@@ -3,13 +3,13 @@
     <string name="party_start_title">Гледайте заедно</string>
     <string name="party_start_description">Поканете приятелите си. Всеки гледа от собствения си източник, но всички са синхронизирани.</string>
     <string name="party_start_action">Стартирайте парти за гледане</string>
-    <string name="party_sign_in_required">Влезте в профила си в Nuvio, за да използвате партитата за гледане.</string>
+    <string name="party_sign_in_required">Влезте в профила си в DRAME TV, за да използвате партитата за гледане.</string>
     <string name="party_unavailable">Партитата за гледане не са достъпни в момента.</string>
     <string name="party_experimental">Груповото гледане е експериментална функция и може да не работи както се очаква.</string>
     <string name="party_code_label">Код на групата</string>
     <string name="party_copy_invite">Копирай покана</string>
     <string name="party_invite_copied">Поканата е копирана</string>
-    <string name="party_invite_message">Присъединете се към моето парти в Nuvio с код %1$s\n%2$s</string>
+    <string name="party_invite_message">Присъединете се към моето парти в DRAME TV с код %1$s\n%2$s</string>
     <string name="party_seats">%1$d от %2$d места</string>
     <string name="party_host">Домакин</string>
     <string name="party_you">Вие</string>

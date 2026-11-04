@@ -49,18 +49,18 @@ internal object WindowsAppShortcutIconUpdater {
         val commonDesktop = knownFolder("CommonDesktopDirectory")
         val commonPrograms = knownFolder("CommonPrograms")
 
-        desktop?.let { yield(it.resolve("Nuvio.lnk")) }
+        desktop?.let { yield(it.resolve("DRAME-TV.lnk")) }
         programs?.let {
-            yield(it.resolve("Nuvio.lnk"))
-            yield(it.resolve("Nuvio/Nuvio.lnk"))
+            yield(it.resolve("DRAME-TV.lnk"))
+            yield(it.resolve("DRAME TV/DRAME-TV.lnk"))
         }
         applicationData?.let {
-            yield(it.resolve("Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar/Nuvio.lnk"))
+            yield(it.resolve("Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar/DRAME-TV.lnk"))
         }
-        commonDesktop?.let { yield(it.resolve("Nuvio.lnk")) }
+        commonDesktop?.let { yield(it.resolve("DRAME-TV.lnk")) }
         commonPrograms?.let {
-            yield(it.resolve("Nuvio/Nuvio.lnk"))
-            yield(it.resolve("Nuvio.lnk"))
+            yield(it.resolve("DRAME TV/DRAME-TV.lnk"))
+            yield(it.resolve("DRAME-TV.lnk"))
         }
     }
 

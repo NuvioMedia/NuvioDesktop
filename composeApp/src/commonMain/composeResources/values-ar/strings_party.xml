@@ -4,13 +4,13 @@
     <string name="party_start_title">شاهدوا معًا</string>
     <string name="party_start_description">ادعُ أصدقاءك. يشغّل كل شخص المحتوى من مصادره الخاصة ويبقى الجميع متزامنين.</string>
     <string name="party_start_action">بدء حفلة مشاهدة</string>
-    <string name="party_sign_in_required">سجّل الدخول إلى حسابك في Nuvio لاستخدام حفلات المشاهدة.</string>
+    <string name="party_sign_in_required">سجّل الدخول إلى حسابك في DRAME TV لاستخدام حفلات المشاهدة.</string>
     <string name="party_unavailable">حفلات المشاهدة غير متاحة حاليًا.</string>
     <string name="party_experimental">حفلات المشاهدة تجريبية وقد لا تعمل كما هو متوقع.</string>
     <string name="party_code_label">رمز الحفلة</string>
     <string name="party_copy_invite">نسخ الدعوة</string>
     <string name="party_invite_copied">تم نسخ الدعوة</string>
-    <string name="party_invite_message">انضم إلى حفلة المشاهدة على Nuvio باستخدام الرمز %1$s\n%2$s</string>
+    <string name="party_invite_message">انضم إلى حفلة المشاهدة على DRAME TV باستخدام الرمز %1$s\n%2$s</string>
     <string name="party_seats">المقاعد: %1$d من %2$d</string>
     <string name="party_host">المضيف</string>
     <string name="party_you">أنت</string>

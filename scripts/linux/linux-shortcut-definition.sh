@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-readonly NUVIO_LINUX_SHORTCUT_RELATIVE_PATH="usr/share/applications/nuvio.desktop"
-readonly NUVIO_LINUX_SHORTCUT_NAME="Nuvio"
-readonly NUVIO_LINUX_SHORTCUT_COMMENT="Nuvio Media Player"
+readonly NUVIO_LINUX_SHORTCUT_RELATIVE_PATH="usr/share/applications/drame-tv.desktop"
+readonly NUVIO_LINUX_SHORTCUT_NAME="DRAME TV"
+readonly NUVIO_LINUX_SHORTCUT_COMMENT="DRAME TV"
 readonly NUVIO_LINUX_SHORTCUT_CATEGORIES="AudioVideo;"
 readonly NUVIO_LINUX_SHORTCUT_STARTUP_NOTIFY="true"
 readonly NUVIO_LINUX_SHORTCUT_STARTUP_WM_CLASS="com-nuvio-app-MainKt"
@@ -41,7 +41,7 @@ nuvio_linux_write_desktop_entry() {
     local root_dir="$1"
     local desktop_file="$root_dir/$NUVIO_LINUX_SHORTCUT_RELATIVE_PATH"
     mkdir -p "$(dirname "$desktop_file")"
-    nuvio_linux_write_desktop_entry_file "$desktop_file" "/opt/nuvio/bin/Nuvio %u" "/opt/nuvio/lib/Nuvio.png"
+    nuvio_linux_write_desktop_entry_file "$desktop_file" "/opt/drame-tv/bin/DRAME-TV %u" "/opt/drame-tv/lib/DRAME-TV.png"
 }
 
 nuvio_linux_ensure_uri_handler() {
@@ -80,7 +80,7 @@ nuvio_linux_ensure_uri_handler() {
     fi
 }
 
-# jpackage drops its own generated entry (/opt/nuvio/lib/<pkg>-<name>.desktop)
+# jpackage drops its own generated entry (/opt/drame-tv/lib/<pkg>-<name>.desktop)
 # and registers it from the maintainer scripts with xdg-desktop-menu. We ship a
 # better one in usr/share/applications, so keeping both meant two icons after
 # every install/upgrade. Remove the hook and the file it points at.

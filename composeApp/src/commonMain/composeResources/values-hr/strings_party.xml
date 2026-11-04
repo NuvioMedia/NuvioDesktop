@@ -3,13 +3,13 @@
     <string name="party_start_title">Gledajte zajedno</string>
     <string name="party_start_description">Pozovite svoje prijateljice i prijatelje. Svatko reproducira iz vlastitih izvora i ostaje usklađen.</string>
     <string name="party_start_action">Pokreni zajedničko gledanje</string>
-    <string name="party_sign_in_required">Prijavite se na svoj Nuvio račun za korištenje zajedničkog gledanja.</string>
+    <string name="party_sign_in_required">Prijavite se na svoj DRAME TV račun za korištenje zajedničkog gledanja.</string>
     <string name="party_unavailable">Zajedničko gledanje trenutačno nije dostupno.</string>
     <string name="party_experimental">Zajedničko gledanje eksperimentalna je funkcija i možda neće raditi kako se očekuje.</string>
     <string name="party_code_label">Kôd grupe</string>
     <string name="party_copy_invite">Kopiraj pozivnicu</string>
     <string name="party_invite_copied">Pozivnica je kopirana</string>
-    <string name="party_invite_message">Pridružite se mom Nuvio zajedničkom gledanju s kôdom %1$s\n%2$s</string>
+    <string name="party_invite_message">Pridružite se mom DRAME TV zajedničkom gledanju s kôdom %1$s\n%2$s</string>
     <string name="party_seats">%1$d od %2$d mjesta</string>
     <string name="party_host">Domaćin</string>
     <string name="party_you">Vi</string>

@@ -325,7 +325,7 @@ jobs:
           MACOS_ARCH: ${{ matrix.arch }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
         run: |
-          dmg_path="composeApp/build/compose/release-dmgs/Nuvio-macOS-${MACOS_ARCH}-${RELEASE_VERSION}.dmg"
+          dmg_path="composeApp/build/compose/release-dmgs/DRAME-TV-macOS-${MACOS_ARCH}-${RELEASE_VERSION}.dmg"
           if [[ ! -f "${dmg_path}" ]]; then
             echo "Expected DMG was not produced: ${dmg_path}" >&2
             exit 1
@@ -340,7 +340,7 @@ jobs:
           MACOS_ARCH: ${{ matrix.arch }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
         run: |
-          dmg_path="composeApp/build/compose/release-dmgs/Nuvio-macOS-${MACOS_ARCH}-${RELEASE_VERSION}.dmg"
+          dmg_path="composeApp/build/compose/release-dmgs/DRAME-TV-macOS-${MACOS_ARCH}-${RELEASE_VERSION}.dmg"
           if [[ ! -f "${dmg_path}" ]]; then
             echo "Expected DMG was not produced: ${dmg_path}" >&2
             exit 1
@@ -354,7 +354,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nuvio-desktop-${{ needs.metadata.outputs.version }}-macos-${{ matrix.arch }}
-          path: composeApp/build/compose/release-dmgs/Nuvio-macOS-${{ matrix.arch }}-${{ needs.metadata.outputs.version }}.dmg
+          path: composeApp/build/compose/release-dmgs/DRAME-TV-macOS-${{ matrix.arch }}-${{ needs.metadata.outputs.version }}.dmg
           if-no-files-found: error
           retention-days: 14
 
@@ -477,7 +477,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
         run: |
-          $msiRelativePath = "composeApp\build\compose\release-msis\Nuvio-Windows-x64-$env:RELEASE_VERSION.msi"
+          $msiRelativePath = "composeApp\build\compose\release-msis\DRAME-TV-Windows-x64-$env:RELEASE_VERSION.msi"
           if (-not (Test-Path $msiRelativePath)) {
             throw "Expected MSI was not produced: $msiRelativePath"
           }
@@ -540,13 +540,13 @@ jobs:
             throw "The extracted MSI does not contain the bundled Java runtime."
           }
 
-          $manifestPath = "composeApp\build\compose\release-msis\Nuvio-Windows-x64-$env:RELEASE_VERSION-contents.txt"
+          $manifestPath = "composeApp\build\compose\release-msis\DRAME-TV-Windows-x64-$env:RELEASE_VERSION-contents.txt"
           $extractedFiles = Get-ChildItem $extractDir -Recurse -File | Sort-Object FullName
           $nativeEntries = $jarEntries `
             | Where-Object { $_ -like "native/windows/*" } `
             | Sort-Object
           $manifest = [Collections.Generic.List[string]]::new()
-          $manifest.Add("MSI=Nuvio-Windows-x64-$env:RELEASE_VERSION.msi")
+          $manifest.Add("MSI=DRAME-TV-Windows-x64-$env:RELEASE_VERSION.msi")
           $manifest.Add("MSI_SHA256=$((Get-FileHash $msiPath -Algorithm SHA256).Hash.ToLowerInvariant())")
           $manifest.Add("MSI_SIGNATURE_STATUS=$((Get-AuthenticodeSignature $msiPath).Status)")
           $manifest.Add("EXTRACTED_FILE_COUNT=$($extractedFiles.Count)")
@@ -573,8 +573,8 @@ jobs:
         with:
           name: nuvio-desktop-${{ needs.metadata.outputs.version }}-windows-x64
           path: |
-            composeApp/build/compose/release-msis/Nuvio-Windows-x64-${{ needs.metadata.outputs.version }}.msi
-            composeApp/build/compose/release-msis/Nuvio-Windows-x64-${{ needs.metadata.outputs.version }}-contents.txt
+            composeApp/build/compose/release-msis/DRAME-TV-Windows-x64-${{ needs.metadata.outputs.version }}.msi
+            composeApp/build/compose/release-msis/DRAME-TV-Windows-x64-${{ needs.metadata.outputs.version }}-contents.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -624,16 +624,16 @@ jobs:
             --no-daemon \
             --stacktrace
 
-          app_root="${GITHUB_WORKSPACE}/composeApp/build/compose/binaries/main-release/app/Nuvio"
+          app_root="${GITHUB_WORKSPACE}/composeApp/build/compose/binaries/main-release/app/DRAME-TV"
           if [[ ! -d "${app_root}" ]]; then
             echo "Expected the Linux app bundle at ${app_root} after createReleaseDistributable." >&2
             find composeApp/build/compose -maxdepth 6 2>/dev/null | head -n 200 >&2
             exit 1
           fi
 
-          executable_path="${app_root}/bin/Nuvio"
+          executable_path="${app_root}/bin/DRAME-TV"
           if [[ ! -x "${executable_path}" ]]; then
-            executable_path="${app_root}/bin/nuvio"
+            executable_path="${app_root}/bin/drame-tv"
           fi
           if [[ ! -x "${executable_path}" ]]; then
             echo "Expected a Linux app executable under ${app_root}/bin after createReleaseDistributable." >&2
@@ -655,8 +655,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          app_root="${GITHUB_WORKSPACE}/composeApp/build/compose/binaries/main-release/app/Nuvio"
-          alt_app_root="${GITHUB_WORKSPACE}/composeApp/build/compose/binaries/main-release/app/Nuvio/Nuvio"
+          app_root="${GITHUB_WORKSPACE}/composeApp/build/compose/binaries/main-release/app/DRAME-TV"
+          alt_app_root="${GITHUB_WORKSPACE}/composeApp/build/compose/binaries/main-release/app/DRAME-TV/DRAME-TV"
           if [[ -d "${alt_app_root}" ]]; then
             app_root="${alt_app_root}"
           fi
@@ -667,9 +667,9 @@ jobs:
             exit 1
           fi
 
-          executable_path="${app_root}/bin/Nuvio"
+          executable_path="${app_root}/bin/DRAME-TV"
           if [[ ! -x "${executable_path}" ]]; then
-            executable_path="${app_root}/bin/nuvio"
+            executable_path="${app_root}/bin/drame-tv"
           fi
           if [[ ! -x "${executable_path}" ]]; then
             echo "Expected a Linux app executable under ${app_root}/bin." >&2
@@ -680,23 +680,23 @@ jobs:
           mkdir -p flatpak
           cp ./scripts/linux/nuvio-launcher.sh flatpak/nuvio-launcher.sh
           cp ./scripts/linux/linux-shortcut-definition.sh flatpak/linux-shortcut-definition.sh
-          cp ./scripts/linux/com.nuvio.media.desktop.metainfo.xml flatpak/com.nuvio.media.desktop.metainfo.xml
+          cp ./scripts/linux/com.drametv.desktop.metainfo.xml flatpak/com.drametv.desktop.metainfo.xml
           chmod +x flatpak/nuvio-launcher.sh
           release_date="$(date -u +%F)"
-          sed -i "s|version=\"0.0.0\"|version=\"${RELEASE_VERSION}\"|" flatpak/com.nuvio.media.desktop.metainfo.xml
-          sed -i "s|date=\"1970-01-01\"|date=\"${release_date}\"|" flatpak/com.nuvio.media.desktop.metainfo.xml
+          sed -i "s|version=\"0.0.0\"|version=\"${RELEASE_VERSION}\"|" flatpak/com.drametv.desktop.metainfo.xml
+          sed -i "s|date=\"1970-01-01\"|date=\"${release_date}\"|" flatpak/com.drametv.desktop.metainfo.xml
           
           cp ./scripts/linux/nuvio-flatpak.yml flatpak/nuvio-flatpak.yml
           sed -i "s|\${app_root}|${app_root}|g" flatpak/nuvio-flatpak.yml
           
           flatpak-builder --repo=flatpak-repo --force-clean flatpak-build flatpak/nuvio-flatpak.yml
-          flatpak build-bundle flatpak-repo "Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak" com.nuvio.media.desktop
+          flatpak build-bundle flatpak-repo "DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.flatpak" com.drametv.desktop
 
       - name: Verify Flatpak
         shell: bash
         run: |
           set -euo pipefail
-          flatpak_path="Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak"
+          flatpak_path="DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.flatpak"
           if [[ ! -f "${flatpak_path}" ]]; then
             echo "Expected Flatpak bundle was not produced: ${flatpak_path}" >&2
             exit 1
@@ -707,7 +707,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nuvio-desktop-${{ needs.metadata.outputs.version }}-linux-flatpak
-          path: Nuvio-Linux-x86_64-${{ needs.metadata.outputs.version }}.flatpak
+          path: DRAME-TV-Linux-x86_64-${{ needs.metadata.outputs.version }}.flatpak
           if-no-files-found: error
           retention-days: 14
 
@@ -772,13 +772,13 @@ jobs:
             exit 1
           fi
 
-          cp "${debs[0]}" "Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
+          cp "${debs[0]}" "DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.deb"
 
       - name: Verify DEB
         shell: bash
         run: |
           set -euo pipefail
-          deb_path="Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
+          deb_path="DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.deb"
           if [[ ! -f "${deb_path}" ]]; then
             echo "Expected DEB package was not produced: ${deb_path}" >&2
             exit 1
@@ -790,7 +790,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nuvio-desktop-${{ needs.metadata.outputs.version }}-linux-deb
-          path: Nuvio-Linux-x86_64-${{ needs.metadata.outputs.version }}.deb
+          path: DRAME-TV-Linux-x86_64-${{ needs.metadata.outputs.version }}.deb
           if-no-files-found: error
           retention-days: 14
 
@@ -855,13 +855,13 @@ jobs:
             exit 1
           fi
 
-          cp "${rpms[0]}" "Nuvio-Linux-x86_64-${RELEASE_VERSION}.rpm"
+          cp "${rpms[0]}" "DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.rpm"
 
       - name: Verify RPM
         shell: bash
         run: |
           set -euo pipefail
-          rpm_path="Nuvio-Linux-x86_64-${RELEASE_VERSION}.rpm"
+          rpm_path="DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.rpm"
           if [[ ! -f "${rpm_path}" ]]; then
             echo "Expected RPM package was not produced: ${rpm_path}" >&2
             exit 1
@@ -873,7 +873,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nuvio-desktop-${{ needs.metadata.outputs.version }}-linux-rpm
-          path: Nuvio-Linux-x86_64-${{ needs.metadata.outputs.version }}.rpm
+          path: DRAME-TV-Linux-x86_64-${{ needs.metadata.outputs.version }}.rpm
           if-no-files-found: error
           retention-days: 14
 
@@ -935,10 +935,10 @@ jobs:
 
           repo_owner="${GITHUB_REPOSITORY%%/*}"
           repo_name="${GITHUB_REPOSITORY#*/}"
-          update_information="gh-releases-zsync|${repo_owner}|${repo_name}|latest|Nuvio-Linux-x86_64-*.AppImage.zsync"
+          update_information="gh-releases-zsync|${repo_owner}|${repo_name}|latest|DRAME-TV-Linux-x86_64-*.AppImage.zsync"
 
           export APPIMAGETOOL="${appimagetool_path}"
-          export APPIMAGE_WEBSITE_URL="https://github.com/NuvioMedia/NuvioDesktop"
+          export APPIMAGE_WEBSITE_URL="https://github.com/jundullah06/DRAME-TV"
 
           if [[ "${{ inputs.mode }}" == "publish" ]]; then
             export UPDATE_INFORMATION="${update_information}"
@@ -960,24 +960,24 @@ jobs:
             exit 1
           fi
 
-          appimage_path="${appimage_dir}/Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"
+          appimage_path="${appimage_dir}/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.AppImage"
           if [[ ! -f "${appimage_path}" ]]; then
             echo "Expected AppImage artifact was not produced: ${appimage_path}" >&2
             find "${appimage_dir}" -maxdepth 4 -type f | sort >&2 || true
             exit 1
           fi
 
-          cp "${appimage_path}" "Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"
-          chmod +x "Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"
+          cp "${appimage_path}" "DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.AppImage"
+          chmod +x "DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.AppImage"
 
-          zsyncmake "Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"
+          zsyncmake "DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.AppImage"
 
       - name: Verify AppImage
         shell: bash
         run: |
           set -euo pipefail
-          appimage_path="Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"
-          zsync_path="Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage.zsync"
+          appimage_path="DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.AppImage"
+          zsync_path="DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.AppImage.zsync"
           if [[ ! -f "${appimage_path}" ]]; then
             echo "Expected AppImage package was not produced: ${appimage_path}" >&2
             exit 1
@@ -1009,8 +1009,8 @@ jobs:
         with:
           name: nuvio-desktop-${{ needs.metadata.outputs.version }}-linux-appimage
           path: |
-            Nuvio-Linux-x86_64-${{ needs.metadata.outputs.version }}.AppImage
-            Nuvio-Linux-x86_64-${{ needs.metadata.outputs.version }}.AppImage.zsync
+            DRAME-TV-Linux-x86_64-${{ needs.metadata.outputs.version }}.AppImage
+            DRAME-TV-Linux-x86_64-${{ needs.metadata.outputs.version }}.AppImage.zsync
           if-no-files-found: error
           retention-days: 14
 
@@ -1044,14 +1044,14 @@ jobs:
       - name: Create checksums
         run: |
           release_assets=(
-            "release/Nuvio-macOS-arm64-${RELEASE_VERSION}.dmg"
-            "release/Nuvio-macOS-x86_64-${RELEASE_VERSION}.dmg"
-            "release/Nuvio-Windows-x64-${RELEASE_VERSION}.msi"
-            "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak"
-            "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
-            "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.rpm"
-            "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"
-            "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage.zsync"
+            "release/DRAME-TV-macOS-arm64-${RELEASE_VERSION}.dmg"
+            "release/DRAME-TV-macOS-x86_64-${RELEASE_VERSION}.dmg"
+            "release/DRAME-TV-Windows-x64-${RELEASE_VERSION}.msi"
+            "release/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.flatpak"
+            "release/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.deb"
+            "release/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.rpm"
+            "release/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.AppImage"
+            "release/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.AppImage.zsync"
           )
           if [[ ! -s release/release-notes.md ]]; then
             echo "Release notes are missing." >&2
@@ -1073,14 +1073,14 @@ jobs:
       - name: Create GitHub release
         run: |
           release_assets=(
-            "release/Nuvio-macOS-arm64-${RELEASE_VERSION}.dmg"
-            "release/Nuvio-macOS-x86_64-${RELEASE_VERSION}.dmg"
-            "release/Nuvio-Windows-x64-${RELEASE_VERSION}.msi"
-            "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak"
-            "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
-            "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.rpm"
-            "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"
-            "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage.zsync"
+            "release/DRAME-TV-macOS-arm64-${RELEASE_VERSION}.dmg"
+            "release/DRAME-TV-macOS-x86_64-${RELEASE_VERSION}.dmg"
+            "release/DRAME-TV-Windows-x64-${RELEASE_VERSION}.msi"
+            "release/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.flatpak"
+            "release/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.deb"
+            "release/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.rpm"
+            "release/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.AppImage"
+            "release/DRAME-TV-Linux-x86_64-${RELEASE_VERSION}.AppImage.zsync"
             "release/SHA256SUMS.txt"
           )
           release_args=(

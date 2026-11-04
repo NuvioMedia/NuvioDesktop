@@ -9,7 +9,7 @@
     <string name="party_code_label">Party code</string>
     <string name="party_copy_invite">Copy invite</string>
     <string name="party_invite_copied">Invite copied</string>
-    <string name="party_invite_message">Join my Nuvio watch party with code %1$s\n%2$s</string>
+    <string name="party_invite_message">Join my DRAME TV watch party with code %1$s\n%2$s</string>
     <string name="party_seats">%1$d of %2$d seats</string>
     <string name="party_host">Host</string>
     <string name="party_you">You</string>

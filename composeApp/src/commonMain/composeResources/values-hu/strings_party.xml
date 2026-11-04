@@ -4,13 +4,13 @@
     <string name="party_start_title">Közös mozizás</string>
     <string name="party_start_description">Hívd meg a barátaidat. Mindenki a saját forrásából játssza le a tartalmat, szinkronban maradva.</string>
     <string name="party_start_action">Nézőparti indítása</string>
-    <string name="party_sign_in_required">Lépj be a Nuvio fiókodba a Nézőparti használatához.</string>
+    <string name="party_sign_in_required">Lépj be a DRAME TV fiókodba a Nézőparti használatához.</string>
     <string name="party_unavailable">A Nézőparti jelenleg nem érhető el.</string>
     <string name="party_experimental">A Nézőparti még kísérleti fázisban van, így előfordulhatnak hibák.</string>
     <string name="party_code_label">Partikód</string>
     <string name="party_copy_invite">Meghívó másolása</string>
     <string name="party_invite_copied">Meghívó másolva</string>
-    <string name="party_invite_message">Csatlakozz a Nuvio Nézőpartimhoz ezzel a kóddal: %1$s\n%2$s</string>
+    <string name="party_invite_message">Csatlakozz a DRAME TV Nézőpartimhoz ezzel a kóddal: %1$s\n%2$s</string>
     <string name="party_seats">%1$d / %2$d hely</string>
     <string name="party_host">Házigazda</string>
     <string name="party_you">Te</string>
