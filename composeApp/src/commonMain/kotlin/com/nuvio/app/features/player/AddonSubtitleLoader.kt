@@ -18,10 +18,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.player_addon_subtitle_display_format
 import org.jetbrains.compose.resources.getString
@@ -129,7 +129,7 @@ internal suspend fun loadAddonSubtitles(
     }.awaitAll().flatten()
 }
 
-private suspend fun parseAddonSubtitles(response: String, request: SubtitleAddonRequest): List<AddonSubtitle> {
+internal suspend fun parseAddonSubtitles(response: String, request: SubtitleAddonRequest): List<AddonSubtitle> {
     val subtitles = Json.parseToJsonElement(response).jsonObject["subtitles"]?.jsonArray.orEmpty()
     return subtitles.mapIndexedNotNull { index, element ->
         val obj = element as? JsonObject ?: return@mapIndexedNotNull null
@@ -141,11 +141,10 @@ private suspend fun parseAddonSubtitles(response: String, request: SubtitleAddon
             id = addonProvidedId ?: "${request.addonId}_$index",
             url = url,
             language = normalizeLanguageCode(language) ?: language,
-            display = getString(
-                Res.string.player_addon_subtitle_display_format,
-                getLanguageLabelForCode(language),
-                request.addonName,
-            ),
+            display = addonSubtitleDisplayLabel(
+                obj.stringValue("label"), obj.stringValue("name"), obj.stringValue("title"),
+                "",
+            ).ifBlank { getString(Res.string.player_addon_subtitle_display_format, getLanguageLabelForCode(language), request.addonName) },
             addonName = request.addonName,
             label = addonProvidedId?.takeIf { it != language && it != url },
         )
@@ -162,4 +161,4 @@ private fun AddonResource.supportsSubtitleType(type: String, videoId: String): B
 }
 
 private fun JsonObject.stringValue(name: String): String? =
-    this[name]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotBlank() }
+    (this[name] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotBlank() }
