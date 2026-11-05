@@ -1,5 +1,6 @@
 package com.nuvio.app.features.home.components
 
+import com.nuvio.app.features.settings.DesktopProxy
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -57,6 +58,7 @@ private val desktopGifHttpClient by lazy {
         followRedirects = true
         engine {
             requestTimeout = 15_000
+            proxy = DesktopProxy.ktorProxy()
         }
     }
 }
