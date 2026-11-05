@@ -29,7 +29,7 @@ concurrency:
 jobs:
   deb:
     name: Linux x64 - DEB
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 120
 
     steps:
