@@ -11,6 +11,14 @@ name: Build Linux DEB
 on:
   workflow_dispatch:
     inputs:
+      arch:
+        description: Target architecture
+        required: true
+        type: choice
+        options:
+          - amd64
+          - arm64
+        default: amd64
       version:
         description: Version to stamp on the package (defaults to DesktopVersion.properties)
         required: false
@@ -28,8 +36,8 @@ concurrency:
 
 jobs:
   deb:
-    name: Linux x64 - DEB
-    runs-on: ubuntu-latest
+    name: Linux ${{ inputs.arch }} - DEB
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 120
 
     steps:
@@ -114,13 +122,13 @@ jobs:
             exit 1
           fi
 
-          cp "${debs[0]}" "Nuvio-Linux-x86_64-${{ steps.version.outputs.version }}.deb"
+          cp "${debs[0]}" "Nuvio-Linux-${{ inputs.arch }}-${{ steps.version.outputs.version }}.deb"
 
       - name: Verify DEB
         shell: bash
         run: |
           set -euo pipefail
-          deb_path="Nuvio-Linux-x86_64-${{ steps.version.outputs.version }}.deb"
+          deb_path="Nuvio-Linux-${{ inputs.arch }}-${{ steps.version.outputs.version }}.deb"
           bash ./scripts/linux/verify-linux-deb.sh "${deb_path}"
           dpkg-deb --info "${deb_path}"
           ls -lh "${deb_path}"
@@ -128,7 +136,7 @@ jobs:
       - name: Upload DEB
         uses: actions/upload-artifact@v4
         with:
-          name: nuvio-desktop-${{ steps.version.outputs.version }}-linux-deb
-          path: Nuvio-Linux-x86_64-${{ steps.version.outputs.version }}.deb
+          name: nuvio-desktop-${{ steps.version.outputs.version }}-linux-${{ inputs.arch }}-deb
+          path: Nuvio-Linux-${{ inputs.arch }}-${{ steps.version.outputs.version }}.deb
           if-no-files-found: error
           retention-days: 30
