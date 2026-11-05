@@ -1,0 +1,134 @@
+name: Build Linux DEB
+
+# Builds an amd64 .deb from this fork on GitHub's runners.
+#
+# The upstream release workflow needs repository secrets (a base64 local.properties, a Sentry
+# token and DSN) that a fork doesn't have. This workflow writes a local.properties with empty
+# runtime values instead: the app compiles and runs, it just has no Supabase/Trakt/TMDb
+# credentials baked in, so account sync and metadata lookups stay off. Add the secrets below to
+# get a fully configured build.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to stamp on the package (defaults to DesktopVersion.properties)
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-deb-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deb:
+    name: Linux x64 - DEB
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Linux DEB build dependencies
+        run: |
+          bash ./scripts/linux/install-desktop-build-dependencies.sh fakeroot
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Write local.properties
+        shell: bash
+        env:
+          LOCAL_PROPERTIES_BASE64: ${{ secrets.NUVIO_DESKTOP_LOCAL_PROPERTIES_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${LOCAL_PROPERTIES_BASE64:-}" ]]; then
+            printf '%s' "${LOCAL_PROPERTIES_BASE64}" | base64 --decode > local.properties
+          else
+            # No secrets configured: compile with empty runtime values. The generated
+            # SupabaseConfig/TraktConfig/TmdbConfig constants stay blank and the features
+            # that need them are simply unavailable.
+            {
+              echo "NUVIO_SUPABASE_URL="
+              echo "NUVIO_SUPABASE_ANON_KEY="
+              echo "TRAKT_CLIENT_ID="
+              echo "TRAKT_CLIENT_SECRET="
+            } > local.properties
+          fi
+          # Never ship signing material from a fork build.
+          sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_(STORE_FILE|STORE_PASSWORD|KEY_ALIAS|KEY_PASSWORD)|NUVIO_MACOS_)[[:space:]]*=/d' local.properties
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ inputs.version }}" ]]; then
+            version="${{ inputs.version }}"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(grep -E '^VERSION_NAME=' composeApp/Configuration/DesktopVersion.properties | cut -d= -f2-)"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Building version ${version}"
+
+      - name: Build Linux DEB
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_DESKTOP_DSN: ${{ secrets.SENTRY_DESKTOP_DSN }}
+        run: |
+          set -euo pipefail
+          ./gradlew \
+            :composeApp:packageReleaseDeb \
+            -Pcompose.desktop.packaging.checkJdkVendor=false \
+            --no-configuration-cache \
+            --no-daemon \
+            --stacktrace
+
+          deb_dir="${GITHUB_WORKSPACE}/composeApp/build/compose/binaries/main-release/deb"
+          if [[ ! -d "${deb_dir}" ]]; then
+            echo "Expected DEB output directory at ${deb_dir}." >&2
+            find composeApp/build/compose -maxdepth 8 2>/dev/null | head -n 300 >&2
+            exit 1
+          fi
+
+          mapfile -t debs < <(find "${deb_dir}" -maxdepth 1 -type f -name '*.deb' | sort)
+          if [[ "${#debs[@]}" -ne 1 ]]; then
+            echo "Expected exactly one .deb in ${deb_dir}, found ${#debs[@]}." >&2
+            ls -la "${deb_dir}" >&2 || true
+            exit 1
+          fi
+
+          cp "${debs[0]}" "Nuvio-Linux-x86_64-${{ steps.version.outputs.version }}.deb"
+
+      - name: Verify DEB
+        shell: bash
+        run: |
+          set -euo pipefail
+          deb_path="Nuvio-Linux-x86_64-${{ steps.version.outputs.version }}.deb"
+          bash ./scripts/linux/verify-linux-deb.sh "${deb_path}"
+          dpkg-deb --info "${deb_path}"
+          ls -lh "${deb_path}"
+
+      - name: Upload DEB
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuvio-desktop-${{ steps.version.outputs.version }}-linux-deb
+          path: Nuvio-Linux-x86_64-${{ steps.version.outputs.version }}.deb
+          if-no-files-found: error
+          retention-days: 30
