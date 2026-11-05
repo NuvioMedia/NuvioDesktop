@@ -137,16 +137,16 @@ internal suspend fun parseAddonSubtitles(response: String, request: SubtitleAddo
         val language = listOf("lang", "language", "languageCode", "locale", "label")
             .firstNotNullOfOrNull(obj::stringValue) ?: "unknown"
         val addonProvidedId = obj.stringValue("id")
+        val trackLabel = addonSubtitleDisplayLabel(
+            obj.stringValue("label"), obj.stringValue("name"), obj.stringValue("title"), "",
+        ).ifBlank { null }
         AddonSubtitle(
             id = addonProvidedId ?: "${request.addonId}_$index",
             url = url,
             language = normalizeLanguageCode(language) ?: language,
-            display = addonSubtitleDisplayLabel(
-                obj.stringValue("label"), obj.stringValue("name"), obj.stringValue("title"),
-                "",
-            ).ifBlank { getString(Res.string.player_addon_subtitle_display_format, getLanguageLabelForCode(language), request.addonName) },
+            display = trackLabel ?: getString(Res.string.player_addon_subtitle_display_format, getLanguageLabelForCode(language), request.addonName),
             addonName = request.addonName,
-            label = addonProvidedId?.takeIf { it != language && it != url },
+            label = trackLabel ?: addonProvidedId?.takeIf { it != language && it != url },
         )
     }
 }
