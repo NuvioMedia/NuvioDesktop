@@ -48,6 +48,7 @@ internal actual object PlayerSettingsStorage {
     private const val externalPlayerIdKey = "external_player_id"
     private const val preferredAudioLanguageKey = "preferred_audio_language"
     private const val secondaryPreferredAudioLanguageKey = "secondary_preferred_audio_language"
+    private const val dualSubtitlesEnabledKey = "dual_subtitles_enabled"
     private const val preferredSubtitleLanguageKey = "preferred_subtitle_language"
     private const val secondaryPreferredSubtitleLanguageKey = "secondary_preferred_subtitle_language"
     private const val subtitleTextColorKey = "subtitle_text_color"
@@ -61,6 +62,7 @@ internal actual object PlayerSettingsStorage {
     private const val subtitleBottomOffsetKey = "subtitle_bottom_offset"
     private const val subtitleStripSdhKey = "subtitle_strip_sdh"
     private const val subtitleUseForcedSubtitlesKey = "subtitle_use_forced_subtitles"
+    private const val preferBuiltInSubtitlesKey = "subtitle_prefer_built_in"
     private const val subtitleShowOnlyPreferredLanguagesKey = "subtitle_show_only_preferred_languages"
     private const val addonSubtitleStartupModeKey = "addon_subtitle_startup_mode"
     private const val streamReuseLastLinkEnabledKey = "stream_reuse_last_link_enabled"
@@ -131,6 +133,7 @@ internal actual object PlayerSettingsStorage {
         secondaryPreferredAudioLanguageKey,
         preferredSubtitleLanguageKey,
         secondaryPreferredSubtitleLanguageKey,
+        dualSubtitlesEnabledKey,
         subtitleTextColorKey,
         subtitleAppearanceKey,
         subtitleBackgroundColorKey,
@@ -142,6 +145,7 @@ internal actual object PlayerSettingsStorage {
         subtitleBottomOffsetKey,
         subtitleStripSdhKey,
         subtitleUseForcedSubtitlesKey,
+        preferBuiltInSubtitlesKey,
         subtitleShowOnlyPreferredLanguagesKey,
         addonSubtitleStartupModeKey,
         streamReuseLastLinkEnabledKey,
@@ -271,6 +275,8 @@ internal actual object PlayerSettingsStorage {
     actual fun savePreferredAudioLanguage(language: String) = saveString(preferredAudioLanguageKey, language)
     actual fun loadSecondaryPreferredAudioLanguage(): String? = loadString(secondaryPreferredAudioLanguageKey)
     actual fun saveSecondaryPreferredAudioLanguage(language: String?) = saveOptionalString(secondaryPreferredAudioLanguageKey, language)
+    actual fun loadDualSubtitlesEnabled(): Boolean? = loadBoolean(dualSubtitlesEnabledKey)
+    actual fun saveDualSubtitlesEnabled(enabled: Boolean) = saveBoolean(dualSubtitlesEnabledKey, enabled)
     actual fun loadPreferredSubtitleLanguage(): String? = loadString(preferredSubtitleLanguageKey)
     actual fun savePreferredSubtitleLanguage(language: String) = saveString(preferredSubtitleLanguageKey, language)
     actual fun loadSecondaryPreferredSubtitleLanguage(): String? = loadString(secondaryPreferredSubtitleLanguageKey)
@@ -297,6 +303,8 @@ internal actual object PlayerSettingsStorage {
     actual fun saveSubtitleStripSdh(enabled: Boolean) = saveBoolean(subtitleStripSdhKey, enabled)
     actual fun loadSubtitleUseForcedSubtitles(): Boolean? = loadBoolean(subtitleUseForcedSubtitlesKey)
     actual fun saveSubtitleUseForcedSubtitles(enabled: Boolean) = saveBoolean(subtitleUseForcedSubtitlesKey, enabled)
+    actual fun loadSubtitlePreferBuiltIn(): Boolean? = loadBoolean(preferBuiltInSubtitlesKey)
+    actual fun saveSubtitlePreferBuiltIn(enabled: Boolean) = saveBoolean(preferBuiltInSubtitlesKey, enabled)
     actual fun loadSubtitleShowOnlyPreferredLanguages(): Boolean? = loadBoolean(subtitleShowOnlyPreferredLanguagesKey)
     actual fun saveSubtitleShowOnlyPreferredLanguages(enabled: Boolean) = saveBoolean(subtitleShowOnlyPreferredLanguagesKey, enabled)
     fun loadAddonSubtitleStartupMode(): String? = loadString(addonSubtitleStartupModeKey)
@@ -434,6 +442,7 @@ internal actual object PlayerSettingsStorage {
         loadExternalPlayerId()?.let { put(externalPlayerIdKey, encodeSyncString(it)) }
         loadPreferredAudioLanguage()?.let { put(preferredAudioLanguageKey, encodeSyncString(it)) }
         loadSecondaryPreferredAudioLanguage()?.let { put(secondaryPreferredAudioLanguageKey, encodeSyncString(it)) }
+        loadDualSubtitlesEnabled()?.let { put(dualSubtitlesEnabledKey, encodeSyncBoolean(it)) }
         loadPreferredSubtitleLanguage()?.let { put(preferredSubtitleLanguageKey, encodeSyncString(it)) }
         loadSecondaryPreferredSubtitleLanguage()?.let { put(secondaryPreferredSubtitleLanguageKey, encodeSyncString(it)) }
         loadSubtitleTextColor()?.let { put(subtitleTextColorKey, encodeSyncString(it)) }
@@ -447,6 +456,7 @@ internal actual object PlayerSettingsStorage {
         loadSubtitleBottomOffset()?.let { put(subtitleBottomOffsetKey, encodeSyncInt(it)) }
         loadSubtitleStripSdh()?.let { put(subtitleStripSdhKey, encodeSyncBoolean(it)) }
         loadSubtitleUseForcedSubtitles()?.let { put(subtitleUseForcedSubtitlesKey, encodeSyncBoolean(it)) }
+        loadSubtitlePreferBuiltIn()?.let { put(preferBuiltInSubtitlesKey, encodeSyncBoolean(it)) }
         loadSubtitleShowOnlyPreferredLanguages()?.let { put(subtitleShowOnlyPreferredLanguagesKey, encodeSyncBoolean(it)) }
         loadAddonSubtitleStartupMode()?.let { put(addonSubtitleStartupModeKey, encodeSyncString(it)) }
         loadStreamReuseLastLinkEnabled()?.let { put(streamReuseLastLinkEnabledKey, encodeSyncBoolean(it)) }
@@ -522,6 +532,7 @@ internal actual object PlayerSettingsStorage {
         payload.decodeSyncString(externalPlayerIdKey)?.let(::saveExternalPlayerId)
         payload.decodeSyncString(preferredAudioLanguageKey)?.let(::savePreferredAudioLanguage)
         payload.decodeSyncString(secondaryPreferredAudioLanguageKey)?.let(::saveSecondaryPreferredAudioLanguage)
+        payload.decodeSyncBoolean(dualSubtitlesEnabledKey)?.let(::saveDualSubtitlesEnabled)
         payload.decodeSyncString(preferredSubtitleLanguageKey)?.let(::savePreferredSubtitleLanguage)
         payload.decodeSyncString(secondaryPreferredSubtitleLanguageKey)?.let(::saveSecondaryPreferredSubtitleLanguage)
         payload.decodeSyncString(subtitleTextColorKey)?.let(::saveSubtitleTextColor)
@@ -535,6 +546,7 @@ internal actual object PlayerSettingsStorage {
         payload.decodeSyncInt(subtitleBottomOffsetKey)?.let(::saveSubtitleBottomOffset)
         payload.decodeSyncBoolean(subtitleStripSdhKey)?.let(::saveSubtitleStripSdh)
         payload.decodeSyncBoolean(subtitleUseForcedSubtitlesKey)?.let(::saveSubtitleUseForcedSubtitles)
+        payload.decodeSyncBoolean(preferBuiltInSubtitlesKey)?.let(::saveSubtitlePreferBuiltIn)
         payload.decodeSyncBoolean(subtitleShowOnlyPreferredLanguagesKey)?.let(::saveSubtitleShowOnlyPreferredLanguages)
         payload.decodeSyncString(addonSubtitleStartupModeKey)?.let(::saveAddonSubtitleStartupMode)
         payload.decodeSyncBoolean(streamReuseLastLinkEnabledKey)?.let(::saveStreamReuseLastLinkEnabled)

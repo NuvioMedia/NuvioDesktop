@@ -238,6 +238,28 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         subtitleAutoSyncState = SubtitleAutoSyncUiState()
     }
 
+    if (isDesktop) {
+        DisposableEffect(playerController) {
+            onDispose {
+                automaticDualSubtitleJob?.cancel()
+                primarySubtitleLoadJob?.cancel()
+                secondarySubtitleLoadJob?.cancel()
+                primarySubtitleCueJob?.cancel()
+                secondarySubtitleCueJob?.cancel()
+            }
+        }
+
+        LaunchedEffect(playerController, dualSubtitlesEnabled) {
+            playerController?.setDualSubtitlesEnabled(dualSubtitlesEnabled)
+            if (!dualSubtitlesEnabled) resetDualSubtitleState()
+            refreshTracks()
+        }
+
+        LaunchedEffect(playerController, secondarySubtitleDelayMs, dualSubtitlesEnabled) {
+            if (dualSubtitlesEnabled) playerController?.setSubtitleSlotDelayMs(SubtitleSlot.Secondary, secondarySubtitleDelayMs)
+        }
+    }
+
     LaunchedEffect(playerController, subtitleDelayMs) {
         playerController?.setSubtitleDelayMs(subtitleDelayMs)
     }
@@ -254,6 +276,8 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         playerSettingsUiState.preferredSubtitleLanguage,
         playerSettingsUiState.secondaryPreferredSubtitleLanguage.orEmpty(),
         subtitleStyle.useForcedSubtitles,
+        subtitleStyle.preferBuiltInSubtitles,
+        dualSubtitlesEnabled,
     ).joinToString("|")
     var lastSubtitlePreferenceKey by remember { mutableStateOf<String?>(null) }
 
@@ -280,6 +304,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         )
 
         if (preferenceChanged) {
+            failedDualSubtitleSelections.clear()
             preferredSubtitleSelectionApplied = false
             refreshTracks()
         }
@@ -310,8 +335,6 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         if (activeSourceUrl.startsWith("file:") && externalSubtitles.isNotEmpty()) return@LaunchedEffect
         val fetchKey = addonSubtitleFetchKey ?: return@LaunchedEffect
         if (autoFetchedAddonSubtitlesForKey == fetchKey) return@LaunchedEffect
-        // Offline: leave the key unset so the fetch can run once connectivity returns.
-        if (isNetworkOffline()) return@LaunchedEffect
         autoFetchedAddonSubtitlesForKey = fetchKey
         fetchAddonSubtitlesForActiveItem()
     }
@@ -345,6 +368,8 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         trackPreferenceRestoreApplied,
         addonSubtitles,
         isLoadingAddonSubtitles,
+        primarySubtitleLoading,
+        secondarySubtitleLoading,
     ) {
         if (playerController == null || playbackSnapshot.isLoading) {
             return@LaunchedEffect

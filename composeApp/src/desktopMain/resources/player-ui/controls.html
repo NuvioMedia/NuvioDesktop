@@ -301,6 +301,16 @@
       <section class="modal-layer player-rail-modal" id="subtitleModal" aria-label="Subtitles" hidden>
         <div class="track-panel subtitle-rail-panel">
           <div class="track-header" id="subtitlePanelTitle">Subtitles</div>
+          <div class="subtitle-slots" id="subtitleSlots" role="group" aria-label="Subtitle position" hidden>
+            <button class="subtitle-slot" id="primarySubtitleSlot" type="button" aria-pressed="true">
+              <svg class="subtitle-slot-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 14h10M9 18h6"/></svg>
+              <span class="subtitle-slot-copy"><span class="subtitle-slot-title" id="primarySubtitleSlotTitle">Primary</span><span class="subtitle-slot-language" id="primarySubtitleSlotLanguage"></span></span>
+            </button>
+            <button class="subtitle-slot" id="secondarySubtitleSlot" type="button" aria-pressed="false">
+              <svg class="subtitle-slot-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 11h10M9 15h6"/></svg>
+              <span class="subtitle-slot-copy"><span class="subtitle-slot-title" id="secondarySubtitleSlotTitle">Secondary</span><span class="subtitle-slot-language" id="secondarySubtitleSlotLanguage"></span></span>
+            </button>
+          </div>
           <div class="subtitle-rails">
             <section class="subtitle-rail subtitle-language-rail">
               <div class="subtitle-rail-title" id="subtitleLanguageRailTitle">Languages</div>

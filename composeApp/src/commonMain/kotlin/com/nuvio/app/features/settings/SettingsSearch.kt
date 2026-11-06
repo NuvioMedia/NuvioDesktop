@@ -633,7 +633,7 @@ internal fun settingsSearchEntries(
         pageLabel = playbackPage,
         section = playbackSubtitleAudio,
         page = SettingsPage.PlaybackSubtitles,
-        rows = listOf(
+        rows = listOfNotNull(
             PlaybackSearchRow("preferred-audio", stringResource(Res.string.settings_playback_preferred_audio_language), page = SettingsPage.PlaybackAudio),
             PlaybackSearchRow("secondary-audio", stringResource(Res.string.settings_playback_secondary_audio_language), page = SettingsPage.PlaybackAudio),
             PlaybackSearchRow("subtitle-font", stringResource(Res.string.subtitle_font), stringResource(Res.string.subtitle_font_import_hint)),
@@ -641,6 +641,8 @@ internal fun settingsSearchEntries(
             PlaybackSearchRow("subtitle-background-roundness", stringResource(Res.string.subtitle_background_roundness)),
             PlaybackSearchRow("subtitle-shadow", stringResource(Res.string.subtitle_shadow), stringResource(Res.string.subtitle_shadow_description)),
             PlaybackSearchRow("preferred-subtitles", stringResource(Res.string.settings_playback_preferred_subtitle_language)),
+            if (isDesktop) PlaybackSearchRow("prefer-built-in-subtitles", stringResource(Res.string.settings_playback_subtitle_prefer_built_in), stringResource(Res.string.settings_playback_subtitle_prefer_built_in_description)) else null,
+            if (isDesktop) PlaybackSearchRow("dual-subtitles", stringResource(Res.string.settings_playback_dual_subtitles), stringResource(Res.string.settings_playback_dual_subtitles_description)) else null,
             PlaybackSearchRow("secondary-subtitles", stringResource(Res.string.settings_playback_secondary_subtitle_language)),
         ),
     )

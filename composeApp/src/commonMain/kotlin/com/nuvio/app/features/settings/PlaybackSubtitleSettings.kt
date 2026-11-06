@@ -115,6 +115,30 @@ internal fun PlaybackSubtitleSettings(
                         )
                     },
                 )
+                if (isDesktop) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_dual_subtitles),
+                        description = stringResource(Res.string.settings_playback_dual_subtitles_description),
+                        checked = settings.dualSubtitlesEnabled,
+                        enabled = !settings.externalPlayerEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setDualSubtitlesEnabled,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_subtitle_prefer_built_in),
+                        description = stringResource(Res.string.settings_playback_subtitle_prefer_built_in_description),
+                        checked = settings.subtitleStyle.preferBuiltInSubtitles,
+                        enabled = !settings.externalPlayerEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = { enabled ->
+                            PlayerSettingsRepository.setSubtitleStyle(
+                                settings.subtitleStyle.copy(preferBuiltInSubtitles = enabled),
+                            )
+                        },
+                    )
+                }
             }
         }
 

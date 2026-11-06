@@ -25,6 +25,19 @@ interface PlayerEngineController {
     fun setSubtitleUri(url: String)
     fun clearExternalSubtitle()
     fun clearExternalSubtitleAndSelect(trackIndex: Int)
+    fun setDualSubtitlesEnabled(enabled: Boolean) {}
+    suspend fun setSubtitleSelection(slot: SubtitleSlot, selection: PlayerSubtitleSelection?): Boolean {
+        if (slot != SubtitleSlot.Primary) return false
+        when (selection) {
+            is PlayerSubtitleSelection.BuiltIn -> clearExternalSubtitleAndSelect(selection.index)
+            is PlayerSubtitleSelection.External -> setSubtitleUri(selection.url)
+            null -> clearExternalSubtitleAndSelect(-1)
+        }
+        return true
+    }
+    fun setSubtitleSlotDelayMs(slot: SubtitleSlot, delayMs: Int) {
+        if (slot == SubtitleSlot.Primary) setSubtitleDelayMs(delayMs)
+    }
     fun applySubtitleStyle(style: SubtitleStyleState, useLibass: Boolean = false) {}
     fun applySubtitlePreferences(
         preferredLanguage: String,
@@ -280,6 +293,15 @@ data class PlayerControlsState(
     val isSubmitIntroSubmitting: Boolean = false,
     val submitIntroStatusMessage: String = "",
     val showP2pConsent: Boolean = false,
+    val dualSubtitlesEnabled: Boolean = false,
+    val activeSubtitleSlot: Int = 0,
+    val primarySubtitleShortLabel: String = "Primary",
+    val secondarySubtitleShortLabel: String = "Secondary",
+    val primarySubtitleLabel: String = "Primary (Bottom)",
+    val secondarySubtitleLabel: String = "Secondary (Above Primary)",
+    val primarySubtitleSelectionLabel: String = "",
+    val secondarySubtitleSelectionLabel: String = "",
+    val subtitleSelectionIsLoading: Boolean = false,
     val subtitleActiveTab: String = "BuiltIn",
     val subtitleLanguageItems: List<PlayerControlSubtitleLanguageItem> = emptyList(),
     val subtitleOptionItems: List<PlayerControlSubtitleOptionItem> = emptyList(),
@@ -391,6 +413,8 @@ data class PlayerControlSubtitleOptionItem(
     val metadata: String = "",
     val isSelected: Boolean = false,
     val isAutoSynced: Boolean = false,
+    val isEnabled: Boolean = true,
+    val disabledReason: String = "",
 )
 
 data class PlayerControlSubtitleCueItem(

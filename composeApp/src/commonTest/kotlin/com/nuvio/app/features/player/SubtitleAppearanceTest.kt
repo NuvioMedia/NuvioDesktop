@@ -26,10 +26,11 @@ class SubtitleAppearanceTest {
     @Test
     fun resetKeepsSubtitleSelectionPreferences() {
         val reset = SubtitleStyleState(
-            stripSdh = true, useForcedSubtitles = true, showOnlyPreferredLanguages = true,
+            stripSdh = true, useForcedSubtitles = true, preferBuiltInSubtitles = true, showOnlyPreferredLanguages = true,
             backgroundColor = Color.Red, appearance = SubtitleAppearance(fontId = "serif", shadowEnabled = true),
         ).resetAppearance()
         assertTrue(reset.stripSdh && reset.useForcedSubtitles && reset.showOnlyPreferredLanguages)
+        assertTrue(reset.preferBuiltInSubtitles)
         assertEquals(SubtitleStyleState.DEFAULT.backgroundColor, reset.backgroundColor)
         assertEquals(SubtitleAppearance(), reset.appearance)
     }

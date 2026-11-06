@@ -17,6 +17,8 @@ import com.nuvio.app.features.player.PlayerControlsAction
 import com.nuvio.app.features.player.PlayerControlsState
 import com.nuvio.app.features.player.PlayerChapter
 import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.features.player.PlayerSubtitleSelection
+import com.nuvio.app.features.player.SubtitleSlot
 import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.player.PlayerMediaInfo
 import com.nuvio.app.features.player.mpvMediaInfo
@@ -88,6 +90,8 @@ internal class NativePlayerController(
     )
 
     private val lifecycleLock = Any()
+    private val subtitleSlots = DesktopSubtitleSlots(lifecycleLock, { handle }, ::readSubtitleTracks)
+    private var secondarySubtitleDelayMs = 0
     private var currentNowPlayingTitle: String = ""
     private var currentNowPlayingSubtitle: String = ""
     private var currentArtworkUrl: String = ""
@@ -123,8 +127,12 @@ internal class NativePlayerController(
     private var onScrubChange: (Long) -> Boolean = { false }
     private var onScrubFinished: (Long) -> Boolean = { false }
     private val eventSink = NativePlayerEventSink { type, value ->
-        SwingUtilities.invokeLater {
-            handlePlayerEvent(type, value)
+        if (type == "subtitleLayoutChanged") {
+            // libmpv events are already drained off the render thread. Keep cue layout
+            // off the UI queue so caption updates do not wait for UI work.
+            subtitleSlots.updatePosition()
+        } else {
+            SwingUtilities.invokeLater { handlePlayerEvent(type, value) }
         }
     }
 
@@ -330,7 +338,7 @@ internal class NativePlayerController(
                         }
                     }
                     if (!accepted) {
-                        runCatching { nativeDispose(created) }
+                        runCatching { disposeNativePlayer(created) }
                             .onFailure { error -> recordTerminalDisposeFailure(error, "superseded create", created) }
                         return@onSuccess
                     }
@@ -697,6 +705,7 @@ internal class NativePlayerController(
         val current = handle
         if (current == 0L) return PlayerPlaybackSnapshot(isLoading = true)
         return runCatching {
+            subtitleSlots.updatePosition()
             val isLoading = NativePlayerBridge.isLoading(current)
             val isEnded = NativePlayerBridge.isEnded(current)
             PlayerPlaybackSnapshot(
@@ -753,7 +762,7 @@ internal class NativePlayerController(
                     val current = if (failureMessage == null) detachPlayerHandle() else 0L
                     if (current != 0L) {
                         log.d { "pre-navigation dispose started handle=$current" }
-                        runCatching { nativeDispose(current) }
+                        runCatching { disposeNativePlayer(current) }
                             .onSuccess { log.d { "pre-navigation dispose completed handle=$current" } }
                             .onFailure { error ->
                                 failureMessage = "Native player shutdown failed. Quit Nuvio before removing the player."
@@ -909,6 +918,11 @@ internal class NativePlayerController(
         current
     }
 
+    private fun disposeNativePlayer(current: Long) {
+        nativeDispose(current)
+        subtitleSlots.release(current)
+    }
+
     private fun recordTerminalDisposeFailure(error: Throwable, operation: String, nativeHandle: Long) {
         synchronized(lifecycleLock) {
             terminalReleaseFailure = "Native player shutdown failed. Quit Nuvio before removing the player."
@@ -922,7 +936,7 @@ internal class NativePlayerController(
         disposeInFlight = Thread(
             {
                 awaitThreadCompletion(prior, "prior native teardown")
-                runCatching { nativeDispose(current) }
+                runCatching { disposeNativePlayer(current) }
                     .onFailure { error -> recordTerminalDisposeFailure(error, "native", current) }
             },
             "nuvio-player-dispose",
@@ -1020,21 +1034,48 @@ internal class NativePlayerController(
         return mpvMediaInfo { name -> NativePlayerBridge.stringProperty(current, name).takeIf { it.isNotBlank() } }
     }
 
-    override fun getSubtitleTracks(): List<SubtitleTrack> =
-        decodeTracks { NativePlayerBridge.subtitleTracksJson(it) }.map { track ->
+    private fun readSubtitleTracks(current: Long): List<SubtitleTrack> {
+        val primaryId = NativePlayerBridge.stringProperty(current, "sid")
+        val tracks = runCatching {
+            json.decodeFromString<List<NativeMpvTrack>>(NativePlayerBridge.subtitleTracksJson(current))
+        }.getOrDefault(emptyList())
+        return tracks.map { track ->
             SubtitleTrack(
                 index = track.index,
                 id = track.id,
                 label = track.label,
                 language = track.language.takeUnless(String::isBlank),
-                isSelected = track.selected,
-                isForced = track.forced || inferForcedSubtitleTrack(
-                    label = track.label,
-                    language = track.language,
-                    trackId = track.id,
-                ),
+                isSelected = track.id == primaryId,
+                isForced = track.forced || inferForcedSubtitleTrack(track.label, track.language, track.id),
+                codec = track.codec.takeUnless(String::isBlank),
             )
         }
+    }
+
+    override fun getSubtitleTracks(): List<SubtitleTrack> {
+        val current = handle.takeIf { it != 0L } ?: return emptyList()
+        return readSubtitleTracks(current).filterNot { subtitleSlots.enabled && subtitleSlots.owns(current, it.id) }
+    }
+
+    override fun setDualSubtitlesEnabled(enabled: Boolean) {
+        if (subtitleSlots.enabled == enabled) return
+        subtitleSlots.setEnabled(enabled)
+        applyPendingSubtitleSettings()
+    }
+
+    override suspend fun setSubtitleSelection(slot: SubtitleSlot, selection: PlayerSubtitleSelection?): Boolean =
+        subtitleSlots.select(slot, selection).also { if (it) applyPendingSubtitleSettings() }
+
+    override fun setSubtitleSlotDelayMs(slot: SubtitleSlot, delayMs: Int) {
+        if (slot == SubtitleSlot.Primary) {
+            setSubtitleDelayMs(delayMs)
+        } else {
+            secondarySubtitleDelayMs = delayMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS)
+            handle.takeIf { it != 0L }?.let {
+                NativePlayerBridge.setStringProperty(it, "secondary-sub-delay", (secondarySubtitleDelayMs / 1000.0).toString())
+            }
+        }
+    }
 
     override fun applyAudioLanguagePreferences(languages: List<String>) {
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.setAudioLanguages(it, languages.joinToString(",")) }
@@ -1054,6 +1095,11 @@ internal class NativePlayerController(
     }
 
     override fun selectSubtitleTrack(index: Int) {
+        if (subtitleSlots.enabled) {
+            subtitleSlots.selectImmediately(SubtitleSlot.Primary, if (index < 0) null else PlayerSubtitleSelection.BuiltIn(index))
+            applyPendingSubtitleSettings()
+            return
+        }
         val current = handle.takeIf { it != 0L } ?: return
         if (index < 0) {
             log.d { "selectSubtitleTrack off handle=$current" }
@@ -1071,6 +1117,11 @@ internal class NativePlayerController(
     }
 
     override fun setSubtitleUri(url: String) {
+        if (subtitleSlots.enabled) {
+            subtitleSlots.selectImmediately(SubtitleSlot.Primary, PlayerSubtitleSelection.External(url))
+            applyPendingSubtitleSettings()
+            return
+        }
         log.d { "setSubtitleUri ${url.toPlaybackLogKey()} handle=$handle" }
         handle.takeIf { it != 0L }?.let { current ->
             NativePlayerBridge.clearExternalSubtitles(current)
@@ -1079,11 +1130,19 @@ internal class NativePlayerController(
     }
 
     override fun clearExternalSubtitle() {
+        if (subtitleSlots.enabled) {
+            subtitleSlots.selectImmediately(SubtitleSlot.Primary, null)
+            return
+        }
         log.d { "clearExternalSubtitle handle=$handle" }
         handle.takeIf { it != 0L }?.let(NativePlayerBridge::clearExternalSubtitles)
     }
 
     override fun clearExternalSubtitleAndSelect(trackIndex: Int) {
+        if (subtitleSlots.enabled) {
+            selectSubtitleTrack(trackIndex)
+            return
+        }
         val current = handle.takeIf { it != 0L } ?: return
         val trackId = if (trackIndex < 0) {
             -1
@@ -1146,6 +1205,7 @@ internal class NativePlayerController(
             shadowColor = "#" + shadowAlpha.toHexByte() + "000000",
             shadowOffset = if (style.appearance.shadowEnabled) style.appearance.shadowSize.toFloat() else 0f,
         )
+        subtitleSlots.updatePosition()
     }
 
     private fun decodeTracks(readJson: (Long) -> String): List<NativeMpvTrack> {
@@ -1183,6 +1243,7 @@ private data class NativeMpvTrack(
     val language: String = "",
     val selected: Boolean = false,
     val forced: Boolean = false,
+    val codec: String = "",
 )
 
 private fun resolveTrackId(index: Int, tracks: List<NativeMpvTrack>): Int? =
@@ -1644,6 +1705,24 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         append(',')
         appendJsonField("showP2pConsent", showP2pConsent)
         append(',')
+        appendJsonField("dualSubtitlesEnabled", dualSubtitlesEnabled)
+        append(',')
+        appendJsonField("activeSubtitleSlot", activeSubtitleSlot)
+        append(',')
+        appendJsonField("primarySubtitleShortLabel", primarySubtitleShortLabel)
+        append(',')
+        appendJsonField("secondarySubtitleShortLabel", secondarySubtitleShortLabel)
+        append(',')
+        appendJsonField("primarySubtitleLabel", primarySubtitleLabel)
+        append(',')
+        appendJsonField("secondarySubtitleLabel", secondarySubtitleLabel)
+        append(',')
+        appendJsonField("primarySubtitleSelectionLabel", primarySubtitleSelectionLabel)
+        append(',')
+        appendJsonField("secondarySubtitleSelectionLabel", secondarySubtitleSelectionLabel)
+        append(',')
+        appendJsonField("subtitleSelectionIsLoading", subtitleSelectionIsLoading)
+        append(',')
         appendJsonField("subtitleActiveTab", subtitleActiveTab)
         append(',')
         appendJsonArrayField("subtitleLanguageItems", subtitleLanguageItems) { appendSubtitleLanguageItemJson(it) }
@@ -1932,6 +2011,10 @@ private fun StringBuilder.appendSubtitleOptionItemJson(item: PlayerControlSubtit
     appendJsonField("metadata", item.metadata)
     append(',')
     appendJsonField("isSelected", item.isSelected)
+    append(',')
+    appendJsonField("isEnabled", item.isEnabled)
+    append(',')
+    appendJsonField("disabledReason", item.disabledReason)
     append(',')
     appendJsonField("isAutoSynced", item.isAutoSynced)
     append('}')

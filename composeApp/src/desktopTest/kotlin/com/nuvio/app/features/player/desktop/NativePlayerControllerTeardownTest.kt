@@ -20,6 +20,48 @@ private val failNativeCreate: NativePlayerCreate = { _, _, _, _, _, _, _, _, _ -
 
 class NativePlayerControllerTeardownTest {
     @Test
+    fun subtitleCueUpdatesDoNotWaitForSwingEventThread() {
+        val properties = mutableMapOf("sid" to "1", "sub-pos" to "90", "sub-font-size" to "42", "sub-text" to "Primary")
+        val updated = CountDownLatch(1)
+        val armed = AtomicBoolean(false)
+        val overlay = java.util.concurrent.atomic.AtomicReference("")
+        val slots = DesktopSubtitleSlots(Any(), { 1L }, {
+            listOf(com.nuvio.app.features.player.SubtitleTrack(0, "1", "English", "en", codec = "subrip"))
+        }, readProperty = { _, name -> properties[name].orEmpty() },
+            writeProperty = { _, name, value ->
+                properties[name] = value
+            }, command = { _, args ->
+                if (args[0] == "osd-overlay" && args[2] == "ass-events") {
+                    overlay.set(args[3])
+                    if (armed.get()) updated.countDown()
+                }
+            })
+        slots.setEnabled(true)
+
+        val controller = NativePlayerController(NativePlayerHost(), nativeCreate = failNativeCreate, nativeDispose = {})
+        controller.javaClass.getDeclaredField("subtitleSlots").apply { isAccessible = true }.set(controller, slots)
+        val sink = controller.javaClass.getDeclaredField("eventSink").let {
+            it.isAccessible = true
+            it.get(controller) as NativePlayerEventSink
+        }
+        val uiBlocked = CountDownLatch(1)
+        val releaseUi = CountDownLatch(1)
+        SwingUtilities.invokeLater { uiBlocked.countDown(); releaseUi.await(2, TimeUnit.SECONDS) }
+        assertTrue(uiBlocked.await(2, TimeUnit.SECONDS))
+        properties["sub-text"] = "Primary first line\nPrimary second line"
+        armed.set(true)
+        val worker = thread { sink.onPlayerEvent("subtitleLayoutChanged", 0.0) }
+        try {
+            assertTrue(updated.await(200, TimeUnit.MILLISECONDS), "Subtitle layout waited behind the UI event queue")
+            assertTrue(overlay.get().contains("Primary first line\\NPrimary second line"))
+        } finally {
+            releaseUi.countDown()
+            worker.join(2_000)
+            SwingUtilities.invokeAndWait {}
+        }
+    }
+
+    @Test
     fun completesNavigationOnlyAfterNativeHandleIsDisposed() {
         val events = Collections.synchronizedList(mutableListOf<String>())
         val released = CountDownLatch(1)

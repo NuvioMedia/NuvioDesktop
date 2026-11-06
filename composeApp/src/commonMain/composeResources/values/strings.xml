@@ -1263,6 +1263,8 @@
     <string name="settings_playback_subtitle_text_color">Text Color</string>
     <string name="settings_playback_subtitle_use_forced">Use Forced Subtitles</string>
     <string name="settings_playback_subtitle_use_forced_description">Prefer forced subtitles when audio matches the subtitle language; if unavailable, select nothing.</string>
+    <string name="settings_playback_subtitle_prefer_built_in">Prefer Built-in Subtitles</string>
+    <string name="settings_playback_subtitle_prefer_built_in_description">Choose matching built-in subtitles first, then add-on subtitles. When off, keep the first matching subtitle found.</string>
     <string name="settings_playback_subtitle_vertical_offset">Vertical Offset</string>
     <string name="settings_playback_skip_intro_outro_recap">Skip Intro</string>
     <string name="settings_playback_skip_intro_outro_recap_description">Use introdb.app to detect intros and recaps.</string>
@@ -2616,4 +2618,13 @@
     <string name="subtitle_shadow_opacity">Shadow opacity</string>
     <string name="subtitle_shadow_size">Shadow size</string>
     <string name="subtitle_reset_appearance">Reset appearance</string>
+    <string name="settings_playback_dual_subtitles">Dual Subtitles (Experimental)</string>
+    <string name="settings_playback_dual_subtitles_description">PGS and other image subtitles are disabled in dual mode. Stack two text subtitle tracks near the bottom of the screen. Advanced subtitle formatting may be simplified.</string>
+    <string name="player_subtitle_primary_short">Primary</string>
+    <string name="player_subtitle_secondary_short">Secondary</string>
+    <string name="player_subtitle_primary">Primary (Bottom)</string>
+    <string name="player_subtitle_secondary">Secondary (Above Primary)</string>
+    <string name="player_subtitle_bitmap_dual_unsupported">PGS and other image subtitles are unavailable in Dual Subtitles mode.</string>
+    <string name="player_subtitle_already_selected">Selected in the other subtitle slot.</string>
+    <string name="player_subtitle_load_failed">Could not load this subtitle. Your previous selection is preserved.</string>
 </resources>

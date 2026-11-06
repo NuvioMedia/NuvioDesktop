@@ -13,7 +13,7 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 
 /**
- * AutoSync-only subtitle HTTP path.
+ * Cancellable subtitle HTTP path shared by AutoSync and dual subtitle loading.
  *
  * Reuses Nuvio's existing OkHttp client and connection pool, but uses OkHttp's
  * asynchronous API so cancelling an AutoSync coroutine immediately cancels the
@@ -30,6 +30,7 @@ internal object AutoSyncSubtitleHttp {
         headers: Map<String, String>,
         maxResponseBodyBytes: Int,
         languageHint: String? = null,
+        requireComplete: Boolean = false,
     ): RawHttpResponse {
         val requestBuilder = Request.Builder()
             .url(url)
@@ -74,15 +75,13 @@ internal object AutoSyncSubtitleHttp {
 
                         try {
                             val result = response.use { current ->
+                                val content = readResponseBodyLimited(current.body, maxResponseBodyBytes, languageHint, requireComplete)
                                 RawHttpResponse(
                                     status = current.code,
                                     statusText = current.message,
                                     url = current.request.url.toString(),
-                                    body = readResponseBodyLimited(
-                                        body = current.body,
-                                        maxBytes = maxResponseBodyBytes,
-                                        languageHint = languageHint,
-                                    ),
+                                    body = content.text,
+                                    bodyBytes = content.bytes,
                                     headers = current.headers
                                         .toMultimap()
                                         .mapValues { (_, values) -> values.joinToString(",") }
@@ -112,12 +111,15 @@ internal object AutoSyncSubtitleHttp {
         }
     }
 
+    private data class SubtitleBody(val bytes: ByteArray, val text: String)
+
     private fun readResponseBodyLimited(
         body: ResponseBody?,
         maxBytes: Int,
         languageHint: String?,
-    ): String {
-        if (body == null) return ""
+        requireComplete: Boolean,
+    ): SubtitleBody {
+        if (body == null) return SubtitleBody(byteArrayOf(), "")
 
         val limit = maxBytes.coerceAtLeast(0)
         val contentLength = body.contentLength()
@@ -154,8 +156,10 @@ internal object AutoSyncSubtitleHttp {
 
         // Addon files can use legacy encodings without declaring a charset. Detect from the
         // bytes before decoding so accented letters are not irreversibly replaced with U+FFFD.
-        val decoded = SubtitleCharsetDetector.decode(output.toByteArray(), languageHint = languageHint)
+        if (truncated && requireComplete) throw IOException("Subtitle exceeds the download limit")
+        val bytes = output.toByteArray()
+        val decoded = SubtitleCharsetDetector.decode(bytes, languageHint = languageHint)
 
-        return if (truncated) "$decoded$TRUNCATION_SUFFIX" else decoded
+        return SubtitleBody(bytes, if (truncated) "$decoded$TRUNCATION_SUFFIX" else decoded)
     }
 }

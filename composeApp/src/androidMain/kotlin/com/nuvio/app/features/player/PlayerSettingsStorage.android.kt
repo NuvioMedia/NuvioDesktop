@@ -49,6 +49,7 @@ actual object PlayerSettingsStorage {
     private const val subtitleBottomOffsetKey = "subtitle_bottom_offset"
     private const val subtitleStripSdhKey = "subtitle_strip_sdh"
     private const val subtitleUseForcedSubtitlesKey = "subtitle_use_forced_subtitles"
+    private const val preferBuiltInSubtitlesKey = "subtitle_prefer_built_in"
     private const val subtitleShowOnlyPreferredLanguagesKey = "subtitle_show_only_preferred_languages"
     private const val streamReuseLastLinkEnabledKey = "stream_reuse_last_link_enabled"
     private const val streamReuseLastLinkCacheHoursKey = "stream_reuse_last_link_cache_hours"
@@ -144,6 +145,7 @@ actual object PlayerSettingsStorage {
         subtitleBottomOffsetKey,
         subtitleStripSdhKey,
         subtitleUseForcedSubtitlesKey,
+        preferBuiltInSubtitlesKey,
         subtitleShowOnlyPreferredLanguagesKey,
         streamReuseLastLinkEnabledKey,
         streamReuseLastLinkCacheHoursKey,
@@ -455,6 +457,10 @@ actual object PlayerSettingsStorage {
             ?.apply()
     }
 
+    // Dual subtitles are currently a desktop playback capability.
+    actual fun loadDualSubtitlesEnabled(): Boolean? = false
+    actual fun saveDualSubtitlesEnabled(enabled: Boolean) = Unit
+
     actual fun loadPreferredSubtitleLanguage(): String? =
         preferences?.getString(ProfileScopedKey.of(preferredSubtitleLanguageKey), null)
 
@@ -635,6 +641,23 @@ actual object PlayerSettingsStorage {
         preferences
             ?.edit()
             ?.putBoolean(ProfileScopedKey.of(subtitleUseForcedSubtitlesKey), enabled)
+            ?.apply()
+    }
+
+    actual fun loadSubtitlePreferBuiltIn(): Boolean? =
+        preferences?.let { sharedPreferences ->
+            val key = ProfileScopedKey.of(preferBuiltInSubtitlesKey)
+            if (sharedPreferences.contains(key)) {
+                sharedPreferences.getBoolean(key, SubtitleStyleState.DEFAULT.preferBuiltInSubtitles)
+            } else {
+                null
+            }
+        }
+
+    actual fun saveSubtitlePreferBuiltIn(enabled: Boolean) {
+        preferences
+            ?.edit()
+            ?.putBoolean(ProfileScopedKey.of(preferBuiltInSubtitlesKey), enabled)
             ?.apply()
     }
 
@@ -1445,6 +1468,7 @@ actual object PlayerSettingsStorage {
         loadSubtitleBottomOffset()?.let { put(subtitleBottomOffsetKey, encodeSyncInt(it)) }
         loadSubtitleStripSdh()?.let { put(subtitleStripSdhKey, encodeSyncBoolean(it)) }
         loadSubtitleUseForcedSubtitles()?.let { put(subtitleUseForcedSubtitlesKey, encodeSyncBoolean(it)) }
+        loadSubtitlePreferBuiltIn()?.let { put(preferBuiltInSubtitlesKey, encodeSyncBoolean(it)) }
         loadSubtitleShowOnlyPreferredLanguages()?.let { put(subtitleShowOnlyPreferredLanguagesKey, encodeSyncBoolean(it)) }
         loadStreamReuseLastLinkEnabled()?.let { put(streamReuseLastLinkEnabledKey, encodeSyncBoolean(it)) }
         loadStreamReuseLastLinkCacheHours()?.let { put(streamReuseLastLinkCacheHoursKey, encodeSyncInt(it)) }
@@ -1533,6 +1557,7 @@ actual object PlayerSettingsStorage {
         payload.decodeSyncInt(subtitleBottomOffsetKey)?.let(::saveSubtitleBottomOffset)
         payload.decodeSyncBoolean(subtitleStripSdhKey)?.let(::saveSubtitleStripSdh)
         payload.decodeSyncBoolean(subtitleUseForcedSubtitlesKey)?.let(::saveSubtitleUseForcedSubtitles)
+        payload.decodeSyncBoolean(preferBuiltInSubtitlesKey)?.let(::saveSubtitlePreferBuiltIn)
         payload.decodeSyncBoolean(subtitleShowOnlyPreferredLanguagesKey)?.let(::saveSubtitleShowOnlyPreferredLanguages)
         payload.decodeSyncBoolean(streamReuseLastLinkEnabledKey)?.let(::saveStreamReuseLastLinkEnabled)
         payload.decodeSyncInt(streamReuseLastLinkCacheHoursKey)?.let(::saveStreamReuseLastLinkCacheHours)

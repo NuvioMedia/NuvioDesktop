@@ -1,5 +1,8 @@
 package com.nuvio.app.features.player
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class PersistedPlayerTrackPreference(
     val subtitleType: String? = null,
     val subtitleLanguage: String? = null,
@@ -13,6 +16,7 @@ data class PersistedPlayerTrackPreference(
     val audioName: String? = null,
     val audioTrackId: String? = null,
     val subtitleIsForced: Boolean? = null,
+    val secondarySubtitlePreference: String? = null,
 )
 
 object PersistedSubtitleSelectionType {

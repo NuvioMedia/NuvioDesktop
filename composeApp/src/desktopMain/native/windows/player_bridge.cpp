@@ -9,6 +9,7 @@
 #include <wrl.h>
 #include <WebView2.h>
 #include <jni.h>
+#include "../subtitle_layout.h"
 
 #include <algorithm>
 #include <atomic>
@@ -33,31 +34,6 @@
 
 using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
-
-extern "C" {
-typedef struct mpv_handle mpv_handle;
-
-typedef enum mpv_format {
-    MPV_FORMAT_NONE = 0,
-    MPV_FORMAT_STRING = 1,
-    MPV_FORMAT_OSD_STRING = 2,
-    MPV_FORMAT_FLAG = 3,
-    MPV_FORMAT_INT64 = 4,
-    MPV_FORMAT_DOUBLE = 5,
-} mpv_format;
-
-typedef enum mpv_event_id {
-    MPV_EVENT_NONE = 0,
-    MPV_EVENT_SHUTDOWN = 1,
-} mpv_event_id;
-
-typedef struct mpv_event {
-    mpv_event_id event_id;
-    int error;
-    uint64_t reply_userdata;
-    void *data;
-} mpv_event;
-}
 
 namespace {
 
@@ -542,6 +518,7 @@ struct MpvApi {
     mpv_set_property_string_fn setPropertyString = nullptr;
     mpv_get_property_fn getProperty = nullptr;
     mpv_command_fn command = nullptr;
+    decltype(&mpv_observe_property) observeProperty = nullptr;
     mpv_error_string_fn errorString = nullptr;
     mpv_free_fn freeValue = nullptr;
     mpv_wait_event_fn waitEvent = nullptr;
@@ -601,6 +578,7 @@ struct MpvApi {
         setPropertyString = loadSymbol<mpv_set_property_string_fn>("mpv_set_property_string");
         getProperty = loadSymbol<mpv_get_property_fn>("mpv_get_property");
         command = loadSymbol<mpv_command_fn>("mpv_command");
+        observeProperty = loadSymbol<decltype(observeProperty)>("mpv_observe_property");
         errorString = loadSymbol<mpv_error_string_fn>("mpv_error_string");
         freeValue = loadSymbol<mpv_free_fn>("mpv_free");
         waitEvent = loadSymbol<mpv_wait_event_fn>("mpv_wait_event");
@@ -1387,6 +1365,9 @@ public:
         appliedSubtitleStripSdh = stripSdh;
     }
 
+    void setSubtitleProperty(const char *name, const std::string &value) { setStringProperty(name, value); }
+    void runSubtitleCommand(const std::vector<std::string> &args) { command(args); }
+
 private:
     HWND hostHwnd = nullptr;
     HWND containerHwnd = nullptr;
@@ -1818,6 +1799,7 @@ private:
             if (initResult < 0) {
                 throw std::runtime_error(std::string("mpv_initialize failed: ") + api.errorText(initResult));
             }
+            nuvioObserveSubtitleLayout(mpv, api.observeProperty);
 
             std::vector<const char *> loadCommand = {"loadfile", sourceUrl.c_str()};
             std::string loadOptions;
@@ -2044,6 +2026,9 @@ private:
             if (event->event_id == MPV_EVENT_SHUTDOWN) {
                 return;
             }
+            if (event->event_id == MPV_EVENT_PROPERTY_CHANGE && event->reply_userdata == NUVIO_SUBTITLE_LAYOUT_EVENT) {
+                sendPlayerEvent("subtitleLayoutChanged", 0.0);
+            }
         }
     }
 
@@ -2226,6 +2211,7 @@ private:
                  << "\"label\":\"" << jsonEscape(label) << "\","
                  << "\"language\":\"" << jsonEscape(language) << "\","
                  << "\"selected\":" << (selected ? "true" : "false") << ","
+                 << "\"codec\":\"" << jsonEscape(codec) << "\","
                  << "\"forced\":" << (forced ? "true" : "false")
                  << "}";
             logicalIndex++;
@@ -2915,6 +2901,27 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setAudioLanguages(JNIEnv *env, jobject, jlong handle, jstring languages) {
     auto player = playerFromHandle(handle);
     if (player) player->setAudioLanguages(jstringToUtf8(env, languages));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setStringProperty(JNIEnv *env, jobject, jlong handle, jstring name, jstring value) {
+    auto player = playerFromHandle(handle);
+    if (!player) return;
+    std::string property = jstringToUtf8(env, name);
+    player->setSubtitleProperty(property.c_str(), jstringToUtf8(env, value));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_subtitleCommand(JNIEnv *env, jobject, jlong handle, jobjectArray args) {
+    auto player = playerFromHandle(handle);
+    if (!player || !args) return;
+    std::vector<std::string> values;
+    for (jsize i = 0; i < env->GetArrayLength(args); ++i) {
+        jstring arg = (jstring)env->GetObjectArrayElement(args, i);
+        values.push_back(jstringToUtf8(env, arg));
+        env->DeleteLocalRef(arg);
+    }
+    player->runSubtitleCommand(values);
 }
 
 extern "C" JNIEXPORT void JNICALL

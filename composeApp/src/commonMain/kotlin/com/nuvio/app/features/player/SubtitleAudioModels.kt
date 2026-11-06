@@ -24,6 +24,7 @@ data class SubtitleTrack(
     val language: String? = null,
     val isSelected: Boolean = false,
     val isForced: Boolean = false,
+    val codec: String? = null,
 )
 
 data class AddonSubtitle(
@@ -60,6 +61,7 @@ data class SubtitleStyleState(
     val bottomOffset: Int = 20,
     val stripSdh: Boolean = false,
     val useForcedSubtitles: Boolean = false,
+    val preferBuiltInSubtitles: Boolean = false,
     val showOnlyPreferredLanguages: Boolean = false,
     val appearance: SubtitleAppearance = SubtitleAppearance(),
 ) {

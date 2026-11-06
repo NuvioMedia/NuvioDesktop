@@ -156,6 +156,8 @@ internal fun PlayerScreenRuntime.resetIdentityStateIfNeeded() {
 }
 
 private fun PlayerScreenRuntime.resetTrackSelectionState() {
+    resetDualSubtitleState()
+
     trackPreferenceRestoreApplied = false
     preferredAudioSelectionApplied = false
     appliedAudioPreferences = null

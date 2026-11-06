@@ -51,6 +51,7 @@ data class PlayerSettingsUiState(
     val secondaryPreferredAudioLanguage: String? = null,
     val preferredSubtitleLanguage: String = SubtitleLanguageOption.NONE,
     val secondaryPreferredSubtitleLanguage: String? = null,
+    val dualSubtitlesEnabled: Boolean = false,
     val subtitleStyle: SubtitleStyleState = SubtitleStyleState.DEFAULT,
     val streamReuseLastLinkEnabled: Boolean = false,
     val streamReuseLastLinkCacheHours: Int = 24,
@@ -138,6 +139,7 @@ object PlayerSettingsRepository {
     private var secondaryPreferredAudioLanguage: String? = null
     private var preferredSubtitleLanguage = SubtitleLanguageOption.NONE
     private var secondaryPreferredSubtitleLanguage: String? = null
+    private var dualSubtitlesEnabled = false
     private var subtitleStyle = SubtitleStyleState.DEFAULT
     private var streamReuseLastLinkEnabled = false
     private var streamReuseLastLinkCacheHours = 24
@@ -230,6 +232,7 @@ object PlayerSettingsRepository {
         secondaryPreferredAudioLanguage = null
         preferredSubtitleLanguage = SubtitleLanguageOption.NONE
         secondaryPreferredSubtitleLanguage = null
+        dualSubtitlesEnabled = false
         subtitleStyle = SubtitleStyleState.DEFAULT
         streamReuseLastLinkEnabled = false
         streamReuseLastLinkCacheHours = 24
@@ -333,6 +336,7 @@ object PlayerSettingsRepository {
                 ?: SubtitleLanguageOption.NONE
         secondaryPreferredSubtitleLanguage =
             normalizeLanguageCode(PlayerSettingsStorage.loadSecondaryPreferredSubtitleLanguage())
+        dualSubtitlesEnabled = isDesktop && (PlayerSettingsStorage.loadDualSubtitlesEnabled() ?: false)
         subtitleStyle = SubtitleStyleState(
             textColor = subtitleColorFromStorage(PlayerSettingsStorage.loadSubtitleTextColor())
                 ?: SubtitleStyleState.DEFAULT.textColor,
@@ -354,6 +358,7 @@ object PlayerSettingsRepository {
                 ?: SubtitleStyleState.DEFAULT.stripSdh,
             useForcedSubtitles = PlayerSettingsStorage.loadSubtitleUseForcedSubtitles()
                 ?: SubtitleStyleState.DEFAULT.useForcedSubtitles,
+            preferBuiltInSubtitles = PlayerSettingsStorage.loadSubtitlePreferBuiltIn() ?: false,
             showOnlyPreferredLanguages = PlayerSettingsStorage.loadSubtitleShowOnlyPreferredLanguages()
                 ?: SubtitleStyleState.DEFAULT.showOnlyPreferredLanguages,
             appearance = decodeSubtitleAppearance(PlayerSettingsStorage.loadSubtitleAppearance()),
@@ -631,6 +636,15 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveSecondaryPreferredSubtitleLanguage(normalized)
     }
 
+    fun setDualSubtitlesEnabled(enabled: Boolean) {
+        ensureLoaded()
+        val value = isDesktop && enabled
+        if (dualSubtitlesEnabled == value) return
+        dualSubtitlesEnabled = value
+        publish()
+        PlayerSettingsStorage.saveDualSubtitlesEnabled(value)
+    }
+
     fun setSubtitleStyle(style: SubtitleStyleState) {
         ensureLoaded()
         val normalized = style.copy(
@@ -652,6 +666,7 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveSubtitleBottomOffset(normalized.bottomOffset)
         PlayerSettingsStorage.saveSubtitleStripSdh(normalized.stripSdh)
         PlayerSettingsStorage.saveSubtitleUseForcedSubtitles(normalized.useForcedSubtitles)
+        PlayerSettingsStorage.saveSubtitlePreferBuiltIn(normalized.preferBuiltInSubtitles)
         PlayerSettingsStorage.saveSubtitleShowOnlyPreferredLanguages(normalized.showOnlyPreferredLanguages)
     }
 
@@ -1253,6 +1268,7 @@ object PlayerSettingsRepository {
             secondaryPreferredAudioLanguage = secondaryPreferredAudioLanguage,
             preferredSubtitleLanguage = preferredSubtitleLanguage,
             secondaryPreferredSubtitleLanguage = secondaryPreferredSubtitleLanguage,
+            dualSubtitlesEnabled = dualSubtitlesEnabled,
             subtitleStyle = subtitleStyle,
             streamReuseLastLinkEnabled = streamReuseLastLinkEnabled,
             streamReuseLastLinkCacheHours = streamReuseLastLinkCacheHours,

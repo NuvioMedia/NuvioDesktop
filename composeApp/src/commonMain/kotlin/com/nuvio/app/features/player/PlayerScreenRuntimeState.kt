@@ -308,6 +308,25 @@ internal class PlayerScreenRuntime(
     var serverAudioPreferenceKey: String? = null
     var subtitleTracks by mutableStateOf<List<SubtitleTrack>>(emptyList())
     var selectedAudioIndex by mutableStateOf(-1)
+    var activeSubtitleSlot by mutableStateOf(SubtitleSlot.Primary)
+    var dualPrimaryAddonSubtitle by mutableStateOf<AddonSubtitle?>(null)
+    var secondarySubtitleSelection by mutableStateOf<SubtitleSelectionOption?>(null)
+    var secondarySubtitleNeedsClear = false
+    var isUserExplicitSecondarySubtitleSelection by mutableStateOf(false)
+    var secondarySubtitleRestoreApplied = false
+    var secondarySubtitleDelayMs by mutableStateOf(0)
+    var secondarySubtitleAutoSyncState by mutableStateOf(SubtitleAutoSyncUiState())
+    var primarySubtitleCueJob: Job? = null
+    var secondarySubtitleCueJob: Job? = null
+    var automaticDualSubtitleJob: Job? = null
+    var primarySubtitleRequest = 0L
+    var secondarySubtitleRequest = 0L
+    val failedDualSubtitleSelections = mutableSetOf<String>()
+    var secondarySubtitleAutoSyncedUrl by mutableStateOf<String?>(null)
+    var primarySubtitleLoadJob: Job? = null
+    var secondarySubtitleLoadJob: Job? = null
+    var primarySubtitleLoading by mutableStateOf(false)
+    var secondarySubtitleLoading by mutableStateOf(false)
     var selectedSubtitleIndex by mutableStateOf(-1)
     var selectedAddonSubtitleId by mutableStateOf<String?>(null)
     var useCustomSubtitles by mutableStateOf(false)

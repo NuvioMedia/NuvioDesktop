@@ -471,6 +471,15 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         isSubmitIntroSubmitting = isSubmitIntroSubmitting,
         submitIntroStatusMessage = submitIntroStatusMessage.orEmpty(),
         showP2pConsent = playerControlsPendingP2pSwitch != null,
+        dualSubtitlesEnabled = dualSubtitlesEnabled,
+        activeSubtitleSlot = activeSubtitleSlot.ordinal,
+        primarySubtitleShortLabel = stringResource(Res.string.player_subtitle_primary_short),
+        secondarySubtitleShortLabel = stringResource(Res.string.player_subtitle_secondary_short),
+        primarySubtitleLabel = stringResource(Res.string.player_subtitle_primary),
+        secondarySubtitleLabel = stringResource(Res.string.player_subtitle_secondary),
+        primarySubtitleSelectionLabel = subtitleSlotLabel(SubtitleSlot.Primary),
+        secondarySubtitleSelectionLabel = subtitleSlotLabel(SubtitleSlot.Secondary),
+        subtitleSelectionIsLoading = if (activeSubtitleSlot == SubtitleSlot.Primary) primarySubtitleLoading else secondarySubtitleLoading,
         subtitleActiveTab = activeSubtitleTab.name,
         subtitleLanguageItems = playerControlSubtitleSelection.languages,
         subtitleOptionItems = playerControlSubtitleSelection.options,
@@ -482,12 +491,12 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         useCustomSubtitles = useCustomSubtitles,
         customSubtitleStylingEnabled = !playerSettingsUiState.useLibass,
         subtitleStyle = subtitleStyle,
-        subtitleDelayMs = subtitleDelayMs,
-        hasSelectedAddonSubtitle = selectedAddonSubtitle != null,
-        subtitleAutoSyncCapturedPositionMs = subtitleAutoSyncState.capturedPositionMs ?: -1L,
+        subtitleDelayMs = activeSubtitleDelayMs,
+        hasSelectedAddonSubtitle = subtitleSelection(activeSubtitleSlot) is SubtitleSelectionOption.Addon,
+        subtitleAutoSyncCapturedPositionMs = activeSubtitleAutoSyncState.capturedPositionMs ?: -1L,
         subtitleAutoSyncCues = playerControlAutoSyncCues,
-        subtitleAutoSyncIsLoading = subtitleAutoSyncState.isLoading,
-        subtitleAutoSyncErrorMessage = subtitleAutoSyncState.errorMessage.orEmpty(),
+        subtitleAutoSyncIsLoading = activeSubtitleAutoSyncState.isLoading,
+        subtitleAutoSyncErrorMessage = activeSubtitleAutoSyncState.errorMessage.orEmpty(),
         closeModalsToken = playerControlsCloseModalsToken,
         submitIntroSuccessToken = playerControlsSubmitIntroSuccessToken,
         notificationMessage = playerNotificationMessage,
@@ -1135,6 +1144,9 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
         "cancelP2pForPlayerControls" -> {
             playerControlsPendingP2pSwitch = null
         }
+        "subtitleSlot" -> {
+            if (dualSubtitlesEnabled) activeSubtitleSlot = if (value.toInt() == 1) SubtitleSlot.Secondary else SubtitleSlot.Primary
+        }
         "subtitleTab" -> {
             activeSubtitleTab = when (value.toInt()) {
                 1 -> SubtitleTab.Addons
@@ -1144,6 +1156,11 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
         }
         "selectBuiltInSubtitleTrack" -> {
             val index = value.toInt()
+            if (dualSubtitlesEnabled) {
+                val option = subtitleTracks.firstOrNull { it.index == index }?.let(SubtitleSelectionOption::BuiltIn)
+                if (index < 0 || option != null) selectDualSubtitle(activeSubtitleSlot, option)
+                return true
+            }
             val wasCustom = useCustomSubtitles
             playerControlsLog.d {
                 "selectBuiltInSubtitleTrack index=$index wasCustom=$wasCustom tracks=${subtitleTracks.size} ${playerControlLogContext()}"
@@ -1178,6 +1195,10 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
         "fetchAddonSubtitles" -> fetchAddonSubtitlesForActiveItem()
         "selectAddonSubtitle" -> {
             val addon = visibleAddonSubtitles.getOrNull(value.toInt()) ?: return true
+            if (dualSubtitlesEnabled) {
+                selectDualSubtitle(activeSubtitleSlot, SubtitleSelectionOption.Addon(addon))
+                return true
+            }
             playerControlsLog.d {
                 "selectAddonSubtitle index=${value.toInt()} addonId=${addon.id} language=${addon.language} ${playerControlLogContext()}"
             }
@@ -1189,8 +1210,8 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
             persistAddonSubtitlePreference(addon)
             attachSelectedAddonSubtitleWithAutoSync(addon.url)
         }
-        "subtitleDelayDelta" -> setSubtitleDelay((subtitleDelayMs + value.toInt()).coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS))
-        "subtitleDelayReset" -> setSubtitleDelay(0)
+        "subtitleDelayDelta" -> setSubtitleDelay((activeSubtitleDelayMs + value.toInt()).coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS), activeSubtitleSlot)
+        "subtitleDelayReset" -> setSubtitleDelay(0, activeSubtitleSlot)
         "subtitleAutoSyncCapture" -> captureSubtitleAutoSyncTime()
         "subtitleAutoSyncReload" -> loadSubtitleAutoSyncCues(force = true)
         "subtitleAutoSyncCue" -> {
@@ -1643,6 +1664,13 @@ private fun PlayerScreenRuntime.buildPlayerControlAddonSubtitleItems(): List<Pla
         )
     }
 
+@Composable
+private fun PlayerScreenRuntime.subtitleSlotLabel(slot: SubtitleSlot): String = when (val selection = subtitleSelection(slot)) {
+    null -> stringResource(Res.string.compose_player_none)
+    is SubtitleSelectionOption.BuiltIn -> selection.track.language?.let { languageLabelForCode(it) } ?: selection.track.label
+    is SubtitleSelectionOption.Addon -> languageLabelForCode(selection.subtitle.language)
+}
+
 private data class PlayerControlSubtitleSelection(
     val languages: List<PlayerControlSubtitleLanguageItem>,
     val options: List<PlayerControlSubtitleOptionItem>,
@@ -1653,18 +1681,21 @@ private data class PlayerControlSubtitleSelection(
 @Composable
 private fun PlayerScreenRuntime.buildPlayerControlSubtitleSelection(): PlayerControlSubtitleSelection {
     val autoSyncedUrl by AutoSyncSyncedSubtitle.url.collectAsState()
-    val selectedAddon = selectedAddonSubtitle
+    val activeSelection = subtitleSelection(activeSubtitleSlot)
+    val selectedAddon = (activeSelection as? SubtitleSelectionOption.Addon)?.subtitle
+    val activeIndex = (activeSelection as? SubtitleSelectionOption.BuiltIn)?.track?.index ?: -1
+    val otherSelection = if (dualSubtitlesEnabled) subtitleSelection(if (activeSubtitleSlot == SubtitleSlot.Primary) SubtitleSlot.Secondary else SubtitleSlot.Primary) else null
     var selectedLanguageKey = "__off__"
     var selectedOptionId = ""
-    if (selectedAddon != null || selectedSubtitleIndex != -1) {
+    if (selectedAddon != null || activeIndex != -1) {
         selectedLanguageKey = selectedSubtitleLanguageKey(
             subtitleTracks = subtitleTracks,
-            selectedSubtitleIndex = selectedSubtitleIndex,
+            selectedSubtitleIndex = activeIndex,
             selectedAddonSubtitle = selectedAddon,
         )
         selectedOptionId = selectedSubtitleOptionId(
             subtitleTracks = subtitleTracks,
-            selectedSubtitleIndex = selectedSubtitleIndex,
+            selectedSubtitleIndex = activeIndex,
             selectedAddonSubtitle = selectedAddon,
         ).orEmpty()
     }
@@ -1699,6 +1730,13 @@ private fun PlayerScreenRuntime.buildPlayerControlSubtitleSelection(): PlayerCon
             subtitleTracks = subtitleTracks,
             addonSubtitles = visibleAddonSubtitles,
         ).map { option ->
+            val disabledReason = when {
+                option.sameSubtitle(otherSelection) -> stringResource(Res.string.player_subtitle_already_selected)
+                dualSubtitlesEnabled &&
+                    option is SubtitleSelectionOption.BuiltIn && option.track.isBitmap ->
+                    stringResource(Res.string.player_subtitle_bitmap_dual_unsupported)
+                else -> ""
+            }
             when (option) {
                 is SubtitleSelectionOption.BuiltIn -> PlayerControlSubtitleOptionItem(
                     id = option.id,
@@ -1712,6 +1750,8 @@ private fun PlayerScreenRuntime.buildPlayerControlSubtitleSelection(): PlayerCon
                         option.track.index,
                     ),
                     metadata = forcedLabel.takeIf { option.track.isForced }.orEmpty(),
+                    isEnabled = disabledReason.isEmpty(),
+                    disabledReason = disabledReason,
                     isSelected = option.id == selectedOptionId,
                 )
 
@@ -1727,8 +1767,10 @@ private fun PlayerScreenRuntime.buildPlayerControlSubtitleSelection(): PlayerCon
                         metadata = option.subtitle.display.takeIf {
                             it.isNotBlank() && it != title
                         }.orEmpty(),
+                        isEnabled = disabledReason.isEmpty(),
+                        disabledReason = disabledReason,
                         isSelected = option.id == selectedOptionId,
-                        isAutoSynced = option.id == selectedOptionId && option.subtitle.url == autoSyncedUrl,
+                        isAutoSynced = option.id == selectedOptionId && option.subtitle.url == (if (activeSubtitleSlot == SubtitleSlot.Primary) autoSyncedUrl else secondarySubtitleAutoSyncedUrl),
                     )
                 }
             }
@@ -1753,8 +1795,8 @@ private fun PlayerScreenRuntime.buildPlayerControlSubtitleCueItems(): List<Playe
     }
 
 private fun PlayerScreenRuntime.playerControlsNearestSubtitleCues(): List<SubtitleSyncCue> {
-    val capturedPositionMs = subtitleAutoSyncState.capturedPositionMs ?: return emptyList()
-    return subtitleAutoSyncState.cues
+    val capturedPositionMs = activeSubtitleAutoSyncState.capturedPositionMs ?: return emptyList()
+    return activeSubtitleAutoSyncState.cues
         .sortedBy { abs(it.startTimeMs - capturedPositionMs) }
         .take(5)
 }

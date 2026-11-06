@@ -557,7 +557,10 @@ fun runtimeConfigBoolean(key: String, default: Boolean): Boolean =
 
 val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generateRuntimeConfigs") {
     outputDir.set(generatedRuntimeConfigDir)
-    localPropertiesFile.set(rootProject.layout.projectDirectory.file("local.properties"))
+    val localProperties = rootProject.layout.projectDirectory.file("local.properties")
+    if (localProperties.asFile.exists()) {
+        localPropertiesFile.set(localProperties)
+    }
     appVersionName.set(releaseAppVersionName)
     appVersionCode.set(releaseAppVersionCode)
     desktopAppVersionName.set(desktopReleaseVersionName)
@@ -682,6 +685,7 @@ val buildMacosPlayerBridge = tasks.register<Exec>("buildMacosPlayerBridge") {
     notCompatibleWithConfigurationCache("Builds a host-local player bridge against the bundled macOS libmpv runtime.")
     enabled = isMacHost
     inputs.file(macosPlayerBridgeSource)
+    inputs.file("src/desktopMain/native/subtitle_layout.h")
     inputs.file(bundledMacosLibmpvDylib)
     inputs.dir(macosLibmpvHeaders)
     outputs.file(macosPlayerBridgeOutput)
@@ -702,6 +706,7 @@ val buildLinuxPlayerBridge = tasks.register<Exec>("buildLinuxPlayerBridge") {
     notCompatibleWithConfigurationCache("Builds a host-local player bridge against system libmpv.")
     enabled = isLinuxHost
     inputs.file(linuxPlayerBridgeSourceFile)
+    inputs.file("src/desktopMain/native/subtitle_layout.h")
     outputs.file(linuxPlayerBridgeOutputFile)
     val src = linuxPlayerBridgeSourceFile.absolutePath
     val out = linuxPlayerBridgeOutputFile.absolutePath
@@ -880,6 +885,8 @@ val buildWindowsPlayerBridge = tasks.register<Exec>("buildWindowsPlayerBridge") 
     notCompatibleWithConfigurationCache("Builds a host-local player bridge against WebView2 and libmpv for Windows.")
     enabled = isWindowsHost
     inputs.file(windowsPlayerBridgeSource)
+    inputs.file("src/desktopMain/native/subtitle_layout.h")
+    inputs.file("src/desktopMain/native/macos/include/mpv/client.h")
     if (windowsWebView2IncludeDir.exists()) {
         inputs.dir(windowsWebView2IncludeDir)
     }

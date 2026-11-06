@@ -1,9 +1,12 @@
 package com.nuvio.app.features.autosync
 
+import com.nuvio.app.features.player.SubtitleSlot
+
 internal data class AutoSyncSubtitleCandidate(
     val url: String,
     val language: String,
     val name: String? = null,
+    val isForced: Boolean = false,
 )
 
 /**
@@ -11,6 +14,11 @@ internal data class AutoSyncSubtitleCandidate(
  * Other platforms do not need to implement it.
  */
 internal interface AutoSyncPlayerController {
+    fun cancelForSubtitleSlot(slot: SubtitleSlot) {
+        if (slot == SubtitleSlot.Primary) cancelForManualSubtitleDelay()
+    }
+    fun startSubtitleSlotAutoSync(slot: SubtitleSlot, url: String, startup: Boolean) {}
+    fun setSubtitleSlotAutoSyncAppliedListener(listener: ((SubtitleSlot, String, Int) -> Unit)?) {}
     fun cancelForManualSubtitleDelay()
     fun setAutoSyncSubtitleCandidates(candidates: List<AutoSyncSubtitleCandidate>)
     fun setSubtitleUriWithAutoSync(url: String)

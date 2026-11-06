@@ -43,6 +43,8 @@ internal expect object PlayerSettingsStorage {
     fun savePreferredSubtitleLanguage(language: String)
     fun loadSecondaryPreferredSubtitleLanguage(): String?
     fun saveSecondaryPreferredSubtitleLanguage(language: String?)
+    fun loadDualSubtitlesEnabled(): Boolean?
+    fun saveDualSubtitlesEnabled(enabled: Boolean)
     fun loadSubtitleTextColor(): String?
     fun saveSubtitleTextColor(colorHex: String)
     fun loadSubtitleBackgroundColor(): String?
@@ -65,6 +67,8 @@ internal expect object PlayerSettingsStorage {
     fun saveSubtitleStripSdh(enabled: Boolean)
     fun loadSubtitleUseForcedSubtitles(): Boolean?
     fun saveSubtitleUseForcedSubtitles(enabled: Boolean)
+    fun loadSubtitlePreferBuiltIn(): Boolean?
+    fun saveSubtitlePreferBuiltIn(enabled: Boolean)
     fun loadSubtitleShowOnlyPreferredLanguages(): Boolean?
     fun saveSubtitleShowOnlyPreferredLanguages(enabled: Boolean)
     fun loadStreamReuseLastLinkEnabled(): Boolean?

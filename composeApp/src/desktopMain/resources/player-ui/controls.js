@@ -94,6 +94,13 @@ const speedPanelTitle = document.getElementById("speedPanelTitle");
 const audioPanelTitle = document.getElementById("audioPanelTitle");
 const audioTrackList = document.getElementById("audioTrackList");
 const subtitleTrackList = document.getElementById("subtitleTrackList");
+const subtitleSlots = document.getElementById("subtitleSlots");
+const primarySubtitleSlot = document.getElementById("primarySubtitleSlot");
+const secondarySubtitleSlot = document.getElementById("secondarySubtitleSlot");
+const primarySubtitleSlotTitle = document.getElementById("primarySubtitleSlotTitle");
+const secondarySubtitleSlotTitle = document.getElementById("secondarySubtitleSlotTitle");
+const primarySubtitleSlotLanguage = document.getElementById("primarySubtitleSlotLanguage");
+const secondarySubtitleSlotLanguage = document.getElementById("secondarySubtitleSlotLanguage");
 const subtitlePanelTitle = document.getElementById("subtitlePanelTitle");
 const subtitleLanguageRailTitle = document.getElementById("subtitleLanguageRailTitle");
 const subtitleOptionsRailTitle = document.getElementById("subtitleOptionsRailTitle");
@@ -1246,6 +1253,8 @@ const subtitleSelectionOptions = () => normalizeItems(state.subtitleOptionItems)
   metadata: String(item.metadata || ""),
   selected: Boolean(item.isSelected),
   autoSynced: Boolean(item.isAutoSynced),
+  enabled: item.isEnabled !== false,
+  disabledReason: String(item.disabledReason || ""),
   index: Number(item.index) || 0,
 }));
 
@@ -1306,9 +1315,15 @@ const appendSubtitleOptionRow = option => {
   const row = document.createElement("button");
   row.type = "button";
   row.className = `track-row subtitle-option-row${selected ? " selected" : ""}`;
+  row.disabled = !option.enabled;
+  if (option.disabledReason) {
+    row.title = option.disabledReason;
+    row.setAttribute("aria-label", `${option.title}: ${option.disabledReason}`);
+  }
   row.addEventListener("click", event => {
     event.stopPropagation();
-    pendingSubtitleOptionId = option.id;
+    // Dual selections are confirmed by the player; a failed load must not leave a false checkmark.
+    if (!state.dualSubtitlesEnabled) pendingSubtitleOptionId = option.id;
     if (option.kind === "builtIn") send("selectBuiltInSubtitleTrack", option.index);
     else send("selectAddonSubtitle", option.index);
     renderSubtitleModal();
@@ -1335,10 +1350,10 @@ const appendSubtitleOptionRow = option => {
   title.className = "subtitle-option-title";
   title.textContent = option.title;
   copy.appendChild(title);
-  if (option.metadata) {
+  if (option.metadata || option.disabledReason) {
     const metadata = document.createElement("span");
     metadata.className = "subtitle-option-metadata";
-    metadata.textContent = option.metadata;
+    metadata.textContent = [option.metadata, option.disabledReason].filter(Boolean).join(" · ");
     copy.appendChild(metadata);
   }
   row.appendChild(copy);
@@ -1592,7 +1607,23 @@ const setFontPickerOpen = open => {
   setModalVisibility(subtitleFontModal, open);
 };
 
+primarySubtitleSlot.addEventListener("click", () => send("subtitleSlot", 0));
+secondarySubtitleSlot.addEventListener("click", () => send("subtitleSlot", 1));
+
 const renderSubtitleModal = () => {
+  subtitleSlots.hidden = !state.dualSubtitlesEnabled;
+  subtitleSlots.setAttribute("aria-label", state.subtitlesPanelTitle || "Subtitles");
+  primarySubtitleSlotTitle.textContent = state.primarySubtitleShortLabel || "Primary";
+  secondarySubtitleSlotTitle.textContent = state.secondarySubtitleShortLabel || "Secondary";
+  primarySubtitleSlotLanguage.textContent = state.primarySubtitleSelectionLabel || state.noneLabel || "None";
+  secondarySubtitleSlotLanguage.textContent = state.secondarySubtitleSelectionLabel || state.noneLabel || "None";
+  primarySubtitleSlot.title = `${state.primarySubtitleLabel || "Primary (Bottom)"}: ${primarySubtitleSlotLanguage.textContent}`;
+  secondarySubtitleSlot.title = `${state.secondarySubtitleLabel || "Secondary (Above Primary)"}: ${secondarySubtitleSlotLanguage.textContent}`;
+  primarySubtitleSlot.setAttribute("aria-label", primarySubtitleSlot.title);
+  secondarySubtitleSlot.setAttribute("aria-label", secondarySubtitleSlot.title);
+  primarySubtitleSlot.setAttribute("aria-pressed", String(Number(state.activeSubtitleSlot || 0) === 0));
+  secondarySubtitleSlot.setAttribute("aria-pressed", String(Number(state.activeSubtitleSlot || 0) === 1));
+  subtitleModal.setAttribute("aria-busy", String(Boolean(state.subtitleSelectionIsLoading)));
   subtitlePanelTitle.textContent = state.subtitlesPanelTitle || "Subtitles";
   subtitleLanguageRailTitle.textContent = state.subtitleLanguagesLabel || "Languages";
   subtitleOptionsRailTitle.textContent = state.subtitlesPanelTitle || "Subtitles";
@@ -3645,6 +3676,7 @@ window.playerControls = nextState => {
   const previousResizeLabel = state.resizeModeLabel || "";
   const previousSpeedLabel = state.playbackSpeedLabel || "";
   const previousEpisodeStreamsVisible = Boolean(state.episodeStreamsVisible);
+  const previousSubtitleSlot = Number(state.activeSubtitleSlot || 0);
   const previousSelectedSubtitleLanguageKey = state.selectedSubtitleLanguageKey || "__off__";
   const previousSelectedSubtitleOptionId = state.selectedSubtitleOptionId || "";
   const previousParty = state.party;
@@ -3688,7 +3720,8 @@ window.playerControls = nextState => {
   }
   if (
     activeModal === "subtitles" &&
-    ((state.selectedSubtitleLanguageKey || "__off__") !== previousSelectedSubtitleLanguageKey ||
+    (Number(state.activeSubtitleSlot || 0) !== previousSubtitleSlot ||
+      (state.selectedSubtitleLanguageKey || "__off__") !== previousSelectedSubtitleLanguageKey ||
       (state.selectedSubtitleOptionId || "") !== previousSelectedSubtitleOptionId)
   ) {
     resetSubtitleSelectionState();

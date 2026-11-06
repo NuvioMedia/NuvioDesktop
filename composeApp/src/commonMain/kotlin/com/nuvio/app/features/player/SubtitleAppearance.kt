@@ -41,5 +41,6 @@ object SubtitleRendering {
 internal fun SubtitleStyleState.resetAppearance(): SubtitleStyleState = SubtitleStyleState.DEFAULT.copy(
     stripSdh = stripSdh,
     useForcedSubtitles = useForcedSubtitles,
+    preferBuiltInSubtitles = preferBuiltInSubtitles,
     showOnlyPreferredLanguages = showOnlyPreferredLanguages,
 )

@@ -4,6 +4,7 @@ import com.nuvio.app.core.storage.DesktopStorage
 import com.nuvio.app.core.storage.ProfileScopedKey
 
 internal actual object PlayerTrackPreferenceStorage {
+    private const val secondarySubtitlePreferenceKey = "secondary_subtitle_preference"
     private const val subtitleTypeKey = "subtitle_type"
     private const val subtitleLanguageKey = "subtitle_language"
     private const val subtitleNameKey = "subtitle_name"
@@ -23,6 +24,7 @@ internal actual object PlayerTrackPreferenceStorage {
         val id = contentId.normalizedStorageId() ?: return null
         val preference = PersistedPlayerTrackPreference(
             subtitleType = loadString(subtitleTypeKey, id),
+            secondarySubtitlePreference = loadString(secondarySubtitlePreferenceKey, id),
             subtitleLanguage = loadString(subtitleLanguageKey, id),
             subtitleName = loadString(subtitleNameKey, id),
             subtitleTrackId = loadString(subtitleTrackIdKey, id),
@@ -38,6 +40,7 @@ internal actual object PlayerTrackPreferenceStorage {
         return preference.takeIf {
             listOf(
                 it.subtitleType,
+                it.secondarySubtitlePreference,
                 it.subtitleLanguage,
                 it.subtitleName,
                 it.subtitleTrackId,
@@ -55,6 +58,7 @@ internal actual object PlayerTrackPreferenceStorage {
     actual fun save(contentId: String, preference: PersistedPlayerTrackPreference) {
         val id = contentId.normalizedStorageId() ?: return
         putOptionalString(subtitleTypeKey, id, preference.subtitleType)
+        putOptionalString(secondarySubtitlePreferenceKey, id, preference.secondarySubtitlePreference)
         putOptionalString(subtitleLanguageKey, id, preference.subtitleLanguage)
         putOptionalString(subtitleNameKey, id, preference.subtitleName)
         putOptionalString(subtitleTrackIdKey, id, preference.subtitleTrackId)

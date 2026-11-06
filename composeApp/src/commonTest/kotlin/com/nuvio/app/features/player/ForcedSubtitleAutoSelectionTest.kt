@@ -6,6 +6,43 @@ import kotlin.test.assertEquals
 
 class ForcedSubtitleAutoSelectionTest {
     @Test
+    fun builtInPreferenceControlsLateBuiltInPromotionInSingleMode() {
+        for (preferBuiltIn in listOf(false, true)) {
+            val controller = RecordingController(emptyList())
+            val runtime = runtime(controller).apply {
+                playerSettingsUiState = playerSettingsUiState.copy(subtitleStyle = subtitleStyle.copy(
+                    useForcedSubtitles = false, preferBuiltInSubtitles = preferBuiltIn,
+                ))
+                addonSubtitles = listOf(AddonSubtitle("en-addon", "https://example.com/en.srt", "en", "English"))
+            }
+            runtime.refreshTracks()
+            runtime.refreshTracks()
+            assertEquals("en-addon", runtime.selectedAddonSubtitle?.id)
+            controller.subtitles = listOf(subtitleTrack(index = 5, language = "en", isForced = false))
+            runtime.refreshTracks()
+            assertEquals(if (preferBuiltIn) 5 else -1, runtime.selectedSubtitleIndex)
+            assertEquals(if (preferBuiltIn) null else "en-addon", runtime.selectedAddonSubtitle?.id)
+        }
+    }
+
+    @Test
+    fun builtInPreferenceNeverAllowsNormalAddonWhenMatchingAudioNeedsForcedSubtitles() {
+        for (preferBuiltIn in listOf(false, true)) {
+            val controller = RecordingController(emptyList())
+            val runtime = runtime(controller).apply {
+                playerSettingsUiState = playerSettingsUiState.copy(subtitleStyle = subtitleStyle.copy(
+                    preferBuiltInSubtitles = preferBuiltIn,
+                ))
+                addonSubtitles = listOf(AddonSubtitle("en-addon", "https://example.com/en.srt", "en", "English"))
+            }
+            runtime.refreshTracks()
+            runtime.refreshTracks()
+            assertEquals(-1, runtime.selectedSubtitleIndex)
+            assertEquals(null, runtime.selectedAddonSubtitle)
+        }
+    }
+
+    @Test
     fun wrongLanguageForcedTrackIsTurnedOffWhileAddonSubtitlesLoad() {
         // The player auto-selected a Russian forced track (container default flag).
         val controller = RecordingController(
@@ -123,6 +160,6 @@ class ForcedSubtitleAutoSelectionTest {
         override fun setPlaybackSpeed(speed: Float) = Unit
         override fun setSubtitleUri(url: String) = Unit
         override fun clearExternalSubtitle() = Unit
-        override fun clearExternalSubtitleAndSelect(trackIndex: Int) = Unit
+        override fun clearExternalSubtitleAndSelect(trackIndex: Int) = selectSubtitleTrack(trackIndex)
     }
 }

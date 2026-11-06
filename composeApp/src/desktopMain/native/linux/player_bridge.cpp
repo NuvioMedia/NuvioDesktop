@@ -13,6 +13,7 @@
 
 #include <jni.h>
 #include <mpv/client.h>
+#include "../subtitle_layout.h"
 
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
@@ -830,6 +831,7 @@ std::string buildTracksJson(mpv_handle *mpv, const char *wantedType) {
              + ",\"id\":\"" + std::to_string(id) + "\""
              + ",\"label\":\"" + jsonEscape(label) + "\""
              + ",\"language\":\"" + jsonEscape(lang) + "\""
+             + ",\"codec\":\"" + jsonEscape(codec) + "\""
              + ",\"selected\":" + (selected ? "true" : "false")
              + ",\"forced\":" + (forced ? "true" : "false")
              + "}";
@@ -1477,6 +1479,21 @@ void runEventLoop(Player *player) {
         mpv_event *event = mpv_wait_event(player->mpv, 0.05);
         if (!event || event->event_id == MPV_EVENT_NONE) continue;
         switch (event->event_id) {
+            case MPV_EVENT_PROPERTY_CHANGE: {
+                if (event->reply_userdata == NUVIO_SUBTITLE_LAYOUT_EVENT && player->eventSink && player->eventMethod) {
+                    JNIEnv *env = nullptr;
+                    bool attached = gVm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED;
+                    if (attached) gVm->AttachCurrentThread((void **)&env, nullptr);
+                    if (env) {
+                        jstring type = env->NewStringUTF("subtitleLayoutChanged");
+                        env->CallVoidMethod(player->eventSink, player->eventMethod, type, (jdouble)0.0);
+                        env->DeleteLocalRef(type);
+                        if (env->ExceptionCheck()) env->ExceptionClear();
+                    }
+                    if (attached) gVm->DetachCurrentThread();
+                }
+                break;
+            }
             case MPV_EVENT_LOG_MESSAGE: {
                 auto *msg = static_cast<mpv_event_log_message *>(event->data);
                 if (msg) NUVIO_LOG("mpv[%s] %s: %s", msg->level, msg->prefix, msg->text);
@@ -1717,6 +1734,7 @@ JNIEXPORT jlong JNICALL NP(create)(
     }
 
     player->running.store(true);
+    nuvioObserveSubtitleLayout(player->mpv, mpv_observe_property);
     player->eventThread = std::thread(runEventLoop, player);
 
     std::string url = jstringToUtf8(env, sourceUrl);
@@ -1892,6 +1910,29 @@ JNIEXPORT jstring JNICALL NP(stringProperty)(JNIEnv *env, jobject, jlong handle,
     Player *p = asPlayer(handle);
     if (!p) return utf8ToJstring(env, "");
     return utf8ToJstring(env, mpvGetStr(p->mpv, jstringToUtf8(env, name)));
+}
+
+JNIEXPORT void JNICALL NP(setStringProperty)(JNIEnv *env, jobject, jlong handle, jstring name, jstring value) {
+    Player *p = asPlayer(handle);
+    if (!p) return;
+    std::string property = jstringToUtf8(env, name);
+    std::string text = jstringToUtf8(env, value);
+    mpv_set_property_string(p->mpv, property.c_str(), text.c_str());
+}
+
+JNIEXPORT void JNICALL NP(subtitleCommand)(JNIEnv *env, jobject, jlong handle, jobjectArray args) {
+    Player *p = asPlayer(handle);
+    if (!p || !args) return;
+    std::vector<std::string> values;
+    for (jsize i = 0; i < env->GetArrayLength(args); ++i) {
+        jstring arg = (jstring)env->GetObjectArrayElement(args, i);
+        values.push_back(jstringToUtf8(env, arg));
+        env->DeleteLocalRef(arg);
+    }
+    std::vector<const char *> command;
+    for (const auto &value : values) command.push_back(value.c_str());
+    command.push_back(nullptr);
+    mpv_command(p->mpv, command.data());
 }
 
 JNIEXPORT jstring JNICALL NP(subtitleTracksJson)(JNIEnv *env, jobject, jlong handle) {

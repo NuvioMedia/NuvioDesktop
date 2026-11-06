@@ -2,6 +2,9 @@ package com.nuvio.app.features.autosync
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.storage.DesktopStorage
+import com.nuvio.app.features.player.PlayerSubtitleSelection
+import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.features.player.SubtitleSlot
 import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.streams.StreamSubtitle
 import java.io.File
@@ -25,11 +28,21 @@ internal class DesktopAutoSyncCoordinator(
     private var job: Job? = null
     private var operationToken = 0L
     private var candidates: List<AutoSyncSubtitleCandidate> = emptyList()
+    private var requiredForcedSubtitle: Boolean? = null
+    private val eligibleCandidates: List<AutoSyncSubtitleCandidate>
+        get() = candidates.filter { requiredForcedSubtitle == null || it.isForced == requiredForcedSubtitle }
     private var appliedListener: ((subtitleUrl: String, delayMs: Int) -> Unit)? = null
     private var failureListener: ((AutoSyncFailure) -> Unit)? = null
 
-    fun wrap(controller: PlayerEngineController): PlayerEngineController =
-        AutoSyncDesktopEngineController(controller, this)
+    private var secondaryCoordinator: DesktopAutoSyncCoordinator? = null
+
+    fun wrap(controller: PlayerEngineController): PlayerEngineController {
+        val secondary = DesktopAutoSyncCoordinator(scope, sourceUrl, sourceHeaders, getExternalSubtitles) {
+            PlayerSettingsRepository.uiState.value.secondaryPreferredSubtitleLanguage
+        }
+        secondaryCoordinator = secondary
+        return AutoSyncDesktopEngineController(controller, this, secondary)
+    }
 
     fun setCandidates(value: List<AutoSyncSubtitleCandidate>) {
         candidates = value.distinctBy { it.url }
@@ -50,6 +63,7 @@ internal class DesktopAutoSyncCoordinator(
     }
 
     fun dispose() {
+        secondaryCoordinator?.dispose()
         cancel()
         appliedListener = null
         failureListener = null
@@ -59,10 +73,13 @@ internal class DesktopAutoSyncCoordinator(
         url: String,
         candidateScope: AutoSyncCandidateScope,
         base: PlayerEngineController,
+        slot: SubtitleSlot? = null,
     ) {
         cancel()
         val token = operationToken
-        base.setSubtitleUri(url)
+        requiredForcedSubtitle = if (slot == null) null
+        else candidates.firstOrNull { it.url == url }?.isForced ?: url.contains("forced", ignoreCase = true)
+        if (slot == null) base.setSubtitleUri(url)
         AutoSyncPreferencesRepository.ensureLoaded()
         if (decideAutoSyncStart(AutoSyncPreferencesRepository.preferredSubtitleAutoSyncOnStart.value) ==
             AutoSyncStartAction.ATTACH_ORIGINAL ||
@@ -85,9 +102,9 @@ internal class DesktopAutoSyncCoordinator(
                     selectedSubtitleUrl = url,
                     selectedSubtitleHeaders = subtitleHeaders,
                     preferredLanguage = subtitleLanguage,
-                    alternativeSubtitles = candidateScope.alternativeCandidates(candidates),
+                    alternativeSubtitles = candidateScope.alternativeCandidates(eligibleCandidates),
                     alternativeSubtitlesProvider = if (candidateScope.usesAlternativeProvider) {
-                        { candidates }
+                        { eligibleCandidates }
                     } else null,
                     onAnalysisOutcome = { outcome = it },
                     allowLiveReference = false,
@@ -119,11 +136,12 @@ internal class DesktopAutoSyncCoordinator(
                         failureListener?.invoke(AutoSyncFailure.FAILED)
                         return@launch
                     }
-                    base.setSubtitleUri(path)
+                    if (slot == null) base.setSubtitleUri(path)
+                    else check(base.setSubtitleSelection(slot, PlayerSubtitleSelection.External(path)))
                 }
-                base.setSubtitleDelayMs(0)
+                if (slot == null) base.setSubtitleDelayMs(0) else base.setSubtitleSlotDelayMs(slot, 0)
                 appliedListener?.invoke(chosenUrl, 0)
-                AutoSyncSyncedSubtitle.mark(chosenUrl)
+                if (slot != SubtitleSlot.Secondary) AutoSyncSyncedSubtitle.mark(chosenUrl)
             } catch (cancel: CancellationException) {
                 throw cancel
             } catch (error: Exception) {
@@ -167,28 +185,73 @@ internal class DesktopAutoSyncCoordinator(
 private class AutoSyncDesktopEngineController(
     private val base: PlayerEngineController,
     private val coordinator: DesktopAutoSyncCoordinator,
+    private val secondary: DesktopAutoSyncCoordinator,
 ) : PlayerEngineController by base, AutoSyncPlayerController {
 
-    override fun setAutoSyncSubtitleCandidates(candidates: List<AutoSyncSubtitleCandidate>) =
+    private var dualEnabled = false
+    private var primaryListener: ((String, Int) -> Unit)? = null
+    private var slotListener: ((SubtitleSlot, String, Int) -> Unit)? = null
+
+    override fun setAutoSyncSubtitleCandidates(candidates: List<AutoSyncSubtitleCandidate>) {
         coordinator.setCandidates(candidates)
+        secondary.setCandidates(candidates)
+    }
+
+    override suspend fun setSubtitleSelection(slot: SubtitleSlot, selection: PlayerSubtitleSelection?): Boolean {
+        cancelForSubtitleSlot(slot)
+        return base.setSubtitleSelection(slot, selection)
+    }
+
+    override fun setDualSubtitlesEnabled(enabled: Boolean) {
+        if (dualEnabled && !enabled) {
+            coordinator.cancel()
+            secondary.cancel()
+        }
+        dualEnabled = enabled
+        base.setDualSubtitlesEnabled(enabled)
+    }
+
+    override fun cancelForSubtitleSlot(slot: SubtitleSlot) {
+        if (slot == SubtitleSlot.Primary) coordinator.cancel() else secondary.cancel()
+    }
+
+    override fun setSubtitleSlotAutoSyncAppliedListener(listener: ((SubtitleSlot, String, Int) -> Unit)?) {
+        slotListener = listener
+        if (listener == null) secondary.setAppliedListener(null)
+    }
+
+    override fun startSubtitleSlotAutoSync(slot: SubtitleSlot, url: String, startup: Boolean) {
+        val target = if (slot == SubtitleSlot.Primary) coordinator else secondary
+        target.setAppliedListener { selectedUrl, delay -> slotListener?.invoke(slot, selectedUrl, delay) }
+        target.start(url, if (startup) AutoSyncCandidateScope.STARTUP_SEARCH else AutoSyncCandidateScope.SELECTED_ONLY, base, slot)
+    }
 
     override fun setAutoSyncAppliedListener(
         listener: ((subtitleUrl: String, delayMs: Int) -> Unit)?,
-    ) = coordinator.setAppliedListener(listener)
+    ) {
+        primaryListener = listener
+        coordinator.setAppliedListener(listener)
+    }
 
-    override fun setAutoSyncFailureListener(listener: ((AutoSyncFailure) -> Unit)?) =
+    override fun setAutoSyncFailureListener(listener: ((AutoSyncFailure) -> Unit)?) {
         coordinator.setFailureListener(listener)
+        secondary.setFailureListener(listener)
+    }
 
     override fun setSubtitleUri(url: String) {
         coordinator.cancel()
         base.setSubtitleUri(url)
     }
 
-    override fun setSubtitleUriWithAutoSync(url: String) =
+    override fun setSubtitleUriWithAutoSync(url: String) {
+        coordinator.setAppliedListener(primaryListener)
         coordinator.start(url, AutoSyncCandidateScope.STARTUP_SEARCH, base)
+    }
 
-    override fun setSubtitleUriWithSelectedAutoSync(url: String) =
+    override fun setSubtitleUriWithSelectedAutoSync(url: String) {
+        coordinator.setAppliedListener(primaryListener)
         coordinator.start(url, AutoSyncCandidateScope.SELECTED_ONLY, base)
+    }
 
     override fun selectSubtitleTrack(index: Int) {
         coordinator.cancel()

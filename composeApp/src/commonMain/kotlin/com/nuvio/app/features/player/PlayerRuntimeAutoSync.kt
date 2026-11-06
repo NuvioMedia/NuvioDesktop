@@ -20,6 +20,7 @@ private fun List<AddonSubtitle>.toAutoSyncCandidates(): List<AutoSyncSubtitleCan
             url = subtitle.url,
             language = subtitle.language,
             name = subtitle.display,
+            isForced = addonSubtitleIsForced(subtitle),
         )
     }
 
@@ -29,6 +30,26 @@ private fun PlayerScreenRuntime.currentAutoSyncCandidates(): List<AutoSyncSubtit
 internal fun PlayerScreenRuntime.configureAutoSyncController(
     controller: PlayerEngineController,
 ) {
+    val identity = activePlaybackIdentity
+    (controller as? AutoSyncPlayerController)?.setSubtitleSlotAutoSyncAppliedListener listener@{ slot, subtitleUrl, delayMs ->
+        if (!dualSubtitlesEnabled || identity != activePlaybackIdentity || controller !== playerController) return@listener
+        val subtitle = addonSubtitles.firstOrNull { it.url == subtitleUrl }
+        if (slot == SubtitleSlot.Primary) {
+            dualPrimaryAddonSubtitle = subtitle ?: dualPrimaryAddonSubtitle?.copy(id = subtitleUrl, url = subtitleUrl)
+            selectedAddonSubtitleId = subtitle?.selectionKey ?: subtitleUrl
+            selectedSubtitleIndex = -1
+            useCustomSubtitles = true
+            subtitleDelayMs = delayMs
+            PlayerTrackPreferenceStorage.saveSubtitleDelayMs(playbackSession.videoId, delayMs)
+            if (subtitle != null && isUserExplicitSubtitleSelection) persistAddonSubtitlePreference(subtitle)
+        } else {
+            val synced = subtitle ?: (secondarySubtitleSelection as? SubtitleSelectionOption.Addon)?.subtitle?.copy(id = subtitleUrl, url = subtitleUrl)
+            if (synced != null) secondarySubtitleSelection = SubtitleSelectionOption.Addon(synced)
+            secondarySubtitleDelayMs = delayMs
+            secondarySubtitleAutoSyncedUrl = subtitleUrl
+            if (subtitle != null && isUserExplicitSecondarySubtitleSelection) persistSecondarySubtitlePreference(SubtitleSelectionOption.Addon(subtitle))
+        }
+    }
     controller.setAutoSyncSubtitleCandidates(currentAutoSyncCandidates())
     controller.setAutoSyncFailureListener { failure ->
         scope.launch {
@@ -70,6 +91,7 @@ internal fun PlayerScreenRuntime.BindAutoSyncRuntimeEffects() {
         // Runs once playerController is set, which Nuvio only does for the live playback key.
         activeController?.let { configureAutoSyncController(it) }
         onDispose {
+            (activeController as? AutoSyncPlayerController)?.setSubtitleSlotAutoSyncAppliedListener(null)
             activeController?.setAutoSyncAppliedListener(null)
             activeController?.setAutoSyncFailureListener(null)
         }

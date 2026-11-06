@@ -1,5 +1,6 @@
 package com.nuvio.app.features.player
 
+import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.features.addons.AddonResource
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.addons.enabledAddons
@@ -8,7 +9,10 @@ internal fun buildAddonSubtitleFetchKey(
     addons: List<ManagedAddon>,
     type: String?,
     videoId: String?,
+    networkCondition: NetworkCondition,
 ): String? {
+    // Add-ons use their own servers; an unavailable Nuvio backend does not mean the internet is offline.
+    if (networkCondition == NetworkCondition.NoInternet) return null
     val normalizedType = type?.takeIf { it.isNotBlank() } ?: return null
     val normalizedVideoId = videoId?.takeIf { it.isNotBlank() } ?: return null
     val compatibleSubtitleAddons = addons.enabledAddons().mapNotNull { addon ->

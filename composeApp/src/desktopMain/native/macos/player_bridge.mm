@@ -12,6 +12,7 @@
 #include <mpv/client.h>
 #include <mpv/render.h>
 #include <mpv/render_gl.h>
+#include "../subtitle_layout.h"
 
 #include <atomic>
 #include <clocale>
@@ -2188,6 +2189,7 @@ static void nuvioMpvWakeup(void *ctx) {
     if (!mpv) return;
     _mpvDrainStopped.store(false);
     mpv_observe_property(mpv, 2, "current-ao", MPV_FORMAT_STRING);
+    nuvioObserveSubtitleLayout(mpv, mpv_observe_property);
     mpv_set_wakeup_callback(mpv, nuvioMpvWakeup, (__bridge void *)self);
 }
 
@@ -2209,6 +2211,10 @@ static void nuvioMpvWakeup(void *ctx) {
         if (!event || event->event_id == MPV_EVENT_NONE) break;
         switch (event->event_id) {
             case MPV_EVENT_PROPERTY_CHANGE: {
+                if (event->reply_userdata == NUVIO_SUBTITLE_LAYOUT_EVENT) {
+                    [self sendPlayerEvent:@"subtitleLayoutChanged" value:0.0];
+                    break;
+                }
                 mpv_event_property *prop = (mpv_event_property *)event->data;
                 if (event->reply_userdata == 2 && prop && prop->format == MPV_FORMAT_STRING) {
                     const char *ao = prop->data ? *(const char **)prop->data : NULL;
@@ -2723,6 +2729,7 @@ static void nuvioMpvWakeup(void *ctx) {
             @"language": language ?: @"",
             @"selected": @(selected),
             @"forced": @(forced),
+            @"codec": codec ?: @"",
         }];
         logicalIndex += 1;
     }
@@ -3650,6 +3657,28 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setAudioLanguages(
     runOnMainAsync(^{
         [player setAudioLanguages:value];
     });
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setStringProperty(JNIEnv *env, jobject, jlong handle, jstring name, jstring value) {
+    if (handle == 0) return;
+    MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
+    std::string property = jstringToString(env, name);
+    NSString *text = [NSString stringWithUTF8String:jstringToString(env, value).c_str()] ?: @"";
+    [player setStringProperty:property.c_str() value:text];
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_subtitleCommand(JNIEnv *env, jobject, jlong handle, jobjectArray args) {
+    if (handle == 0 || !args) return;
+    MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
+    NSMutableArray<NSString *> *values = [NSMutableArray array];
+    for (jsize i = 0; i < env->GetArrayLength(args); ++i) {
+        jstring arg = (jstring)env->GetObjectArrayElement(args, i);
+        [values addObject:[NSString stringWithUTF8String:jstringToString(env, arg).c_str()] ?: @""];
+        env->DeleteLocalRef(arg);
+    }
+    [player command:values];
 }
 
 extern "C" JNIEXPORT void JNICALL
