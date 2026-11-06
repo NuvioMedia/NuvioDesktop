@@ -31,6 +31,7 @@ import com.nuvio.app.features.player.SubtitleOutlineColorSwatches
 import com.nuvio.app.features.player.SubtitleStyleState
 import com.nuvio.app.features.player.SubtitleTrack
 import com.nuvio.app.features.player.inferForcedSubtitleTrack
+import com.nuvio.app.features.player.desktop.hls.HlsHeaderProxy
 import com.nuvio.app.features.player.toStorageHexString
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -118,6 +119,8 @@ internal class NativePlayerController(
     private var pendingSubtitleStyle: SubtitleStyleState? = null
     private var pendingUseLibass: Boolean = false
     private var lastSentControlsStructureKey: NativeControlsStructureKey? = null
+    private val headerProxyLock = Any()
+    private var headerProxy: HlsHeaderProxy? = null
     private var onAction: (PlayerControlsAction) -> Boolean = { false }
     private var onEvent: (String, Double) -> Boolean = { _, _ -> false }
     private var onScrubChange: (Long) -> Boolean = { false }
@@ -308,10 +311,11 @@ internal class NativePlayerController(
         // Create off the EDT and come back to it for the parts that touch Swing state.
         val createWorker = Thread({
             try {
+                val playbackSource = proxySourceIfNeeded(resolvedSource, pending.headerLines.toHeaderMap())
                 runCatching {
                     nativeCreate(
                         hostViewPtr,
-                        resolvedSource,
+                        playbackSource,
                         pending.headerLines.toTypedArray(),
                         pending.playWhenReady,
                         pending.initialPositionMs,
@@ -724,6 +728,8 @@ internal class NativePlayerController(
         }
         host.resetCursorVisibility()
         invalidateForRelease()
+        // Deep-links and navigation skip disposePlayerHandle, so stop the loopback proxy here too.
+        releaseHeaderProxy()
         val callback = ReleaseCallback(onReleased, onReleaseFailed)
         var shouldStart = false
         var immediateFailure: String? = null
@@ -932,7 +938,40 @@ internal class NativePlayerController(
         }
     }
 
+    /**
+     * FFmpeg opens HLS segments and keys by itself and does not inherit mpv's
+     * http-header-fields, so header-protected streams stall after the playlist.
+     * Route those sources through a loopback proxy that replays the headers.
+     */
+    private fun proxySourceIfNeeded(sourceUrl: String, headers: Map<String, String>): String {
+        if (headers.isEmpty() || !HlsHeaderProxy.isEnabled()) return sourceUrl
+        if (!sourceUrl.startsWith("http://", ignoreCase = true) &&
+            !sourceUrl.startsWith("https://", ignoreCase = true)
+        ) {
+            return sourceUrl
+        }
+        val proxy = runCatching {
+            HlsHeaderProxy(headers).also(HlsHeaderProxy::start)
+        }.getOrElse { error ->
+            log.w { "hls header proxy unavailable (${error::class.simpleName}); using direct playback" }
+            return sourceUrl
+        }
+        synchronized(headerProxyLock) {
+            headerProxy?.close()
+            headerProxy = proxy
+        }
+        return proxy.localUrlFor(sourceUrl)
+    }
+
+    private fun releaseHeaderProxy() {
+        synchronized(headerProxyLock) {
+            headerProxy?.close()
+            headerProxy = null
+        }
+    }
+
     private fun disposePlayerHandle() {
+        releaseHeaderProxy()
         synchronized(lifecycleLock) {
             if (releaseRequested) return
             val current = handle
