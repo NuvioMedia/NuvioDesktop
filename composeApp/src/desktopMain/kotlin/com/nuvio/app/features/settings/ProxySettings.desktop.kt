@@ -92,11 +92,18 @@ internal actual object DesktopProxy {
     }
 
     /**
-     * The proxy for a Ktor engine's `engine { proxy = ... }`. Ktor takes a bare `java.net.Proxy`
-     * and has no per-host bypass, so a bypass list can't be honoured on these clients; the
-     * OkHttp clients (addons, trailers, subtitles) do honour it.
+     * The proxy for a Ktor engine's `engine { proxy = ... }`, or null to leave the engine alone.
+     *
+     * Ktor's CIO engine refuses `Proxy.NO_PROXY` outright: it maps `Proxy.Type.DIRECT` to
+     * `ProxyType.UNKNOWN` and throws "CIO engine does not currently support UNKNOWN proxies" in
+     * its constructor. So a direct connection must be expressed as *no proxy set at all*, never
+     * as NO_PROXY. Ktor also has no per-host bypass, so a bypass list can't be honoured here;
+     * the OkHttp clients (addons, trailers, subtitles) do honour it.
      */
-    fun ktorProxy(): Proxy = okHttpProxy()
+    fun ktorProxyOrNull(): Proxy? = current().activeEndpoint()?.let { endpoint ->
+        val type = if (endpoint.scheme == "socks") Proxy.Type.SOCKS else Proxy.Type.HTTP
+        Proxy(type, InetSocketAddress.createUnresolved(endpoint.host, endpoint.port))
+    }
 
     private fun refreshDetectedEndpointIfNeeded() {
         if (cached.mode != ProxyMode.Automatic) return

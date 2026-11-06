@@ -58,7 +58,8 @@ private val desktopGifHttpClient by lazy {
         followRedirects = true
         engine {
             requestTimeout = 15_000
-            proxy = DesktopProxy.ktorProxy()
+            // Only set when a proxy is configured: CIO rejects Proxy.NO_PROXY.
+            DesktopProxy.ktorProxyOrNull()?.let { proxy = it }
         }
     }
 }

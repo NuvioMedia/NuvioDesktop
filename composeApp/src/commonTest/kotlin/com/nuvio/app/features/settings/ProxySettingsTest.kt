@@ -147,3 +147,31 @@ class ProxyAutoDetectorTest {
         assertNull(ProxyAutoDetector.detect(mapOf("HTTPS_PROXY" to "   ")))
     }
 }
+
+/**
+ * A direct connection must never reach a Ktor engine as `Proxy.NO_PROXY`.
+ *
+ * Ktor's CIO engine maps `Proxy.Type.DIRECT` to `ProxyType.UNKNOWN` and throws in its
+ * constructor ("CIO engine does not currently support UNKNOWN proxies"), which crashed the
+ * desktop app on startup for everyone, proxy or not. The clients therefore set `proxy` only
+ * when there is one, and this checks the value they would set.
+ */
+class KtorProxySelectionTest {
+    @Test
+    fun aDirectConnectionYieldsNoProxyValue() {
+        val settings = ProxySettings(mode = ProxyMode.Off)
+        assertNull(settings.activeEndpoint())
+    }
+
+    @Test
+    fun automaticWithNothingDetectedYieldsNoProxyValue() {
+        val settings = ProxySettings(mode = ProxyMode.Automatic, detectedEndpoint = "")
+        assertNull(settings.activeEndpoint())
+    }
+
+    @Test
+    fun aConfiguredProxyYieldsAnEndpointToSet() {
+        val settings = ProxySettings(mode = ProxyMode.Manual, manualEndpoint = "http://127.0.0.1:8080")
+        assertNotNull(settings.activeEndpoint())
+    }
+}

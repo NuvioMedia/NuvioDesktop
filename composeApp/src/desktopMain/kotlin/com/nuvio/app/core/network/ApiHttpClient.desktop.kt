@@ -9,7 +9,8 @@ internal actual fun createApiHttpClient(): HttpClient = HttpClient(CIO) {
     followRedirects = false
     expectSuccess = false
     engine {
-        proxy = DesktopProxy.ktorProxy()
+        // Only set when a proxy is configured: CIO rejects Proxy.NO_PROXY.
+        DesktopProxy.ktorProxyOrNull()?.let { proxy = it }
     }
     install(HttpTimeout) {
         requestTimeoutMillis = 30_000
