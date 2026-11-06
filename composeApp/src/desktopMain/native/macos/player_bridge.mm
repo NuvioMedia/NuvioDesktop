@@ -262,10 +262,12 @@ static void applyExtendedRangeLayerState(CALayer *layer, BOOL enabled, double po
     if (@available(macOS 15.0, *)) {
         layer.toneMapMode = enabled ? CAToneMapModeNever : CAToneMapModeAutomatic;
     }
+#if defined(__MAC_26_0) && __MAC_OS_X_VERSION_MAX_ALLOWED >= __MAC_26_0
     if (@available(macOS 26.0, *)) {
         layer.preferredDynamicRange = enabled ? CADynamicRangeHigh : CADynamicRangeStandard;
         layer.contentsHeadroom = enabled ? fmax(potentialHeadroom, 1.0) : 0.0;
     }
+#endif
 }
 
 static NSString *diagnosticSize(CGSize size) {
