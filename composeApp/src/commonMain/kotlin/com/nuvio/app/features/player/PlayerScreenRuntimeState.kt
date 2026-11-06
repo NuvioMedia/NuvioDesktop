@@ -138,6 +138,7 @@ internal class PlayerScreenRuntime(
     var sliderEdgePadding: Dp = 0.dp
     var overlayBottomPadding: Dp = 0.dp
     var sideGestureSystemEdgeExclusionPx: Float = 0f
+    var horizontalSeekSystemEdgeExclusionPx: Float = 0f
     var resizeModeFitLabel: String = ""
     var resizeModeFillLabel: String = ""
     var resizeModeZoomLabel: String = ""
@@ -301,6 +302,7 @@ internal class PlayerScreenRuntime(
     var playbackEngineOverride by mutableStateOf<AndroidPlaybackEngine?>(null)
     var engineFailoverTriggered by mutableStateOf(false)
     var engineFailoverDisarmed by mutableStateOf(false)
+    var engineFailoverSourceIdentity: String? = null
     var pendingEngineSwitchTrackPreference by mutableStateOf<PendingEngineSwitchTrackPreference?>(null)
     var audioTracks by mutableStateOf<List<AudioTrack>>(emptyList())
     var serverAudioTracks by mutableStateOf<List<AudioTrack>>(emptyList())
@@ -325,9 +327,15 @@ internal class PlayerScreenRuntime(
     var subtitleFontImportToken by mutableStateOf(0)
     var subtitleFontsRevision by mutableStateOf(0)
     var subtitleFontImportFailed by mutableStateOf(false)
+    var audioDelayMs by mutableStateOf(0)
+    var audioOutputKey: String? = null
+    var audioAmplificationDb by mutableStateOf(0)
+    var centerMixLevelDb by mutableStateOf(0)
+    var centerMixAvailable by mutableStateOf(false)
     var subtitleAutoSyncState by mutableStateOf(SubtitleAutoSyncUiState())
 
     var lastSyncedSettingsResizeMode: PlayerResizeMode? = null
     var lastResetPlaybackIdentity: PlaybackKey? = null
+    var lastResetSourcePlaybackIdentity: PlaybackKey? = null
     var lastResetVideoIdentity: String? = null
 }

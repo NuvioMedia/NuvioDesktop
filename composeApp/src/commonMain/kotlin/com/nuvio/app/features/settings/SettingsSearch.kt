@@ -691,6 +691,8 @@ internal fun settingsSearchEntries(
                     add(PlaybackSearchRow("custom-buffers", stringResource(Res.string.settings_playback_buffer_custom), stringResource(Res.string.settings_playback_buffer_custom_description), page = SettingsPage.PlaybackBuffer))
                     add(PlaybackSearchRow("vod-cache", stringResource(Res.string.settings_playback_vod_cache), stringResource(Res.string.settings_playback_vod_cache_description), page = SettingsPage.PlaybackBuffer))
                 }
+                add(PlaybackSearchRow("remember-audio-delay", stringResource(Res.string.settings_playback_remember_audio_delay), stringResource(Res.string.settings_playback_remember_audio_delay_description), page = SettingsPage.PlaybackAudio))
+                add(PlaybackSearchRow("downmix", stringResource(Res.string.settings_playback_downmix), stringResource(Res.string.settings_playback_downmix_description), page = SettingsPage.PlaybackAudio))
             },
         )
         addPlaybackRows(

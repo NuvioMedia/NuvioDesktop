@@ -17,6 +17,7 @@ internal actual object PlayerTrackPreferenceStorage {
     private const val audioNameKey = "audio_name"
     private const val audioTrackIdKey = "audio_track_id"
     private const val subtitleDelayMsKey = "subtitle_delay_ms"
+    private const val audioDelayMsKey = "audio_delay_ms"
     private val store = DesktopStorage.store("nuvio_player_track_preferences")
 
     actual fun load(contentId: String): PersistedPlayerTrackPreference? {
@@ -78,6 +79,19 @@ internal actual object PlayerTrackPreferenceStorage {
         store.putInt(
             scopedKey(subtitleDelayMsKey, id),
             delayMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS),
+        )
+    }
+
+    actual fun loadAudioDelayMs(audioOutputKey: String): Int? {
+        val id = audioOutputKey.normalizedStorageId() ?: return null
+        return store.getInt(scopedKey(audioDelayMsKey, id))
+    }
+
+    actual fun saveAudioDelayMs(audioOutputKey: String, delayMs: Int) {
+        val id = audioOutputKey.normalizedStorageId() ?: return
+        store.putInt(
+            scopedKey(audioDelayMsKey, id),
+            delayMs.coerceIn(AUDIO_DELAY_MIN_MS, AUDIO_DELAY_MAX_MS),
         )
     }
 

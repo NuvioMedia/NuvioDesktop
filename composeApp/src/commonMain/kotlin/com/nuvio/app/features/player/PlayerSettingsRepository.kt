@@ -60,6 +60,13 @@ data class PlayerSettingsUiState(
     val androidLibmpvHardwareDecodingEnabled: Boolean = true,
     val androidLibmpvYuv420pEnabled: Boolean = false,
     val androidExoChaptersEnabled: Boolean = isDesktop,
+    val rememberAudioDelayPerDevice: Boolean = true,
+    val persistAudioAmplification: Boolean = false,
+    val audioAmplificationDb: Int = 0,
+    val downmixEnabled: Boolean = false,
+    val audioOutputChannels: AudioOutputChannels = AudioOutputChannels.default,
+    val maintainOriginalAudioOnDownmix: Boolean = true,
+    val centerMixLevelDb: Int = 0,
     val decoderPriority: Int = 1,
     val mapDV7ToHevc: Boolean = false,
     val tunnelingEnabled: Boolean = false,
@@ -147,6 +154,13 @@ object PlayerSettingsRepository {
     private var androidLibmpvHardwareDecodingEnabled = true
     private var androidLibmpvYuv420pEnabled = false
     private var androidExoChaptersEnabled = isDesktop
+    private var rememberAudioDelayPerDevice = true
+    private var persistAudioAmplification = false
+    private var audioAmplificationDb = 0
+    private var downmixEnabled = false
+    private var audioOutputChannels = AudioOutputChannels.default
+    private var maintainOriginalAudioOnDownmix = true
+    private var centerMixLevelDb = 0
     private var decoderPriority = 1
     private var mapDV7ToHevc = false
     private var tunnelingEnabled = false
@@ -239,6 +253,13 @@ object PlayerSettingsRepository {
         androidLibmpvHardwareDecodingEnabled = true
         androidLibmpvYuv420pEnabled = false
         androidExoChaptersEnabled = isDesktop
+        rememberAudioDelayPerDevice = true
+        persistAudioAmplification = false
+        audioAmplificationDb = 0
+        downmixEnabled = false
+        audioOutputChannels = AudioOutputChannels.default
+        maintainOriginalAudioOnDownmix = true
+        centerMixLevelDb = 0
         decoderPriority = 1
         mapDV7ToHevc = false
         tunnelingEnabled = false
@@ -370,6 +391,15 @@ object PlayerSettingsRepository {
         androidLibmpvHardwareDecodingEnabled = PlayerSettingsStorage.loadAndroidLibmpvHardwareDecodingEnabled() ?: true
         androidLibmpvYuv420pEnabled = PlayerSettingsStorage.loadAndroidLibmpvYuv420pEnabled() ?: false
         androidExoChaptersEnabled = PlayerSettingsStorage.loadAndroidExoChaptersEnabled() ?: isDesktop
+        rememberAudioDelayPerDevice = PlayerSettingsStorage.loadRememberAudioDelayPerDevice() ?: true
+        persistAudioAmplification = PlayerSettingsStorage.loadPersistAudioAmplification() ?: false
+        audioAmplificationDb = (PlayerSettingsStorage.loadAudioAmplificationDb() ?: 0)
+            .coerceIn(AUDIO_AMPLIFICATION_MIN_DB, AUDIO_AMPLIFICATION_MAX_DB)
+        downmixEnabled = PlayerSettingsStorage.loadDownmixEnabled() ?: false
+        audioOutputChannels = AudioOutputChannels.fromSettingValue(PlayerSettingsStorage.loadAudioOutputChannels())
+        maintainOriginalAudioOnDownmix = PlayerSettingsStorage.loadMaintainOriginalAudioOnDownmix() ?: true
+        centerMixLevelDb = (PlayerSettingsStorage.loadCenterMixLevelDb() ?: 0)
+            .coerceIn(CENTER_MIX_LEVEL_MIN_DB, CENTER_MIX_LEVEL_MAX_DB)
         decoderPriority = PlayerSettingsStorage.loadDecoderPriority() ?: 1
         mapDV7ToHevc = PlayerSettingsStorage.loadMapDV7ToHevc() ?: false
         tunnelingEnabled = PlayerSettingsStorage.loadTunnelingEnabled() ?: false
@@ -717,6 +747,64 @@ object PlayerSettingsRepository {
         androidExoChaptersEnabled = enabled
         publish()
         PlayerSettingsStorage.saveAndroidExoChaptersEnabled(enabled)
+    }
+
+    fun setRememberAudioDelayPerDevice(enabled: Boolean) {
+        ensureLoaded()
+        if (rememberAudioDelayPerDevice == enabled) return
+        rememberAudioDelayPerDevice = enabled
+        publish()
+        PlayerSettingsStorage.saveRememberAudioDelayPerDevice(enabled)
+    }
+
+    fun setPersistAudioAmplification(enabled: Boolean) {
+        ensureLoaded()
+        if (persistAudioAmplification == enabled) return
+        persistAudioAmplification = enabled
+        publish()
+        PlayerSettingsStorage.savePersistAudioAmplification(enabled)
+    }
+
+    fun setAudioAmplificationDb(db: Int) {
+        ensureLoaded()
+        val clamped = db.coerceIn(AUDIO_AMPLIFICATION_MIN_DB, AUDIO_AMPLIFICATION_MAX_DB)
+        if (audioAmplificationDb == clamped) return
+        audioAmplificationDb = clamped
+        publish()
+        PlayerSettingsStorage.saveAudioAmplificationDb(clamped)
+    }
+
+    fun setDownmixEnabled(enabled: Boolean) {
+        ensureLoaded()
+        if (downmixEnabled == enabled) return
+        downmixEnabled = enabled
+        publish()
+        PlayerSettingsStorage.saveDownmixEnabled(enabled)
+    }
+
+    fun setAudioOutputChannels(channels: AudioOutputChannels) {
+        ensureLoaded()
+        if (audioOutputChannels == channels) return
+        audioOutputChannels = channels
+        publish()
+        PlayerSettingsStorage.saveAudioOutputChannels(channels.settingValue)
+    }
+
+    fun setMaintainOriginalAudioOnDownmix(enabled: Boolean) {
+        ensureLoaded()
+        if (maintainOriginalAudioOnDownmix == enabled) return
+        maintainOriginalAudioOnDownmix = enabled
+        publish()
+        PlayerSettingsStorage.saveMaintainOriginalAudioOnDownmix(enabled)
+    }
+
+    fun setCenterMixLevelDb(db: Int) {
+        ensureLoaded()
+        val clamped = db.coerceIn(CENTER_MIX_LEVEL_MIN_DB, CENTER_MIX_LEVEL_MAX_DB)
+        if (centerMixLevelDb == clamped) return
+        centerMixLevelDb = clamped
+        publish()
+        PlayerSettingsStorage.saveCenterMixLevelDb(clamped)
     }
 
     fun setDecoderPriority(priority: Int) {
@@ -1262,6 +1350,13 @@ object PlayerSettingsRepository {
             androidLibmpvHardwareDecodingEnabled = androidLibmpvHardwareDecodingEnabled,
             androidLibmpvYuv420pEnabled = androidLibmpvYuv420pEnabled,
             androidExoChaptersEnabled = androidExoChaptersEnabled,
+            rememberAudioDelayPerDevice = rememberAudioDelayPerDevice,
+            persistAudioAmplification = persistAudioAmplification,
+            audioAmplificationDb = audioAmplificationDb,
+            downmixEnabled = downmixEnabled,
+            audioOutputChannels = audioOutputChannels,
+            maintainOriginalAudioOnDownmix = maintainOriginalAudioOnDownmix,
+            centerMixLevelDb = centerMixLevelDb,
             decoderPriority = decoderPriority,
             mapDV7ToHevc = mapDV7ToHevc,
             tunnelingEnabled = tunnelingEnabled,
