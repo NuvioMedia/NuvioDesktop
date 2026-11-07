@@ -433,6 +433,17 @@ internal fun settingsSearchEntries(
         section = stringResource(Res.string.settings_advanced_section_startup),
         category = advancedCategory,
     )
+    if (ProxySettingsPlatform.isSupported) {
+        addRow(
+            page = SettingsPage.Advanced,
+            key = "desktop-proxy",
+            title = stringResource(Res.string.settings_proxy_title),
+            description = stringResource(Res.string.settings_proxy_description),
+            pageLabel = advancedPage,
+            section = stringResource(Res.string.settings_advanced_section_network),
+            category = advancedCategory,
+        )
+    }
     if (DesktopRendererSettings.isSupported) {
         addRow(
             page = SettingsPage.Advanced,

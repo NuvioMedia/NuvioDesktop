@@ -1,5 +1,6 @@
 package com.nuvio.app.features.autosync
 
+import com.nuvio.app.features.settings.DesktopProxy
 import com.nuvio.app.features.player.SubtitleSyncCue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -95,6 +96,7 @@ internal object EmbeddedSubtitleTimelineLoader {
     private const val ID_CUE_DURATION = 0xB2L
 
     private val httpClient = OkHttpClient.Builder()
+        .proxy(DesktopProxy.okHttpProxy())
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(4, TimeUnit.SECONDS)
         .callTimeout(5, TimeUnit.SECONDS)

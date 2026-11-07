@@ -1,5 +1,6 @@
 package com.nuvio.app.core.network
 
+import com.nuvio.app.features.settings.DesktopProxy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
@@ -7,6 +8,10 @@ import io.ktor.client.plugins.HttpTimeout
 internal actual fun createApiHttpClient(): HttpClient = HttpClient(CIO) {
     followRedirects = false
     expectSuccess = false
+    engine {
+        // Only set when a proxy is configured: CIO rejects Proxy.NO_PROXY.
+        DesktopProxy.ktorProxyOrNull()?.let { proxy = it }
+    }
     install(HttpTimeout) {
         requestTimeoutMillis = 30_000
         connectTimeoutMillis = 15_000

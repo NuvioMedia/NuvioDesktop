@@ -84,6 +84,9 @@ internal fun LazyListScope.advancedSettingsContent(
             }
         }
     }
+    if (ProxySettingsPlatform.isSupported) {
+        proxySettingsContent(isTablet = isTablet)
+    }
     if (DesktopRendererSettings.isSupported) {
         item {
             val externallyControlled = remember { DesktopRendererSettings.isExternallyControlled }

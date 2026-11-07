@@ -1,6 +1,7 @@
 package com.nuvio.app.features.addons
 
 import com.nuvio.app.core.storage.DesktopStorage
+import com.nuvio.app.features.settings.DesktopProxy
 import com.nuvio.app.core.network.DesktopIPv4FirstDns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -45,6 +46,7 @@ internal actual object AddonStorage {
 
 internal val desktopHttpClient = OkHttpClient.Builder()
     .dns(DesktopIPv4FirstDns())
+    .proxy(DesktopProxy.okHttpProxy())
     .connectTimeout(60, TimeUnit.SECONDS)
     .readTimeout(60, TimeUnit.SECONDS)
     .writeTimeout(60, TimeUnit.SECONDS)
