@@ -881,6 +881,7 @@ public:
         JavaVM *vm,
         int decoderPriority,
         bool nvidiaRtxSuperResolutionEnabled,
+        bool audioPassthroughEnabled,
         jobject sink,
         jmethodID method
     ) {
@@ -896,8 +897,8 @@ public:
         auto initState = std::make_shared<InitializationState>();
         auto self = shared_from_this();
         uiThread = std::thread(
-            [self, sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState]() {
-                self->runNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState);
+            [self, sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, audioPassthroughEnabled, initState]() {
+                self->runNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, audioPassthroughEnabled, initState);
             }
         );
 
@@ -1133,7 +1134,13 @@ public:
         mpvApi().command(mpv, command);
     }
 
+    bool isPassthroughActive() {
+        std::string format = stringProperty("audio-out-params/format", "");
+        return format.rfind("spdif", 0) == 0;
+    }
+
     void setSpeed(double speed) {
+        if (isPassthroughActive()) return;
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         double clamped = std::max(0.25, std::min(4.0, speed));
@@ -1145,6 +1152,7 @@ public:
     }
 
     void adjustVolume(double delta) {
+        if (isPassthroughActive()) return;
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         double current = 100.0;
@@ -1154,6 +1162,7 @@ public:
     }
 
     void setVolume(double level) {
+        if (isPassthroughActive()) return;
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         double next = std::max(0.0, std::min(kMaxVolumePercent, level * 100.0));
@@ -1443,11 +1452,12 @@ private:
         std::string controlsUrl,
         int decoderPriority,
         bool nvidiaRtxSuperResolutionEnabled,
+        bool audioPassthroughEnabled,
         std::shared_ptr<InitializationState> initState
     ) {
         std::string failure;
         try {
-            initializeOnNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled);
+            initializeOnNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, audioPassthroughEnabled);
         } catch (const std::exception &error) {
             failure = error.what();
             cleanupUiResources();
@@ -1478,7 +1488,8 @@ private:
         long long initialPositionMs,
         const std::string &controlsUrl,
         int decoderPriority,
-        bool nvidiaRtxSuperResolutionEnabled
+        bool nvidiaRtxSuperResolutionEnabled,
+        bool audioPassthroughEnabled
     ) {
         registerWindowClasses();
         uiThreadId = GetCurrentThreadId();
@@ -1530,7 +1541,7 @@ private:
         }
 
         startWebView(controlsUrl);
-        startMpv(sourceUrl, headerLines, playWhenReady, initialPositionMs, decoderPriority, nvidiaRtxSuperResolutionEnabled);
+        startMpv(sourceUrl, headerLines, playWhenReady, initialPositionMs, decoderPriority, nvidiaRtxSuperResolutionEnabled, audioPassthroughEnabled);
         layoutNativeSubviews();
         if (!SetTimer(messageHwnd, NUVIO_TIMER_ID, 500, nullptr)) {
             throw std::runtime_error("Unable to start native player timer.");
@@ -1725,8 +1736,9 @@ private:
         bool playWhenReady,
         long long initialPositionMs,
         int decoderPriority,
-        bool nvidiaRtxSuperResolutionEnabled
-    ) {
+        bool nvidiaRtxSuperResolutionEnabled,
+        bool audioPassthroughEnabled
+    ) {        
         MpvApi &api = mpvApi();
         bool fastProfile = !nvidiaRtxSuperResolutionEnabled && unifiedMemoryGpu();
         {
@@ -1793,6 +1805,11 @@ private:
             std::string shaderCacheDirectory = mpvShaderCacheDirectory();
             if (!shaderCacheDirectory.empty()) {
                 setMpvOptionStringLocked("gpu-shader-cache-dir", shaderCacheDirectory.c_str());
+            }
+
+            if (audioPassthroughEnabled) {
+                setMpvOptionStringLocked("audio-spdif", "ac3,eac3,dts,dts-hd,truehd");
+                setMpvOptionStringLocked("audio-exclusive", "yes");
             }
 
             int64_t wid = (int64_t)(intptr_t)containerHwnd;
@@ -2410,6 +2427,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jstring controlsPageUrl,
     jint decoderPriority,
     jboolean nvidiaRtxSuperResolutionEnabled,
+    jboolean audioPassthroughEnabled,
     jobject eventSink
 ) {
     HWND hostHwnd = (HWND)(intptr_t)hostViewPtr;
@@ -2445,6 +2463,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
             javaVm,
             decoderPriority,
             nvidiaRtxSuperResolutionEnabled == JNI_TRUE,
+            audioPassthroughEnabled == JNI_TRUE,
             eventSinkRef,
             eventMethod
         );
