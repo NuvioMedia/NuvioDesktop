@@ -3691,24 +3691,11 @@ const isControlsSurfaceEvent = event => {
     return true;
   }
 
-  const titleEl = document.getElementById("title");
   const metaRow = document.querySelector(".meta-row");
-  if (titleEl && metaRow) {
-    const titleRect = titleEl.getBoundingClientRect();
-    const metaRect = metaRow.getBoundingClientRect();
-    const textTop = Math.min(titleRect.top, metaRect.top);
-    const textBottom = Math.max(titleRect.bottom, metaRect.bottom);
-    const textRight = titleRect.left + Math.max(titleEl.scrollWidth, metaRow.scrollWidth) + 16;
+  const mediaInfo = [title, episode, metaRow, playerBadges, chapterTitle];
 
-    if (
-        event.clientX >= titleRect.left &&
-        event.clientX <= textRight &&
-        event.clientY >= textTop &&
-        event.clientY <= textBottom
-    ) {
-      return true;
-    }
-  }
+  const infoClick = mediaInfo.some(info => info.checkVisibility() && info.contains(event.target));
+  if (infoClick) return true;
 
   const header = document.querySelector(".header");
   if (header && event.clientY <= header.getBoundingClientRect().bottom + 10) {
