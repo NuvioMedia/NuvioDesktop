@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.updates_checksum_unverified
 import nuvio.composeapp.generated.resources.updates_download_failed
 import nuvio.composeapp.generated.resources.updates_download_failed_http
 import nuvio.composeapp.generated.resources.updates_downloaded_file_missing
@@ -17,6 +18,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.security.MessageDigest
 import java.time.Duration
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -27,6 +29,8 @@ import kotlin.system.exitProcess
 private const val desktopUpdaterPreferencesName = "nuvio_updater"
 private const val ignoredTagKey = "ignored_release_tag"
 private const val updateChannelKey = "update_channel"
+private const val releaseChecksumsFileName = "SHA256SUMS.txt"
+private const val maxChecksumsBytes = 64 * 1024
 
 private val desktopUpdaterHttpClient: HttpClient = HttpClient.newBuilder()
     .connectTimeout(Duration.ofSeconds(60))
@@ -125,6 +129,12 @@ actual object AppUpdaterPlatform {
                 if (totalBytes != null && downloadedBytes != totalBytes) {
                     error(runBlocking { getString(Res.string.updates_download_failed) })
                 }
+
+                verifyUpdateChecksum(
+                    file = tempFile,
+                    assetName = assetName,
+                    checksumsUrl = checksumsUrlFor(assetUrl),
+                )
 
                 if (!tempFile.renameTo(destination)) {
                     tempFile.copyTo(destination, overwrite = true)
@@ -369,3 +379,108 @@ internal fun appImageReplaceScript(
 }
 
 private fun singleQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
+internal sealed interface UpdateChecksumCheck {
+    data object Verified : UpdateChecksumCheck
+    data object NotListed : UpdateChecksumCheck
+    data class Mismatch(val expected: String, val actual: String) : UpdateChecksumCheck
+}
+
+// Release assets are published next to the checksum file their release workflow
+// writes, so the checksum URL is the asset URL with the file name replaced.
+internal fun checksumsUrlFor(assetUrl: String): String? {
+    val trimmed = assetUrl.trim().substringBefore('?').substringBefore('#')
+    if (!trimmed.startsWith("https://", ignoreCase = true)) return null
+    val separator = trimmed.lastIndexOf('/')
+    if (separator <= "https://".length || separator == trimmed.lastIndex) return null
+    return trimmed.substring(0, separator + 1) + releaseChecksumsFileName
+}
+
+// Matches the sha256sum format the release workflow writes:
+// "<64 hex chars><whitespace><file name>", with an optional "*" binary marker.
+internal fun parseReleaseChecksums(contents: String): Map<String, String> =
+    contents.lineSequence()
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+        .mapNotNull { line ->
+            val separator = line.indexOfFirst(Char::isWhitespace)
+            if (separator <= 0) return@mapNotNull null
+            val hash = line.substring(0, separator).lowercase()
+            val fileName = line.substring(separator).trim().trimStart('*')
+            val isHash = hash.length == 64 && hash.all { it in '0'..'9' || it in 'a'..'f' }
+            if (!isHash || fileName.isEmpty()) null else fileName to hash
+        }
+        .toMap()
+
+internal fun checkUpdateChecksum(
+    checksums: Map<String, String>,
+    assetName: String,
+    actualSha256: String,
+): UpdateChecksumCheck {
+    val expected = checksums[assetName] ?: return UpdateChecksumCheck.NotListed
+    return if (expected.equals(actualSha256, ignoreCase = true)) {
+        UpdateChecksumCheck.Verified
+    } else {
+        UpdateChecksumCheck.Mismatch(expected = expected, actual = actualSha256.lowercase())
+    }
+}
+
+internal fun sha256Hex(file: File): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    file.inputStream().use { input ->
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val read = input.read(buffer)
+            if (read <= 0) break
+            digest.update(buffer, 0, read)
+        }
+    }
+    return digest.digest().joinToString("") { byte -> byte.toInt().and(0xFF).toString(16).padStart(2, '0') }
+}
+
+// Verification is skipped when the release publishes no checksum file or it
+// cannot be read, so a release without one still installs. Once a checksum file
+// is present it has to cover the asset, and the bytes have to match it.
+internal suspend fun verifyUpdateChecksum(
+    file: File,
+    assetName: String,
+    checksumsUrl: String?,
+    fetchChecksums: suspend (String) -> String? = ::fetchReleaseChecksums,
+) {
+    if (checksumsUrl == null) return
+    val checksums = runCatching { fetchChecksums(checksumsUrl) }
+        .getOrNull()
+        ?.let(::parseReleaseChecksums)
+        ?.takeIf(Map<String, String>::isNotEmpty)
+        ?: return
+
+    when (checkUpdateChecksum(checksums, assetName, sha256Hex(file))) {
+        UpdateChecksumCheck.Verified -> Unit
+        UpdateChecksumCheck.NotListed,
+        is UpdateChecksumCheck.Mismatch ->
+            error(runBlocking { getString(Res.string.updates_checksum_unverified) })
+    }
+}
+
+private suspend fun fetchReleaseChecksums(checksumsUrl: String): String? = withContext(Dispatchers.IO) {
+    runCatching {
+        val request = HttpRequest.newBuilder()
+            .uri(URI(checksumsUrl))
+            .GET()
+            .build()
+        val response = desktopUpdaterHttpClient.send(request, HttpResponse.BodyHandlers.ofInputStream())
+        if (response.statusCode() !in 200..299) return@runCatching null
+        response.body()?.use { input ->
+            val buffer = ByteArray(8 * 1024)
+            var remaining = maxChecksumsBytes
+            val collected = StringBuilder()
+            while (remaining > 0) {
+                val read = input.read(buffer, 0, minOf(buffer.size, remaining))
+                if (read <= 0) break
+                collected.append(String(buffer, 0, read, Charsets.UTF_8))
+                remaining -= read
+            }
+            collected.toString()
+        }
+    }.getOrNull()
+}
