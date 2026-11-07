@@ -8,6 +8,23 @@ import kotlin.test.assertNull
 class SubtitleRequestExtrasTest {
 
     @Test
+    fun blankHintsDoNotMaskPlaybackFilenameOrDisableHashEnrichment() {
+        val extras = SubtitleRequestExtras.from(StreamBehaviorHints(filename = "  ", videoHash = " ", videoSize = 0L), "https://cdn.example/The%20Middle.S04E17.mkv?token=private")
+        assertEquals("The Middle.S04E17.mkv", extras?.filename)
+        assertNull(extras?.videoHash)
+        assertNull(extras?.videoSize)
+        assertEquals("filename=The%20Middle.S04E17.mkv", extras?.toPathSegment())
+    }
+
+    @Test
+    fun validHintsRemainAuthoritative() {
+        val extras = SubtitleRequestExtras.from(StreamBehaviorHints(filename = " Actual.S04E17.mkv ", videoHash = " abc123 ", videoSize = 42L), "https://cdn.example/other.mkv")
+        assertEquals("Actual.S04E17.mkv", extras?.filename)
+        assertEquals("abc123", extras?.videoHash)
+        assertEquals(42L, extras?.videoSize)
+    }
+
+    @Test
     fun buildsExtrasSegmentInStremioFieldOrderWithEncodedValues() {
         val extras = SubtitleRequestExtras(
             filename = "John.Wick.Chapter.4.2023.720p.WEBRip.x264.AAC-[YTS.MX].mp4",
