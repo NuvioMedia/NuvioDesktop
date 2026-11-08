@@ -91,7 +91,7 @@ internal fun audioAmplificationGain(db: Int): Double =
     10.0.pow(db.coerceIn(AUDIO_AMPLIFICATION_MIN_DB, AUDIO_AMPLIFICATION_MAX_DB) / 20.0)
 
 internal val subtitleFontSizeRangeSp: IntRange
-    get() = if (isDesktop || isIos) 6..40 else 12..40
+    get() = if (isDesktop) 6..32 else if (isIos) 6..40 else 12..40
 
 data class SubtitleStyleState(
     val textColor: Color = Color.White,

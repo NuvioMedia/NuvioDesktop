@@ -1287,9 +1287,10 @@ public:
         const std::string &shadowColor,
         double shadowOffset
     ) {
+        std::string resolvedShadowColor = shadowColor.empty() ? "#00000000" : shadowColor;
         if (!fontsDir.empty()) setStringProperty("sub-fonts-dir", fontsDir);
         setStringProperty("sub-font", font);
-        setStringProperty("sub-shadow-color", shadowColor);
+        setStringProperty("sub-shadow-color", resolvedShadowColor);
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         mpvApi().setProperty(mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadowOffset);

@@ -1993,7 +1993,9 @@ JNIEXPORT void JNICALL NP(setSubtitleAppearance)(
     std::string dir = jstringToUtf8(env, fontsDir);
     if (!dir.empty()) mpv_set_property_string(p->mpv, "sub-fonts-dir", dir.c_str());
     mpv_set_property_string(p->mpv, "sub-font", jstringToUtf8(env, font).c_str());
-    mpv_set_property_string(p->mpv, "sub-shadow-color", jstringToUtf8(env, shadowColor).c_str());
+    std::string resolvedShadowColor = jstringToUtf8(env, shadowColor);
+    if (resolvedShadowColor.empty()) resolvedShadowColor = "#00000000";
+    mpv_set_property_string(p->mpv, "sub-shadow-color", resolvedShadowColor.c_str());
     std::string offset = std::to_string(shadowOffset);
     mpv_set_property_string(p->mpv, "sub-shadow-offset", offset.c_str());
 }
