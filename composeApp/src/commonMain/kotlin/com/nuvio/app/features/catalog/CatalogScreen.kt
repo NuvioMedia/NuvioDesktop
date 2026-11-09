@@ -1,6 +1,7 @@
 package com.nuvio.app.features.catalog
 
 import com.nuvio.app.core.ui.rememberAnimatedArtworkAnimation
+import com.nuvio.app.controller.RegisterControllerVerticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -117,6 +118,9 @@ fun CatalogScreen(
         initialFirstVisibleItemIndex = initialScrollPosition.firstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = initialScrollPosition.firstVisibleItemScrollOffset,
     )
+
+    // Lets the controller spatial engine scroll this grid when focus reaches the bottom edge.
+    RegisterControllerVerticalScroll(lazyGridState = gridState)
     var headerHeightPx by remember { mutableIntStateOf(0) }
     var observedOfflineState by remember { mutableStateOf(false) }
 

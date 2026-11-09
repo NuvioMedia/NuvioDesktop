@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ViewAgenda
+import com.nuvio.app.controller.RegisterControllerVerticalScroll
 import com.nuvio.app.core.ui.DisintegratingContainer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -172,6 +173,10 @@ fun LibraryScreen(
     var selectedLibraryType by rememberSaveable { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+
+    // Lets the controller spatial engine scroll the library when focus reaches the bottom edge.
+    RegisterControllerVerticalScroll(lazyListState = listState)
+
     ScreenActivityEffect(listState) { screenActive ->
         if (!screenActive) listState.stopScroll()
     }

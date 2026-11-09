@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.Dp
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
 import com.nuvio.app.controller.ControllerFocusZone
+import com.nuvio.app.controller.RegisterControllerVerticalScroll
 import com.nuvio.app.controller.controllerFocusable
 import com.nuvio.app.core.ui.NuvioPosterCard
 import com.nuvio.app.core.ui.NuvioPosterShape
@@ -344,6 +345,9 @@ private fun TabbedGridContent(
 ) {
     val gridState = rememberLazyGridState()
 
+    // Lets the controller spatial engine scroll this grid when focus reaches the bottom edge.
+    RegisterControllerVerticalScroll(lazyGridState = gridState)
+
     LaunchedEffect(gridState, uiState.selectedTabIndex, uiState.selectedTabCanLoadMore, uiState.selectedTabIsLoadingMore) {
         snapshotFlow { gridState.layoutInfo }
             .map { layoutInfo ->
@@ -497,6 +501,9 @@ private fun RowsContent(
 ) {
     val sections = FolderDetailRepository.getCatalogSectionsForRows()
     val listState = rememberLazyListState()
+
+    // Lets the controller spatial engine scroll the rows list when focus reaches the bottom edge.
+    RegisterControllerVerticalScroll(lazyListState = listState)
 
     if (uiState.isLoading && sections.isEmpty()) {
         LoadingIndicator()
