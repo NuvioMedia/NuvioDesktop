@@ -206,6 +206,8 @@ import com.nuvio.app.core.ui.PresenceSnapshot
 import androidx.compose.ui.ExperimentalComposeUiApi
 import com.nuvio.app.features.player.dispatchNavigationBack
 import com.nuvio.app.core.ui.PlatformEscapeShortcut
+import com.nuvio.app.controller.ControllerMainOverlay
+import com.nuvio.app.controller.ControllerNavigationHost
 
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -1386,6 +1388,15 @@ internal fun MainAppContent(
 
                 PlatformEscapeShortcut(navigateBack)
 
+                ControllerNavigationHost(
+                    currentRoute = currentRoute,
+                    selectedTab = selectedTab,
+                    onBack = {
+                        navigateBack()
+                        true
+                    },
+                )
+
                 NavDisplay(
                     backStack = navBackStack,
                     modifier = Modifier
@@ -2193,6 +2204,8 @@ internal fun MainAppContent(
                     .align(Alignment.TopCenter)
                     .zIndex(20f),
             )
+
+            ControllerMainOverlay(currentRoute = currentRoute)
 
             }
         }

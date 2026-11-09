@@ -1290,11 +1290,76 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
     return true
 }
 
+private const val PLAYER_VOLUME_STEP = 0.05f
+
+/**
+ * Executes keyboard/gamepad player commands. Registered through [PlayerControllerBridge] while the
+ * player is on screen so the desktop key dispatcher and the spatial focus engine can drive playback.
+ */
+internal fun PlayerScreenRuntime.handlePlayerControllerCommand(command: PlayerCommand): Boolean =
+    when (command) {
+        PlayerCommand.SeekBack -> seekPlayerBy(-10_000L)
+        PlayerCommand.SeekForward -> seekPlayerBy(10_000L)
+        PlayerCommand.VolumeUp -> adjustPlayerVolume(PLAYER_VOLUME_STEP)
+        PlayerCommand.VolumeDown -> adjustPlayerVolume(-PLAYER_VOLUME_STEP)
+        PlayerCommand.TogglePlayback -> {
+            // Updates shouldPlay, which drives playWhenReady on every platform.
+            toggleFromNativeControls()
+            true
+        }
+        PlayerCommand.ToggleChrome -> {
+            controlsVisible = !controlsVisible
+            true
+        }
+        PlayerCommand.Back -> {
+            requestBack()
+            true
+        }
+        PlayerCommand.Subtitles -> {
+            refreshTracks()
+            showSubtitleModal = true
+            true
+        }
+        PlayerCommand.Audio -> {
+            refreshTracks()
+            showAudioModal = true
+            true
+        }
+        PlayerCommand.Episodes -> {
+            prepareEpisodesForPlayerControls()
+            true
+        }
+        PlayerCommand.Sources -> {
+            prepareSourcesForPlayerControls()
+            true
+        }
+    }
+
+/** Seeks through the current engine, showing the same +/-10s feedback as the keyboard shortcut. */
+private fun PlayerScreenRuntime.seekPlayerBy(offsetMs: Long): Boolean {
+    if (isPartySynced) {
+        seekBy(offsetMs)
+        return true
+    }
+    val controller = playerController ?: return false
+    seekFromNativeControls(offsetMs)
+    controller.seekBy(offsetMs)
+    return true
+}
+
+private fun PlayerScreenRuntime.adjustPlayerVolume(delta: Float): Boolean {
+    gestureController?.let { controller ->
+        val current = controller.currentVolume()?.fraction ?: 1f
+        controller.setVolume((current + delta).coerceIn(0f, 1f))
+        return true
+    }
+    return playerController?.adjustVolumeBy(delta) ?: false
+}
+
 private fun PlayerScreenRuntime.requestP2pConsentForPlayerControls(
     stream: StreamItem,
     episode: MetaVideo?,
-): Boolean {
-    val shouldRequestConsent = shouldRequestP2pConsentForPlayerControls(
+): Boolean {    val shouldRequestConsent = shouldRequestP2pConsentForPlayerControls(
         isP2pStream = isP2pStream(stream),
         shouldResolveToPlayableStream = DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream),
         p2pSettingsVisible = P2pSettingsRepository.isVisible,

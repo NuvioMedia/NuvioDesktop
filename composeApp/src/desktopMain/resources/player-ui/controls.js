@@ -2984,9 +2984,10 @@ const finishPartySeek = () => {
   render();
 };
 
-const fineSeek = isForward => {
+const fineSeek = (isForward, stepMsOverride) => {
   const direction = isForward ? "forward" : "backward";
-  const stepMs = isForward ? 1000 : -1000;
+  const step = Math.max(500, Number(stepMsOverride) || 1000);
+  const stepMs = isForward ? step : -step;
 
   if (fineSeekDirection === direction) {
     fineSeekAccumulatedMs += stepMs;
@@ -4010,20 +4011,17 @@ root.addEventListener("dblclick", event => {
 root.addEventListener("wheel", event => {
   if (playbackErrorText() || activeModal) return;
   const isProgressTarget = Boolean(event.target.closest("#seek, .time-row, .time-pill, .scrub"));
-  if (isProgressTarget || event.shiftKey) {
-    event.preventDefault();
-    noteChromeActivity();
-    const delta = event.deltaY !== 0 ? Math.sign(event.deltaY) * -1 : Math.sign(event.deltaX);
-    if (delta !== 0) {
-      fineSeek(delta > 0);
-    }
+  // Seeking is the primary wheel action. Ctrl/Alt/Meta + wheel keeps volume control available.
+  const isVolumeWheel = !isProgressTarget && (event.ctrlKey || event.altKey || event.metaKey);
+  const delta = event.deltaY !== 0 ? Math.sign(event.deltaY) * -1 : Math.sign(event.deltaX);
+  if (delta === 0) return;
+  event.preventDefault();
+  noteChromeActivity();
+  if (isVolumeWheel) {
+    sendKeyboardVolume(delta);
     return;
   }
-  event.preventDefault();
-  const delta = Math.sign(event.deltaY) * -1;
-  if (delta !== 0) {
-    sendKeyboardVolume(delta);
-  }
+  fineSeek(delta > 0, 5000);
 }, { passive: false });
 
 document.addEventListener("keyup", event => {

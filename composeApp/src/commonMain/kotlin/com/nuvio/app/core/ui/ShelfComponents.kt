@@ -75,6 +75,9 @@ enum class NuvioViewAllPillSize {
     Compact,
 }
 
+/** Stable per-row group key so spatial Up/Down can jump between shelves predictably. */
+private var nextShelfGroupId = 1L
+
 @Composable
 fun <T> NuvioShelfSection(
     title: String,
@@ -96,58 +99,59 @@ fun <T> NuvioShelfSection(
     val duplicateSafeEntries = remember(entries, key) {
         key?.let { entries.withDuplicateSafeLazyKeys(it) }
     }
+    val shelfGroupKey = remember { "shelf_${nextShelfGroupId++}" }
 
     ScreenActivityEffect(state) { active ->
         if (!active) state.stopScroll()
     }
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap + NuvioTokens.Space.s2),
-    ) {
-        if (title.isNotBlank()) {
-            NuvioShelfSectionHeader(
-                title = title,
-                modifier = Modifier.padding(horizontal = headerHorizontalPadding),
-                onViewAllClick = onViewAllClick,
-                onTitleClick = onTitleClick,
-                viewAllPillSize = viewAllPillSize,
-            )
-        }
-        LazyRow(
-            state = state,
-            modifier = rowModifier
-                .nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current)
-                .nuvioDesktopDragScroll(state),
-            contentPadding = rowContentPadding.withVerticalBar(),
-            horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+    com.nuvio.app.controller.ProvideControllerRowLazyListState(state) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.nuvio.app.controller.LocalControllerGroupKey provides shelfGroupKey,
         ) {
-            if (duplicateSafeEntries != null) {
-                itemsIndexed(
-                    items = duplicateSafeEntries,
-                    key = { _, entry -> entry.lazyKey },
-                    contentType = { _, _ -> "poster" },
-                ) { index, keyedEntry ->
-                    val placement = if (animatePlacement) Modifier.animateItem() else Modifier
-                    // The first card of every row is a candidate for the screen's focus entry
-                    // point, so a screen can open on posters instead of a hero or a header.
-                    val seed = if (index == 0) Modifier.nuvioFirstPosterCandidate() else Modifier
-                    if (animatePlacement || index == 0) {
-                        Box(modifier = placement.then(seed)) { itemContent(keyedEntry.value) }
-                    } else {
-                        itemContent(keyedEntry.value)
-                    }
+            Column(
+                modifier = modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap + NuvioTokens.Space.s2),
+            ) {
+                if (title.isNotBlank()) {
+                    NuvioShelfSectionHeader(
+                        title = title,
+                        modifier = Modifier.padding(horizontal = headerHorizontalPadding),
+                        onViewAllClick = onViewAllClick,
+                        onTitleClick = onTitleClick,
+                        viewAllPillSize = viewAllPillSize,
+                    )
                 }
-            } else {
-                itemsIndexed(
-                    items = entries,
-                    contentType = { _, _ -> "poster" },
-                ) { index, entry ->
-                    val placement = if (animatePlacement) Modifier.animateItem() else Modifier
-                    val seed = if (index == 0) Modifier.nuvioFirstPosterCandidate() else Modifier
-                    if (animatePlacement || index == 0) {
-                        Box(modifier = placement.then(seed)) { itemContent(entry) }
+                LazyRow(
+                    state = state,
+                    modifier = rowModifier
+                        .nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current)
+                        .nuvioDesktopDragScroll(state),
+                    contentPadding = rowContentPadding.withVerticalBar(),
+                    horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+                ) {
+                    if (duplicateSafeEntries != null) {
+                        itemsIndexed(
+                            items = duplicateSafeEntries,
+                            key = { _, entry -> entry.lazyKey },
+                            contentType = { _, _ -> "poster" },
+                        ) { _, keyedEntry ->
+                            if (animatePlacement) {
+                                Box(modifier = Modifier.animateItem()) { itemContent(keyedEntry.value) }
+                            } else {
+                                itemContent(keyedEntry.value)
+                            }
+                        }
                     } else {
-                        itemContent(entry)
+                        itemsIndexed(
+                            items = entries,
+                            contentType = { _, _ -> "poster" },
+                        ) { _, entry ->
+                            if (animatePlacement) {
+                                Box(modifier = Modifier.animateItem()) { itemContent(entry) }
+                            } else {
+                                itemContent(entry)
+                            }
+                        }
                     }
                 }
             }
@@ -281,7 +285,6 @@ fun NuvioPosterCard(
                     shape = cardShape,
                     surface = NuvioCardDepthSurface.Posters,
                 )
-                .nuvioFocusBorder(cardShape)
                 .posterCardClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,

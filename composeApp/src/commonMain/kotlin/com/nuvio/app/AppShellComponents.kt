@@ -70,11 +70,10 @@ import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.core.ui.NuvioNavBarScrollState
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
-import com.nuvio.app.core.ui.RailEntry
-import com.nuvio.app.core.ui.nuvioContentEntry
 import com.nuvio.app.core.ui.nuvioFocusBorder
-import com.nuvio.app.core.ui.nuvioTrackNavRailFocus
 import com.nuvio.app.core.ui.nuvioTrackTopBarFocus
+import com.nuvio.app.controller.ControllerFocusZone
+import com.nuvio.app.controller.controllerFocusable
 import com.nuvio.app.features.cloud.CloudLibraryContentType
 import com.nuvio.app.features.cloud.CloudLibraryFile
 import com.nuvio.app.features.cloud.CloudLibraryItem
@@ -244,11 +243,7 @@ internal fun AppTabHost(
         // The content entry must live on the selected screen, not on the tab host: RootTabHost keeps
         // previously visited tabs composed but unplaced, and focusing a container whose first child
         // is an unplaced pane leaves focus on the container itself (no ring, no way out with arrows).
-        val contentModifier = if (tab == selectedTab) {
-            Modifier.fillMaxSize().nuvioContentEntry()
-        } else {
-            Modifier.fillMaxSize()
-        }
+        val contentModifier = Modifier.fillMaxSize()
         when (tab) {
             AppScreenTab.Home -> {
                 key(state.homeContentGeneration) {
@@ -765,7 +760,6 @@ internal fun DesktopHoverSidebar(
             .width(sidebarWidth)
             .fillMaxHeight()
             .hoverable(hoverSource)
-            .nuvioTrackNavRailFocus()
             .zIndex(NuvioTokens.Z.navigation),
         color = tokens.colors.background,
         contentColor = tokens.colors.textPrimary,
@@ -840,6 +834,7 @@ internal fun DesktopHoverSidebar(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 DesktopSidebarItem(
+                    id = "sidebar_home",
                     label = stringResource(Res.string.compose_nav_home),
                     selected = selectedTab == AppScreenTab.Home,
                     expanded = sidebarExpanded,
@@ -853,6 +848,7 @@ internal fun DesktopHoverSidebar(
                     )
                 }
                 DesktopSidebarItem(
+                    id = "sidebar_search",
                     label = stringResource(Res.string.compose_nav_search),
                     selected = selectedTab == AppScreenTab.Search,
                     expanded = sidebarExpanded,
@@ -866,6 +862,7 @@ internal fun DesktopHoverSidebar(
                     )
                 }
                 DesktopSidebarItem(
+                    id = "sidebar_library",
                     label = stringResource(Res.string.compose_nav_library),
                     selected = selectedTab == AppScreenTab.Library,
                     expanded = sidebarExpanded,
@@ -879,6 +876,7 @@ internal fun DesktopHoverSidebar(
                     )
                 }
                 DesktopSidebarItem(
+                    id = "sidebar_settings",
                     label = stringResource(Res.string.compose_settings_page_root),
                     selected = selectedTab == AppScreenTab.Settings,
                     expanded = sidebarExpanded,
@@ -958,6 +956,7 @@ private fun DesktopSidebarProfileTrigger(
 
 @Composable
 private fun DesktopSidebarItem(
+    id: String,
     label: String,
     selected: Boolean,
     expanded: Boolean,
@@ -967,21 +966,22 @@ private fun DesktopSidebarItem(
     val tokens = MaterialTheme.nuvio
     val contentColor = if (selected) tokens.colors.textPrimary else tokens.colors.textMuted
     val iconColor = if (selected) tokens.colors.onAccent else contentColor
-    val railRequester = remember { FocusRequester() }
-
-    // Left from the content returns to the rail; the item of the current tab is the target.
-    DisposableEffect(selected, railRequester) {
-        if (selected) RailEntry.register(railRequester)
-        onDispose { if (selected) RailEntry.unregister(railRequester) }
-    }
 
     Surface(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .height(DesktopSidebarItemHeight)
-            .focusRequester(railRequester)
-            .nuvioFocusBorder(RoundedCornerShape(16.dp))
+            .controllerFocusable(
+                id = id,
+                zone = ControllerFocusZone.Navigation,
+                isDefaultFocus = selected,
+                shape = RoundedCornerShape(16.dp),
+                cornerRadius = 16.dp,
+                scaleOnFocus = 1.03f,
+                selectLabel = label,
+                onSelect = onClick,
+            )
             .padding(horizontal = 6.dp, vertical = 4.dp),
         color = Color.Transparent,
         shape = RoundedCornerShape(16.dp),

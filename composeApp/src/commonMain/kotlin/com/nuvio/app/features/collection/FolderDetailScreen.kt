@@ -57,6 +57,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
+import com.nuvio.app.controller.ControllerFocusZone
+import com.nuvio.app.controller.controllerFocusable
 import com.nuvio.app.core.ui.NuvioPosterCard
 import com.nuvio.app.core.ui.NuvioPosterShape
 import com.nuvio.app.core.ui.NuvioScreenHeader
@@ -370,6 +372,15 @@ private fun TabbedGridContent(
                         Tab(
                             selected = index == uiState.selectedTabIndex,
                             onClick = { onTabSelected(index) },
+                            // Category tabs are part of the spatial grid: Up from the top poster row
+                            // reaches them, Down returns to the posters and A selects a category.
+                            modifier = Modifier.controllerFocusable(
+                                id = "folder_tab_$index",
+                                zone = ControllerFocusZone.Content,
+                                groupKey = "folder_tabs",
+                                selectLabel = "Select",
+                                onSelect = { onTabSelected(index) },
+                            ),
                             text = {
                                 Text(
                                     text = if (tab.isAllTab) {

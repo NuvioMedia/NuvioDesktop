@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +25,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.controller.ControllerFocusEngine
+import com.nuvio.app.controller.ControllerManager
+import com.nuvio.app.controller.ControllerScreenContext
+import com.nuvio.app.controller.ControllerScreenType
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.auth.DeviceSessionRegistration
@@ -578,6 +583,25 @@ internal fun AppGate(
                 .zIndex(NuvioTokens.Z.dialog),
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
+                // The picker is a Compose-owned screen: keep the spatial engine out of it so its
+                // selection never activates items on the main content hidden underneath the gate.
+                DisposableEffect(Unit) {
+                    ControllerFocusEngine.deferNavigationToCompose = true
+                    ControllerFocusEngine.clearFocus()
+                    val previousContext = ControllerManager.screenContext.value
+                    ControllerManager.updateScreenContext(
+                        ControllerScreenContext(
+                            screenType = ControllerScreenType.ProfileSelection,
+                            canNavigateBack = !autoSkipProfileSelection,
+                            selectLabel = "Select",
+                            backLabel = if (!autoSkipProfileSelection) "Back" else "Home",
+                        ),
+                    )
+                    onDispose {
+                        ControllerFocusEngine.deferNavigationToCompose = false
+                        ControllerManager.updateScreenContext(previousContext)
+                    }
+                }
                 val onBack: (() -> Unit)? = if (!autoSkipProfileSelection) {
                     {
                         skipProfileSelectionEnterAnimation = false
