@@ -85,8 +85,10 @@ fun NuvioScreen(
 ) {
     val tokens = MaterialTheme.nuvio
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    if (isDesktop) {
+    val scrollViewportModifier = if (isDesktop) {
         com.nuvio.app.controller.RegisterControllerVerticalScroll(lazyListState = listState)
+    } else {
+        Modifier
     }
     Box(
         modifier = modifier
@@ -96,7 +98,8 @@ fun NuvioScreen(
         LazyColumn(
             state = listState,
             modifier = Modifier
-                .fillMaxSize(),
+                .fillMaxSize()
+                .then(scrollViewportModifier),
             contentPadding = PaddingValues(
                 start = horizontalPadding,
                 top = topPadding ?: tokens.spacing.screenTop + statusBarTop + nuvioPlatformExtraTopPadding,

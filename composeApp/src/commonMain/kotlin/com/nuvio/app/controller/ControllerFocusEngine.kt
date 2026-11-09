@@ -213,6 +213,9 @@ object ControllerFocusEngine {
         val scrollState: ScrollState? = null,
         val lazyGridState: LazyGridState? = null,
         val scope: CoroutineScope,
+        /** Viewport bounds in root coordinates, tracked by [RegisterControllerVerticalScroll]. */
+        var viewportTopInRoot: Float = Float.NaN,
+        var viewportHeight: Float = 0f,
     )
 
     private val registeredScrollables = mutableListOf<ControllerScrollableEntry>()
@@ -278,8 +281,25 @@ object ControllerFocusEngine {
         }
     }
 
-    internal fun getActiveScrollable(): ControllerScrollableEntry? {
-        val valid = registeredScrollables.filter { entry ->
+    /** Records the on-screen bounds of a registered scroll container. */
+    internal fun updateScrollableViewport(
+        lazyListState: LazyListState? = null,
+        scrollState: ScrollState? = null,
+        lazyGridState: LazyGridState? = null,
+        topInRoot: Float,
+        height: Float,
+    ) {
+        registeredScrollables.firstOrNull {
+            (lazyListState != null && it.lazyListState === lazyListState) ||
+            (scrollState != null && it.scrollState === scrollState) ||
+            (lazyGridState != null && it.lazyGridState === lazyGridState)
+        }?.let { entry ->
+            entry.viewportTopInRoot = topInRoot
+            entry.viewportHeight = height
+        }
+    }
+
+    internal fun getActiveScrollable(): ControllerScrollableEntry? {        val valid = registeredScrollables.filter { entry ->
             val l = entry.lazyListState
             val s = entry.scrollState
             val g = entry.lazyGridState
@@ -1131,8 +1151,11 @@ object ControllerFocusEngine {
             // Visual vertical center of the active row including title header and poster card
             val visualRowCenterY = (visualTop + visualBottom) / 2f
 
-            // Viewport vertical center (offset slightly to account for top bar chrome)
-            val viewportCenterY = vh * 0.52f
+            // Viewport vertical center in root coordinates. The scroll container may start below a
+            // header/tab bar, so use its tracked bounds instead of assuming it starts at y = 0.
+            val viewportTop = activeScroll?.viewportTopInRoot?.takeIf { it.isFinite() } ?: 0f
+            val viewportHeight = activeScroll?.viewportHeight?.takeIf { it > 0f } ?: vh
+            val viewportCenterY = viewportTop + viewportHeight * 0.52f
 
             var delta = visualRowCenterY - viewportCenterY
 
@@ -1147,8 +1170,8 @@ object ControllerFocusEngine {
             }
 
             // If non-shelf vertical content is already fully visible inside viewport safe margins, do not scroll
-            val topChromeSafeMargin = 85f * scaleFactor
-            val bottomSafeMargin = vh - (40f * scaleFactor)
+            val topChromeSafeMargin = viewportTop + 85f * scaleFactor
+            val bottomSafeMargin = viewportTop + viewportHeight - (40f * scaleFactor)
             if (!isShelfRow && visualTop >= topChromeSafeMargin && visualBottom <= bottomSafeMargin) {
                 delta = 0f
             }
@@ -1479,6 +1502,11 @@ object ControllerFocusEngine {
             return true
         }
 
+        if (direction == ControllerDirection.Up && current.groupKey == "folder_tabs") {
+            // Category tabs sit at the very top of a catalog; Up must not scroll the grid below.
+            return true
+        }
+
         val composedRows = getComposedContentRows()
 
         // 1. Strict handling if currently focused on a row's chevron ("See All" arrow):
@@ -1569,6 +1597,10 @@ object ControllerFocusEngine {
                 (scrollState != null && scrollState.canScrollForward)
 
             if (canScrollDown && scope != null) {
+                // A held direction must not restart an in-flight scroll: cancelling the animation
+                // on every key repeat kept focus on a row that was about to be recycled, so the
+                // selection vanished and navigation crawled.
+                if (activeVerticalScrollJob?.isActive == true) return true
                 val vh = listState?.layoutInfo?.viewportSize?.height?.toFloat()
                     ?: gridState?.layoutInfo?.viewportSize?.height?.toFloat()
                     ?: 900f
@@ -1577,7 +1609,7 @@ object ControllerFocusEngine {
 
                 activeVerticalScrollJob?.cancel()
                 activeVerticalScrollJob = scope.launch {
-                    val fallbackSpec = tween<Float>(280, easing = FastOutSlowInEasing)
+                    val fallbackSpec = tween<Float>(200, easing = FastOutSlowInEasing)
                     if (listState != null) {
                         runCatching { listState.animateScrollBy(scrollDistance, fallbackSpec) }
                     } else if (gridState != null) {
@@ -1585,7 +1617,7 @@ object ControllerFocusEngine {
                     } else if (scrollState != null) {
                         runCatching { scrollState.animateScrollBy(scrollDistance, fallbackSpec) }
                     }
-                    delay(290)
+                    delay(220)
                     val refreshedRows = getComposedContentRows()
                     val currentInRefreshed = refreshedRows.indexOfFirst { r ->
                         (currentRow.rowLazyListState != null && r.rowLazyListState === currentRow.rowLazyListState) ||
@@ -1597,11 +1629,11 @@ object ControllerFocusEngine {
                     } else {
                         refreshedRows.lastOrNull()
                     }
-                    if (targetRow != null) {
-                        val target = selectBestTargetNodeInRow(current, targetRow)
-                        if (target != null) {
-                            focusNodeInternal(target, triggerScroll = true, suppressVerticalScroll = false, direction = direction)
-                        }
+                    val target = targetRow?.let { selectBestTargetNodeInRow(current, it) }
+                    if (target != null) {
+                        focusNodeInternal(target, triggerScroll = true, suppressVerticalScroll = false, direction = direction)
+                    } else {
+                        ensureValidFocus()
                     }
                 }
                 return true
@@ -1622,6 +1654,7 @@ object ControllerFocusEngine {
                 (scrollState != null && scrollState.canScrollBackward)
 
             if (canScrollUp && scope != null) {
+                if (activeVerticalScrollJob?.isActive == true) return true
                 val vh = listState?.layoutInfo?.viewportSize?.height?.toFloat()
                     ?: gridState?.layoutInfo?.viewportSize?.height?.toFloat()
                     ?: 900f
@@ -1639,12 +1672,12 @@ object ControllerFocusEngine {
                         else if (gridState != null) runCatching { gridState.animateScrollToItem(0, 0) }
                         else if (scrollState != null) runCatching { scrollState.animateScrollTo(0) }
                     } else {
-                        val fallbackSpec = tween<Float>(280, easing = FastOutSlowInEasing)
+                        val fallbackSpec = tween<Float>(200, easing = FastOutSlowInEasing)
                         if (listState != null) runCatching { listState.animateScrollBy(-scrollDistance, fallbackSpec) }
                         else if (gridState != null) runCatching { gridState.animateScrollBy(-scrollDistance, fallbackSpec) }
                         else if (scrollState != null) runCatching { scrollState.animateScrollBy(-scrollDistance, fallbackSpec) }
                     }
-                    delay(290)
+                    delay(220)
                     val refreshedRows = getComposedContentRows()
                     val currentInRefreshed = refreshedRows.indexOfFirst { r ->
                         (currentRow.rowLazyListState != null && r.rowLazyListState === currentRow.rowLazyListState) ||
@@ -1656,11 +1689,11 @@ object ControllerFocusEngine {
                     } else {
                         refreshedRows.firstOrNull()
                     }
-                    if (targetRow != null) {
-                        val target = selectBestTargetNodeInRow(current, targetRow)
-                        if (target != null) {
-                            focusNodeInternal(target, triggerScroll = true, suppressVerticalScroll = false, direction = direction)
-                        }
+                    val target = targetRow?.let { selectBestTargetNodeInRow(current, it) }
+                    if (target != null) {
+                        focusNodeInternal(target, triggerScroll = true, suppressVerticalScroll = false, direction = direction)
+                    } else {
+                        ensureValidFocus()
                     }
                 }
                 return true
@@ -2200,13 +2233,17 @@ fun RegisterControllerHandler(
 /**
  * Registers a vertical LazyListState or ScrollState so the controller spatial engine
  * can automatically scroll shelves/rows into view and handle LT/RT page jumps and RS scrolling.
+ *
+ * The returned modifier reports the container's on-screen viewport to the engine so scroll
+ * centring accounts for headers/tab rows above the list (otherwise focused rows could land
+ * behind the header and appear to lose focus).
  */
 @Composable
 fun RegisterControllerVerticalScroll(
     lazyListState: LazyListState? = null,
     scrollState: ScrollState? = null,
     lazyGridState: LazyGridState? = null,
-) {
+): Modifier {
     val isScreenActive = LocalScreenActive.current
     val scope = rememberCoroutineScope()
     DisposableEffect(lazyListState, scrollState, lazyGridState, isScreenActive) {
@@ -2252,6 +2289,18 @@ fun RegisterControllerVerticalScroll(
             lastIndex = idx
             lastOffset = off
         }
+    }
+    return Modifier.onGloballyPositioned { coordinates ->
+        if (!isScreenActive || !coordinates.isAttached) return@onGloballyPositioned
+        val bounds = coordinates.boundsInRoot()
+        if (bounds.height <= 0f) return@onGloballyPositioned
+        ControllerFocusEngine.updateScrollableViewport(
+            lazyListState = lazyListState,
+            scrollState = scrollState,
+            lazyGridState = lazyGridState,
+            topInRoot = bounds.top,
+            height = bounds.height,
+        )
     }
 }
 

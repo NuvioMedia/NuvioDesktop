@@ -42,7 +42,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.nuvio.app.controller.RegisterControllerVerticalScroll
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
 import com.nuvio.app.core.ui.NuvioInputField
@@ -104,9 +103,6 @@ fun SearchScreen(
 ) {
     val focusRequester = remember { FocusRequester() }
     var isSearchFocused by remember { mutableStateOf(false) }
-
-    // Lets the controller spatial engine scroll the results when focus reaches the bottom edge.
-    RegisterControllerVerticalScroll(lazyListState = listState)
 
     ScreenActivityEffect(listState) { screenActive ->
         if (!screenActive) {

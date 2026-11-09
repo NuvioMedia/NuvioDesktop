@@ -346,7 +346,7 @@ private fun TabbedGridContent(
     val gridState = rememberLazyGridState()
 
     // Lets the controller spatial engine scroll this grid when focus reaches the bottom edge.
-    RegisterControllerVerticalScroll(lazyGridState = gridState)
+    val scrollViewportModifier = RegisterControllerVerticalScroll(lazyGridState = gridState)
 
     LaunchedEffect(gridState, uiState.selectedTabIndex, uiState.selectedTabCanLoadMore, uiState.selectedTabIsLoadingMore) {
         snapshotFlow { gridState.layoutInfo }
@@ -432,7 +432,7 @@ private fun TabbedGridContent(
                         LazyVerticalGrid(
                             columns = gridCells,
                             state = gridState,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().then(scrollViewportModifier),
                             contentPadding = PaddingValues(
                                 start = pageHorizontalPadding,
                                 end = pageHorizontalPadding,
@@ -503,7 +503,7 @@ private fun RowsContent(
     val listState = rememberLazyListState()
 
     // Lets the controller spatial engine scroll the rows list when focus reaches the bottom edge.
-    RegisterControllerVerticalScroll(lazyListState = listState)
+    val scrollViewportModifier = RegisterControllerVerticalScroll(lazyListState = listState)
 
     if (uiState.isLoading && sections.isEmpty()) {
         LoadingIndicator()
@@ -530,7 +530,7 @@ private fun RowsContent(
         }
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().then(scrollViewportModifier),
             contentPadding = PaddingValues(
                 bottom = nuvioSafeBottomPadding(18.dp),
             ),
