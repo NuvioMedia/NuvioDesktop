@@ -5,8 +5,8 @@ internal val PlayerScreenRuntime.contentLanguage: String?
         val metadata = listOfNotNull(metaUiState.meta, playerMeta).filter {
             it.id == parentMetaId && it.type == parentMetaType
         }
-        return metadata.firstNotNullOfOrNull { normalizeLanguageCode(it.language) }
-            ?: normalizeLanguageCode(args.contentLanguage)
+        return metadata.firstNotNullOfOrNull { normalizeContentLanguageCode(it.language) }
+            ?: normalizeContentLanguageCode(args.contentLanguage)
             ?: metadata.firstNotNullOfOrNull { countryToLanguageCode(it.country) }
     }
 
