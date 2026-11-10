@@ -16,6 +16,7 @@ internal fun LazyListScope.settingsRootContent(
     onWatchPartyClick: (() -> Unit)? = null,
     showNotificationsEntry: Boolean = true,
     category: SettingsCategory? = null,
+    includeFooter: Boolean = true,
 ) {
     SettingsCategory.entries.filter { category == null || it == category }.forEach { group ->
         item(key = group.name) {
@@ -122,7 +123,9 @@ internal fun LazyListScope.settingsRootContent(
             }
         }
     }
-    settingsFooterContent(isTablet = isTablet)
+    if (includeFooter) {
+        settingsFooterContent(isTablet = isTablet)
+    }
 }
 
 @Composable
