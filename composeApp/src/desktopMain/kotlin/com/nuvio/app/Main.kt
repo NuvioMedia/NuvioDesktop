@@ -20,6 +20,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.core.diagnostics.SentryInitializer
 import com.nuvio.app.core.ui.NuvioTheme
@@ -68,8 +69,9 @@ fun main(args: Array<String>) {
     installDesktopOpenUriHandler()
     handleDesktopLaunchArgs(args)
     preloadNativePlayerBridgeAsync()
-    // Load cached profile data synchronously so the profile color is available
+    // Load cached profile and auth data synchronously so the profile color is available
     // on the very first Compose frame (matching Android's SharedPreferences behavior).
+    AuthRepository.initialize()
     ProfileRepository.loadCachedProfiles()
     AppIconRepository.ensureLoaded()
     AutoSyncPreferencesDesktop.initialize()
