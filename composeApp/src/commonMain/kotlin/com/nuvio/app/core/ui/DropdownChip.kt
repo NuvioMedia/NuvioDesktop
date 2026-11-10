@@ -94,7 +94,7 @@ fun NuvioDropdownChip(
             DropdownMenu(
                 expanded = isSheetVisible,
                 onDismissRequest = { isSheetVisible = false },
-                modifier = Modifier.widthIn(min = 180.dp, max = 360.dp),
+                modifier = Modifier.platformTouchScroll().widthIn(min = 180.dp, max = 360.dp),
                 containerColor = tokens.colors.surfacePopover,
                 shape = tokens.shapes.compactCard,
             ) {

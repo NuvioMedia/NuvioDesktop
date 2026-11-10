@@ -78,6 +78,7 @@ import com.nuvio.app.core.ui.PosterZoomOverlayCoordinator
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.secondaryClick
+import com.nuvio.app.core.ui.platformTouchScroll
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.details.components.DetailIconAction
 import com.nuvio.app.features.library.LibraryRepository
@@ -325,6 +326,7 @@ internal fun HomePosterHoverPreview(
                         trailerStartSeconds = posterCardStyle.hoverPreviewTrailerStartSeconds,
                         trailerPlaybackSource = trailerPlaybackSource,
                         modifier = Modifier
+                            .platformTouchScroll()
                             .hoverable(previewInteractionSource)
                             .onPointerEvent(PointerEventType.Scroll) {
                                 previewDismissedByScroll = true
