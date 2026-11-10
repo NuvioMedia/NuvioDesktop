@@ -72,7 +72,6 @@ internal fun PlaybackSubtitleSettings(
                 AutoSyncPlaybackSettingsRows(
                     isTablet = isTablet,
                     enabled = !settings.externalPlayerEnabled,
-                    preferredSubtitleLanguage = settings.preferredSubtitleLanguage,
                 )
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
