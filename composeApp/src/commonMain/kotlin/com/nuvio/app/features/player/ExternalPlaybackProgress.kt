@@ -30,6 +30,16 @@ internal fun PlayerLaunch.externalPlaybackSession(): WatchProgressPlaybackSessio
     lastSourceUrl = sourceUrl,
 )
 
+internal fun externalStopScrobblePercent(
+    positionMs: Long,
+    durationMs: Long,
+    playedToEnd: Boolean,
+): Double {
+    if (playedToEnd) return 100.0
+    if (durationMs <= 0L) return 0.0
+    return (positionMs.toDouble() / durationMs.toDouble() * 100).coerceIn(0.0, 100.0)
+}
+
 internal suspend fun recordExternalPlaybackProgress(
     result: ExternalPlaybackResult,
     fallbackSession: WatchProgressPlaybackSession?,
@@ -67,7 +77,11 @@ internal suspend fun recordExternalPlaybackProgress(
                     action = TrackingScrobbleAction.STOP,
                     event = TrackingScrobbleEvent(
                         media = media,
-                        progressPercent = (result.positionMs.toDouble() / durationMs.toDouble() * 100).coerceIn(0.0, 100.0),
+                        progressPercent = externalStopScrobblePercent(
+                            positionMs = result.positionMs,
+                            durationMs = durationMs,
+                            playedToEnd = !result.endedByUser,
+                        ),
                     ),
                 )
             }
