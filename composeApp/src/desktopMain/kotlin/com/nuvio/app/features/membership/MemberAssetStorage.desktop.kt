@@ -35,12 +35,12 @@ internal actual object MemberAssetStorage {
     }
 
     actual fun loadProfileAvatar(cacheKey: String): String? =
-        avatarFile(cacheKey).takeIf { it.isFile && it.length() > 0L }?.toURI()?.toString()
+        avatarFile(cacheKey).takeIf { it.isFile && it.length() > 0L }?.toPath()?.toUri()?.toString()
 
     actual fun saveProfileAvatar(cacheKey: String, bytes: ByteArray): String? {
         val file = avatarFile(cacheKey)
         saveFile(file, bytes)
-        return file.takeIf { it.isFile && it.length() > 0L }?.toURI()?.toString()
+        return file.takeIf { it.isFile && it.length() > 0L }?.toPath()?.toUri()?.toString()
     }
 
     actual fun clearAccess() {
