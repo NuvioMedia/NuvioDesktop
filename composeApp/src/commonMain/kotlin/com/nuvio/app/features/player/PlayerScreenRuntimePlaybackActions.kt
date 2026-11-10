@@ -142,6 +142,7 @@ internal fun PlayerScreenRuntime.resetIdentityStateIfNeeded() {
         engineFailoverDisarmed = false
         engineFailoverSourceIdentity = null
         playbackEngineOverride = null
+        autoFetchedAddonSubtitlesForKey = null
     }
 
     val identity = activePlaybackKey
@@ -156,7 +157,6 @@ internal fun PlayerScreenRuntime.resetIdentityStateIfNeeded() {
         lastProgressPersistEpochMs = 0L
         previousIsPlaying = false
         pendingSeekScrobbleRestart = false
-        autoFetchedAddonSubtitlesForKey = null
         resetTrackSelectionState()
     }
 
@@ -185,6 +185,14 @@ private fun PlayerScreenRuntime.resetTrackSelectionState() {
     selectedSubtitleIndex = -1
     selectedAddonSubtitleId = null
     useCustomSubtitles = false
+}
+
+internal fun PlayerScreenRuntime.resetAddonSubtitlesIfSourceChanged() {
+    val sourceIdentity = sourcePlaybackKey
+    if (lastAddonSubtitleSourceIdentity == sourceIdentity) return
+    lastAddonSubtitleSourceIdentity = sourceIdentity
+    SubtitleRepository.clear()
+    autoFetchedAddonSubtitlesForKey = null
 }
 
 internal fun PlayerScreenRuntime.currentPlaybackProgressPercent(

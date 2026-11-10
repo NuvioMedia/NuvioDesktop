@@ -1,37 +1,55 @@
 package com.nuvio.app.features.autosync
 
-import java.nio.ByteBuffer
-import java.nio.CharBuffer
-import java.nio.charset.Charset
-import java.nio.charset.CharsetDecoder
-import java.nio.charset.CodingErrorAction
-import java.nio.charset.StandardCharsets
 import kotlin.math.min
 
+/**
+ * Detects the charset of subtitle bytes that declare none. The heuristics are shared; only the
+ * byte decoding goes through the platform ([autoSyncDecodeBytes]). Charsets are IANA names.
+ */
 internal object SubtitleCharsetDetector {
 
-    private fun safeCharset(name: String, fallback: Charset = StandardCharsets.UTF_8): Charset {
-        return try {
-            Charset.forName(name)
-        } catch (_: Exception) {
-            fallback
+    private const val UTF_8 = "UTF-8"
+    private const val ISO_8859_1 = "ISO-8859-1"
+
+    private fun safeCharset(name: String, fallback: String = UTF_8): String =
+        if (autoSyncIsCharsetSupported(name)) name else fallback
+
+    private val CHARSET_WIN1254: String = safeCharset("windows-1254")
+    private val CHARSET_WIN1255: String = safeCharset("windows-1255")
+    private val CHARSET_WIN1256: String = safeCharset("windows-1256")
+    private val CHARSET_WIN1251: String = safeCharset("windows-1251")
+    private val CHARSET_WIN1250: String = safeCharset("windows-1250")
+    private val CHARSET_WIN1253: String = safeCharset("windows-1253")
+    private val CHARSET_WIN1252: String = safeCharset("windows-1252", ISO_8859_1)
+    private val CHARSET_WIN874: String = safeCharset("windows-874", safeCharset("TIS-620", ISO_8859_1))
+    private val CHARSET_WIN1258: String = safeCharset("windows-1258")
+    private val CHARSET_KOI8_R: String = safeCharset("KOI8-R")
+    private val CHARSET_GB18030: String = safeCharset("GB18030")
+    private val CHARSET_BIG5: String = safeCharset("Big5")
+    private val CHARSET_SHIFT_JIS: String = safeCharset("Shift_JIS")
+    private val CHARSET_EUC_KR: String = safeCharset("EUC-KR")
+
+    /** Lenient decode: malformed input becomes U+FFFD, as `String(bytes, charset)` does. */
+    private fun decodeWith(bytes: ByteArray, offset: Int, length: Int, charset: String): String =
+        if (charset == UTF_8) {
+            bytes.decodeToString(offset, offset + length)
+        } else {
+            autoSyncDecodeBytes(bytes, offset, length, charset, strict = false)
+                ?: bytes.decodeToString(offset, offset + length)
+        }
+
+    /** Character to byte map of windows-1252, built from the decoder; undefined bytes are left out. */
+    private val win1252Encoding: Map<Char, Byte> by lazy {
+        val all = ByteArray(256) { it.toByte() }
+        buildMap {
+            for (index in 0 until 256) {
+                val decoded = autoSyncDecodeBytes(all, index, 1, CHARSET_WIN1252, strict = true)
+                if (decoded != null && decoded.length == 1 && decoded[0] != '\uFFFD') {
+                    put(decoded[0], all[index])
+                }
+            }
         }
     }
-
-    private val CHARSET_WIN1254: Charset = safeCharset("windows-1254")
-    private val CHARSET_WIN1255: Charset = safeCharset("windows-1255")
-    private val CHARSET_WIN1256: Charset = safeCharset("windows-1256")
-    private val CHARSET_WIN1251: Charset = safeCharset("windows-1251")
-    private val CHARSET_WIN1250: Charset = safeCharset("windows-1250")
-    private val CHARSET_WIN1253: Charset = safeCharset("windows-1253")
-    private val CHARSET_WIN1252: Charset = safeCharset("windows-1252", StandardCharsets.ISO_8859_1)
-    private val CHARSET_WIN874: Charset = safeCharset("windows-874", safeCharset("TIS-620", StandardCharsets.ISO_8859_1))
-    private val CHARSET_WIN1258: Charset = safeCharset("windows-1258")
-    private val CHARSET_KOI8_R: Charset = safeCharset("KOI8-R")
-    private val CHARSET_GB18030: Charset = safeCharset("GB18030")
-    private val CHARSET_BIG5: Charset = safeCharset("Big5")
-    private val CHARSET_SHIFT_JIS: Charset = safeCharset("Shift_JIS")
-    private val CHARSET_EUC_KR: Charset = safeCharset("EUC-KR")
 
     private const val MAX_SAMPLE_BYTES = 4096
 
@@ -47,28 +65,28 @@ internal object SubtitleCharsetDetector {
             (bytes[offset + 1].toInt() and 0xFF) == 0xBB &&
             (bytes[offset + 2].toInt() and 0xFF) == 0xBF
         ) {
-            val utf8 = String(bytes, offset + 3, length - 3, StandardCharsets.UTF_8)
+            val utf8 = bytes.decodeToString(offset + 3, offset + length)
             return repairDoubleEncodedUtf8IfNeeded(utf8, languageHint)
         }
         if (length >= 2 && (bytes[offset].toInt() and 0xFF) == 0xFF &&
             (bytes[offset + 1].toInt() and 0xFF) == 0xFE
         ) {
-            return String(bytes, offset + 2, length - 2, StandardCharsets.UTF_16LE)
+            return decodeWith(bytes, offset + 2, length - 2, "UTF-16LE")
         }
         if (length >= 2 && (bytes[offset].toInt() and 0xFF) == 0xFE &&
             (bytes[offset + 1].toInt() and 0xFF) == 0xFF
         ) {
-            return String(bytes, offset + 2, length - 2, StandardCharsets.UTF_16BE)
+            return decodeWith(bytes, offset + 2, length - 2, "UTF-16BE")
         }
 
         if (isFastValidUtf8(bytes, offset, length)) {
-            val utf8 = String(bytes, offset, length, StandardCharsets.UTF_8)
+            val utf8 = bytes.decodeToString(offset, offset + length)
             return repairDoubleEncodedUtf8IfNeeded(utf8, languageHint)
         }
 
         val hintedCharset = resolveCharsetFromLanguageHint(bytes, offset, length, languageHint)
         val charset = hintedCharset ?: detectUniversalCharset(bytes, offset, length)
-        val decoded = String(bytes, offset, length, charset)
+        val decoded = decodeWith(bytes, offset, length, charset)
         return repairDoubleEncodedUtf8IfNeeded(decoded, languageHint)
     }
 
@@ -79,7 +97,7 @@ internal object SubtitleCharsetDetector {
         languageHint: String? = null
     ): ByteArray {
         val decoded = decode(bytes, offset, length, languageHint)
-        return decoded.toByteArray(StandardCharsets.UTF_8)
+        return decoded.encodeToByteArray()
     }
 
     fun repairDoubleEncodedUtf8IfNeeded(text: String, languageHint: String? = null): String {
@@ -108,11 +126,11 @@ internal object SubtitleCharsetDetector {
         if (mojibakeWordsCount >= threshold && (mojibakeWordsCount * 2 >= words.size)) {
             try {
                 // Ensure text can be encoded to Windows-1252 cleanly without unmappable replacement characters
-                val encoder = CHARSET_WIN1252.newEncoder()
-                if (!encoder.canEncode(text)) return text
+                val encoding = win1252Encoding
+                if (encoding.isEmpty() || text.any { it !in encoding }) return text
 
-                val win1252Bytes = text.toByteArray(CHARSET_WIN1252)
-                val hebrewCandidate = String(win1252Bytes, CHARSET_WIN1255)
+                val win1252Bytes = ByteArray(text.length) { encoding.getValue(text[it]) }
+                val hebrewCandidate = decodeWith(win1252Bytes, 0, win1252Bytes.size, CHARSET_WIN1255)
                 val hebrewChars = hebrewCandidate.count { it in '\u0590'..'\u05FF' }
                 if (hebrewChars >= 10) {
                     return hebrewCandidate
@@ -128,7 +146,7 @@ internal object SubtitleCharsetDetector {
         offset: Int,
         length: Int,
         languageHint: String?
-    ): Charset? {
+    ): String? {
         if (languageHint.isNullOrBlank()) return null
         val normalized = languageHint.trim().lowercase()
         val lang = normalized.substringBefore('-').substringBefore('_')
@@ -212,13 +230,13 @@ internal object SubtitleCharsetDetector {
         return true
     }
 
-    private fun detectUniversalCharset(bytes: ByteArray, offset: Int, length: Int): Charset {
+    private fun detectUniversalCharset(bytes: ByteArray, offset: Int, length: Int): String {
         var startOffset = offset
         val totalEnd = offset + length
         while (startOffset < totalEnd && (bytes[startOffset].toInt() and 0xFF) < 0x80) {
             startOffset++
         }
-        if (startOffset >= totalEnd) return StandardCharsets.UTF_8
+        if (startOffset >= totalEnd) return UTF_8
 
         val sampleOffset = if (startOffset > offset) (startOffset - min(100, startOffset - offset)) else offset
         val sampleLength = min(totalEnd - sampleOffset, MAX_SAMPLE_BYTES)
@@ -245,7 +263,7 @@ internal object SubtitleCharsetDetector {
             }
         }
 
-        if (nonAscii == 0) return StandardCharsets.UTF_8
+        if (nonAscii == 0) return UTF_8
 
         // Japanese Shift_JIS check (Hiragana in 0x82 0x9F..0xF1)
         var hiraganaCount = 0
@@ -264,8 +282,8 @@ internal object SubtitleCharsetDetector {
         }
 
         // Korean EUC-KR syllables check (Hangul block match)
-        val hangulScore = countBlockMatches(bytes, sampleOffset, sampleLength, CHARSET_EUC_KR, Character.UnicodeBlock.HANGUL_SYLLABLES)
-        val gbHanziScore = countBlockMatches(bytes, sampleOffset, sampleLength, CHARSET_GB18030, Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS)
+        val hangulScore = countBlockMatches(bytes, sampleOffset, sampleLength, CHARSET_EUC_KR, HANGUL_SYLLABLES)
+        val gbHanziScore = countBlockMatches(bytes, sampleOffset, sampleLength, CHARSET_GB18030, CJK_UNIFIED_IDEOGRAPHS)
 
         if (hangulScore >= 4 && hangulScore >= gbHanziScore && maxConsecutiveNonAscii >= 4) {
             return CHARSET_EUC_KR
@@ -383,38 +401,19 @@ internal object SubtitleCharsetDetector {
         return CHARSET_WIN1252
     }
 
-    private fun isCjkClean(bytes: ByteArray, offset: Int, length: Int, cs: Charset): Boolean {
-        return try {
-            val decoder: CharsetDecoder = cs.newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-            decoder.decode(ByteBuffer.wrap(bytes, offset, length))
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
+    private fun isCjkClean(bytes: ByteArray, offset: Int, length: Int, cs: String): Boolean =
+        autoSyncDecodeBytes(bytes, offset, length, cs, strict = true) != null
 
-    private fun countBlockMatches(bytes: ByteArray, offset: Int, length: Int, cs: Charset, vararg blocks: Character.UnicodeBlock): Int {
-        return try {
-            val decoder: CharsetDecoder = cs.newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-            val cb: CharBuffer = decoder.decode(ByteBuffer.wrap(bytes, offset, length))
-            var matched = 0
-            for (i in 0 until cb.length) {
-                val c = cb.get(i)
-                val b = Character.UnicodeBlock.of(c)
-                for (target in blocks) {
-                    if (b == target) {
-                        matched++
-                        break
-                    }
-                }
-            }
-            matched
-        } catch (_: Exception) {
-            0
+    // The Unicode blocks the detector scores (same ranges as Character.UnicodeBlock).
+    private val HANGUL_SYLLABLES = '\uAC00'..'\uD7AF'
+    private val CJK_UNIFIED_IDEOGRAPHS = '\u4E00'..'\u9FFF'
+
+    private fun countBlockMatches(bytes: ByteArray, offset: Int, length: Int, cs: String, vararg blocks: CharRange): Int {
+        val decoded = autoSyncDecodeBytes(bytes, offset, length, cs, strict = true) ?: return 0
+        var matched = 0
+        for (c in decoded) {
+            if (blocks.any { c in it }) matched++
         }
+        return matched
     }
 }
