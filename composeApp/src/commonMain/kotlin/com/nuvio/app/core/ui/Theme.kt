@@ -24,6 +24,7 @@ import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.jetbrains_sans_bold
 import nuvio.composeapp.generated.resources.jetbrains_sans_regular
 import nuvio.composeapp.generated.resources.jetbrains_sans_semibold
+import nuvio.composeapp.generated.resources.twemoji_country_flags
 import org.jetbrains.compose.resources.Font
 
 val LocalAppTheme = staticCompositionLocalOf { AppTheme.WHITE }
@@ -234,6 +235,12 @@ fun NuvioTheme(
     } else {
         NuvioDesktopMinUiScale
     }
+    val countryFlagFontFamily = if (isDesktop) {
+        val font = Font(Res.font.twemoji_country_flags)
+        remember(font) { FontFamily(font) }
+    } else {
+        null
+    }
     CompositionLocalProvider(
         LocalNuvioPlatformDensity provides density,
         LocalDensity provides Density(
@@ -245,6 +252,7 @@ fun NuvioTheme(
         LocalRippleConfiguration provides NuvioRippleConfiguration,
         LocalAppTheme provides appTheme,
         LocalThemePalette provides palette,
+        LocalCountryFlagFontFamily provides countryFlagFontFamily,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
