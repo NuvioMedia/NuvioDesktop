@@ -30,21 +30,72 @@ class WatchingPoliciesTest {
     }
 
     @Test
-    fun isReleasedByTreatsDateOnlyValueAsUtcMidnight() {
-        val utcMidnightEpochMs = 1_768_435_200_000L // 2026-01-15T00:00:00Z
+    fun isReleasedByKeepsDateOnlyValueHiddenUntilReleaseDayEnds() {
+        val releaseDayNoonUtc = 1_768_478_400_000L // 2026-01-15T12:00:00Z
 
         assertFalse(
             isReleasedBy(
                 todayIsoDate = "2026-01-14",
                 releasedDate = "2026-01-15",
-                nowEpochMs = utcMidnightEpochMs - 1L,
+                nowEpochMs = releaseDayNoonUtc,
+            ),
+        )
+        assertFalse(
+            isReleasedBy(
+                todayIsoDate = "2026-01-15",
+                releasedDate = "2026-01-15",
+                nowEpochMs = releaseDayNoonUtc,
             ),
         )
         assertTrue(
             isReleasedBy(
-                todayIsoDate = "2026-01-14",
+                todayIsoDate = "2026-01-16",
                 releasedDate = "2026-01-15",
-                nowEpochMs = utcMidnightEpochMs,
+                nowEpochMs = releaseDayNoonUtc,
+            ),
+        )
+    }
+
+    @Test
+    fun shouldSurfaceNextEpisode_hides_date_only_release_until_release_day_ends() {
+        assertFalse(
+            shouldSurfaceNextEpisode(
+                watchedSeasonNumber = 1,
+                candidateSeasonNumber = 1,
+                todayIsoDate = "2026-10-27",
+                releasedDate = "2026-10-27",
+                showUnairedNextUp = false,
+                nowEpochMs = 0L,
+            ),
+        )
+        assertTrue(
+            shouldSurfaceNextEpisode(
+                watchedSeasonNumber = 1,
+                candidateSeasonNumber = 1,
+                todayIsoDate = "2026-10-28",
+                releasedDate = "2026-10-27",
+                showUnairedNextUp = false,
+                nowEpochMs = 0L,
+            ),
+        )
+        assertFalse(
+            shouldSurfaceNextEpisode(
+                watchedSeasonNumber = 1,
+                candidateSeasonNumber = 2,
+                todayIsoDate = "2026-10-27",
+                releasedDate = "2026-10-27",
+                showUnairedNextUp = false,
+                nowEpochMs = 0L,
+            ),
+        )
+        assertTrue(
+            shouldSurfaceNextEpisode(
+                watchedSeasonNumber = 1,
+                candidateSeasonNumber = 2,
+                todayIsoDate = "2026-10-28",
+                releasedDate = "2026-10-27",
+                showUnairedNextUp = false,
+                nowEpochMs = 0L,
             ),
         )
     }

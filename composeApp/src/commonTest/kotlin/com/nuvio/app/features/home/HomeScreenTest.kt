@@ -786,6 +786,30 @@ class HomeScreenTest {
     }
 
     @Test
+    fun `cached next up keeps date-only release hidden through its release day`() {
+        val released = "2026-10-27"
+        val releaseEpochMs = requireNotNull(parseReleaseDateToEpochMs(released))
+        val cached = cachedNextUpItem(released = released, hasAired = true)
+
+        assertFalse(
+            cachedNextUpHasAired(
+                cached = cached,
+                nowEpochMs = releaseEpochMs,
+                releaseEpochMs = releaseEpochMs,
+                todayIsoDate = "2026-10-27",
+            ),
+        )
+        assertTrue(
+            cachedNextUpHasAired(
+                cached = cached,
+                nowEpochMs = releaseEpochMs,
+                releaseEpochMs = releaseEpochMs,
+                todayIsoDate = "2026-10-28",
+            ),
+        )
+    }
+
+    @Test
     fun `cached next up invalidates whenever the authoritative seed changes`() {
         assertTrue(
             hasHomeNextUpSeedChangedFromCache(

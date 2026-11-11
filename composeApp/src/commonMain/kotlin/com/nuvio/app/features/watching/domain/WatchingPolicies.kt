@@ -5,6 +5,7 @@ import com.nuvio.app.core.time.daysUntilEpisodeRelease
 import com.nuvio.app.core.time.isEpisodeReleaseAired
 import com.nuvio.app.core.time.isoEpochDay as coreIsoEpochDay
 import com.nuvio.app.core.time.parseEpisodeReleaseLocalDate
+import com.nuvio.app.core.time.parseIsoCalendarDate
 
 private const val CompletionThresholdFraction = 0.90
 private const val ProgressStoreThresholdMs = 1_000L
@@ -49,6 +50,12 @@ fun isProgressComplete(
 fun isShortPlaceholderDuration(durationMs: Long): Boolean =
     durationMs in 1 until MinRealContentDurationMs
 
+/**
+ * Full timestamps use their exact instant. A date-only value has no air time, so it is
+ * treated as unreleased through the supplied local calendar date and becomes released
+ * only after that date has passed. This avoids surfacing an episode hours before it airs
+ * when a provider only gives a calendar date.
+ */
 fun isReleasedBy(
     todayIsoDate: String,
     releasedDate: String?,
@@ -56,6 +63,11 @@ fun isReleasedBy(
     nowEpochMs: Long = EpisodeReleaseDatePlatform.nowEpochMs(),
 ): Boolean {
     if (!available) return false
+    val dateOnly = parseIsoCalendarDate(releasedDate)
+    val today = parseIsoCalendarDate(todayIsoDate)
+    if (dateOnly != null && today != null) {
+        return today > dateOnly
+    }
     return isEpisodeReleaseAired(releasedDate, nowEpochMs) ?: true
 }
 
@@ -87,7 +99,13 @@ internal fun shouldSurfaceNextEpisode(
         )
     }
 
-    if (isExplicitlyReleasedBy(releasedDate = releasedDate, nowEpochMs = nowEpochMs)) {
+    if (
+        isExplicitlyReleasedBy(
+            todayIsoDate = todayIsoDate,
+            releasedDate = releasedDate,
+            nowEpochMs = nowEpochMs,
+        )
+    ) {
         return true
     }
     if (!showUnairedNextUp) {
@@ -102,10 +120,16 @@ internal fun shouldSurfaceNextEpisode(
 }
 
 private fun isExplicitlyReleasedBy(
+    todayIsoDate: String,
     releasedDate: String?,
     nowEpochMs: Long,
 ): Boolean {
-    return isEpisodeReleaseAired(releasedDate, nowEpochMs) ?: false
+    if (releasedDate.isNullOrBlank()) return false
+    return isReleasedBy(
+        todayIsoDate = todayIsoDate,
+        releasedDate = releasedDate,
+        nowEpochMs = nowEpochMs,
+    )
 }
 
 internal fun daysUntilExplicitRelease(
