@@ -92,6 +92,13 @@ struct Player {
     GCancellable *snapCancel = nullptr;  // cancels the in-flight snapshot, owned
     int snapCooldownTicks = 0;  // watchdog backoff before the next request
     int snapResets = 0;         // consecutive watchdog resets without a snapshot
+    int snapStill = 0;          // consecutive snapshots identical to the last pushed one
+    int snapSkip = 0;           // composite ticks left before the next request while still
+    long lastUiPos = -1;
+    long lastUiBuf = -1;
+    long lastUiVol = -1;
+    bool lastUiPaused = false;
+    bool lastUiLoading = false;
     // Controls-state payload buffering (macOS/Windows parity): the first
     // updateControls arrives before the page defines window.playerControls, so a
     // fire-and-forget eval loses it and the loading screen shows a bare spinner
@@ -361,7 +368,13 @@ void onControlsEval(GObject *src, GAsyncResult *res, gpointer data) {
 // Deliver the pending controls payload, probing for window.playerControls so a
 // too-early push is detected and retried instead of silently short-circuited.
 // GTK thread only.
+void wakeSnapshots(Player *player) {
+    player->snapStill = 0;
+    player->snapSkip = 0;
+}
+
 void flushControlsJson(Player *player) {
+    wakeSnapshots(player);
     if (!player->webview || player->pendingControlsJson.empty()) return;
     std::string script =
         "(function(){if(!window.playerControls)return 'missing';"
@@ -450,6 +463,7 @@ void onPlayerMessage(WebKitUserContentManager *, WebKitJavascriptResult *js, gpo
     // chrome faded out; every other event (cursor/keep-visible/toggle/...) means
     // it is up. cursorActivity also arrives while hidden (mouse woke the UI) and
     // must re-activate compositing so the fade-in is actually shown.
+    if (type) wakeSnapshots(player);
     if (type) {
         if (strcmp(type, "setPlaybackState") == 0 ||
             strcmp(type, "setPlaybackStateQuiet") == 0) {
@@ -574,6 +588,21 @@ void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
         }
     }
     cairo_surface_flush(surf);
+    cairo_surface_t *cur = player->snapSurf;
+    if (cur && player->overlayPushed &&
+        cairo_image_surface_get_width(cur) == cairo_image_surface_get_width(surf) &&
+        cairo_image_surface_get_height(cur) == cairo_image_surface_get_height(surf) &&
+        cairo_image_surface_get_stride(cur) == cairo_image_surface_get_stride(surf) &&
+        memcmp(cairo_image_surface_get_data(cur), cairo_image_surface_get_data(surf),
+               (size_t)cairo_image_surface_get_stride(surf) *
+                   cairo_image_surface_get_height(surf)) == 0) {
+        cairo_surface_destroy(surf);
+        if (player->snapStill < 1000) player->snapStill++;
+        if (player->snapStill >= 3) player->snapSkip = std::min(player->snapStill * 2, 15);
+        return;
+    }
+    player->snapStill = 0;
+    player->snapSkip = 0;
     char addr[32], sw[16], sh[16], sstride[16];
     snprintf(addr, sizeof addr, "&%zu",
              (size_t)(uintptr_t)cairo_image_surface_get_data(surf));
@@ -679,6 +708,8 @@ void compositeOverlay(Player *player) {
             // Backing off after a watchdog reset: a stalled web process gets no
             // relief from being asked again immediately.
             player->snapCooldownTicks--;
+        } else if (player->snapSkip > 0) {
+            player->snapSkip--;
         } else {
             player->snapInFlight = true;
             player->snapWaitTicks = 0;
@@ -873,6 +904,18 @@ gboolean pushPlayerUpdate(gpointer data) {
     volumeLevel = std::max(0.0, std::min(kMaxVolumePercent / 100.0, volumeLevel));
     bool paused = mpvGetFlag(player->mpv, "pause");
     bool loading = playerLoading(player);
+    long posSec = (long)position;
+    long bufSec = (long)bufferedPosition;
+    long vol = (long)(volumeLevel * 1000);
+    if (posSec != player->lastUiPos || bufSec != player->lastUiBuf || vol != player->lastUiVol ||
+        paused != player->lastUiPaused || loading != player->lastUiLoading) {
+        player->lastUiPos = posSec;
+        player->lastUiBuf = bufSec;
+        player->lastUiVol = vol;
+        player->lastUiPaused = paused;
+        player->lastUiLoading = loading;
+        wakeSnapshots(player);
+    }
     std::string audioTracks = buildTracksJson(player->mpv, "audio");
     std::string subtitleTracks = buildTracksJson(player->mpv, "sub");
     char head[224];
