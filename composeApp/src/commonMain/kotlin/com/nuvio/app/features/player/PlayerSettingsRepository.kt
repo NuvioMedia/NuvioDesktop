@@ -121,6 +121,7 @@ data class PlayerSettingsUiState(
     val iosSaturation: Int = 0,
     val iosGamma: Int = 0,
     val nvidiaRtxSuperResolutionEnabled: Boolean = false,
+    val nvidiaRtxHdrEnabled: Boolean = false,
 )
 
 object PlayerSettingsRepository {
@@ -215,6 +216,7 @@ object PlayerSettingsRepository {
     private var iosSaturation = 0
     private var iosGamma = 0
     private var nvidiaRtxSuperResolutionEnabled = false
+    private var nvidiaRtxHdrEnabled = false
 
     fun ensureLoaded() {
         if (hasLoaded) return
@@ -315,6 +317,7 @@ object PlayerSettingsRepository {
         iosSaturation = 0
         iosGamma = 0
         nvidiaRtxSuperResolutionEnabled = false
+        nvidiaRtxHdrEnabled = false
         publish()
     }
 
@@ -502,6 +505,7 @@ object PlayerSettingsRepository {
         iosSaturation = PlayerSettingsStorage.loadIosSaturation() ?: 0
         iosGamma = PlayerSettingsStorage.loadIosGamma() ?: 0
         nvidiaRtxSuperResolutionEnabled = PlayerSettingsStorage.loadNvidiaRtxSuperResolutionEnabled() ?: false
+        nvidiaRtxHdrEnabled = PlayerSettingsStorage.loadNvidiaRtxHdrEnabled() ?: false
         publish()
     }
 
@@ -1133,6 +1137,14 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveNvidiaRtxSuperResolutionEnabled(enabled)
     }
 
+    fun setNvidiaRtxHdrEnabled(enabled: Boolean) {
+        ensureLoaded()
+        if (nvidiaRtxHdrEnabled == enabled) return
+        nvidiaRtxHdrEnabled = enabled
+        publish()
+        PlayerSettingsStorage.saveNvidiaRtxHdrEnabled(enabled)
+    }
+
     fun setLibassRenderType(renderType: String) {
         ensureLoaded()
         if (libassRenderType == renderType) return
@@ -1411,6 +1423,7 @@ object PlayerSettingsRepository {
             iosSaturation = iosSaturation,
             iosGamma = iosGamma,
             nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
+            nvidiaRtxHdrEnabled = nvidiaRtxHdrEnabled,
         )
     }
 
