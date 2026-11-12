@@ -113,6 +113,9 @@ fun DetailSeriesContent(
     episodeRatings: Map<Pair<Int, Int>, Double> = emptyMap(),
     episodeRatingsVisibility: EpisodeRatingsVisibility = EpisodeRatingsVisibility.SHOW_ALL,
     blurUnwatchedEpisodes: Boolean = false,
+    blurEpisodeThumbnails: Boolean = true,
+    blurEpisodeTitles: Boolean = false,
+    blurEpisodeDescriptions: Boolean = false,
     onEpisodeClick: ((MetaVideo) -> Unit)? = null,
     onEpisodeLongPress: ((MetaVideo) -> Unit)? = null,
     onSeasonLongPress: ((Int) -> Unit)? = null,
@@ -233,6 +236,9 @@ fun DetailSeriesContent(
                             episodeRatings = episodeRatings,
                             episodeRatingsVisibility = episodeRatingsVisibility,
                             blurUnwatchedEpisodes = blurUnwatchedEpisodes,
+                            blurEpisodeThumbnails = blurEpisodeThumbnails,
+                            blurEpisodeTitles = blurEpisodeTitles,
+                            blurEpisodeDescriptions = blurEpisodeDescriptions,
                             preferredEpisodeNumber = preferredEpisodeNumberForSeason(
                                 displayedSeasonNumber = seasonForContent,
                                 preferredSeasonNumber = preferredSeasonNumber,
@@ -266,6 +272,9 @@ fun DetailSeriesContent(
                                         ),
                                     episodeRatingsVisibility = episodeRatingsVisibility,
                                     blurUnwatchedEpisodes = blurUnwatchedEpisodes,
+                            blurEpisodeThumbnails = blurEpisodeThumbnails,
+                            blurEpisodeTitles = blurEpisodeTitles,
+                            blurEpisodeDescriptions = blurEpisodeDescriptions,
                                     sizing = sizing,
                                     onClick = { onEpisodeClick?.invoke(episode) },
                                     onLongPress = { onEpisodeLongPress?.invoke(episode) },
@@ -325,6 +334,9 @@ internal fun DetailSeriesListEpisode(
     episodeRatings: Map<Pair<Int, Int>, Double>,
     episodeRatingsVisibility: EpisodeRatingsVisibility,
     blurUnwatchedEpisodes: Boolean,
+    blurEpisodeThumbnails: Boolean = true,
+    blurEpisodeTitles: Boolean = false,
+    blurEpisodeDescriptions: Boolean = false,
     onEpisodeClick: ((MetaVideo) -> Unit)?,
     onEpisodeLongPress: ((MetaVideo) -> Unit)?,
     modifier: Modifier = Modifier,
@@ -351,6 +363,9 @@ internal fun DetailSeriesListEpisode(
                 ),
             episodeRatingsVisibility = episodeRatingsVisibility,
             blurUnwatchedEpisodes = blurUnwatchedEpisodes,
+            blurEpisodeThumbnails = blurEpisodeThumbnails,
+            blurEpisodeTitles = blurEpisodeTitles,
+            blurEpisodeDescriptions = blurEpisodeDescriptions,
             sizing = sizing,
             onClick = { onEpisodeClick?.invoke(episode) },
             onLongPress = { onEpisodeLongPress?.invoke(episode) },
@@ -721,6 +736,9 @@ private fun EpisodeHorizontalRow(
     episodeRatings: Map<Pair<Int, Int>, Double>,
     episodeRatingsVisibility: EpisodeRatingsVisibility,
     blurUnwatchedEpisodes: Boolean,
+    blurEpisodeThumbnails: Boolean = true,
+    blurEpisodeTitles: Boolean = false,
+    blurEpisodeDescriptions: Boolean = false,
     preferredEpisodeNumber: Int? = null,
     onEpisodeClick: ((MetaVideo) -> Unit)?,
     onEpisodeLongPress: ((MetaVideo) -> Unit)?,
@@ -781,6 +799,9 @@ private fun EpisodeHorizontalRow(
                     ),
                 episodeRatingsVisibility = episodeRatingsVisibility,
                 blurUnwatchedEpisodes = blurUnwatchedEpisodes,
+                blurEpisodeThumbnails = blurEpisodeThumbnails,
+                blurEpisodeTitles = blurEpisodeTitles,
+                blurEpisodeDescriptions = blurEpisodeDescriptions,
                 metrics = rowMetrics,
                 onClick = { onEpisodeClick?.invoke(episode) },
                 onLongPress = { onEpisodeLongPress?.invoke(episode) },
@@ -799,6 +820,9 @@ private fun EpisodeHorizontalCard(
     isWatched: Boolean,
     episodeRatingsVisibility: EpisodeRatingsVisibility,
     blurUnwatchedEpisodes: Boolean,
+    blurEpisodeThumbnails: Boolean = true,
+    blurEpisodeTitles: Boolean = false,
+    blurEpisodeDescriptions: Boolean = false,
     metrics: EpisodeHorizontalCardMetrics,
     onClick: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
@@ -838,7 +862,9 @@ private fun EpisodeHorizontalCard(
                 zoomCornerRadius = metrics.cornerRadius,
             ),
     ) {
-        val shouldBlurArtwork = blurUnwatchedEpisodes && !isWatched
+        val shouldBlurArtwork = blurUnwatchedEpisodes && blurEpisodeThumbnails && !isWatched
+        val shouldBlurTitle = blurUnwatchedEpisodes && blurEpisodeTitles && !isWatched
+        val shouldBlurDescription = blurUnwatchedEpisodes && blurEpisodeDescriptions && !isWatched
         if (imageUrl != null) {
             AsyncImage(
                 model = imageUrl,
@@ -911,6 +937,7 @@ private fun EpisodeHorizontalCard(
                 color = Color.White,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                modifier = if (shouldBlurTitle) Modifier.blur(8.dp) else Modifier,
             )
 
             if (!video.overview.isNullOrBlank()) {
@@ -923,6 +950,7 @@ private fun EpisodeHorizontalCard(
                     color = Color.White.copy(alpha = 0.86f),
                     maxLines = metrics.overviewMaxLines,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = if (shouldBlurDescription) Modifier.blur(8.dp) else Modifier,
                 )
             }
 
@@ -1193,6 +1221,9 @@ private fun EpisodeListCard(
     isWatched: Boolean,
     episodeRatingsVisibility: EpisodeRatingsVisibility,
     blurUnwatchedEpisodes: Boolean,
+    blurEpisodeThumbnails: Boolean = true,
+    blurEpisodeTitles: Boolean = false,
+    blurEpisodeDescriptions: Boolean = false,
     sizing: SeriesContentSizing,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
@@ -1205,6 +1236,9 @@ private fun EpisodeListCard(
             ?.let(::formatEpisodeRating)
     }
     val formattedDate = remember(video.released) { video.released?.let { formatReleaseDateForDisplay(it) } }
+    val shouldBlurArtwork = blurUnwatchedEpisodes && blurEpisodeThumbnails && !isWatched
+    val shouldBlurTitle = blurUnwatchedEpisodes && blurEpisodeTitles && !isWatched
+    val shouldBlurDescription = blurUnwatchedEpisodes && blurEpisodeDescriptions && !isWatched
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -1234,7 +1268,6 @@ private fun EpisodeListCard(
                     .clip(RoundedCornerShape(topStart = cornerRadius, bottomStart = cornerRadius)),
             ) {
                 val imageUrl = video.thumbnail ?: fallbackImage
-                val shouldBlurArtwork = blurUnwatchedEpisodes && !isWatched
                 if (imageUrl != null) {
                     AsyncImage(
                         model = imageUrl,
@@ -1311,6 +1344,7 @@ private fun EpisodeListCard(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = sizing.titleMaxLines,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = if (shouldBlurTitle) Modifier.blur(8.dp) else Modifier,
                 )
 
                 if (formattedDate != null || ratingLabel != null) {
@@ -1351,6 +1385,7 @@ private fun EpisodeListCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = sizing.overviewMaxLines,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = if (shouldBlurDescription) Modifier.blur(8.dp) else Modifier,
                     )
                 }
             }

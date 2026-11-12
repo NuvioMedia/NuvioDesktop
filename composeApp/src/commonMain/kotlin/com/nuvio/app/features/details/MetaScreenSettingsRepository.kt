@@ -83,6 +83,9 @@ data class MetaScreenSettingsUiState(
     val tabLayout: Boolean = false,
     val episodeCardStyle: MetaEpisodeCardStyle = MetaEpisodeCardStyle.Horizontal,
     val blurUnwatchedEpisodes: Boolean = false,
+    val blurEpisodeThumbnails: Boolean = true,
+    val blurEpisodeTitles: Boolean = false,
+    val blurEpisodeDescriptions: Boolean = false,
     val posterTransitionEnabled: Boolean = false,
     val showOverallRatings: Boolean = true,
     val episodeRatingsVisibility: EpisodeRatingsVisibility = EpisodeRatingsVisibility.SHOW_ALL,
@@ -138,6 +141,12 @@ private data class StoredMetaScreenSettingsPayload(
     val episodeCardStyle: String = "horizontal",
     @SerialName("blur_unwatched_episodes")
     val blurUnwatchedEpisodes: Boolean = false,
+    @SerialName("blur_episode_thumbnails")
+    val blurEpisodeThumbnails: Boolean = true,
+    @SerialName("blur_episode_titles")
+    val blurEpisodeTitles: Boolean = false,
+    @SerialName("blur_episode_descriptions")
+    val blurEpisodeDescriptions: Boolean = false,
     @SerialName("poster_transition_enabled")
     val posterTransitionEnabled: Boolean = false,
     @SerialName("show_overall_ratings")
@@ -221,6 +230,9 @@ object MetaScreenSettingsRepository {
     private var tabLayout: Boolean = false
     private var episodeCardStyle: MetaEpisodeCardStyle = MetaEpisodeCardStyle.Horizontal
     private var blurUnwatchedEpisodes: Boolean = false
+    private var blurEpisodeThumbnails: Boolean = true
+    private var blurEpisodeTitles: Boolean = false
+    private var blurEpisodeDescriptions: Boolean = false
     private var showOverallRatings: Boolean = true
     private var episodeRatingsVisibility: EpisodeRatingsVisibility = EpisodeRatingsVisibility.SHOW_ALL
     private var posterTransitionEnabled: Boolean = false
@@ -243,6 +255,9 @@ object MetaScreenSettingsRepository {
                 episodeCardStyle = MetaEpisodeCardStyle.parse(parsed.episodeCardStyle)
                     ?: MetaEpisodeCardStyle.Horizontal
                 blurUnwatchedEpisodes = parsed.blurUnwatchedEpisodes
+                blurEpisodeThumbnails = parsed.blurEpisodeThumbnails
+                blurEpisodeTitles = parsed.blurEpisodeTitles
+                blurEpisodeDescriptions = parsed.blurEpisodeDescriptions
                 posterTransitionEnabled = parsed.posterTransitionEnabled
                 showOverallRatings = parsed.showOverallRatings
                 episodeRatingsVisibility = EpisodeRatingsVisibility.parse(parsed.episodeRatingsVisibility)
@@ -266,6 +281,9 @@ object MetaScreenSettingsRepository {
         tabLayout = false
         episodeCardStyle = MetaEpisodeCardStyle.Horizontal
         blurUnwatchedEpisodes = false
+        blurEpisodeThumbnails = true
+        blurEpisodeTitles = false
+        blurEpisodeDescriptions = false
         posterTransitionEnabled = false
         showOverallRatings = true
         episodeRatingsVisibility = EpisodeRatingsVisibility.SHOW_ALL
@@ -312,6 +330,27 @@ object MetaScreenSettingsRepository {
         persist()
     }
 
+    fun setBlurEpisodeThumbnails(enabled: Boolean) {
+        ensureLoaded()
+        blurEpisodeThumbnails = enabled
+        publish()
+        persist()
+    }
+
+    fun setBlurEpisodeTitles(enabled: Boolean) {
+        ensureLoaded()
+        blurEpisodeTitles = enabled
+        publish()
+        persist()
+    }
+
+    fun setBlurEpisodeDescriptions(enabled: Boolean) {
+        ensureLoaded()
+        blurEpisodeDescriptions = enabled
+        publish()
+        persist()
+    }
+
     fun setShowOverallRatings(enabled: Boolean) {
         ensureLoaded()
         showOverallRatings = enabled
@@ -354,6 +393,9 @@ object MetaScreenSettingsRepository {
         tabLayout = false
         episodeCardStyle = MetaEpisodeCardStyle.Horizontal
         blurUnwatchedEpisodes = false
+        blurEpisodeThumbnails = true
+        blurEpisodeTitles = false
+        blurEpisodeDescriptions = false
         posterTransitionEnabled = false
         showOverallRatings = true
         episodeRatingsVisibility = EpisodeRatingsVisibility.SHOW_ALL
@@ -367,6 +409,9 @@ object MetaScreenSettingsRepository {
         tabLayout: Boolean,
         episodeCardStyle: MetaEpisodeCardStyle = MetaEpisodeCardStyle.Horizontal,
         blurUnwatchedEpisodes: Boolean = false,
+        blurEpisodeThumbnails: Boolean = true,
+        blurEpisodeTitles: Boolean = false,
+        blurEpisodeDescriptions: Boolean = false,
         backgroundMode: MetaScreenBackgroundMode? = null,
         posterTransitionEnabled: Boolean = false,
         showOverallRatings: Boolean = true,
@@ -378,6 +423,9 @@ object MetaScreenSettingsRepository {
         this.tabLayout = tabLayout
         this.episodeCardStyle = episodeCardStyle
         this.blurUnwatchedEpisodes = blurUnwatchedEpisodes
+        this.blurEpisodeThumbnails = blurEpisodeThumbnails
+        this.blurEpisodeTitles = blurEpisodeTitles
+        this.blurEpisodeDescriptions = blurEpisodeDescriptions
         this.posterTransitionEnabled = posterTransitionEnabled
         this.showOverallRatings = showOverallRatings
         this.episodeRatingsVisibility = episodeRatingsVisibility
@@ -408,6 +456,9 @@ object MetaScreenSettingsRepository {
         tabLayout = false
         episodeCardStyle = MetaEpisodeCardStyle.Horizontal
         blurUnwatchedEpisodes = false
+        blurEpisodeThumbnails = true
+        blurEpisodeTitles = false
+        blurEpisodeDescriptions = false
         posterTransitionEnabled = false
         showOverallRatings = true
         episodeRatingsVisibility = EpisodeRatingsVisibility.SHOW_ALL
@@ -482,6 +533,9 @@ object MetaScreenSettingsRepository {
             tabLayout = tabLayout,
             episodeCardStyle = episodeCardStyle,
             blurUnwatchedEpisodes = blurUnwatchedEpisodes,
+            blurEpisodeThumbnails = blurEpisodeThumbnails,
+            blurEpisodeTitles = blurEpisodeTitles,
+            blurEpisodeDescriptions = blurEpisodeDescriptions,
             posterTransitionEnabled = posterTransitionEnabled,
             showOverallRatings = showOverallRatings,
             episodeRatingsVisibility = episodeRatingsVisibility,
@@ -499,6 +553,9 @@ object MetaScreenSettingsRepository {
                     tabLayout = tabLayout,
                     episodeCardStyle = MetaEpisodeCardStyle.persist(episodeCardStyle),
                     blurUnwatchedEpisodes = blurUnwatchedEpisodes,
+                    blurEpisodeThumbnails = blurEpisodeThumbnails,
+                    blurEpisodeTitles = blurEpisodeTitles,
+                    blurEpisodeDescriptions = blurEpisodeDescriptions,
                     posterTransitionEnabled = posterTransitionEnabled,
                     showOverallRatings = showOverallRatings,
                     episodeRatingsVisibility = episodeRatingsVisibility.name,

@@ -240,6 +240,7 @@ fun StreamsScreen(
         episode = episodeNumber,
     ).any(watchedUiState.watchedKeys::contains)
     val blurEpisodeThumbnail = metaScreenSettings.blurUnwatchedEpisodes &&
+        metaScreenSettings.blurEpisodeThumbnails &&
         isEpisode &&
         !isEpisodeWatched &&
         !episodeThumbnail.isNullOrBlank()

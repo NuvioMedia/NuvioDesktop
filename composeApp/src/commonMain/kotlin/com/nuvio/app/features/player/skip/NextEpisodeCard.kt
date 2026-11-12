@@ -73,6 +73,7 @@ fun NextEpisodeCard(
     autoPlaySourceName: String?,
     autoPlayCountdownSec: Int?,
     blurred: Boolean,
+    blurredTitle: Boolean = false,
     onPlayNext: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -200,6 +201,7 @@ fun NextEpisodeCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     fontWeight = FontWeight.SemiBold,
+                    modifier = if (blurredTitle) Modifier.blur(8.dp) else Modifier,
                 )
                 val autoPlayStatus = when {
                     !isPlayable && !nextEpisode.unairedMessage.isNullOrBlank() -> nextEpisode.unairedMessage

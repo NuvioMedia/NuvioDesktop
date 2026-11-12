@@ -1039,7 +1039,13 @@
     <string name="settings_meta_episodes">Episodes</string>
     <string name="settings_meta_episodes_description">Seasons and episode list for series.</string>
     <string name="settings_meta_blur_unwatched_episodes">Blur Unwatched Episodes</string>
-    <string name="settings_meta_blur_unwatched_episodes_description">Blur episode thumbnails until watched to avoid spoilers.</string>
+    <string name="settings_meta_blur_unwatched_episodes_description">Blur episode details until watched to avoid spoilers.</string>
+    <string name="settings_meta_blur_episode_thumbnails">Episode Thumbnails</string>
+    <string name="settings_meta_blur_episode_thumbnails_description">Blur episode thumbnails until watched to avoid spoilers.</string>
+    <string name="settings_meta_blur_episode_titles">Episode Titles</string>
+    <string name="settings_meta_blur_episode_titles_description">Blur episode titles until watched to avoid spoilers.</string>
+    <string name="settings_meta_blur_episode_descriptions">Episode Descriptions</string>
+    <string name="settings_meta_blur_episode_descriptions_description">Blur episode descriptions until watched to avoid spoilers.</string>
     <string name="settings_meta_group_label">Group %1$d</string>
     <string name="settings_meta_more_like_this">More like this</string>
     <string name="settings_meta_more_like_this_description">TMDB recommendation backdrops on detail page</string>

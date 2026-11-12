@@ -33,6 +33,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -64,6 +65,9 @@ internal fun EpisodeShuffleSheet(
     watchedKeys: Set<String>,
     progressEntries: List<WatchProgressEntry>,
     blurUnwatchedEpisodes: Boolean,
+    blurEpisodeThumbnails: Boolean = true,
+    blurEpisodeTitles: Boolean = false,
+    blurEpisodeDescriptions: Boolean = false,
     onDismiss: () -> Unit,
     onPlay: (MetaVideo) -> Unit,
     onPlayManually: ((MetaVideo) -> Unit)?,
@@ -145,7 +149,9 @@ internal fun EpisodeShuffleSheet(
                 }
             } else {
                 val watched = readyPicker?.isWatched(preview) == true
-                val hidden = blurUnwatchedEpisodes && !watched
+                val hidden = blurUnwatchedEpisodes && blurEpisodeThumbnails && !watched
+                val shouldBlurTitle = blurUnwatchedEpisodes && blurEpisodeTitles && !watched
+                val shouldBlurDescription = blurUnwatchedEpisodes && blurEpisodeDescriptions && !watched
                 Box(
                     modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
@@ -175,10 +181,22 @@ internal fun EpisodeShuffleSheet(
                     color = MaterialTheme.colorScheme.primary)
                 Text(localizedSeasonEpisodeCode(preview.season, preview.episode).orEmpty(),
                     style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(preview.title, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    preview.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = if (shouldBlurTitle) Modifier.blur(8.dp) else Modifier,
+                )
                 preview.overview?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = if (shouldBlurDescription) Modifier.blur(8.dp) else Modifier,
+                    )
                 }
                 val resume = progress[preview.season to preview.episode]?.let {
                     !it.isEffectivelyCompleted && (it.lastPositionMs > 0 || it.progressFraction > 0)

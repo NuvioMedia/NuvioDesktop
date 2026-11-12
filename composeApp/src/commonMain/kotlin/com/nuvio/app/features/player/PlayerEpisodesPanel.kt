@@ -75,6 +75,9 @@ fun PlayerEpisodesPanel(
     progressByVideoId: Map<String, WatchProgressEntry>,
     watchedKeys: Set<String>,
     blurUnwatchedEpisodes: Boolean,
+    blurEpisodeThumbnails: Boolean = true,
+    blurEpisodeTitles: Boolean = false,
+    blurEpisodeDescriptions: Boolean = false,
     episodeStreamsState: EpisodeStreamsPanelState,
     onSeasonSelected: (Int) -> Unit,
     onEpisodeSelected: (MetaVideo) -> Unit,
@@ -129,6 +132,9 @@ fun PlayerEpisodesPanel(
                     progressByVideoId = progressByVideoId,
                     watchedKeys = watchedKeys,
                     blurUnwatchedEpisodes = blurUnwatchedEpisodes,
+                    blurEpisodeThumbnails = blurEpisodeThumbnails,
+                    blurEpisodeTitles = blurEpisodeTitles,
+                    blurEpisodeDescriptions = blurEpisodeDescriptions,
                     onSeasonSelected = onSeasonSelected,
                     onEpisodeSelected = onEpisodeSelected,
                     modifier = Modifier.weight(1f),
@@ -154,6 +160,9 @@ private fun EpisodesListPanelContent(
     progressByVideoId: Map<String, WatchProgressEntry>,
     watchedKeys: Set<String>,
     blurUnwatchedEpisodes: Boolean,
+    blurEpisodeThumbnails: Boolean = true,
+    blurEpisodeTitles: Boolean = false,
+    blurEpisodeDescriptions: Boolean = false,
     onSeasonSelected: (Int) -> Unit,
     onEpisodeSelected: (MetaVideo) -> Unit,
     modifier: Modifier = Modifier,
@@ -279,6 +288,9 @@ private fun EpisodesListPanelContent(
                         isCurrent = isCurrent,
                         isWatched = isWatched,
                         blurUnwatchedEpisodes = blurUnwatchedEpisodes,
+                        blurEpisodeThumbnails = blurEpisodeThumbnails,
+                        blurEpisodeTitles = blurEpisodeTitles,
+                        blurEpisodeDescriptions = blurEpisodeDescriptions,
                         onClick = { onEpisodeSelected(episode) },
                     )
                 }
@@ -322,11 +334,16 @@ private fun EpisodeRow(
     isCurrent: Boolean,
     isWatched: Boolean,
     blurUnwatchedEpisodes: Boolean,
+    blurEpisodeThumbnails: Boolean = true,
+    blurEpisodeTitles: Boolean = false,
+    blurEpisodeDescriptions: Boolean = false,
     onClick: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
     val cardShape = RoundedCornerShape(16.dp)
-    val shouldBlurArtwork = blurUnwatchedEpisodes && !isWatched
+    val shouldBlurArtwork = blurUnwatchedEpisodes && blurEpisodeThumbnails && !isWatched
+    val shouldBlurTitle = blurUnwatchedEpisodes && blurEpisodeTitles && !isWatched
+    val shouldBlurDescription = blurUnwatchedEpisodes && blurEpisodeDescriptions && !isWatched
     val playingDescription = stringResource(Res.string.compose_player_playing)
     val episodeCode = when {
         episode.season != null && episode.episode != null -> stringResource(
@@ -409,6 +426,7 @@ private fun EpisodeRow(
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = if (shouldBlurTitle) Modifier.blur(8.dp) else Modifier,
             )
             episode.released?.takeIf { it.isNotBlank() }?.let { released ->
                 Text(
@@ -424,6 +442,7 @@ private fun EpisodeRow(
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = if (shouldBlurDescription) Modifier.blur(8.dp) else Modifier,
                 )
             }
         }

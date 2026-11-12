@@ -852,6 +852,9 @@ internal fun settingsSearchEntries(
         PlaybackSearchRow("meta-episode-cards", stringResource(Res.string.settings_meta_episode_cards), stringResource(Res.string.settings_meta_episode_cards_description)),
         PlaybackSearchRow("meta-shuffle", stringResource(Res.string.random_episode_title), stringResource(Res.string.layout_random_episode_sub)),
         PlaybackSearchRow("meta-blur-episodes", stringResource(Res.string.settings_meta_blur_unwatched_episodes), stringResource(Res.string.settings_meta_blur_unwatched_episodes_description)),
+        PlaybackSearchRow("meta-blur-episode-thumbnails", stringResource(Res.string.settings_meta_blur_episode_thumbnails), stringResource(Res.string.settings_meta_blur_episode_thumbnails_description)),
+        PlaybackSearchRow("meta-blur-episode-titles", stringResource(Res.string.settings_meta_blur_episode_titles), stringResource(Res.string.settings_meta_blur_episode_titles_description)),
+        PlaybackSearchRow("meta-blur-episode-descriptions", stringResource(Res.string.settings_meta_blur_episode_descriptions), stringResource(Res.string.settings_meta_blur_episode_descriptions_description)),
     ).forEach { row ->
         addRow(
             page = SettingsPage.MetaScreen,

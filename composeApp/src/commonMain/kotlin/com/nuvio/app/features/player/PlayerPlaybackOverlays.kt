@@ -57,6 +57,8 @@ internal fun BoxScope.PlayerPlaybackOverlays(
     nextEpisodeAutoPlaySourceName: String?,
     nextEpisodeAutoPlayCountdown: Int?,
     blurUnwatchedEpisodes: Boolean,
+    blurEpisodeThumbnails: Boolean = true,
+    blurEpisodeTitles: Boolean = false,
     onPlayNextEpisode: () -> Unit,
     onDismissNextEpisode: () -> Unit,
     errorMessage: String?,
@@ -136,7 +138,8 @@ internal fun BoxScope.PlayerPlaybackOverlays(
             isAutoPlaySearching = nextEpisodeAutoPlaySearching,
             autoPlaySourceName = nextEpisodeAutoPlaySourceName,
             autoPlayCountdownSec = nextEpisodeAutoPlayCountdown,
-            blurred = blurUnwatchedEpisodes && nextEpisodeInfo?.isWatched == false,
+            blurred = blurUnwatchedEpisodes && blurEpisodeThumbnails && nextEpisodeInfo?.isWatched == false,
+            blurredTitle = blurUnwatchedEpisodes && blurEpisodeTitles && nextEpisodeInfo?.isWatched == false,
             onPlayNext = onPlayNextEpisode,
             onDismiss = onDismissNextEpisode,
             modifier = Modifier

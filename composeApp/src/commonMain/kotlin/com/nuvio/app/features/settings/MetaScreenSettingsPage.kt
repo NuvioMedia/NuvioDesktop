@@ -93,6 +93,12 @@ import nuvio.composeapp.generated.resources.settings_meta_episodes
 import nuvio.composeapp.generated.resources.settings_meta_episodes_description
 import nuvio.composeapp.generated.resources.settings_meta_blur_unwatched_episodes
 import nuvio.composeapp.generated.resources.settings_meta_blur_unwatched_episodes_description
+import nuvio.composeapp.generated.resources.settings_meta_blur_episode_thumbnails
+import nuvio.composeapp.generated.resources.settings_meta_blur_episode_thumbnails_description
+import nuvio.composeapp.generated.resources.settings_meta_blur_episode_titles
+import nuvio.composeapp.generated.resources.settings_meta_blur_episode_titles_description
+import nuvio.composeapp.generated.resources.settings_meta_blur_episode_descriptions
+import nuvio.composeapp.generated.resources.settings_meta_blur_episode_descriptions_description
 import nuvio.composeapp.generated.resources.settings_meta_background_mode
 import nuvio.composeapp.generated.resources.settings_meta_background_mode_cinematic
 import nuvio.composeapp.generated.resources.settings_meta_background_mode_cinematic_description
@@ -209,6 +215,38 @@ internal fun LazyListScope.metaScreenSettingsContent(
                     isTablet = isTablet,
                     onCheckedChange = { MetaScreenSettingsRepository.setBlurUnwatchedEpisodes(it) },
                 )
+                AnimatedVisibility(
+                    visible = uiState.blurUnwatchedEpisodes,
+                    enter = expandVertically(),
+                    exit = shrinkVertically(),
+                ) {
+                    Column {
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_meta_blur_episode_thumbnails),
+                            description = stringResource(Res.string.settings_meta_blur_episode_thumbnails_description),
+                            checked = uiState.blurEpisodeThumbnails,
+                            isTablet = isTablet,
+                            onCheckedChange = MetaScreenSettingsRepository::setBlurEpisodeThumbnails,
+                        )
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_meta_blur_episode_titles),
+                            description = stringResource(Res.string.settings_meta_blur_episode_titles_description),
+                            checked = uiState.blurEpisodeTitles,
+                            isTablet = isTablet,
+                            onCheckedChange = MetaScreenSettingsRepository::setBlurEpisodeTitles,
+                        )
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_meta_blur_episode_descriptions),
+                            description = stringResource(Res.string.settings_meta_blur_episode_descriptions_description),
+                            checked = uiState.blurEpisodeDescriptions,
+                            isTablet = isTablet,
+                            onCheckedChange = MetaScreenSettingsRepository::setBlurEpisodeDescriptions,
+                        )
+                    }
+                }
             }
         }
     }

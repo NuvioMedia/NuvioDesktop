@@ -469,7 +469,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
         selectedEpisodeLabel = selectedEpisodeLabel,
         episodeStreamFilters = episodeStreamFilters,
         episodeStreamItems = episodeStreamItems,
-        blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
+        blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes && metaScreenSettingsUiState.blurEpisodeThumbnails,
         submitIntroSegmentType = submitIntroSegmentType,
         submitIntroContentKey = activeSubmitIntroContentKey(),
         submitIntroStartTime = submitIntroStartTimeStr,
@@ -531,7 +531,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
             )
         }.orEmpty(),
         nextEpisodeThumbnail = nextEpisodeForControls?.thumbnail.orEmpty(),
-        nextEpisodeThumbnailBlurred = metaScreenSettingsUiState.blurUnwatchedEpisodes && nextEpisodeInfo?.isWatched == false,
+        nextEpisodeThumbnailBlurred = metaScreenSettingsUiState.blurUnwatchedEpisodes && metaScreenSettingsUiState.blurEpisodeThumbnails && nextEpisodeInfo?.isWatched == false,
         nextEpisodeStatus = nextEpisodeStatus,
         nextEpisodeActionLabel = if (nextEpisodeForControls?.hasAired == true) {
             stringResource(Res.string.detail_btn_play)
@@ -1910,6 +1910,8 @@ private fun BoxScope.RenderPlaybackOverlays(
             nextEpisodeAutoPlaySourceName = nextEpisodeAutoPlaySourceName,
             nextEpisodeAutoPlayCountdown = nextEpisodeAutoPlayCountdown,
             blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
+            blurEpisodeThumbnails = metaScreenSettingsUiState.blurEpisodeThumbnails,
+            blurEpisodeTitles = metaScreenSettingsUiState.blurEpisodeTitles,
             onPlayNextEpisode = {
                 if (!partyBlocksControl()) playNextEpisode()
             },
@@ -2074,6 +2076,9 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
         watchProgressByVideoId = watchProgressUiState.byVideoIdForContent(parentMetaId),
         watchedKeys = watchedUiState.watchedKeys,
         blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
+        blurEpisodeThumbnails = metaScreenSettingsUiState.blurEpisodeThumbnails,
+        blurEpisodeTitles = metaScreenSettingsUiState.blurEpisodeTitles,
+        blurEpisodeDescriptions = metaScreenSettingsUiState.blurEpisodeDescriptions,
         episodeStreamsPanelState = episodeStreamsPanelState,
         episodeStreamsRepoState = episodeStreamsRepoState,
         onEpisodeSelectedForDownload = { episode ->

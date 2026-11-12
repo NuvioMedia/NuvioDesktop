@@ -57,6 +57,9 @@ class RatingsSettingsTest {
         MetaScreenSettingsRepository.onProfileChanged()
         assertTrue(MetaScreenSettingsRepository.uiState.value.showOverallRatings)
         assertTrue(MetaScreenSettingsRepository.uiState.value.blurUnwatchedEpisodes)
+        assertTrue(MetaScreenSettingsRepository.uiState.value.blurEpisodeThumbnails)
+        assertFalse(MetaScreenSettingsRepository.uiState.value.blurEpisodeTitles)
+        assertFalse(MetaScreenSettingsRepository.uiState.value.blurEpisodeDescriptions)
         assertEquals(EpisodeRatingsVisibility.SHOW_ALL, MetaScreenSettingsRepository.uiState.value.episodeRatingsVisibility)
 
         MetaScreenSettingsStorage.savePayload("""{"episode_ratings_visibility":"future","show_overall_ratings":false}""")
