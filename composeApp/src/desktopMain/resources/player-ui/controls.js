@@ -2391,7 +2391,7 @@ const renderChapterMarks = () => {
     }
   }
   const index = currentChapterIndex(chapters);
-  setText(chapterTitle, index >= 0 ? chapters[index].title : "");
+  setText(chapterTitle, index >= 0 && state.chapterTitleEnabled !== false ? chapters[index].title : "");
 };
 
 const renderActiveModal = (modalOpened = false) => {

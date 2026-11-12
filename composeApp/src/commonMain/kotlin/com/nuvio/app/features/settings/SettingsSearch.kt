@@ -627,7 +627,7 @@ internal fun settingsSearchEntries(
             ) else null,
             if (!isDesktop) PlaybackSearchRow("hold-speed", stringResource(Res.string.settings_playback_hold_speed)) else null,
             PlaybackSearchRow("exo-chapters", stringResource(Res.string.settings_playback_exo_chapters), stringResource(if (isDesktop) Res.string.settings_playback_chapters_description else Res.string.settings_playback_exo_chapters_description)),
-            if (!isDesktop) PlaybackSearchRow("chapter-title", stringResource(Res.string.settings_playback_chapter_title), stringResource(Res.string.settings_playback_chapter_title_description)) else null,
+            PlaybackSearchRow("chapter-title", stringResource(Res.string.settings_playback_chapter_title), stringResource(Res.string.settings_playback_chapter_title_description)),
         ),
     )
     addPlaybackRows(
