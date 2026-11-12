@@ -661,7 +661,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                     }
                 },
                 onError = { message ->
-                    if (message != null && tryRefreshCredentialedSourceAfterError(message)) {
+                    if (message != null && tryRefreshExpiredLinkAfterError(message)) {
                         return@PlatformPlayerSurface
                     }
                     if (message != null && !isDesktop && maybeFailoverPlaybackEngine(resolvedAutoEngine)) {

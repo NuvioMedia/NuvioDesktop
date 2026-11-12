@@ -71,6 +71,7 @@ internal actual object PlayerSettingsStorage {
     private const val androidLibmpvHardwareDecodingEnabledKey = "android_libmpv_hardware_decoding_enabled"
     private const val androidLibmpvYuv420pEnabledKey = "android_libmpv_yuv420p_enabled"
     private const val androidExoChaptersEnabledKey = "android_exo_chapters_enabled"
+    private const val chapterTitleEnabledKey = "chapter_title_enabled"
     private const val rememberAudioDelayPerDeviceKey = "remember_audio_delay_per_device"
     private const val persistAudioAmplificationKey = "persist_audio_amplification"
     private const val audioAmplificationDbKey = "audio_amplification_db"
@@ -159,6 +160,7 @@ internal actual object PlayerSettingsStorage {
         androidLibmpvHardwareDecodingEnabledKey,
         androidLibmpvYuv420pEnabledKey,
         androidExoChaptersEnabledKey,
+        chapterTitleEnabledKey,
         rememberAudioDelayPerDeviceKey,
         persistAudioAmplificationKey,
         audioAmplificationDbKey,
@@ -332,6 +334,8 @@ internal actual object PlayerSettingsStorage {
     actual fun saveAndroidLibmpvYuv420pEnabled(enabled: Boolean) = saveBoolean(androidLibmpvYuv420pEnabledKey, enabled)
     actual fun loadAndroidExoChaptersEnabled(): Boolean? = loadBoolean(androidExoChaptersEnabledKey)
     actual fun saveAndroidExoChaptersEnabled(enabled: Boolean) = saveBoolean(androidExoChaptersEnabledKey, enabled)
+    actual fun loadChapterTitleEnabled(): Boolean? = loadBoolean(chapterTitleEnabledKey)
+    actual fun saveChapterTitleEnabled(enabled: Boolean) = saveBoolean(chapterTitleEnabledKey, enabled)
     actual fun loadRememberAudioDelayPerDevice(): Boolean? = loadBoolean(rememberAudioDelayPerDeviceKey)
     actual fun saveRememberAudioDelayPerDevice(enabled: Boolean) = saveBoolean(rememberAudioDelayPerDeviceKey, enabled)
     actual fun loadPersistAudioAmplification(): Boolean? = loadBoolean(persistAudioAmplificationKey)
@@ -487,6 +491,7 @@ internal actual object PlayerSettingsStorage {
         }
         loadAndroidLibmpvYuv420pEnabled()?.let { put(androidLibmpvYuv420pEnabledKey, encodeSyncBoolean(it)) }
         loadAndroidExoChaptersEnabled()?.let { put(androidExoChaptersEnabledKey, encodeSyncBoolean(it)) }
+        loadChapterTitleEnabled()?.let { put(chapterTitleEnabledKey, encodeSyncBoolean(it)) }
         loadRememberAudioDelayPerDevice()?.let { put(rememberAudioDelayPerDeviceKey, encodeSyncBoolean(it)) }
         loadPersistAudioAmplification()?.let { put(persistAudioAmplificationKey, encodeSyncBoolean(it)) }
         loadAudioAmplificationDb()?.let { put(audioAmplificationDbKey, encodeSyncInt(it)) }
@@ -581,6 +586,7 @@ internal actual object PlayerSettingsStorage {
             ?.let(::saveAndroidLibmpvHardwareDecodingEnabled)
         payload.decodeSyncBoolean(androidLibmpvYuv420pEnabledKey)?.let(::saveAndroidLibmpvYuv420pEnabled)
         payload.decodeSyncBoolean(androidExoChaptersEnabledKey)?.let(::saveAndroidExoChaptersEnabled)
+        payload.decodeSyncBoolean(chapterTitleEnabledKey)?.let(::saveChapterTitleEnabled)
         payload.decodeSyncBoolean(rememberAudioDelayPerDeviceKey)?.let(::saveRememberAudioDelayPerDevice)
         payload.decodeSyncBoolean(persistAudioAmplificationKey)?.let(::savePersistAudioAmplification)
         payload.decodeSyncInt(audioAmplificationDbKey)?.let(::saveAudioAmplificationDb)

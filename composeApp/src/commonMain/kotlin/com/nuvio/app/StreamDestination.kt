@@ -385,6 +385,7 @@ internal fun StreamDestination(
                         bingeGroup = cached.bingeGroup,
                     ),
                 ),
+                sourceFromLinkCache = true,
             )
             if (externalPlayerSupported && playerSettings.externalPlayerEnabled) {
                 openExternalPlayback(playerLaunch)

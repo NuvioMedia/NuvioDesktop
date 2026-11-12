@@ -626,6 +626,8 @@ internal fun settingsSearchEntries(
                 stringResource(Res.string.settings_playback_touch_gestures_description),
             ) else null,
             if (!isDesktop) PlaybackSearchRow("hold-speed", stringResource(Res.string.settings_playback_hold_speed)) else null,
+            PlaybackSearchRow("exo-chapters", stringResource(Res.string.settings_playback_exo_chapters), stringResource(if (isDesktop) Res.string.settings_playback_chapters_description else Res.string.settings_playback_exo_chapters_description)),
+            if (!isDesktop) PlaybackSearchRow("chapter-title", stringResource(Res.string.settings_playback_chapter_title), stringResource(Res.string.settings_playback_chapter_title_description)) else null,
         ),
     )
     addPlaybackRows(
@@ -683,7 +685,6 @@ internal fun settingsSearchEntries(
                     add(PlaybackSearchRow("auto-switch-engine", stringResource(Res.string.settings_playback_auto_switch_engine_on_error), stringResource(Res.string.settings_playback_auto_switch_engine_on_error_description), page = SettingsPage.PlaybackPlayer))
                 }
                 add(PlaybackSearchRow("decoder-priority", stringResource(Res.string.settings_playback_decoder_priority)))
-                add(PlaybackSearchRow("exo-chapters", stringResource(Res.string.settings_playback_exo_chapters), stringResource(if (isDesktop) Res.string.settings_playback_chapters_description else Res.string.settings_playback_exo_chapters_description), page = SettingsPage.PlaybackInterface))
                 if (!isDesktop) {
                     add(PlaybackSearchRow("dv7-hevc", stringResource(Res.string.settings_playback_map_dv7_to_hevc), stringResource(Res.string.settings_playback_map_dv7_to_hevc_description)))
                     add(PlaybackSearchRow("tunneled-playback", stringResource(Res.string.settings_playback_tunneled_playback), stringResource(Res.string.settings_playback_tunneled_playback_description)))

@@ -101,6 +101,7 @@ internal fun PlayerDestination(
         launchId = route.launchId,
         sourceFilename = launch.sourceFilename,
         stream = launch.stream,
+        sourceFromLinkCache = launch.sourceFromLinkCache,
         onBack = onBack,
         onSystemBackHandlerChanged = registerSystemBack,
         onOpenInExternalPlayer = if (externalPlayerSupported) { { request ->
