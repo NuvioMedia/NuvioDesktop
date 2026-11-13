@@ -2405,7 +2405,7 @@ static void nuvioMpvWakeup(void *ctx) {
     BOOL stripSdhChanged = !_hasAppliedSubtitleStyle || _appliedSubtitleStripSdh != stripSdh;
 
     if (modeChanged) {
-        [self setStringProperty:"sub-ass-override" value:@"scale"];
+        [self setStringProperty:"sub-ass-override" value:useLibass ? @"scale" : @"force"];
     }
     if (modeChanged) {
         const char *styleOverridesCommand[] = {"change-list", "sub-ass-style-overrides", "clr", "", NULL};
