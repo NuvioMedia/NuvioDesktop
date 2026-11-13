@@ -1624,7 +1624,7 @@ button:disabled {
   background:
     var(--theme-accent-gradient, linear-gradient(var(--theme-timeline-fill), var(--theme-timeline-fill)))
       left center / var(--progress, 0%) 100% no-repeat,
-    linear-gradient(var(--theme-buffering-track)) left center / var(--bufferProgress, 0%) 100% no-repeat,
+    linear-gradient(var(--theme-buffering-track), var(--theme-buffering-track)) left center / var(--bufferProgress, 0%) 100% no-repeat,
     var(--theme-timeline-track);
 }
 
