@@ -1023,7 +1023,7 @@ fun HomeScreen(
                                 mobileBelowSectionHeightHint = mobileHeroBelowSectionHeightHint,
                                 sectionPadding = if (isDesktop) homeSectionPadding else null,
                                 listState = homeListState,
-                                stretchPx = { heroStretchState.stretchPx },
+                                stretchPx = { if (isDesktop) 0f else heroStretchState.stretchPx },
                                 showImdbRating = homeHeroState.showImdbRating,
                                 showMdbListRatings = homeHeroState.showMdbListRatings,
                                 onItemClick = onPosterClick,
