@@ -2368,9 +2368,10 @@ static void nuvioMpvWakeup(void *ctx) {
                            shadowColor:(NSString *)shadowColor
                           shadowOffset:(double)shadowOffset {
     if (!_mpv) return;
+    NSString *resolvedShadowColor = shadowColor ?: @"#00000000";
     if (fontsDir.length > 0) [self setStringProperty:"sub-fonts-dir" value:fontsDir];
     [self setStringProperty:"sub-font" value:font];
-    [self setStringProperty:"sub-shadow-color" value:shadowColor];
+    [self setStringProperty:"sub-shadow-color" value:resolvedShadowColor];
     mpv_set_property(_mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadowOffset);
 }
 

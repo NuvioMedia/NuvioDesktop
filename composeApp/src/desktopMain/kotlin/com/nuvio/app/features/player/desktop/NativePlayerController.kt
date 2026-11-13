@@ -1158,13 +1158,20 @@ internal class NativePlayerController(
             useLibass = useLibass,
             stripSdh = style.stripSdh,
         )
-        val shadowAlpha = if (style.appearance.shadowEnabled) (style.appearance.shadowOpacity * 255 / 100) else 0
+        val canShowShadow = style.appearance.shadowEnabled && style.backgroundColor.alpha == 0f
+        val shadowAlpha = if (canShowShadow) (style.appearance.shadowOpacity * 255 / 100) else 0
         NativePlayerBridge.setSubtitleAppearance(
             handle = handle,
             font = SubtitleFontResolver.mpvFontName(style.appearance.fontId),
             fontsDir = SubtitleFontResolver.fontsDir(),
-            shadowColor = "#" + shadowAlpha.toHexByte() + "000000",
-            shadowOffset = if (style.appearance.shadowEnabled) style.appearance.shadowSize.toFloat() else 0f,
+            shadowColor = if (canShowShadow) {
+                "#" + shadowAlpha.toHexByte() + "000000"
+            } else style.backgroundColor.toMpvColorString(),
+            shadowOffset = if (canShowShadow) {
+                style.appearance.shadowSize.toFloat()
+            } else if (style.backgroundColor.alpha >= 0f) {
+                8f
+            } else 0f,
         )
     }
 
