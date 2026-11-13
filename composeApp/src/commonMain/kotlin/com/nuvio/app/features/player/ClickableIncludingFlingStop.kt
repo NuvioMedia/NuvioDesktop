@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import com.nuvio.app.core.ui.PlatformTouchScrollState
 
 /**
  * Like [Modifier.clickable], but still delivers [onClick] when LazyColumn consumed the
@@ -22,7 +23,7 @@ internal fun Modifier.clickableIncludingFlingStop(onClick: () -> Unit): Modifier
         .pointerInput(Unit) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
-                if (!down.isConsumed) return@awaitEachGesture
+                if (!down.isConsumed || PlatformTouchScrollState.isDragging) return@awaitEachGesture
 
                 val slop = viewConfiguration.touchSlop
                 val origin = down.position

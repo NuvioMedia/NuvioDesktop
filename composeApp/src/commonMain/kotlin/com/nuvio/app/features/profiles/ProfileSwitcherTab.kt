@@ -88,6 +88,7 @@ import com.nuvio.app.core.ui.NuvioDesktopAnimation
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.core.ui.platformTouchScroll
 import dev.chrisbanes.haze.HazeState
 import com.nuvio.app.isIos
 import kotlinx.coroutines.delay
@@ -300,7 +301,7 @@ fun ProfileSwitcherTab(
                     hazeState = hazeState,
                     opensBelow = opensBelow,
                     availableHeight = availableHeight,
-                    modifier = Modifier.graphicsLayer {
+                    modifier = Modifier.platformTouchScroll().graphicsLayer {
                         alpha = popupAlpha.value
                         scaleX = popupScale.value
                         scaleY = popupScale.value
@@ -836,6 +837,7 @@ fun NativeProfileSwitcherPopup(
                 ) {
                     Box(
                         modifier = Modifier
+                            .platformTouchScroll()
                             .imePadding()
                             .graphicsLayer {
                                 alpha = popupAlpha.value

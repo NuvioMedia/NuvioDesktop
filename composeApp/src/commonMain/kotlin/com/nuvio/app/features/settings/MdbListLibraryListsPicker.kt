@@ -36,6 +36,7 @@ import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.SurfaceEdge
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.core.ui.platformTouchScroll
 import com.nuvio.app.features.mdblist.MdbListLibraryListOption
 import com.nuvio.app.features.mdblist.localizedMdbListMessage
 import kotlinx.coroutines.launch
@@ -121,7 +122,7 @@ private fun MdbListLibraryListsDialog(
     onDismiss: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
-    BasicAlertDialog(onDismissRequest = onDismiss) {
+    BasicAlertDialog(onDismissRequest = onDismiss, modifier = Modifier.platformTouchScroll()) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
