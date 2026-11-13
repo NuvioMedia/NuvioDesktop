@@ -639,6 +639,11 @@ internal class NativePlayerController(
         DesktopPlayerPictureInPicture.toggle()
     }
 
+    override fun adjustVolumeBy(deltaFraction: Float): Boolean {
+        adjustFallbackVolume(deltaFraction * 100f)
+        return true
+    }
+
     @Synchronized
     private fun adjustFallbackVolume(delta: Float) {
         val current = handle

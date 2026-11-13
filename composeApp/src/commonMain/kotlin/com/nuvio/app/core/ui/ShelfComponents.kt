@@ -25,6 +25,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.stopScroll
@@ -74,6 +75,9 @@ enum class NuvioViewAllPillSize {
     Compact,
 }
 
+/** Stable per-row group key so spatial Up/Down can jump between shelves predictably. */
+private var nextShelfGroupId = 1L
+
 @Composable
 fun <T> NuvioShelfSection(
     title: String,
@@ -95,52 +99,59 @@ fun <T> NuvioShelfSection(
     val duplicateSafeEntries = remember(entries, key) {
         key?.let { entries.withDuplicateSafeLazyKeys(it) }
     }
+    val shelfGroupKey = remember { "shelf_${nextShelfGroupId++}" }
 
     ScreenActivityEffect(state) { active ->
         if (!active) state.stopScroll()
     }
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap + NuvioTokens.Space.s2),
-    ) {
-        if (title.isNotBlank()) {
-            NuvioShelfSectionHeader(
-                title = title,
-                modifier = Modifier.padding(horizontal = headerHorizontalPadding),
-                onViewAllClick = onViewAllClick,
-                onTitleClick = onTitleClick,
-                viewAllPillSize = viewAllPillSize,
-            )
-        }
-        LazyRow(
-            state = state,
-            modifier = rowModifier
-                .nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current)
-                .nuvioDesktopDragScroll(state),
-            contentPadding = rowContentPadding.withVerticalBar(),
-            horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+    com.nuvio.app.controller.ProvideControllerRowLazyListState(state) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.nuvio.app.controller.LocalControllerGroupKey provides shelfGroupKey,
         ) {
-            if (duplicateSafeEntries != null) {
-                items(
-                    items = duplicateSafeEntries,
-                    key = { entry -> entry.lazyKey },
-                    contentType = { "poster" },
-                ) { keyedEntry ->
-                    if (animatePlacement) {
-                        Box(modifier = Modifier.animateItem()) { itemContent(keyedEntry.value) }
-                    } else {
-                        itemContent(keyedEntry.value)
-                    }
+            Column(
+                modifier = modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap + NuvioTokens.Space.s2),
+            ) {
+                if (title.isNotBlank()) {
+                    NuvioShelfSectionHeader(
+                        title = title,
+                        modifier = Modifier.padding(horizontal = headerHorizontalPadding),
+                        onViewAllClick = onViewAllClick,
+                        onTitleClick = onTitleClick,
+                        viewAllPillSize = viewAllPillSize,
+                    )
                 }
-            } else {
-                items(
-                    items = entries,
-                    contentType = { "poster" },
-                ) { entry ->
-                    if (animatePlacement) {
-                        Box(modifier = Modifier.animateItem()) { itemContent(entry) }
+                LazyRow(
+                    state = state,
+                    modifier = rowModifier
+                        .nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current)
+                        .nuvioDesktopDragScroll(state),
+                    contentPadding = rowContentPadding.withVerticalBar(),
+                    horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+                ) {
+                    if (duplicateSafeEntries != null) {
+                        itemsIndexed(
+                            items = duplicateSafeEntries,
+                            key = { _, entry -> entry.lazyKey },
+                            contentType = { _, _ -> "poster" },
+                        ) { _, keyedEntry ->
+                            if (animatePlacement) {
+                                Box(modifier = Modifier.animateItem()) { itemContent(keyedEntry.value) }
+                            } else {
+                                itemContent(keyedEntry.value)
+                            }
+                        }
                     } else {
-                        itemContent(entry)
+                        itemsIndexed(
+                            items = entries,
+                            contentType = { _, _ -> "poster" },
+                        ) { _, entry ->
+                            if (animatePlacement) {
+                                Box(modifier = Modifier.animateItem()) { itemContent(entry) }
+                            } else {
+                                itemContent(entry)
+                            }
+                        }
                     }
                 }
             }
@@ -409,7 +420,10 @@ private fun NuvioShelfSectionHeader(
                 text = title,
                 modifier = Modifier
                     .weight(1f)
-                    .then(if (onTitleClick != null) Modifier.clickable(onClick = onTitleClick) else Modifier),
+                    .then(if (onTitleClick != null) {
+                        Modifier.nuvioFocusBorder(RoundedCornerShape(NuvioTokens.Radius.md))
+                            .clickable(onClick = onTitleClick)
+                    } else Modifier),
                 style = MaterialTheme.typography.titleLarge,
                 color = tokens.colors.textPrimary,
                 maxLines = 1,
@@ -442,14 +456,14 @@ private fun NuvioViewAllPill(
     val iconSize = if (size == NuvioViewAllPillSize.Compact) NuvioTokens.Icon.sm else tokens.icons.md
     val viewAllText = stringResource(Res.string.home_view_all)
 
+    val pillShape = RoundedCornerShape(NuvioTokens.Radius.xl)
     Box(
         modifier = modifier
             .size(actionSize)
-            .background(
-                color = tokens.colors.surface,
-                shape = RoundedCornerShape(NuvioTokens.Radius.xl),
-            )
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            .background(color = tokens.colors.surface, shape = pillShape)
+            .then(if (onClick != null) {
+                Modifier.nuvioFocusBorder(pillShape).clickable(onClick = onClick)
+            } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

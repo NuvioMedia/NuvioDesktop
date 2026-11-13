@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -27,6 +28,11 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.LocalFold
+import com.nuvio.app.controller.ControllerDirection
+import com.nuvio.app.controller.ControllerEvent
+import com.nuvio.app.controller.ControllerFocusEngine
+import com.nuvio.app.controller.XboxButton
+import com.nuvio.app.controller.audio.ControllerSoundPlayer
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.isDesktop
 import com.nuvio.app.features.details.MetaDetailsRepository
@@ -87,6 +93,45 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
 
     val runtime = remember { PlayerScreenRuntime(args) }
     runtime.args = args
+    val controllerScope = rememberCoroutineScope()
+
+    // While the player is on screen, keyboard arrows and the gamepad drive playback (seek, volume,
+    // play/pause, modals) instead of moving focus around the hidden app shell behind it.
+    DisposableEffect(runtime, controllerScope) {
+        PlayerControllerBridge.register(controllerScope) { command ->
+            runtime.handlePlayerControllerCommand(command)
+        }
+        ControllerFocusEngine.setPlayerEventHandler { event ->
+            when (event) {
+                is ControllerEvent.Navigate -> {
+                    val handled = when (event.direction) {
+                        ControllerDirection.Left -> PlayerControllerBridge.dispatch(PlayerCommand.SeekBack)
+                        ControllerDirection.Right -> PlayerControllerBridge.dispatch(PlayerCommand.SeekForward)
+                        ControllerDirection.Up -> PlayerControllerBridge.dispatch(PlayerCommand.VolumeUp)
+                        ControllerDirection.Down -> PlayerControllerBridge.dispatch(PlayerCommand.VolumeDown)
+                    }
+                    if (handled) ControllerSoundPlayer.playNavigate()
+                    handled
+                }
+                is ControllerEvent.ButtonPressed -> when (event.button) {
+                    XboxButton.A -> PlayerControllerBridge.dispatch(PlayerCommand.TogglePlayback)
+                    XboxButton.B -> PlayerControllerBridge.dispatch(PlayerCommand.Back)
+                    XboxButton.X -> PlayerControllerBridge.dispatch(PlayerCommand.Audio)
+                    XboxButton.Y -> PlayerControllerBridge.dispatch(PlayerCommand.Subtitles)
+                    XboxButton.LB, XboxButton.LT -> PlayerControllerBridge.dispatch(PlayerCommand.SeekBack)
+                    XboxButton.RB, XboxButton.RT -> PlayerControllerBridge.dispatch(PlayerCommand.SeekForward)
+                    XboxButton.Menu -> PlayerControllerBridge.dispatch(PlayerCommand.Episodes)
+                    XboxButton.View -> PlayerControllerBridge.dispatch(PlayerCommand.Sources)
+                    else -> false
+                }
+                else -> false
+            }
+        }
+        onDispose {
+            ControllerFocusEngine.setPlayerEventHandler(null)
+            PlayerControllerBridge.register(null, null)
+        }
+    }
 
     // The engine publishes a playback snapshot every 250ms. Reading the raw snapshot from this
     // scope would recompose the whole player subtree four times per second, so the values

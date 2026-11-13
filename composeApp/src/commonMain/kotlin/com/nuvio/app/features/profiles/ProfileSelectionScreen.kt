@@ -68,6 +68,7 @@ import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.NuvioToastHost
 import com.nuvio.app.core.ui.LocalVerticalBarPadding
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.features.membership.CosmeticEntitlement
 import com.nuvio.app.features.settings.MemberBrandWordmark
 import kotlinx.coroutines.delay
@@ -405,6 +406,7 @@ private fun ProfileAvatarCard(
         }
     }
 
+    val profileShape = RoundedCornerShape(20.dp)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -415,7 +417,7 @@ private fun ProfileAvatarCard(
                 scaleY = animScale.value * pressScale
                 translationY = animOffset.value
             }
-            .clip(RoundedCornerShape(20.dp))
+            .clip(profileShape)
             .then(
                 if (isDesktop) {
                     Modifier.hoverable(interactionSource)
@@ -423,6 +425,7 @@ private fun ProfileAvatarCard(
                     Modifier
                 },
             )
+            .nuvioFocusBorder(profileShape)
             .clickable(
                 enabled = enabled,
                 interactionSource = interactionSource,
@@ -563,6 +566,7 @@ private fun AddProfileCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale = if (isPressed) 0.95f else 1f
 
+    val addProfileShape = RoundedCornerShape(20.dp)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -573,7 +577,8 @@ private fun AddProfileCard(
                 scaleY = animScale.value * pressScale
                 translationY = animOffset.value
             }
-            .clip(RoundedCornerShape(20.dp))
+            .clip(addProfileShape)
+            .nuvioFocusBorder(addProfileShape)
             .clickable(
                 enabled = enabled,
                 interactionSource = interactionSource,

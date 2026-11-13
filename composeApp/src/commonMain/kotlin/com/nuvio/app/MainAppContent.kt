@@ -206,6 +206,9 @@ import com.nuvio.app.core.ui.AppPresenceState
 import com.nuvio.app.core.ui.PresenceSnapshot
 import androidx.compose.ui.ExperimentalComposeUiApi
 import com.nuvio.app.features.player.dispatchNavigationBack
+import com.nuvio.app.core.ui.PlatformEscapeShortcut
+import com.nuvio.app.controller.ControllerMainOverlay
+import com.nuvio.app.controller.ControllerNavigationHost
 
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -1380,21 +1383,40 @@ internal fun MainAppContent(
                     LocalNativeNavigationBarHidden provides (currentRoute?.hidesNavigationBar == true),
                     LocalVerticalBarPadding provides if (drawsUnderVerticalBar) verticalBarPadding else PaddingValues(),
                 ) {
+                val navigateBack = {
+                    val routeAtRequest = navController.currentRoute
+                    dispatchNavigationBack(
+                        isPlayerRoute = routeAtRequest is PlayerRoute,
+                        playerBack = registeredPlayerSystemBack
+                            ?.takeIf { (route, _) -> route == routeAtRequest }
+                            ?.second,
+                        pop = {
+                            // A top-level tab has nothing to pop, so Back used to do nothing
+                            // there. Treat it as "return to Home" instead.
+                            if (!navController.popBackStack()) {
+                                selectedTab = AppScreenTab.Home
+                            }
+                        },
+                    )
+                }
+
+                PlatformEscapeShortcut(navigateBack)
+
+                ControllerNavigationHost(
+                    currentRoute = currentRoute,
+                    selectedTab = selectedTab,
+                    onBack = {
+                        navigateBack()
+                        true
+                    },
+                )
+
                 NavDisplay(
                     backStack = navBackStack,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(if (drawsUnderVerticalBar) PaddingValues() else verticalBarPadding),
-                    onBack = {
-                        val routeAtRequest = navController.currentRoute
-                        dispatchNavigationBack(
-                            isPlayerRoute = routeAtRequest is PlayerRoute,
-                            playerBack = registeredPlayerSystemBack
-                                ?.takeIf { (route, _) -> route == routeAtRequest }
-                                ?.second,
-                            pop = { navController.popBackStack() },
-                        )
-                    },
+                    onBack = navigateBack,
                     entryDecorators = listOf(
                         rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
                         routeDisposalDecorator,
@@ -2196,6 +2218,8 @@ internal fun MainAppContent(
                     .align(Alignment.TopCenter)
                     .zIndex(20f),
             )
+
+            ControllerMainOverlay(currentRoute = currentRoute)
 
             }
         }
