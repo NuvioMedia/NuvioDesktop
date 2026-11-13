@@ -2441,6 +2441,8 @@ const trackListSignature = tracks =>
     ].join(":"))
     .join("|");
 
+let openingHideTimer = 0;
+
 const renderOpeningOverlay = suppress => {
   const progress = normalizedOpeningProgress();
   const artworkUrl = setImageSource(openingArtwork, state.openingArtwork);
@@ -2455,6 +2457,15 @@ const renderOpeningOverlay = suppress => {
   const messageText = String(state.openingMessage || "").trim();
   const showHorizontalProgress = hasProgress && !logoUrl;
 
+  window.clearTimeout(openingHideTimer);
+  if (showOpening) {
+    if (openingOverlay.hidden) {
+      openingOverlay.hidden = false;
+      void openingOverlay.offsetWidth;
+    }
+  } else if (!openingOverlay.hidden) {
+    openingHideTimer = window.setTimeout(() => { openingOverlay.hidden = true; }, 260);
+  }
   root.classList.toggle("opening-active", showOpening);
   openingOverlay.classList.toggle("visible", showOpening);
   openingOverlay.classList.toggle("has-artwork", Boolean(artworkUrl));

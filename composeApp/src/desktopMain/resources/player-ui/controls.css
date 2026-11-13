@@ -1377,6 +1377,10 @@ button:disabled {
   transition: opacity 180ms ease;
 }
 
+.opening-overlay[hidden] {
+  display: none;
+}
+
 .opening-overlay.visible {
   opacity: 1;
   pointer-events: auto;
