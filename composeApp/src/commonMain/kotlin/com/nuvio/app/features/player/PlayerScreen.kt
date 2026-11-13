@@ -49,6 +49,7 @@ internal fun PlayerScreen(
     sourceFilename: String? = null,
     stream: com.nuvio.app.features.streams.StreamItem? = null,
     sourceFromLinkCache: Boolean = false,
+    sourceAutoSelected: Boolean = false,
 ) {
     PlayerScreenContent(
         PlayerScreenArgs(
@@ -95,6 +96,7 @@ internal fun PlayerScreen(
             onOpenPartyMedia = onOpenPartyMedia,
             stream = stream,
             sourceFromLinkCache = sourceFromLinkCache,
+            sourceAutoSelected = sourceAutoSelected,
         )
     )
 }

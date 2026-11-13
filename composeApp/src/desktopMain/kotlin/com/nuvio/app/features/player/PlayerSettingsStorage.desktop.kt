@@ -88,6 +88,9 @@ internal actual object PlayerSettingsStorage {
     private const val streamAutoPlaySelectedPluginsKey = "stream_auto_play_selected_plugins"
     private const val streamAutoPlayRegexKey = "stream_auto_play_regex"
     private const val streamAutoPlayTimeoutSecondsKey = "stream_auto_play_timeout_seconds"
+    private const val streamAutoPlayFallbackOnFailureKey = "stream_auto_play_fallback_on_failure"
+    private const val streamAutoPlayFallbackMaxSourcesKey = "stream_auto_play_fallback_max_sources"
+    private const val streamAutoPlayFallbackStartupTimeoutSecondsKey = "stream_auto_play_fallback_startup_timeout_seconds"
     private const val skipIntroEnabledKey = "skip_intro_enabled"
     private const val autoSkipSegmentTypesKey = "auto_skip_segment_types"
     private const val animeSkipEnabledKey = "animeskip_enabled"
@@ -177,6 +180,9 @@ internal actual object PlayerSettingsStorage {
         streamAutoPlaySelectedPluginsKey,
         streamAutoPlayRegexKey,
         streamAutoPlayTimeoutSecondsKey,
+        streamAutoPlayFallbackOnFailureKey,
+        streamAutoPlayFallbackMaxSourcesKey,
+        streamAutoPlayFallbackStartupTimeoutSecondsKey,
         skipIntroEnabledKey,
         autoSkipSegmentTypesKey,
         preloadNextEpisodeSourcesKey,
@@ -368,6 +374,12 @@ internal actual object PlayerSettingsStorage {
     actual fun saveStreamAutoPlayRegex(regex: String) = saveString(streamAutoPlayRegexKey, regex)
     actual fun loadStreamAutoPlayTimeoutSeconds(): Int? = loadInt(streamAutoPlayTimeoutSecondsKey)
     actual fun saveStreamAutoPlayTimeoutSeconds(seconds: Int) = saveInt(streamAutoPlayTimeoutSecondsKey, seconds)
+    actual fun loadStreamAutoPlayFallbackOnFailure(): Boolean? = loadBoolean(streamAutoPlayFallbackOnFailureKey)
+    actual fun saveStreamAutoPlayFallbackOnFailure(enabled: Boolean) = saveBoolean(streamAutoPlayFallbackOnFailureKey, enabled)
+    actual fun loadStreamAutoPlayFallbackMaxSources(): Int? = loadInt(streamAutoPlayFallbackMaxSourcesKey)
+    actual fun saveStreamAutoPlayFallbackMaxSources(count: Int) = saveInt(streamAutoPlayFallbackMaxSourcesKey, count)
+    actual fun loadStreamAutoPlayFallbackStartupTimeoutSeconds(): Int? = loadInt(streamAutoPlayFallbackStartupTimeoutSecondsKey)
+    actual fun saveStreamAutoPlayFallbackStartupTimeoutSeconds(seconds: Int) = saveInt(streamAutoPlayFallbackStartupTimeoutSecondsKey, seconds)
     actual fun loadSkipIntroEnabled(): Boolean? = loadBoolean(skipIntroEnabledKey)
     actual fun saveSkipIntroEnabled(enabled: Boolean) = saveBoolean(skipIntroEnabledKey, enabled)
     actual fun loadAutoSkipSegmentTypes(): Set<String>? = loadStringSet(autoSkipSegmentTypesKey)
@@ -508,6 +520,9 @@ internal actual object PlayerSettingsStorage {
         loadStreamAutoPlaySelectedPlugins()?.let { put(streamAutoPlaySelectedPluginsKey, encodeSyncStringSet(it)) }
         loadStreamAutoPlayRegex()?.let { put(streamAutoPlayRegexKey, encodeSyncString(it)) }
         loadStreamAutoPlayTimeoutSeconds()?.let { put(streamAutoPlayTimeoutSecondsKey, encodeSyncInt(it)) }
+        loadStreamAutoPlayFallbackOnFailure()?.let { put(streamAutoPlayFallbackOnFailureKey, encodeSyncBoolean(it)) }
+        loadStreamAutoPlayFallbackMaxSources()?.let { put(streamAutoPlayFallbackMaxSourcesKey, encodeSyncInt(it)) }
+        loadStreamAutoPlayFallbackStartupTimeoutSeconds()?.let { put(streamAutoPlayFallbackStartupTimeoutSecondsKey, encodeSyncInt(it)) }
         loadSkipIntroEnabled()?.let { put(skipIntroEnabledKey, encodeSyncBoolean(it)) }
         loadPreloadNextEpisodeSources()?.let { put(preloadNextEpisodeSourcesKey, encodeSyncBoolean(it)) }
         loadAutoSkipMovieCredits()?.let { put(autoSkipMovieCreditsKey, encodeSyncBoolean(it)) }
@@ -603,6 +618,9 @@ internal actual object PlayerSettingsStorage {
         payload.decodeSyncStringSet(streamAutoPlaySelectedPluginsKey)?.let(::saveStreamAutoPlaySelectedPlugins)
         payload.decodeSyncString(streamAutoPlayRegexKey)?.let(::saveStreamAutoPlayRegex)
         payload.decodeSyncInt(streamAutoPlayTimeoutSecondsKey)?.let(::saveStreamAutoPlayTimeoutSeconds)
+        payload.decodeSyncBoolean(streamAutoPlayFallbackOnFailureKey)?.let(::saveStreamAutoPlayFallbackOnFailure)
+        payload.decodeSyncInt(streamAutoPlayFallbackMaxSourcesKey)?.let(::saveStreamAutoPlayFallbackMaxSources)
+        payload.decodeSyncInt(streamAutoPlayFallbackStartupTimeoutSecondsKey)?.let(::saveStreamAutoPlayFallbackStartupTimeoutSeconds)
         payload.decodeSyncBoolean(skipIntroEnabledKey)?.let(::saveSkipIntroEnabled)
         payload.decodeSyncBoolean(preloadNextEpisodeSourcesKey)?.let(::savePreloadNextEpisodeSources)
         payload.decodeSyncBoolean(autoSkipMovieCreditsKey)?.let(::saveAutoSkipMovieCredits)
