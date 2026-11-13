@@ -126,7 +126,7 @@ internal fun PlaybackSubtitleSettings(
                 enabled = subtitleRenderingEnabled,
                 onStyleChanged = PlayerSettingsRepository::setSubtitleStyle,
             )
-            val showLibassSettings = !isIos && (isDesktop || settings.androidPlaybackEngine != AndroidPlaybackEngine.Libmpv)
+            val showLibassSettings = !isIos && settings.androidPlaybackEngine != AndroidPlaybackEngine.Libmpv
             if (showLibassSettings) {
                 SettingsGroup(isTablet = isTablet) {
                     SettingsSwitchRow(

@@ -1327,7 +1327,7 @@ public:
         bool stripSdhChanged = !hasAppliedSubtitleStyle || appliedSubtitleStripSdh != stripSdh;
 
         if (modeChanged) {
-            setStringProperty("sub-ass-override", "scale");
+            setStringProperty("sub-ass-override", "no");
         }
         if (modeChanged) {
             std::lock_guard<std::mutex> lock(mpvMutex);
