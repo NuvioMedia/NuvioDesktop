@@ -465,16 +465,31 @@ const pipLockOverlay = document.getElementById("pipLockOverlay");
 const pipLockBadge = document.getElementById("pipLockBadge");
 const pipLockLabel = () => String(state.lockLabel || "Lock player controls").trim();
 const pipUnlockLabel = () => String(state.unlockLabel || "Unlock player controls").trim();
+const setTextContent = (element, text) => {
+  const value = String(text ?? "");
+  const only = element.firstChild;
+  if (only && only === element.lastChild && only.nodeType === 3) {
+    if (only.data !== value) only.data = value;
+  } else if (value || only) {
+    element.textContent = value;
+  }
+};
+
+const setAttr = (element, name, value) => {
+  const text = String(value);
+  if (element.getAttribute(name) !== text) element.setAttribute(name, text);
+};
+
 const syncPipLockLabels = () => {
   const lockLabel = isPipLocked ? pipUnlockLabel() : pipLockLabel();
   if (pipLockButton) {
-    pipLockButton.setAttribute("aria-label", lockLabel);
-    pipLockButton.setAttribute("title", lockLabel);
+    setAttr(pipLockButton, "aria-label", lockLabel);
+    setAttr(pipLockButton, "title", lockLabel);
   }
   if (pipLockBadge) {
     const unlockLabel = pipUnlockLabel();
-    pipLockBadge.setAttribute("aria-label", unlockLabel);
-    pipLockBadge.setAttribute("title", unlockLabel);
+    setAttr(pipLockBadge, "aria-label", unlockLabel);
+    setAttr(pipLockBadge, "title", unlockLabel);
   }
 };
 const setPipLocked = locked => {
@@ -532,10 +547,10 @@ const syncFullscreenButtons = () => {
   const isFullscreen = Boolean(state.isFullscreen);
   const icon = isFullscreen ? "#icon-fullscreen-exit" : "#icon-fullscreen";
   const label = isFullscreen ? "Exit fullscreen" : "Enter fullscreen";
-  if (fullscreenIcon) fullscreenIcon.setAttribute("href", icon);
-  if (openingFullscreenIcon) openingFullscreenIcon.setAttribute("href", icon);
-  if (fullscreenButton) fullscreenButton.setAttribute("aria-label", label);
-  if (openingFullscreenButton) openingFullscreenButton.setAttribute("aria-label", label);
+  if (fullscreenIcon) setAttr(fullscreenIcon, "href", icon);
+  if (openingFullscreenIcon) setAttr(openingFullscreenIcon, "href", icon);
+  if (fullscreenButton) setAttr(fullscreenButton, "aria-label", label);
+  if (openingFullscreenButton) setAttr(openingFullscreenButton, "aria-label", label);
 };
 
 const togglePlayerFullscreen = (fromEscape = false) => {
@@ -843,21 +858,21 @@ const setProgress = (positionMs, durationMs, bufferedPositionMs) => {
   seek.value = Math.round(percent * 10);
   seek.style.setProperty("--progress", `${percent}%`);
   seek.style.setProperty("--bufferProgress", `${bufferPercent}%`);
-  positionLabel.textContent = formatTime(positionMs);
-  durationLabel.textContent = formatTime(durationMs);
+  setTextContent(positionLabel, formatTime(positionMs));
+  setTextContent(durationLabel, formatTime(durationMs));
   if (timeLabel) {
     durationMs = durationMs - (durationMs % 1000);
     if (timeLabelShowRemaining) {
       let remainingTimeMs = durationMs - positionMs + (positionMs % 1000 == 0 ? 0 : 1000);
-      timeLabel.textContent = `-${formatTime(remainingTimeMs)}`;
+      setTextContent(timeLabel, `-${formatTime(remainingTimeMs)}`);
     } else {
-      timeLabel.textContent = `${formatTime(positionMs)} / ${formatTime(durationMs)}`;
+      setTextContent(timeLabel, `${formatTime(positionMs)} / ${formatTime(durationMs)}`);
     }
   }
 };
 
 const setText = (element, text) => {
-  element.textContent = text || "";
+  setTextContent(element, text || "");
   element.hidden = !text;
 };
 
@@ -899,8 +914,8 @@ const setActionButtonLabel = (command, label) => {
   if (!button) return;
   const text = String(label || "").trim();
   if (!text) return;
-  button.setAttribute("aria-label", text);
-  button.setAttribute("title", text);
+  setAttr(button, "aria-label", text);
+  setAttr(button, "title", text);
 };
 
 const setImageVisualState = (element, stateName) => {
@@ -2762,17 +2777,17 @@ const renderChrome = () => {
   if (state.pauseOverlayEnabled || showError) renderPauseMetadataOverlay(showOpening || showError);
   syncParentalGuide(showOpening || showError);
 
-  title.textContent = state.title || "";
+  setTextContent(title, state.title || "");
   setText(episode, state.episodeText);
   setText(streamTitle, state.streamTitle);
   setText(providerName, state.providerName);
   renderPlayerBadges();
-  resizeLabel.textContent = state.resizeModeLabel || "Fit";
-  speedLabel.textContent = state.playbackSpeedLabel || "1x";
-  subtitlesLabel.textContent = state.subtitlesLabel || "Subs";
-  audioLabel.textContent = state.audioLabel || "Audio";
-  sourcesLabel.textContent = state.sourcesLabel || "Sources";
-  episodesLabel.textContent = state.episodesLabel || "Episodes";
+  setTextContent(resizeLabel, state.resizeModeLabel || "Fit");
+  setTextContent(speedLabel, state.playbackSpeedLabel || "1x");
+  setTextContent(subtitlesLabel, state.subtitlesLabel || "Subs");
+  setTextContent(audioLabel, state.audioLabel || "Audio");
+  setTextContent(sourcesLabel, state.sourcesLabel || "Sources");
+  setTextContent(episodesLabel, state.episodesLabel || "Episodes");
   setActionButtonLabel("resize", state.resizeModeLabel || "Fit");
   setActionButtonLabel("speed", state.playbackSpeedLabel || "1x");
   setActionButtonLabel("subtitles", state.subtitlesLabel || "Subs");
@@ -2781,14 +2796,14 @@ const renderChrome = () => {
   setActionButtonLabel("episodes", state.episodesLabel || "Episodes");
   if (pipButton) {
     const pipLabel = String(state.pipLabel || "").trim();
-    pipButton.setAttribute("aria-label", pipLabel);
-    pipButton.setAttribute("title", pipLabel);
+    setAttr(pipButton, "aria-label", pipLabel);
+    setAttr(pipButton, "title", pipLabel);
     pipButton.hidden = !pipLabel;
   }
   syncPipLockLabels();
   const showBuffering = Boolean(!showError && state.isLoading && !activeModal && !showOpening);
   bufferingStatus.classList.toggle("visible", showBuffering);
-  bufferingStatus.setAttribute("aria-hidden", showBuffering ? "false" : "true");
+  setAttr(bufferingStatus, "aria-hidden", showBuffering ? "false" : "true");
   bufferingLoadingIndicator.setActive(showBuffering);
 
   setVisible(submitIntroButton, Boolean(state.showSubmitIntro));
@@ -2797,9 +2812,9 @@ const renderChrome = () => {
   setVisible(episodesButton, Boolean(state.showEpisodes));
   const hasChapters = Array.isArray(state.chapters) && state.chapters.length > 0;
   setVisible(chaptersButton, hasChapters);
-  chaptersLabel.textContent = state.chaptersLabel || "Chapters";
+  setTextContent(chaptersLabel, state.chaptersLabel || "Chapters");
   setActionButtonLabel("chapters", state.chaptersLabel || "Chapters");
-  streamInfoLabel.textContent = state.streamInfoLabel || "Stream info";
+  setTextContent(streamInfoLabel, state.streamInfoLabel || "Stream info");
   setActionButtonLabel("streamInfo", state.streamInfoLabel || "Stream info");
   renderChapterMarks();
   if (!hasChapters && activeModal === "chapters") closePlayerModal(false);
@@ -2807,31 +2822,31 @@ const renderChrome = () => {
 
   const playPauseLabel = isPlaying ? state.pauseLabel : state.playLabel;
   if (toggle) {
-    toggle.setAttribute("aria-label", playPauseLabel || (isPlaying ? "Pause" : "Play"));
+    setAttr(toggle, "aria-label", playPauseLabel || (isPlaying ? "Pause" : "Play"));
   }
   if (toggleIcon) {
-    toggleIcon.setAttribute("href", isPlaying ? "#icon-pause" : "#icon-play");
+    setAttr(toggleIcon, "href", isPlaying ? "#icon-pause" : "#icon-play");
   }
   if (toggleLabel) {
-    toggleLabel.textContent = playPauseLabel || (isPlaying ? "Pause" : "Play");
+    setTextContent(toggleLabel, playPauseLabel || (isPlaying ? "Pause" : "Play"));
   }
   if (nextEpisodeButton) {
     nextEpisodeButton.hidden = !state.nextEpisodePlayable;
     const nextLabel = state.nextEpisodeHeaderLabel || "Next episode";
-    nextEpisodeButton.setAttribute("aria-label", nextLabel);
-    nextEpisodeButton.setAttribute("title", nextLabel);
+    setAttr(nextEpisodeButton, "aria-label", nextLabel);
+    setAttr(nextEpisodeButton, "title", nextLabel);
     if (nextEpisodeButtonLabel) nextEpisodeButtonLabel.textContent = nextLabel;
   }
   syncFullscreenButtons();
-  backButton.setAttribute("aria-label", state.closeLabel || "Close player");
-  submitIntroButton.setAttribute("aria-label", state.submitIntroLabel || "Submit Intro");
-  videoSettingsButton.setAttribute("aria-label", state.videoSettingsLabel || "Video settings");
+  setAttr(backButton, "aria-label", state.closeLabel || "Close player");
+  setAttr(submitIntroButton, "aria-label", state.submitIntroLabel || "Submit Intro");
+  setAttr(videoSettingsButton, "aria-label", state.videoSettingsLabel || "Video settings");
   setProgress(positionMs, durationMs, bufferedPositionMs);
   if (showError) {
     skipPrompt.classList.remove("visible", "show-progress");
-    skipPrompt.setAttribute("aria-hidden", "true");
+    setAttr(skipPrompt, "aria-hidden", "true");
     nextEpisodeCard.classList.remove("visible");
-    nextEpisodeCard.setAttribute("aria-hidden", "true");
+    setAttr(nextEpisodeCard, "aria-hidden", "true");
   } else {
     renderNativePlaybackPrompts();
   }
@@ -3595,13 +3610,23 @@ window.playerUpdate = update => {
     window.clearTimeout(pendingPlaybackTimer);
     pendingPlaybackTimer = 0;
   }
+  const nextIsPlaying = pendingIsPlaying === null ? nativeIsPlaying : pendingIsPlaying;
+  const nextIsLoading = Boolean(update.loading || update.isLoading);
+  const unchanged = state.durationMs === durationMs &&
+    Math.floor(state.positionMs / 1000) === Math.floor(positionMs / 1000) &&
+    Math.floor(state.bufferedPositionMs / 1000) === Math.floor(bufferedPositionMs / 1000) &&
+    state.isPlaying === nextIsPlaying &&
+    state.isLoading === nextIsLoading &&
+    state.volumeLevel === volumeLevel &&
+    !audioTracksChanged &&
+    !subtitleTracksChanged;
   state = {
     ...state,
     durationMs,
     positionMs,
     bufferedPositionMs,
-    isPlaying: pendingIsPlaying === null ? nativeIsPlaying : pendingIsPlaying,
-    isLoading: Boolean(update.loading || update.isLoading),
+    isPlaying: nextIsPlaying,
+    isLoading: nextIsLoading,
     volumeLevel,
     audioTracks,
     subtitleTracks,
@@ -3620,6 +3645,7 @@ window.playerUpdate = update => {
       pendingSubtitleOptionId = selected.id;
     }
   }
+  if (unchanged) return;
   renderChrome();
   if ((audioTracksChanged && activeModal === "audio") ||
       (subtitleTracksChanged && activeModal === "subtitles") ||
