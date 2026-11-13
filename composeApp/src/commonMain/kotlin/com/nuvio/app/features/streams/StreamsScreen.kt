@@ -90,6 +90,7 @@ import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.core.ui.featherArtwork
 import com.nuvio.app.core.ui.rememberArtworkBackdrop
+import com.nuvio.app.core.ui.rememberCountryFlagAnnotatedString
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -1077,8 +1078,9 @@ private fun StreamSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
+        val annotatedAddonName = rememberCountryFlagAnnotatedString(addonName)
         Text(
-            text = addonName,
+            text = annotatedAddonName,
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
@@ -1377,8 +1379,9 @@ private fun StreamActionsSheet(
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+                val annotatedStreamLabel = rememberCountryFlagAnnotatedString(stream.streamLabel)
                 Text(
-                    text = stream.streamLabel,
+                    text = annotatedStreamLabel,
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
@@ -1388,8 +1391,9 @@ private fun StreamActionsSheet(
                 stream.streamSubtitle
                     ?.takeIf { it.isNotBlank() }
                     ?.let { subtitle ->
+                        val annotatedSubtitle = rememberCountryFlagAnnotatedString(subtitle)
                         Text(
-                            text = subtitle,
+                            text = annotatedSubtitle,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
