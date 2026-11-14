@@ -17,6 +17,7 @@ import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.player.effectiveDownmixEnabled
 import com.nuvio.app.features.player.languageLabelForCode
 import com.nuvio.app.isIos
+import com.nuvio.app.isWindows
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import com.nuvio.app.features.player.PlayerSettingsUiState
@@ -122,6 +123,23 @@ internal fun PlaybackAudioSettings(
                         description = settings.iosAudioOutputMode.label,
                         isTablet = isTablet,
                         onClick = { showIosAudioOutputDialog = true },
+                    )
+                }
+            }
+        }
+
+        if (isWindows) {
+            SettingsSection(
+                title = stringResource(Res.string.settings_playback_audio_passthrough_section),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_audio_passthrough),
+                        description = stringResource(Res.string.settings_playback_audio_passthrough_desc),
+                        checked = settings.audioPassthroughEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setAudioPassthroughEnabled,
                     )
                 }
             }
