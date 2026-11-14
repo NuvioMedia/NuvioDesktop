@@ -412,18 +412,58 @@ data class PlayerControlSubtitleCueItem(
     val text: String = "",
 )
 
+private const val MAX_PLAYBACK_HEADERS = 32
+private const val MAX_PLAYBACK_HEADER_NAME_LENGTH = 128
+private const val MAX_PLAYBACK_HEADER_VALUE_LENGTH = 8 * 1024
+private val playbackHeaderNamePattern = Regex("^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$")
+
+/** Headers the player owns, or that only apply to one connection. */
+private val playbackHopByHopHeaders = setOf(
+    "host",
+    "connection",
+    "keep-alive",
+    "content-length",
+    "transfer-encoding",
+    "proxy-authorization",
+    "proxy-authenticate",
+    "proxy-connection",
+    "te",
+    "trailer",
+    "upgrade",
+    "expect",
+    "range",
+)
+
+/**
+ * Playback headers come from add-on manifests, so they are untrusted input.
+ * Reject values that could inject a second request line or a hop-by-hop header,
+ * and bound the amount of data a malicious manifest can push into the player.
+ */
 internal fun sanitizePlaybackHeaders(headers: Map<String, String>?): Map<String, String> {
     val rawHeaders = headers ?: return emptyMap()
     if (rawHeaders.isEmpty()) return emptyMap()
 
-    val sanitized = LinkedHashMap<String, String>(rawHeaders.size)
-    rawHeaders.forEach { (rawKey, rawValue) ->
+    val sanitized = LinkedHashMap<String, String>(minOf(rawHeaders.size, MAX_PLAYBACK_HEADERS))
+    for ((rawKey, rawValue) in rawHeaders) {
+        if (sanitized.size >= MAX_PLAYBACK_HEADERS) break
         val key = rawKey.trim()
         val value = rawValue.trim()
-        if (key.isEmpty() || value.isEmpty()) return@forEach
-        if (key.equals("Range", ignoreCase = true)) return@forEach
+        if (value.isEmpty()) continue
+        if (key.length !in 1..MAX_PLAYBACK_HEADER_NAME_LENGTH) continue
+        if (!playbackHeaderNamePattern.matches(key)) continue
+        if (value.length > MAX_PLAYBACK_HEADER_VALUE_LENGTH) continue
+        if (value.any { character -> character.code < 0x20 || character.code == 0x7f }) continue
+        if (key.lowercase() in playbackHopByHopHeaders) continue
         sanitized[key] = value
     }
+    // RFC 7230 6.1: Connection names additional headers that must not be forwarded.
+    rawHeaders.entries
+        .firstOrNull { it.key.trim().equals("Connection", ignoreCase = true) }
+        ?.value
+        ?.split(',')
+        ?.map(String::trim)
+        ?.filter(String::isNotEmpty)
+        ?.forEach { named -> sanitized.keys.removeAll { it.equals(named, ignoreCase = true) } }
     return sanitized
 }
 
