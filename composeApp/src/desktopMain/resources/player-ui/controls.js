@@ -876,6 +876,25 @@ const setText = (element, text) => {
   element.hidden = !text;
 };
 
+function formatCssColor(colorStr) {
+  if (!colorStr) return null;
+  let str = String(colorStr).trim();
+  if (!str) return null;
+  const hex = str.replace(/^#/, "");
+  if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+    return '#' + hex;
+  }
+  if (/^[0-9a-fA-F]{8}$/.test(hex)) {
+    const a = parseInt(hex.substring(0, 2), 16) / 255;
+    const r = parseInt(hex.substring(2, 4), 16);
+    const g = parseInt(hex.substring(4, 6), 16);
+    const b = parseInt(hex.substring(6, 8), 16);
+    if (a <= 0) return null;
+    return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
+  }
+  return str.startsWith('#') ? str : '#' + str;
+}
+
 let playerBadgesSignature = "";
 
 const renderPlayerBadges = () => {
@@ -1788,25 +1807,6 @@ const buildSourceRow = (item, onSelect) => {
     subtitle.className = "stream-subtitle";
     subtitle.textContent = item.subtitle;
   }
-
-function formatCssColor(colorStr) {
-  if (!colorStr) return null;
-  let str = String(colorStr).trim();
-  if (!str) return null;
-  const hex = str.replace(/^#/, "");
-  if (/^[0-9a-fA-F]{6}$/.test(hex)) {
-    return '#' + hex;
-  }
-  if (/^[0-9a-fA-F]{8}$/.test(hex)) {
-    const a = parseInt(hex.substring(0, 2), 16) / 255;
-    const r = parseInt(hex.substring(2, 4), 16);
-    const g = parseInt(hex.substring(4, 6), 16);
-    const b = parseInt(hex.substring(6, 8), 16);
-    if (a <= 0) return null;
-    return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
-  }
-  return str.startsWith('#') ? str : '#' + str;
-}
 
   const isTopPlacement = (item.badgePlacement || "").toUpperCase() === "TOP";
   const badges = Array.isArray(item.badges) ? item.badges.filter(b => b && b.imageURL) : [];
