@@ -44,7 +44,7 @@
 - [ ] This PR is small, focused, and limited to one problem.
 - [ ] This PR is scoped to the desktop app, desktop packaging, desktop documentation, or shared code required for desktop behavior.
 - [ ] This PR is not cosmetic-only.
-- [ ] Any UI change fixes a linked glitch/bug and includes visual proof, or this PR has no UI change.
+- [ ] Any UI change fixes a linked glitch/bug or has explicit maintainer approval, and includes visual proof; or this PR has no UI change.
 - [ ] Any behavior change fixes a linked bug/regression or has explicit approval, or this PR has no behavior change.
 - [ ] This PR does not bundle unrelated refactors, cleanups, formatting, or drive-by changes.
 - [ ] This PR does not add dependencies, architecture changes, migrations, or product-direction changes without explicit approval.
