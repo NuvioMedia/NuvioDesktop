@@ -3070,6 +3070,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jstring controlsPageUrl,
     jint decoderPriority,
     jboolean nvidiaRtxSuperResolutionEnabled,
+    jboolean /*nvidiaRtxHdrEnabled*/,
     jobject eventSink
 ) {
     NSView *hostView = (__bridge NSView *)(void *)(intptr_t)hostViewPtr;

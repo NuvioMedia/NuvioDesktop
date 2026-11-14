@@ -2172,6 +2172,8 @@
     <string name="settings_playback_nvidia_rtx_video_section">NVIDIA RTX Video</string>
     <string name="settings_playback_nvidia_rtx_super_resolution">RTX Video Super Resolution</string>
     <string name="settings_playback_nvidia_rtx_super_resolution_desc">Upscale low-resolution video using NVIDIA RTX AI Super Resolution.</string>
+    <string name="settings_playback_nvidia_rtx_hdr">RTX Video HDR</string>
+    <string name="settings_playback_nvidia_rtx_hdr_desc">Converts SDR video to HDR output using NVIDIA RTX AI for better contrast, colors and brightness. Requires Windows HDR enabled and an HDR-capable display.</string>
     <!-- Playback settings iOS video output -->
     <string name="settings_playback_ios_video_output">iOS VIDEO OUTPUT</string>
     <string name="settings_playback_ios_hardware_decoder">Hardware decoder</string>
