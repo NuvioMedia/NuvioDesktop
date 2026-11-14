@@ -215,9 +215,15 @@ internal fun PlayerScreenRuntime.saveP2pStreamForReuse(
     )
 }
 
+internal fun PlayerScreenRuntime.disarmSourceFallback() {
+    sourceFallbackJob?.cancel()
+    autoSelectedSourceUrl = null
+}
+
 internal fun PlayerScreenRuntime.switchToP2pSourceStream(stream: StreamItem) {
     val infoHash = stream.p2pInfoHash ?: return
     if (!P2pSettingsRepository.isVisible) return
+    disarmSourceFallback()
     if (!P2pSettingsRepository.uiState.value.p2pEnabled) {
         pendingP2pSwitch = PendingPlayerP2pSwitch(stream = stream, episode = null, isAutoPlay = false)
         return
@@ -266,6 +272,7 @@ internal fun PlayerScreenRuntime.switchToP2pEpisodeStream(
 ) {
     val infoHash = stream.p2pInfoHash ?: return
     if (!P2pSettingsRepository.isVisible) return
+    disarmSourceFallback()
     if (!P2pSettingsRepository.uiState.value.p2pEnabled) {
         pendingP2pSwitch = PendingPlayerP2pSwitch(stream = stream, episode = episode, isAutoPlay = isAutoPlay)
         return
@@ -299,8 +306,7 @@ internal fun PlayerScreenRuntime.switchToSource(
     stream: StreamItem,
     saveForReuse: Boolean = true,
 ) {
-    sourceFallbackJob?.cancel()
-    autoSelectedSourceUrl = null
+    disarmSourceFallback()
     if (prepareServerForPlayer(stream) { switchToSource(it) }) return
     // The resolved URL expires after a few hours, so it isn't kept for reuse.
     if (resolveYouTubeForPlayer(stream) { switchToSource(it, saveForReuse = false) }) return
@@ -373,8 +379,7 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(
     serverResumeMs: Long? = null,
     saveForReuse: Boolean = true,
 ) {
-    sourceFallbackJob?.cancel()
-    autoSelectedSourceUrl = null
+    disarmSourceFallback()
     if (prepareServerForPlayer(stream) { switchToEpisodeStream(it, episode, serverResumeMs = newerServerResumeMs(it, episode)) }) return
     if (
         resolveYouTubeForPlayer(stream) { resolved ->
@@ -424,8 +429,7 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(
 
 internal fun PlayerScreenRuntime.switchToDownloadedEpisode(downloadItem: DownloadItem, episode: MetaVideo) {
     val localFileUri = DownloadsRepository.playableLocalFileUri(downloadItem) ?: return
-    sourceFallbackJob?.cancel()
-    autoSelectedSourceUrl = null
+    disarmSourceFallback()
     resetEpisodePanelAndNextEpisodeState()
     flushWatchProgress()
     stopActiveP2pStream()

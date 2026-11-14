@@ -1305,6 +1305,7 @@ private fun PlayerScreenRuntime.requestP2pConsentForPlayerControls(
         p2pEnabled = P2pSettingsRepository.uiState.value.p2pEnabled,
     )
     if (!shouldRequestConsent) return false
+    disarmSourceFallback()
     playerControlsPendingP2pSwitch = PendingPlayerP2pSwitch(
         stream = stream,
         episode = episode,

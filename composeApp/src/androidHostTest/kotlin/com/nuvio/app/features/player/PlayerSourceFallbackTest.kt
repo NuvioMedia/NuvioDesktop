@@ -6,6 +6,8 @@ import androidx.compose.ui.Modifier
 import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.details.MetaVideo
+import com.nuvio.app.features.p2p.P2pSettingsRepository
+import com.nuvio.app.features.p2p.P2pSettingsStorage
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.features.watchprogress.WatchProgressStorage
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +43,8 @@ class PlayerSourceFallbackTest {
             context.getSharedPreferences(it, Context.MODE_PRIVATE).edit().clear().commit()
         }
         PlayerSettingsStorage.initialize(context)
+        P2pSettingsStorage.initialize(context)
+        P2pSettingsRepository.clearLocalState()
         WatchProgressStorage.initialize(context)
         WatchProgressRepository.clearLocalState()
     }
@@ -48,6 +52,7 @@ class PlayerSourceFallbackTest {
     @After
     fun cleanup() {
         scope.cancel()
+        P2pSettingsRepository.clearLocalState()
         WatchProgressRepository.clearLocalState()
     }
 
@@ -131,6 +136,40 @@ class PlayerSourceFallbackTest {
 
         assertNull(runtime.autoSelectedSourceUrl)
         assertFalse(runtime.isCurrentSourceFallback(key, failedUrl))
+    }
+
+    @Test
+    fun directP2pSelectionDisarmsFallbackEvenBeforeConsent() {
+        val runtime = runtime()
+        val torrentUrl = runtime.p2pSentinelUrl(HASH, null)
+        runtime.activeSourceUrl = torrentUrl
+        runtime.autoSelectedSourceUrl = torrentUrl
+        val key = runtime.sourcePlaybackKey
+        val pendingFallback = Job()
+        runtime.sourceFallbackJob = pendingFallback
+        val stream = StreamItem(name = "Torrent", infoHash = HASH, addonName = "Test", addonId = "test")
+
+        runtime.switchToP2pSourceStream(stream)
+
+        assertEquals(key, runtime.sourcePlaybackKey)
+        assertFalse(pendingFallback.isActive)
+        assertNull(runtime.autoSelectedSourceUrl)
+        assertEquals(stream, runtime.pendingP2pSwitch?.stream)
+    }
+
+    @Test
+    fun directP2pEpisodeSelectionDisarmsFallbackBeforeConsent() {
+        val runtime = runtime()
+        val pendingFallback = Job()
+        runtime.sourceFallbackJob = pendingFallback
+        val stream = StreamItem(name = "Torrent", infoHash = HASH, addonName = "Test", addonId = "test")
+        val episode = MetaVideo(id = "tt2026:1:2", title = "Episode 2", season = 1, episode = 2)
+
+        runtime.switchToP2pEpisodeStream(stream, episode)
+
+        assertFalse(pendingFallback.isActive)
+        assertNull(runtime.autoSelectedSourceUrl)
+        assertEquals(episode, runtime.pendingP2pSwitch?.episode)
     }
 
     @Test
