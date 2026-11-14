@@ -673,8 +673,7 @@ fun MetaDetailsScreen(
                 val hasShuffleEpisodes = remember(meta.videos) {
                     meta.videos.any { (it.season ?: 0) > 0 && (it.episode ?: 0) > 0 }
                 }
-                val showShuffleButton = shuffleProfile.available &&
-                    meta.type.lowercase() in setOf("series", "tv", "show", "tvshow") &&
+                val showShuffleButton = meta.type.lowercase() in setOf("series", "tv", "show", "tvshow") &&
                     (shuffleSettings.enabled || hasShuffleEpisodes)
                 val saveShuffle = rememberShuffleSave(meta.id, shuffleProfileId, shuffleSettings)
                 val seriesAction = remember(watchProgressUiState.entries, watchedUiState.items, meta, todayIsoDate, cwPrefs.upNextFromFurthestEpisode, watchedUiState.watchedKeys, shuffleSettings, shuffleVisit, shuffleProfileId) {
@@ -753,6 +752,11 @@ fun MetaDetailsScreen(
                 val currentEpisodeListSeason = selectedEpisodeListSeason
                     ?.takeIf { it in episodeListGroupedEpisodes }
                     ?: defaultEpisodeListSeason
+                val currentShuffleSeason = selectedEpisodeListSeason
+                    ?.takeIf { season -> season > 0 && meta.videos.any { it.season == season } }
+                    ?: currentEpisodeListSeason?.takeIf { it > 0 }
+                    ?: seriesAction?.seasonNumber?.takeIf { it > 0 }
+                    ?: meta.videos.mapNotNull { it.season?.takeIf { season -> season > 0 } }.minOrNull()
                 val hasProductionSection = remember(meta) {
                     meta.productionCompanies.isNotEmpty() || meta.networks.isNotEmpty()
                 }
@@ -1033,6 +1037,8 @@ fun MetaDetailsScreen(
                 if (showShuffle && showShuffleButton) {
                     EpisodeShuffleSheet(
                         meta = meta,
+                        currentSeason = currentShuffleSeason,
+                        persistentShuffleAvailable = shuffleProfile.available,
                         settings = shuffleSettings,
                         onSave = saveShuffle,
                         watchedKeys = watchedUiState.watchedKeys,
@@ -1127,9 +1133,7 @@ fun MetaDetailsScreen(
                 }
 
                 val onShuffleClick: (() -> Unit)? = if (showShuffleButton) {
-                    {
-                        if (shuffleSettings.enabled) saveShuffle(shuffleSettings.copy(enabled = false)) else showShuffle = true
-                    }
+                    { showShuffle = true }
                 } else {
                     null
                 }
@@ -1360,9 +1364,7 @@ fun MetaDetailsScreen(
                                             },
                                             onPlayClick = onPrimaryPlayClick,
                                             onPlayLongClick = if (showManualPlayOption) onPrimaryPlayLongClick else null,
-                                            onShuffleClick = if (showShuffleButton) ({
-                                                if (shuffleSettings.enabled) saveShuffle(shuffleSettings.copy(enabled = false)) else showShuffle = true
-                                            }) else null,
+                                            onShuffleClick = onShuffleClick,
                                             shuffleEnabled = shuffleSettings.enabled,
                                             onWatchedClick = toggleWatched,
                                             onSaveClick = toggleSaved,
@@ -1387,9 +1389,7 @@ fun MetaDetailsScreen(
                                         isWatched = isWatched,
                                         autoSkipExclusionAction = autoSkipExclusionAction,
                                         onPrimaryPlayClick = onPrimaryPlayClick,
-                                        onShuffleClick = if (showShuffleButton) ({
-                                            if (shuffleSettings.enabled) saveShuffle(shuffleSettings.copy(enabled = false)) else showShuffle = true
-                                        }) else null,
+                                        onShuffleClick = onShuffleClick,
                                         shuffleEnabled = shuffleSettings.enabled,
                                         onPrimaryPlayLongClick = onPrimaryPlayLongClick,
                                         onSaveClick = toggleSaved,
@@ -1415,6 +1415,7 @@ fun MetaDetailsScreen(
                                         episodeListGroupedEpisodes = episodeListGroupedEpisodes,
                                         episodeListSeasons = episodeListSeasons,
                                         episodeListCurrentSeason = currentEpisodeListSeason,
+                                        selectedEpisodeSeason = selectedEpisodeListSeason,
                                         onEpisodeListSeasonSelect = { selectedEpisodeListSeason = it },
                                         onRetryComments = {
                                             detailsScope.launch {
@@ -1560,9 +1561,7 @@ fun MetaDetailsScreen(
                                         isSaved = isSaved,
                                         isWatched = isWatched,
                                         autoSkipExclusionAction = autoSkipExclusionAction,
-                                        onShuffleClick = if (showShuffleButton) ({
-                                            if (shuffleSettings.enabled) saveShuffle(shuffleSettings.copy(enabled = false)) else showShuffle = true
-                                        }) else null,
+                                        onShuffleClick = onShuffleClick,
                                         shuffleEnabled = shuffleSettings.enabled,
                                         onPrimaryPlayClick = onPrimaryPlayClick,
                                         onPrimaryPlayLongClick = onPrimaryPlayLongClick,
@@ -1589,6 +1588,7 @@ fun MetaDetailsScreen(
                                         episodeListGroupedEpisodes = episodeListGroupedEpisodes,
                                         episodeListSeasons = episodeListSeasons,
                                         episodeListCurrentSeason = currentEpisodeListSeason,
+                                        selectedEpisodeSeason = selectedEpisodeListSeason,
                                         onEpisodeListSeasonSelect = { selectedEpisodeListSeason = it },
                                         onRetryComments = {
                                             detailsScope.launch {
@@ -2316,6 +2316,7 @@ private fun LazyListScope.configuredMetaSectionItems(
     episodeListGroupedEpisodes: Map<Int, List<MetaVideo>>,
     episodeListSeasons: List<Int>,
     episodeListCurrentSeason: Int?,
+    selectedEpisodeSeason: Int?,
     onEpisodeListSeasonSelect: (Int) -> Unit,
     onRetryComments: () -> Unit,
     onLoadMoreComments: () -> Unit,
@@ -2385,6 +2386,8 @@ private fun LazyListScope.configuredMetaSectionItems(
                     showManualPlayOption = showManualPlayOption,
                     preferredEpisodeSeasonNumber = preferredEpisodeSeasonNumber,
                     preferredEpisodeNumber = preferredEpisodeNumber,
+                    selectedEpisodeSeason = selectedEpisodeSeason,
+                    onEpisodeSeasonSelect = onEpisodeListSeasonSelect,
                     hasProductionSection = hasProductionSection,
                     hasTrailersSection = hasTrailersSection,
                     hasEpisodes = hasEpisodes,
@@ -2615,6 +2618,8 @@ private fun ConfiguredMetaSections(
     showManualPlayOption: Boolean,
     preferredEpisodeSeasonNumber: Int?,
     preferredEpisodeNumber: Int?,
+    selectedEpisodeSeason: Int?,
+    onEpisodeSeasonSelect: (Int) -> Unit,
     hasProductionSection: Boolean,
     hasTrailersSection: Boolean,
     hasEpisodes: Boolean,
@@ -2737,10 +2742,12 @@ private fun ConfiguredMetaSections(
                 if (hasEpisodes) {
                     DetailSeriesContent(
                         meta = meta,
+                        selectedSeasonOverride = selectedEpisodeSeason,
                         showHeader = showHeader,
                         horizontalScrollPadding = horizontalScrollPadding,
                         preferredSeasonNumber = preferredEpisodeSeasonNumber,
                         preferredEpisodeNumber = preferredEpisodeNumber,
+                        onSeasonSelect = onEpisodeSeasonSelect,
                         episodeCardStyle = settings.episodeCardStyle,
                         progressByVideoId = progressByVideoId,
                         watchedKeys = watchedKeys,

@@ -45,7 +45,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,6 +101,8 @@ private val log = Logger.withTag("SeriesContent")
 @Composable
 fun DetailSeriesContent(
     meta: MetaDetails,
+    selectedSeasonOverride: Int?,
+    onSeasonSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     showHeader: Boolean = true,
     horizontalScrollPadding: Dp = 0.dp,
@@ -171,7 +172,6 @@ fun DetailSeriesContent(
     val defaultSeason = preferredSeasonNumber
         ?.takeIf { it in groupedEpisodes }
         ?: seasons.first()
-    var selectedSeasonOverride by rememberSaveable(meta.id) { mutableStateOf<Int?>(null) }
     val currentSeason = selectedSeasonOverride
         ?.takeIf { it in groupedEpisodes }
         ?: defaultSeason
@@ -190,7 +190,7 @@ fun DetailSeriesContent(
                 currentSeason = currentSeason,
                 sizing = sizing,
                 horizontalScrollPadding = horizontalScrollPadding,
-                onSelect = { selectedSeasonOverride = it },
+                onSelect = onSeasonSelect,
                 onLongPress = onSeasonLongPress,
             )
 

@@ -5,7 +5,6 @@ import android.content.Context
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -45,9 +44,9 @@ class EpisodeShuffleSheetTest {
     }
 
     @Test
-    fun choosingUnwatchedShowsPreviewAndSpoilerProtection() {
+    fun choosingThisSeasonShowsPreviewAndSpoilerProtection() {
         show()
-        compose.onNodeWithText("Unwatched episodes").performClick()
+        compose.onNodeWithText("This season").performClick()
         compose.onNodeWithText("Your episode").assertIsDisplayed()
         compose.onNodeWithText("The first episode").assertIsDisplayed()
         compose.onNodeWithText("Artwork hidden to avoid spoilers").assertIsDisplayed()
@@ -55,12 +54,17 @@ class EpisodeShuffleSheetTest {
     }
 
     @Test
-    fun caughtUpRequiresExplicitAllEpisodesSelection() {
+    fun watchedEpisodesRemainEligibleAcrossAllSeasons() {
         show(watched = setOf(watchedItemKey("series", "show", 1, 1)))
-        compose.onNodeWithText("Unwatched episodes").assertIsNotEnabled()
-        compose.onNodeWithText("You have watched every episode. Choose All episodes to watch again.").assertIsDisplayed()
-        compose.onNodeWithText("All episodes").performClick()
+        compose.onNodeWithText("All seasons").performClick()
         compose.onNodeWithText("The first episode").assertIsDisplayed()
+    }
+
+    @Test
+    fun activeShuffleCanBeStoppedWhenEpisodeMetadataIsEmpty() {
+        show(details = meta.copy(videos = emptyList()), settings = EpisodeShuffleSettings(enabled = true),
+            expectedText = "Stop shuffle")
+        compose.onNodeWithText("Stop shuffle").assertIsDisplayed()
     }
 
     @Test
@@ -80,15 +84,20 @@ class EpisodeShuffleSheetTest {
         }
     }
 
-    private fun show(watched: Set<String> = emptySet(), settings: EpisodeShuffleSettings = EpisodeShuffleSettings()) {
+    private fun show(
+        watched: Set<String> = emptySet(),
+        settings: EpisodeShuffleSettings = EpisodeShuffleSettings(),
+        details: MetaDetails = meta,
+        expectedText: String = "All seasons",
+    ) {
         compose.setContent {
             NuvioTheme {
-                EpisodeShuffleSheet(meta, settings, { true }, watched, emptyList(), true,
+                EpisodeShuffleSheet(details, 1, true, settings, { true }, watched, emptyList(), true,
                     onDismiss = {}, onPlay = {}, onPlayManually = null, onStartFromBeginning = {})
             }
         }
         compose.waitUntil(5_000) {
-            compose.onAllNodes(androidx.compose.ui.test.hasText("Unwatched episodes")).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodes(androidx.compose.ui.test.hasText(expectedText)).fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

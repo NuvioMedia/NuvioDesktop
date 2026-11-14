@@ -29,12 +29,12 @@ internal class RandomEpisodePicker(
     private val shownIds = mutableSetOf<String>()
     private var lastPickedId: String? = null
 
-    fun count(includeWatched: Boolean): Int = candidates(includeWatched).size
+    fun count(includeWatched: Boolean, season: Int? = null): Int = candidates(includeWatched, season).size
 
     fun isWatched(episode: MetaVideo): Boolean = (episode.season to episode.episode) in watchedKeys
 
-    fun find(videoId: String, includeWatched: Boolean, current: Pair<Int, Int>? = null): MetaVideo? =
-        candidates(includeWatched).firstOrNull { it.id == videoId && it.season to it.episode != current }
+    fun find(videoId: String, includeWatched: Boolean, current: Pair<Int, Int>? = null, season: Int? = null): MetaVideo? =
+        candidates(includeWatched, season).firstOrNull { it.id == videoId && it.season to it.episode != current }
 
     fun inheritHistoryFrom(previous: RandomEpisodePicker?) {
         if (previous == null || previous.contentId != contentId) return
@@ -49,9 +49,10 @@ internal class RandomEpisodePicker(
     fun pick(
         includeWatched: Boolean,
         current: Pair<Int, Int>? = null,
-        consumeSelection: Boolean = true
+        consumeSelection: Boolean = true,
+        season: Int? = null,
     ): MetaVideo? {
-        val candidates = candidates(includeWatched).filterNot { it.season to it.episode == current }
+        val candidates = candidates(includeWatched, season).filterNot { it.season to it.episode == current }
         if (candidates.isEmpty()) return null
         val unseen = candidates.filterNot { it.id in shownIds }
         val pool = unseen.ifEmpty {
@@ -64,6 +65,6 @@ internal class RandomEpisodePicker(
         }
     }
 
-    private fun candidates(includeWatched: Boolean): List<MetaVideo> =
-        if (includeWatched) episodes else unwatchedEpisodes
+    private fun candidates(includeWatched: Boolean, season: Int?): List<MetaVideo> =
+        (if (includeWatched) episodes else unwatchedEpisodes).filter { season == null || it.season == season }
 }
