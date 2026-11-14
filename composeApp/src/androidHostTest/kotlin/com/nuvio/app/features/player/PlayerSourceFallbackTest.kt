@@ -108,6 +108,30 @@ class PlayerSourceFallbackTest {
     }
 
     @Test
+    fun pendingFallbackDoesNotOwnAChangedSourceOrEpisode() {
+        val runtime = runtime()
+        val key = runtime.sourcePlaybackKey
+
+        assertTrue(runtime.isCurrentSourceFallback(key, failedUrl))
+        runtime.activeSourceUrl = candidates[0].url!!
+        assertFalse(runtime.isCurrentSourceFallback(key, failedUrl))
+        runtime.activeSourceUrl = failedUrl
+        runtime.activeVideoId = "other-episode"
+        assertFalse(runtime.isCurrentSourceFallback(key, failedUrl))
+    }
+
+    @Test
+    fun selectingTheSameSourceManuallyDisarmsPendingFallback() {
+        val runtime = runtime()
+        val key = runtime.sourcePlaybackKey
+
+        runtime.switchToSource(runtime.activeStream!!)
+
+        assertNull(runtime.autoSelectedSourceUrl)
+        assertFalse(runtime.isCurrentSourceFallback(key, failedUrl))
+    }
+
+    @Test
     fun engineSwitchOnErrorExcludesTheFallback() {
         val runtime = runtime()
         runtime.playerSettingsUiState = runtime.playerSettingsUiState.copy(autoSwitchPlaybackEngineOnError = true)

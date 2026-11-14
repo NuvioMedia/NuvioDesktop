@@ -8,7 +8,10 @@ import com.nuvio.app.features.debrid.DirectDebridPlayableResult
 import com.nuvio.app.features.debrid.DirectDebridPlaybackResolver
 import com.nuvio.app.features.streams.StreamAutoPlaySelector
 import com.nuvio.app.features.streams.StreamItem
+import com.nuvio.app.features.servers.ServerPlayback
+import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -69,10 +72,15 @@ internal fun PlayerScreenRuntime.showErrorUnlessSourceFallback(message: String?)
  * Returns `true` when a fallback was started and the error must not be shown yet.
  */
 internal fun PlayerScreenRuntime.tryFallbackToNextSourceAfterError(message: String?): Boolean {
-    if (sourceFallbackJob?.isActive == true) return true
+    if (sourceFallbackJob?.isActive == true) {
+        if (sourceFallbackKey == sourcePlaybackKey && autoSelectedSourceUrl == activeSourceUrl &&
+            !initialLoadCompleted) return true
+        sourceFallbackJob?.cancel()
+        return false
+    }
     val settings = playerSettingsUiState
     if (!settings.streamAutoPlayFallbackActive) return false
-    if (!isIos && settings.autoSwitchPlaybackEngineOnError) return false
+    if (!isIos && !isDesktop && settings.autoSwitchPlaybackEngineOnError) return false
     if (initialLoadCompleted) return false
     val failedUrl = activeSourceUrl
     if (failedUrl.isBlank() || failedUrl != autoSelectedSourceUrl) return false
@@ -84,7 +92,9 @@ internal fun PlayerScreenRuntime.tryFallbackToNextSourceAfterError(message: Stri
     val failedAddonId = activeProviderAddonId
     val season = activeSeasonNumber
     val episode = activeEpisodeNumber
+    val fallbackKey = sourcePlaybackKey
     errorMessage = null
+    sourceFallbackKey = fallbackKey
 
     sourceFallbackJob = scope.launch {
         try {
@@ -97,6 +107,7 @@ internal fun PlayerScreenRuntime.tryFallbackToNextSourceAfterError(message: Stri
             )
             var polls = 0
             while (sourceFallbackAttempts < playerSettingsUiState.streamAutoPlayFallbackMaxSources) {
+                if (!isCurrentSourceFallback(fallbackKey, failedUrl)) return@launch
                 val state = PlayerStreamsRepository.sourceState.value
                 val next = nextSourceFallbackCandidate(
                     streams = state.groups.flatMap { it.streams },
@@ -121,18 +132,30 @@ internal fun PlayerScreenRuntime.tryFallbackToNextSourceAfterError(message: Stri
                     is DirectDebridPlayableResult.Success -> resolved.stream
                     else -> null
                 }
-                val url = playable?.playableDirectUrl
-                if (playable == null || url.isNullOrBlank() || url == failedUrl) {
+                if (!isCurrentSourceFallback(fallbackKey, failedUrl)) return@launch
+                val prepared = if (playable?.needsServerPreparation == true) {
+                    runCatching { ServerPlayback.prepare(playable) }
+                        .onFailure { if (it is CancellationException) throw it }
+                        .getOrNull()
+                } else playable
+                val url = prepared?.playableDirectUrl
+                if (!isCurrentSourceFallback(fallbackKey, failedUrl)) {
+                    if (prepared?.serverTarget != null) ServerPlayback.stop(url)
+                    return@launch
+                }
+                if (prepared == null || url.isNullOrBlank() || url == failedUrl) {
+                    if (prepared?.serverTarget != null) ServerPlayback.stop(url)
                     log.d { "Fallback source from ${next.addonName} has no playable link, trying the next one" }
                     continue
                 }
-                log.i { "Source failed to start, falling back to ${playable.streamLabel} from ${playable.addonName}" }
-                playReplacementSource(playable, url, videoId)
+                log.i { "Source failed to start, falling back to ${prepared.streamLabel} from ${prepared.addonName}" }
+                playReplacementSource(prepared, url, videoId)
                 return@launch
             }
         } finally {
             PlayerStreamsRepository.stopSourcesLoading()
         }
+        if (!isCurrentSourceFallback(fallbackKey, failedUrl)) return@launch
         // The last source that failed may have been saved for reuse.
         removeFailedStreamFromCache()
         errorMessage = message
@@ -140,6 +163,9 @@ internal fun PlayerScreenRuntime.tryFallbackToNextSourceAfterError(message: Stri
     }
     return true
 }
+
+internal fun PlayerScreenRuntime.isCurrentSourceFallback(key: PlaybackKey, url: String): Boolean =
+    sourcePlaybackKey == key && activeSourceUrl == url && autoSelectedSourceUrl == url && !initialLoadCompleted
 
 /**
  * The best stream auto source selection would pick from [streams], leaving out the sources

@@ -299,6 +299,8 @@ internal fun PlayerScreenRuntime.switchToSource(
     stream: StreamItem,
     saveForReuse: Boolean = true,
 ) {
+    sourceFallbackJob?.cancel()
+    autoSelectedSourceUrl = null
     if (prepareServerForPlayer(stream) { switchToSource(it) }) return
     // The resolved URL expires after a few hours, so it isn't kept for reuse.
     if (resolveYouTubeForPlayer(stream) { switchToSource(it, saveForReuse = false) }) return

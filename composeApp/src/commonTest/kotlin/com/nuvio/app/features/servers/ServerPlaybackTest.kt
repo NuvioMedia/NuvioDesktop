@@ -5,6 +5,8 @@ import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamAutoPlaySelector
 import com.nuvio.app.features.streams.StreamAutoPlaySource
 import com.nuvio.app.features.streams.isSelectableForPlayback
+import com.nuvio.app.features.player.PlayerSettingsUiState
+import com.nuvio.app.features.player.nextSourceFallbackCandidate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
@@ -88,6 +90,29 @@ class ServerPlaybackTest {
             selectedPlugins = setOf("Some plugin"),
         )
         assertEquals(stream, selected)
+    }
+
+    @Test
+    fun fallbackCanPrepareServerCandidateWithoutInitialUrl() = runTest {
+        val connection = installFakeServer()
+        val stream = ServerStreams.candidates(ServerItemRef(connection.id, "42")).single()
+
+        val candidate = nextSourceFallbackCandidate(
+            streams = listOf(stream),
+            settings = PlayerSettingsUiState(streamAutoPlayMode = StreamAutoPlayMode.FIRST_STREAM),
+            triedKeys = emptySet(),
+            failedAddonId = "addon:failed",
+            failedInfoHash = null,
+            installedAddonNames = emptySet(),
+            debridEnabled = false,
+            activeResolverProviderId = null,
+        )
+
+        assertEquals(stream, candidate)
+        val prepared = ServerPlayback.prepare(assertNotNull(candidate))
+        val url = assertNotNull(prepared.playableDirectUrl)
+        assertTrue(ServerPlayback.isServerSource(url))
+        ServerPlayback.stop(url)
     }
 
     @Test

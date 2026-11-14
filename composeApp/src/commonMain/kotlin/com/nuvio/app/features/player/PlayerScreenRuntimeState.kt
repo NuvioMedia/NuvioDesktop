@@ -283,6 +283,7 @@ internal class PlayerScreenRuntime(
     var sourceFallbackAttempts = 0
     val sourceFallbackTriedKeys = mutableSetOf<String>()
     var sourceFallbackJob: Job? = null
+    var sourceFallbackKey: PlaybackKey? = null
 
     var showAudioModal by mutableStateOf(false)
     var showSubtitleModal by mutableStateOf(false)
