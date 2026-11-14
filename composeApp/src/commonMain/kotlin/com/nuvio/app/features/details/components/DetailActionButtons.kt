@@ -56,7 +56,6 @@ import nuvio.composeapp.generated.resources.hero_mark_watched
 import nuvio.composeapp.generated.resources.hero_remove_from_library
 import nuvio.composeapp.generated.resources.playback_unavailable
 import nuvio.composeapp.generated.resources.random_episode_title
-import nuvio.composeapp.generated.resources.shuffle_stop
 import org.jetbrains.compose.resources.stringResource
 
 data class DetailSecondaryAction(
@@ -262,7 +261,7 @@ fun DetailActions(
 ) {
     val shuffleAction = onShuffleClick?.let { onClick ->
         DetailSecondaryAction(
-            label = stringResource(if (shuffleEnabled) Res.string.shuffle_stop else Res.string.random_episode_title),
+            label = stringResource(Res.string.random_episode_title),
             icon = Icons.Default.Shuffle,
             isActive = shuffleEnabled,
             onClick = onClick,
@@ -271,9 +270,8 @@ fun DetailActions(
     DetailActionButtons(
         playLabel = if (playEnabled) playLabel else stringResource(Res.string.playback_unavailable),
         playEnabled = playEnabled,
-        pinnedAction = shuffleAction?.takeIf { shuffleEnabled },
+        pinnedAction = shuffleAction,
         secondaryActions = buildList {
-            if (!shuffleEnabled) shuffleAction?.let(::add)
             autoSkipExclusionAction?.let(::add)
             add(
                 DetailSecondaryAction(

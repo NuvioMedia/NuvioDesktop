@@ -121,6 +121,18 @@ class RandomEpisodePickerTest {
     }
 
     @Test
+    fun `season scope draws only from the selected season`() {
+        val first = episode(1)
+        val second = episode(1).copy(id = "show:2:1", season = 2)
+        val picker = picker(listOf(first, second))
+
+        assertEquals(2, picker.count(true))
+        assertEquals(1, picker.count(true, season = 2))
+        assertEquals(second, picker.pick(true, season = 2))
+        assertNull(picker.find(first.id, includeWatched = true, season = 2))
+    }
+
+    @Test
     fun `duplicates do not bias the selection or produce repeated playback ids`() {
         val first = episode(1)
         val picker = picker(listOf(first, first.copy(id = "alternate"), first.copy(episode = 2), episode(3)))

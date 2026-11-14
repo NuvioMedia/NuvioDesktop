@@ -2540,6 +2540,9 @@
     <string name="random_episode_loading">Loading episodes…</string>
     <string name="shuffle_starting">Starting shuffle…</string>
     <string name="shuffle_choose_episodes">Choose which episodes to shuffle.</string>
+    <string name="shuffle_all_seasons">All seasons</string>
+    <string name="shuffle_this_season">This season</string>
+    <string name="shuffle_continuous">Keep shuffling this series</string>
     <string name="shuffle_preview_title">Your episode</string>
     <string name="shuffle_play_episode">Play episode</string>
     <string name="shuffle_again">Shuffle again</string>
