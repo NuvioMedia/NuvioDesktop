@@ -97,6 +97,7 @@ internal fun PlayerScreenRuntime.tryFallbackToNextSourceAfterError(message: Stri
     sourceFallbackKey = fallbackKey
 
     sourceFallbackJob = scope.launch {
+        var replacedSource = false
         try {
             // Joins the shared source search, so results the stream screen already found are reused.
             PlayerStreamsRepository.loadSources(
@@ -149,11 +150,14 @@ internal fun PlayerScreenRuntime.tryFallbackToNextSourceAfterError(message: Stri
                     continue
                 }
                 log.i { "Source failed to start, falling back to ${prepared.streamLabel} from ${prepared.addonName}" }
+                replacedSource = true
                 playReplacementSource(prepared, url, videoId)
                 return@launch
             }
         } finally {
-            PlayerStreamsRepository.stopSourcesLoading()
+            if (replacedSource || isCurrentSourceFallback(fallbackKey, failedUrl)) {
+                PlayerStreamsRepository.stopSourcesLoading()
+            }
         }
         if (!isCurrentSourceFallback(fallbackKey, failedUrl)) return@launch
         // The last source that failed may have been saved for reuse.

@@ -5,11 +5,13 @@ import android.content.Context
 import androidx.compose.ui.Modifier
 import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamItem
+import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.features.watchprogress.WatchProgressStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Before
@@ -129,6 +131,21 @@ class PlayerSourceFallbackTest {
 
         assertNull(runtime.autoSelectedSourceUrl)
         assertFalse(runtime.isCurrentSourceFallback(key, failedUrl))
+    }
+
+    @Test
+    fun switchingEpisodeDisarmsPendingFallbackBeforePreparation() {
+        val runtime = runtime()
+        val pendingFallback = Job()
+        runtime.sourceFallbackJob = pendingFallback
+
+        runtime.switchToEpisodeStream(
+            runtime.activeStream!!.copy(url = null),
+            MetaVideo(id = "tt2026:1:2", title = "Episode 2", season = 1, episode = 2),
+        )
+
+        assertFalse(pendingFallback.isActive)
+        assertNull(runtime.autoSelectedSourceUrl)
     }
 
     @Test
