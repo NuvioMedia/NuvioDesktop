@@ -1988,10 +1988,12 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     return flag != 0;
 }
 
+// Exact seeks: with hr-seek=no a plain seek lands on a keyframe, up to one GOP
+// (often ~10 s) away from the requested position.
 - (void)seekToMilliseconds:(long long)positionMs {
     if (!_mpv) return;
     std::string seconds = std::to_string((double)positionMs / 1000.0);
-    const char *command[] = {"seek", seconds.c_str(), "absolute+keyframes", NULL};
+    const char *command[] = {"seek", seconds.c_str(), "absolute+exact", NULL};
     mpv_command(_mpv, command);
     [self storeCachedPosition:(double)positionMs / 1000.0 at:CACurrentMediaTime()];
 }
@@ -1999,7 +2001,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 - (void)seekByMilliseconds:(long long)offsetMs {
     if (!_mpv) return;
     std::string seconds = std::to_string((double)offsetMs / 1000.0);
-    const char *command[] = {"seek", seconds.c_str(), "relative+keyframes", NULL};
+    const char *command[] = {"seek", seconds.c_str(), "relative+exact", NULL};
     mpv_command(_mpv, command);
     [self storeCachedPosition:[self estimatedPositionSeconds] + ((double)offsetMs / 1000.0) at:CACurrentMediaTime()];
 }
