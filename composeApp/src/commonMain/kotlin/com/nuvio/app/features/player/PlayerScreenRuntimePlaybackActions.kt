@@ -316,7 +316,11 @@ private fun PlayerScreenRuntime.emitTrackingScrobbleTerminal(
 
 internal fun PlayerScreenRuntime.emitStopScrobbleForCurrentProgress() {
     if (isShortPlaceholderDuration(playbackSnapshot.durationMs)) return
-    val progressPercent = currentPlaybackProgressPercent()
+    val progressPercent = resolveStopScrobblePercent(
+        reportedProgressPercent = currentPlaybackProgressPercent(),
+        isEnded = playbackSnapshot.isEnded,
+        hasSentCompletionScrobble = hasSentCompletionScrobbleForCurrentItem,
+    ) ?: return
     if (!shouldSendStopScrobble(hasRequestedScrobbleStartForCurrentItem, progressPercent)) {
         return
     }
@@ -325,16 +329,31 @@ internal fun PlayerScreenRuntime.emitStopScrobbleForCurrentProgress() {
         return
     }
 
-    if (progressPercent >= 80f && !hasSentCompletionScrobbleForCurrentItem) {
-        hasSentCompletionScrobbleForCurrentItem = true
-        emitTrackingScrobbleStop(progressPercent)
-    }
+    hasSentCompletionScrobbleForCurrentItem = true
+    emitTrackingScrobbleStop(progressPercent)
 }
 
 internal fun shouldSendStopScrobble(
     hasActiveScrobble: Boolean,
     progressPercent: Float,
 ): Boolean = hasActiveScrobble || progressPercent >= 80f
+
+/**
+ * Percent to send with a stop scrobble, or null when the stop must not be sent.
+ *
+ * Reaching the end of a file has to be reported as watched. A later snapshot can
+ * still say the file has ended while `time-pos / duration` is about 50%. Sending
+ * that number after a completion scrobble creates a Trakt playback row, and the
+ * next launch shows the finished episode as half watched instead of the next one.
+ */
+internal fun resolveStopScrobblePercent(
+    reportedProgressPercent: Float,
+    isEnded: Boolean,
+    hasSentCompletionScrobble: Boolean,
+): Float? {
+    if (hasSentCompletionScrobble) return null
+    return if (isEnded) 100f else reportedProgressPercent
+}
 
 internal fun shouldUpdateTrackingScrobbleAfterSeek(
     hasActiveScrobble: Boolean,
@@ -389,7 +408,9 @@ internal fun PlayerScreenRuntime.flushWatchProgress(
     scrobbleAction: TrackingScrobbleAction = TrackingScrobbleAction.STOP,
 ) {
     when (scrobbleAction) {
-        TrackingScrobbleAction.PAUSE -> emitTrackingScrobblePause()
+        TrackingScrobbleAction.PAUSE -> {
+            if (!hasSentCompletionScrobbleForCurrentItem) emitTrackingScrobblePause()
+        }
         TrackingScrobbleAction.STOP -> emitStopScrobbleForCurrentProgress()
         TrackingScrobbleAction.START -> Unit
     }
@@ -400,6 +421,13 @@ internal fun PlayerScreenRuntime.flushWatchProgress(
 }
 
 internal fun PlayerScreenRuntime.scheduleProgressSyncAfterSeek() {
+    if (
+        hasSentCompletionScrobbleForCurrentItem &&
+        !playbackSnapshot.isEnded &&
+        currentPlaybackProgressPercent() < 80f
+    ) {
+        hasSentCompletionScrobbleForCurrentItem = false
+    }
     val shouldRestartScrobbleAfterSeek = shouldPlay || playbackSnapshot.isPlaying
     seekProgressSyncJob?.cancel()
     seekProgressSyncJob = scope.launch {
