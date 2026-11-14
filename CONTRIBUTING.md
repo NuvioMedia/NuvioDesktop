@@ -14,6 +14,7 @@ Pull requests are accepted only when they fit one of these categories:
 
 - Reproducible bug fixes for documented issues
 - UI glitch fixes for visible bugs or regressions, with before/after proof
+- UI and behavior changes explicitly approved by a maintainer in a linked feature request
 - Behavior bug fixes that restore expected behavior without changing product direction
 - Small maintenance work that does not change UI, UX, behavior, dependencies, architecture, or public contracts
 - Small documentation fixes that improve accuracy
@@ -21,9 +22,9 @@ Pull requests are accepted only when they fit one of these categories:
 
 Pull requests are not accepted for:
 
-- New major features
-- Product direction changes
-- UX/UI redesigns
+- New major features without explicit maintainer approval
+- Product direction changes without explicit maintainer approval
+- UX/UI redesigns without explicit maintainer approval
 - Cosmetic-only UI changes
 - "Minor polish" changes to colors, spacing, typography, icons, copy, layout, animations, or visual style
 - Behavior changes that are not tied to a reproducible bug or approved feature request
@@ -38,7 +39,7 @@ Translation PRs are allowed, as long as they stay focused on translation/localiz
 
 Do not open a pull request for a UI change just because it looks better, cleaner, more modern, or more consistent to you.
 
-UI PRs are accepted only when they fix a specific, documented glitch or bug, such as:
+UI PRs must fix a specific, documented glitch or bug, or implement a linked feature request explicitly approved by a maintainer. Glitches include:
 
 - Broken layout
 - Overlapping or clipped text
@@ -50,10 +51,10 @@ UI PRs are accepted only when they fix a specific, documented glitch or bug, suc
 
 Every UI PR must include:
 
-- A linked bug issue
-- A short explanation of the exact glitch being fixed
+- A linked bug issue or approved feature request
+- A short explanation of the exact glitch being fixed or approved behavior being added
 - Before and after screenshots or a short video
-- The smallest possible change that fixes the glitch
+- The smallest change that fixes the glitch or implements the approved request
 
 Cosmetic-only UI PRs will be closed, even if the change is small.
 
@@ -149,7 +150,7 @@ Please make sure your PR is all of the following:
 - Clearly aligned with the current direction of the project
 - Not cosmetic-only
 - Not changing behavior unless it fixes a linked bug or has explicit approval
-- Not changing UI unless it fixes a linked glitch/bug and includes visual proof
+- Not changing UI unless it fixes a linked glitch/bug or implements an explicitly approved feature request, with visual proof
 - Not bundling refactors, cleanups, or drive-by changes with a bug fix
 - Tested manually and/or automatically in a way that matches the risk
 - Linked to an approved feature request issue if large, directional, or non-trivial
