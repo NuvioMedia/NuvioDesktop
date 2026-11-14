@@ -1117,11 +1117,13 @@ public:
         return flagProperty("pause", true);
     }
 
+    // Exact seeks: with hr-seek=no a plain seek lands on a keyframe, up to one GOP
+    // (often ~10 s) away from the requested position.
     void seekToMilliseconds(long long positionMs) {
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         std::string seconds = std::to_string((double)positionMs / 1000.0);
-        const char *command[] = {"seek", seconds.c_str(), "absolute+keyframes", nullptr};
+        const char *command[] = {"seek", seconds.c_str(), "absolute+exact", nullptr};
         mpvApi().command(mpv, command);
     }
 
@@ -1129,7 +1131,7 @@ public:
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         std::string seconds = std::to_string((double)offsetMs / 1000.0);
-        const char *command[] = {"seek", seconds.c_str(), "relative+keyframes", nullptr};
+        const char *command[] = {"seek", seconds.c_str(), "relative+exact", nullptr};
         mpvApi().command(mpv, command);
     }
 
