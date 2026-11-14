@@ -22,7 +22,7 @@ Expect breaking changes with every update. Features, settings, stored data, and 
 
 Download the latest build from [GitHub Releases](https://github.com/NuvioMedia/NuvioDesktop/releases/latest).
 
-- Windows: MSI installer
+- Windows: MSI installer, or [Nuvio-Windows-x64-Setup.exe](https://github.com/NuvioMedia/NuvioDesktop/releases/latest/download/Nuvio-Windows-x64-Setup.exe), a small web installer that always downloads the newest MSI
 - macOS: DMG installer
 - Linux: DEB, RPM, Flatpak, or AppImage
 

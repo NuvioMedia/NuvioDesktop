@@ -568,6 +568,16 @@ jobs:
           Get-Item $msiPath | Format-List Name, Length, LastWriteTime
           $manifest | Select-Object -First (9 + $nativeEntries.Count)
 
+      - name: Build web installer
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+        # Written next to the MSI so the artifact stays flat for the release job.
+        run: |
+          ./scripts/windows/build-web-installer.ps1 `
+            -Version $env:RELEASE_VERSION `
+            -OutputDirectory composeApp/build/compose/release-msis
+
       - name: Upload MSI
         uses: actions/upload-artifact@v7
         with:
@@ -575,6 +585,7 @@ jobs:
           path: |
             composeApp/build/compose/release-msis/Nuvio-Windows-x64-${{ needs.metadata.outputs.version }}.msi
             composeApp/build/compose/release-msis/Nuvio-Windows-x64-${{ needs.metadata.outputs.version }}-contents.txt
+            composeApp/build/compose/release-msis/Nuvio-Windows-x64-Setup.exe
           if-no-files-found: error
           retention-days: 14
 
@@ -1047,6 +1058,7 @@ jobs:
             "release/Nuvio-macOS-arm64-${RELEASE_VERSION}.dmg"
             "release/Nuvio-macOS-x86_64-${RELEASE_VERSION}.dmg"
             "release/Nuvio-Windows-x64-${RELEASE_VERSION}.msi"
+            "release/Nuvio-Windows-x64-Setup.exe"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.rpm"
@@ -1076,6 +1088,7 @@ jobs:
             "release/Nuvio-macOS-arm64-${RELEASE_VERSION}.dmg"
             "release/Nuvio-macOS-x86_64-${RELEASE_VERSION}.dmg"
             "release/Nuvio-Windows-x64-${RELEASE_VERSION}.msi"
+            "release/Nuvio-Windows-x64-Setup.exe"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.rpm"
