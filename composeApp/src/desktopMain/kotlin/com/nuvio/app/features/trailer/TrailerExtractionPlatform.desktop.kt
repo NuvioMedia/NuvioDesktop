@@ -7,11 +7,15 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.Dns
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.net.Inet6Address
+import java.net.InetAddress
+import java.net.NetworkInterface
 import java.util.concurrent.TimeUnit
 
 internal object TrailerExtractionPlatform {
@@ -27,12 +31,43 @@ internal object TrailerExtractionPlatform {
             "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
     )
 
+    // YouTube binds stream URLs to the address that requested them, and judges each address family
+    // separately. libmpv follows the Windows resolver, which prefers IPv6 on dual-stack networks, while
+    // the JVM prefers IPv4. Resolving in the same order keeps extraction and playback on one route.
+    private val hasGlobalIpv6Address: Boolean by lazy {
+        runCatching {
+            NetworkInterface.getNetworkInterfaces().asSequence()
+                .filter { it.isUp && !it.isLoopback }
+                .flatMap { it.inetAddresses.asSequence() }
+                .any { address ->
+                    address is Inet6Address &&
+                        !address.isLinkLocalAddress &&
+                        !address.isSiteLocalAddress &&
+                        !address.isLoopbackAddress &&
+                        // Skip unique local addresses (fc00::/7), which have no internet route.
+                        (address.address[0].toInt() and 0xFE) != 0xFC
+                }
+        }.getOrDefault(false)
+    }
+
+    private val playerAlignedDns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            val addresses = Dns.SYSTEM.lookup(hostname)
+            return if (com.nuvio.app.isWindows && hasGlobalIpv6Address) {
+                addresses.sortedBy { it !is Inet6Address }
+            } else {
+                addresses
+            }
+        }
+    }
+
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(TRAILER_REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .readTimeout(TRAILER_REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .writeTimeout(TRAILER_REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
+        .dns(playerAlignedDns)
         .build()
 
     private val probeClient = OkHttpClient.Builder()
@@ -40,11 +75,14 @@ internal object TrailerExtractionPlatform {
         .readTimeout(2, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
+        .dns(playerAlignedDns)
         .build()
 
-    fun supportsSeparateVideo(candidate: StreamCandidate): Boolean = candidate.ext == "mp4"
+    fun supportsSeparateVideo(candidate: StreamCandidate): Boolean =
+        com.nuvio.app.isWindows || candidate.ext == "mp4"
 
-    fun supportsSeparateAudio(candidate: StreamCandidate): Boolean = candidate.ext == "m4a"
+    fun supportsSeparateAudio(candidate: StreamCandidate): Boolean =
+        com.nuvio.app.isWindows || candidate.ext == "m4a"
 
     fun diagnostic(message: String) {
         if (diagnosticsEnabled) {
@@ -101,7 +139,7 @@ internal object TrailerExtractionPlatform {
         val bestCombinedIsManifest = bestManifest != null &&
             (bestProgressive == null || bestManifest.height > bestProgressive.height)
         val preferManifestPlayback = bestManifest != null &&
-            (bestVideo == null || bestManifest.height >= bestVideo.height)
+            (bestVideo == null || (bestManifest.height >= bestVideo.height && !com.nuvio.app.isWindows))
         val combinedUrl = if (bestCombinedIsManifest) {
             bestManifest.manifestUrl
         } else {
