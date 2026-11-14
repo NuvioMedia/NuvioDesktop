@@ -4452,6 +4452,65 @@ document.addEventListener("keydown", event => {
   send(command, 0);
 });
 
+const overlayDirtyBridge = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.overlayDirty;
+if (overlayDirtyBridge) {
+  let overlayDirtyQueued = false;
+  const markOverlayDirty = () => {
+    if (overlayDirtyQueued) return;
+    overlayDirtyQueued = true;
+    window.setTimeout(() => {
+      overlayDirtyQueued = false;
+      overlayDirtyBridge.postMessage(0);
+    }, 0);
+  };
+  const isOverlayMutationVisible = record => {
+    if (record.type === "attributes" &&
+        record.oldValue === record.target.getAttribute(record.attributeName)) {
+      return false;
+    }
+    if (record.type === "childList" &&
+        record.addedNodes.length === 1 &&
+        record.removedNodes.length === 1 &&
+        record.addedNodes[0].nodeType === Node.TEXT_NODE &&
+        record.removedNodes[0].nodeType === Node.TEXT_NODE &&
+        record.addedNodes[0].data === record.removedNodes[0].data) {
+      return false;
+    }
+    const node = record.type === "childList" ? record.target : record.target.parentElement;
+    if (!node || typeof node.checkVisibility !== "function") return true;
+    return node.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+  };
+  new MutationObserver(records => {
+    if (records.some(isOverlayMutationVisible)) markOverlayDirty();
+  }).observe(document.documentElement, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeOldValue: true,
+    characterData: true,
+  });
+  [
+    "transitionrun",
+    "transitionend",
+    "transitioncancel",
+    "animationstart",
+    "animationiteration",
+    "animationend",
+    "animationcancel",
+    "load",
+    "error",
+    "scroll",
+    "input",
+    "focusin",
+    "focusout",
+    "pointerover",
+    "pointerout",
+    "pointerdown",
+    "pointerup",
+  ].forEach(type => document.addEventListener(type, markOverlayDirty, true));
+  if (document.fonts) document.fonts.addEventListener("loadingdone", markOverlayDirty);
+}
+
 setProgress(0, 0, 0);
 focusShortcutRoot();
 render();

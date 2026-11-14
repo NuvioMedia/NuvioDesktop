@@ -50,6 +50,7 @@ namespace {
 
 JavaVM *gVm = nullptr;
 constexpr double kMaxVolumePercent = 200.0;
+constexpr int kDirtyReportedSnapSkipTicks = 90;
 
 struct Player {
     mpv_handle *mpv = nullptr;
@@ -99,6 +100,8 @@ struct Player {
     long lastUiVol = -1;
     bool lastUiPaused = false;
     bool lastUiLoading = false;
+    bool overlayDirtyReported = false;
+    std::string lastUpdateJs;
     // Controls-state payload buffering (macOS/Windows parity): the first
     // updateControls arrives before the page defines window.playerControls, so a
     // fire-and-forget eval loses it and the loading screen shows a bare spinner
@@ -375,6 +378,7 @@ void wakeSnapshots(Player *player) {
 
 void flushControlsJson(Player *player) {
     wakeSnapshots(player);
+    player->lastUpdateJs.clear();
     if (!player->webview || player->pendingControlsJson.empty()) return;
     std::string script =
         "(function(){if(!window.playerControls)return 'missing';"
@@ -464,6 +468,7 @@ void onPlayerMessage(WebKitUserContentManager *, WebKitJavascriptResult *js, gpo
     // it is up. cursorActivity also arrives while hidden (mouse woke the UI) and
     // must re-activate compositing so the fade-in is actually shown.
     if (type) wakeSnapshots(player);
+    if (type) player->lastUpdateJs.clear();
     if (type) {
         if (strcmp(type, "setPlaybackState") == 0 ||
             strcmp(type, "setPlaybackStateQuiet") == 0) {
@@ -508,6 +513,13 @@ void onPlayerMessage(WebKitUserContentManager *, WebKitJavascriptResult *js, gpo
     if (valV) g_object_unref(valV);
 }
 
+void onOverlayDirty(WebKitUserContentManager *, WebKitJavascriptResult *, gpointer data) {
+    auto *player = static_cast<Player *>(data);
+    if (!playerAlive(player)) return;
+    player->overlayDirtyReported = true;
+    wakeSnapshots(player);
+}
+
 // The overlay toplevel is a child of the AWT canvas at the X level, and player
 // close races Compose's canvas teardown against dispose(): when AWT destroys
 // the canvas first, X cascade-destroys the overlay's window, GDK reports it
@@ -539,6 +551,8 @@ struct SnapCtx {
     int gen;
 };
 
+void presentOverlaySurface(Player *player, cairo_surface_t *surf);
+
 // Completion of the async controls snapshot: hand the premultiplied BGRA pixels
 // to mpv as an OSD overlay. Runs on the GTK thread like the tick that issued it.
 void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
@@ -566,6 +580,10 @@ void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
     player->snapInFlight = false;
     player->snapResets = 0;
     if (!surf) return;
+    presentOverlaySurface(player, surf);
+}
+
+void presentOverlaySurface(Player *player, cairo_surface_t *surf) {
     if (cairo_image_surface_get_format(surf) != CAIRO_FORMAT_ARGB32 ||
         cairo_image_surface_get_width(surf) <= 0 ||
         cairo_image_surface_get_height(surf) <= 0 || !player->mpv) {
@@ -598,7 +616,11 @@ void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
                    cairo_image_surface_get_height(surf)) == 0) {
         cairo_surface_destroy(surf);
         if (player->snapStill < 1000) player->snapStill++;
-        if (player->snapStill >= 3) player->snapSkip = std::min(player->snapStill * 2, 15);
+        if (player->snapStill >= 3) {
+            player->snapSkip = player->overlayDirtyReported
+                                   ? std::min(player->snapStill * 8, kDirtyReportedSnapSkipTicks)
+                                   : std::min(player->snapStill * 2, 15);
+        }
         return;
     }
     player->snapStill = 0;
@@ -623,6 +645,34 @@ void onOverlaySnapshot(GObject *src, GAsyncResult *res, gpointer data) {
 // single window (XWayland won't alpha-blend sibling windows; mpv does the compose
 // that Core Animation / DWM do on macOS / Windows). Only runs while the chrome is
 // visible (plus a short fade-out grace) so normal watching pays nothing.
+bool drawOverlaySurface(Player *player) {
+    if (!player->webview || !player->gtkWindow || !player->overlayXid) return false;
+    GtkWidget *view = GTK_WIDGET(player->webview);
+    GdkWindow *ovGw = gtk_widget_get_window(player->gtkWindow);
+    if (!ovGw || !gtk_widget_get_realized(view)) return false;
+    XWindowAttributes wa;
+    if (!XGetWindowAttributes(GDK_WINDOW_XDISPLAY(ovGw), player->overlayXid, &wa) ||
+        wa.width <= 0 || wa.height <= 0) {
+        return false;
+    }
+    int scale = gdk_window_get_scale_factor(ovGw);
+    if (scale < 1) scale = 1;
+    GtkAllocation alloc;
+    gtk_widget_get_allocation(view, &alloc);
+    if (alloc.width * scale != wa.width || alloc.height * scale != wa.height) return true;
+    cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, wa.width, wa.height);
+    if (cairo_surface_status(surf) != CAIRO_STATUS_SUCCESS) {
+        cairo_surface_destroy(surf);
+        return false;
+    }
+    cairo_surface_set_device_scale(surf, scale, scale);
+    cairo_t *cr = cairo_create(surf);
+    gtk_widget_draw(view, cr);
+    cairo_destroy(cr);
+    presentOverlaySurface(player, surf);
+    return true;
+}
+
 void compositeOverlay(Player *player) {
     if (!player->overlayXid || !player->mpv || !player->gtkWindow) return;
     GdkWindow *gw = gtk_widget_get_window(player->gtkWindow);
@@ -692,6 +742,7 @@ void compositeOverlay(Player *player) {
                 player->overlayPushed = false;
                 releaseSnapshots(player);
             }
+            wakeSnapshots(player);
         }
     }
     if (!active) {
@@ -710,7 +761,7 @@ void compositeOverlay(Player *player) {
             player->snapCooldownTicks--;
         } else if (player->snapSkip > 0) {
             player->snapSkip--;
-        } else {
+        } else if (!drawOverlaySurface(player)) {
             player->snapInFlight = true;
             player->snapWaitTicks = 0;
             if (!player->snapCancel) player->snapCancel = g_cancellable_new();
@@ -914,7 +965,7 @@ gboolean pushPlayerUpdate(gpointer data) {
         player->lastUiVol = vol;
         player->lastUiPaused = paused;
         player->lastUiLoading = loading;
-        wakeSnapshots(player);
+        if (!player->overlayDirtyReported) wakeSnapshots(player);
     }
     std::string audioTracks = buildTracksJson(player->mpv, "audio");
     std::string subtitleTracks = buildTracksJson(player->mpv, "sub");
@@ -924,6 +975,8 @@ gboolean pushPlayerUpdate(gpointer data) {
              duration, position, bufferedPosition, volumeLevel, paused ? "true" : "false", loading ? "true" : "false");
     std::string js = std::string(head) + audioTracks +
                      ",subtitleTracks:" + subtitleTracks + "})";
+    if (js == player->lastUpdateJs) return G_SOURCE_CONTINUE;
+    player->lastUpdateJs = js;
     evalJs(player->webview, js);
     return G_SOURCE_CONTINUE;
 }
@@ -1042,6 +1095,8 @@ gboolean createWebviewOnGtk(gpointer data) {
         wv = gWarmupView;
         g_signal_connect(gWarmupUcm, "script-message-received::player",
                          G_CALLBACK(onPlayerMessage), player);
+        g_signal_connect(gWarmupUcm, "script-message-received::overlayDirty",
+                         G_CALLBACK(onOverlayDirty), player);
         gWarmupWindow = nullptr;
         gWarmupView = nullptr;
         gWarmupUcm = nullptr;
@@ -1057,8 +1112,11 @@ gboolean createWebviewOnGtk(gpointer data) {
 
         WebKitUserContentManager *ucm = webkit_user_content_manager_new();
         webkit_user_content_manager_register_script_message_handler(ucm, "player");
+        webkit_user_content_manager_register_script_message_handler(ucm, "overlayDirty");
         g_signal_connect(ucm, "script-message-received::player",
                          G_CALLBACK(onPlayerMessage), player);
+        g_signal_connect(ucm, "script-message-received::overlayDirty",
+                         G_CALLBACK(onOverlayDirty), player);
 
         // WebKit's DMABUF renderer yields controls snapshots with degraded alpha —
         // the semi-transparent chrome scrim reads back near-opaque (NVIDIA: stale or
@@ -1461,6 +1519,7 @@ gboolean warmupOnGtk(gpointer data) {
 
     WebKitUserContentManager *ucm = webkit_user_content_manager_new();
     webkit_user_content_manager_register_script_message_handler(ucm, "player");
+    webkit_user_content_manager_register_script_message_handler(ucm, "overlayDirty");
     // controlsReady = page scripts executed end to end (same readiness signal
     // the Windows warm-up waits for). One-shot latched; harmless after
     // adoption when the player's own handler is connected alongside.
