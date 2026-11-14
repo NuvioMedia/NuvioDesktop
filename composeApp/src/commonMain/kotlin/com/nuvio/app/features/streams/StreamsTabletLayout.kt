@@ -54,6 +54,7 @@ import com.nuvio.app.core.ui.StreamResultsWideArtworkAspectRatio
 import com.nuvio.app.core.ui.expandingWideArtworkWidthDp
 import com.nuvio.app.core.ui.dominantBackdropBlendColor
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.rememberCountryFlagAnnotatedString
 import com.kmpalette.extensions.painter.rememberPainterDominantColorState
 import androidx.compose.ui.platform.LocalLayoutDirection
 import com.nuvio.app.core.ui.platformPhysicalTopInset
@@ -649,8 +650,9 @@ private fun ActiveScrapersStatusBlock(
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
                         .padding(horizontal = 8.dp, vertical = 3.dp),
                 ) {
+                    val annotatedAddonName = rememberCountryFlagAnnotatedString(addonName)
                     Text(
-                        text = addonName,
+                        text = annotatedAddonName,
                         modifier = Modifier.shimmer(),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 11.sp,

@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.secondaryClickAt
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.rememberCountryFlagAnnotatedString
 import com.nuvio.app.core.ui.SkeletonBlock
 import com.nuvio.app.features.debrid.DebridProviders
 import com.nuvio.app.isDesktop
@@ -169,9 +170,10 @@ internal fun StreamCard(
 
             val subtitle = stream.streamSubtitle
             if (!subtitle.isNullOrBlank()) {
+                val annotatedSubtitle = rememberCountryFlagAnnotatedString(subtitle)
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = subtitle,
+                    text = annotatedSubtitle,
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontSize = 12.sp,
                         lineHeight = 18.sp,
@@ -206,8 +208,9 @@ internal fun StreamCard(
                     )
                 }
                 Spacer(modifier = Modifier.height(2.dp))
+                val annotatedAddonName = rememberCountryFlagAnnotatedString(stream.addonName)
                 Text(
-                    text = stream.addonName,
+                    text = annotatedAddonName,
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -282,12 +285,14 @@ private fun StreamNameWithInstantService(
     }
     visibleState.targetState = showInstantLabel
 
+    val annotatedStreamLabel = rememberCountryFlagAnnotatedString(stream.streamLabel)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = stream.streamLabel,
+            text = annotatedStreamLabel,
             modifier = Modifier.weight(1f, fill = false),
             style = nameStyle,
             color = MaterialTheme.colorScheme.onSurface,
