@@ -1237,6 +1237,7 @@ fun MetaDetailsScreen(
                                 heroTrailerPlayWhenReady = heroTrailerPlayWhenReady,
                                 heroTrailerMuted = heroTrailerMuted,
                                 heroGradientColor = dominantBackdropColor.takeIf { dominantColorEnabled },
+                                showArtwork = backgroundMode == MetaScreenBackgroundMode.Cinematic,
                                 onBackdropLoaded = { painter -> dominantBackdropPainter = painter },
                                 onHeroTrailerReady = {
                                     if (!heroTrailerFinished) heroTrailerReady = true
