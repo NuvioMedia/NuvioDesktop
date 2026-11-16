@@ -215,6 +215,11 @@ internal fun PlayerScreenRuntime.saveP2pStreamForReuse(
     )
 }
 
+internal fun PlayerScreenRuntime.disarmSourceFallback() {
+    sourceFallbackJob?.cancel()
+    autoSelectedSourceUrl = null
+}
+
 internal fun PlayerScreenRuntime.switchToP2pSourceStream(stream: StreamItem) {
     val infoHash = stream.p2pInfoHash ?: return
     if (!P2pSettingsRepository.isVisible) return
@@ -222,6 +227,7 @@ internal fun PlayerScreenRuntime.switchToP2pSourceStream(stream: StreamItem) {
         pendingP2pSwitch = PendingPlayerP2pSwitch(stream = stream, episode = null, isAutoPlay = false)
         return
     }
+    disarmSourceFallback()
     val currentPositionMs = playbackSnapshot.positionMs.coerceAtLeast(0L)
     flushWatchProgress()
     stopActiveP2pStream()
@@ -270,6 +276,7 @@ internal fun PlayerScreenRuntime.switchToP2pEpisodeStream(
         pendingP2pSwitch = PendingPlayerP2pSwitch(stream = stream, episode = episode, isAutoPlay = isAutoPlay)
         return
     }
+    disarmSourceFallback()
     resetEpisodePanelAndNextEpisodeState()
     flushWatchProgress()
     stopActiveP2pStream()
@@ -299,6 +306,7 @@ internal fun PlayerScreenRuntime.switchToSource(
     stream: StreamItem,
     saveForReuse: Boolean = true,
 ) {
+    disarmSourceFallback()
     if (prepareServerForPlayer(stream) { switchToSource(it) }) return
     // The resolved URL expires after a few hours, so it isn't kept for reuse.
     if (resolveYouTubeForPlayer(stream) { switchToSource(it, saveForReuse = false) }) return
@@ -371,6 +379,7 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(
     serverResumeMs: Long? = null,
     saveForReuse: Boolean = true,
 ) {
+    disarmSourceFallback()
     if (prepareServerForPlayer(stream) { switchToEpisodeStream(it, episode, serverResumeMs = newerServerResumeMs(it, episode)) }) return
     if (
         resolveYouTubeForPlayer(stream) { resolved ->
@@ -420,6 +429,7 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(
 
 internal fun PlayerScreenRuntime.switchToDownloadedEpisode(downloadItem: DownloadItem, episode: MetaVideo) {
     val localFileUri = DownloadsRepository.playableLocalFileUri(downloadItem) ?: return
+    disarmSourceFallback()
     resetEpisodePanelAndNextEpisodeState()
     flushWatchProgress()
     stopActiveP2pStream()
@@ -622,7 +632,7 @@ private fun PlayerScreenRuntime.applyEpisodeStreamMetadata(
     controlsVisible = true
 }
 
-private fun PlayerScreenRuntime.saveDirectStreamForReuse(
+internal fun PlayerScreenRuntime.saveDirectStreamForReuse(
     stream: StreamItem,
     url: String,
     videoId: String,

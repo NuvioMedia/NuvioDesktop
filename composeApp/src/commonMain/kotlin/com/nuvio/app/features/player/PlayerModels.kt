@@ -52,6 +52,10 @@ data class PlayerLaunch(
     val subtitleExtras: SubtitleRequestExtras? = null,
     val sourceFilename: String? = null,
     val stream: com.nuvio.app.features.streams.StreamItem? = null,
+    /** The source was taken from the reuse-last-link cache, not picked fresh from add-ons. */
+    val sourceFromLinkCache: Boolean = false,
+    /** The source was picked by auto source selection (or reused from the link cache). */
+    val sourceAutoSelected: Boolean = false,
 )
 
 object PlayerLaunchStore {
@@ -293,6 +297,8 @@ internal data class PlaybackKey(
 
 data class PlayerPlaybackSnapshot(
     val isLoading: Boolean = true,
+    /** The engine is still opening the source and has not read its tracks yet. */
+    val isOpening: Boolean = isLoading,
     val isPlaying: Boolean = false,
     val isEnded: Boolean = false,
     val durationMs: Long = 0L,

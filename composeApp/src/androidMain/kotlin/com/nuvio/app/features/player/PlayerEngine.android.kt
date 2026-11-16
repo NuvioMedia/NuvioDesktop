@@ -373,7 +373,8 @@ private fun ExoPlayerSurface(
                 loopback = loopbackSource,
             )
         ) {
-            upstream
+            // upstream ends in a DefaultDataSource, which opens the data: init segment this may add.
+            if (mimeType == MimeTypes.APPLICATION_M3U8) HlsParameterSetInitDataSource.Factory(upstream) else upstream
         } else {
             VodCache.wrap(
                 context = context,
@@ -718,7 +719,7 @@ private fun ExoPlayerSurface(
                 latestOnError.value(null)
                 return
             }
-            latestOnError.value(error.localizedMessage ?: runBlocking { getString(Res.string.player_unable_to_play_stream) })
+            latestOnError.value(runBlocking { error.toDisplayMessage() })
         }
 
         val listener = object : Player.Listener {
@@ -996,9 +997,17 @@ private fun ExoPlayerSurface(
                     exoPlayer.play()
                 }
 
-                // Media3's Matroska extractor skips chapters; read them from the file, if allowed.
+                // Media3's Matroska extractor skips chapters, so they are read from the file, as in
+                // NuvioTV: when the chapter UI or skip intro needs them, and only for Matroska/WebM,
+                // which spares MP4 and HLS the extra request.
                 override suspend fun getChapters(): List<PlayerChapter> {
-                    if (!PlayerSettingsRepository.uiState.value.androidExoChaptersEnabled) return emptyList()
+                    val settings = PlayerSettingsRepository.uiState.value
+                    val read = shouldReadExoChapters(
+                        chaptersEnabled = settings.androidExoChaptersEnabled,
+                        skipIntroEnabled = settings.skipIntroEnabled,
+                        containerMimeType = exoPlayer.videoFormat?.containerMimeType,
+                    )
+                    if (!read) return emptyList()
                     return MatroskaChapterLoader.load(latestChapterSourceUrl.value, latestChapterSourceHeaders.value)
                 }
 
@@ -1423,7 +1432,7 @@ private fun LibmpvPlayerSurface(
                 }
             }
         }
-        val recentErrorLogs = ArrayDeque<String>()
+        val errorLog = MpvErrorLog()
         val observer = object : MPV.EventObserver {
             override fun eventProperty(property: String) {
                 if (property == "sub-text" || property == "sid") view.updateStyledSubtitle()
@@ -1468,7 +1477,8 @@ private fun LibmpvPlayerSurface(
             override fun event(eventId: Int, data: MPVNode) {
                 when (eventId) {
                     MPV.mpvEvent.MPV_EVENT_START_FILE -> {
-                        synchronized(recentErrorLogs) { recentErrorLogs.clear() }
+                        view.onFileStarted()
+                        errorLog.clear()
                         Log.i(
                             PLAYER_DIAGNOSTIC_TAG,
                             "mpv_event=START_FILE attempt=${playbackDiagnostics.attempt} " +
@@ -1483,7 +1493,10 @@ private fun LibmpvPlayerSurface(
                     }
                     MPV.mpvEvent.MPV_EVENT_FILE_LOADED,
                     MPV.mpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
-                        if (eventId == MPV.mpvEvent.MPV_EVENT_FILE_LOADED) view.attachStartupSubtitles()
+                        if (eventId == MPV.mpvEvent.MPV_EVENT_FILE_LOADED) {
+                            view.onFileLoaded()
+                            view.attachStartupSubtitles()
+                        }
                         coroutineScope.launch(Dispatchers.Main.immediate) {
                             latestOnError.value(null)
                             val snapshot = view.snapshot()
@@ -1522,12 +1535,26 @@ private fun LibmpvPlayerSurface(
                                     "mpv_error attempt=${playbackDiagnostics.attempt} " +
                                         "fileError=${diagnosticPlayerMessage(fileError)}",
                                 )
-                                val details = synchronized(recentErrorLogs) { recentErrorLogs.toList() } +
-                                    listOfNotNull(fileError?.trim()?.takeIf { it.isNotEmpty() })
+                                val logLine = errorLog.logLine()
+                                val httpCode = mpvHttpStatusCode(logLine)
+                                val codecContext = if (httpCode == null) {
+                                    runCatching { mpvCodecContextLine(view.mpv, logLine.orEmpty()) }.getOrNull()
+                                } else {
+                                    null
+                                }
                                 latestOnError.value(
-                                    details.distinct().joinToString("\n").ifEmpty {
-                                        getString(Res.string.player_unable_to_play_stream)
-                                    },
+                                    mpvErrorMessage(
+                                        fileError = fileError,
+                                        logLine = logLine,
+                                        codecContext = codecContext,
+                                        fallback = getString(Res.string.player_unable_to_play_stream),
+                                        httpExplanation = httpCode?.let { httpStatusExplanationText(it) }.orEmpty(),
+                                        statusExplanation = if (httpCode == null) {
+                                            mpvNonHttpExplanationText(fileError, logLine)
+                                        } else {
+                                            ""
+                                        },
+                                    ),
                                 )
                             }
                         }
@@ -1542,13 +1569,7 @@ private fun LibmpvPlayerSurface(
                     "mpv_log level=$level prefix=${diagnosticPlayerMessage(prefix)} " +
                         "message=${diagnosticPlayerMessage(text)}",
                 )
-                val line = text.trim()
-                if (level <= MPV_LOG_LEVEL_ERROR && line.isNotEmpty() && "://" !in line) {
-                    synchronized(recentErrorLogs) {
-                        recentErrorLogs.addLast("[$prefix] ${line.take(160)}")
-                        while (recentErrorLogs.size > 3) recentErrorLogs.removeFirst()
-                    }
-                }
+                errorLog.onLog(prefix, level, text)
             }
         }
         view.mpv.addObserver(observer)
@@ -1693,6 +1714,9 @@ private class NuvioLibmpvView(
     private var currentExternalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> = emptyList()
     @Volatile
     private var latestSnapshot = PlayerPlaybackSnapshot()
+    /** mpv has opened the current file and read its tracks. */
+    @Volatile
+    private var fileLoaded = false
     @Volatile
     private var latestAudioTracks: List<LibmpvTrack> = emptyList()
     @Volatile
@@ -1732,6 +1756,8 @@ private class NuvioLibmpvView(
             mpv.setOptionString("vf", "format=yuv420p")
         }
         mpv.setOptionString("msg-level", "all=warn")
+        // Android has no youtube-dl, so mpv's fallback to it can only fail and bury the real error.
+        mpv.setOptionString("ytdl", "no").logIfMpvError("ytdl")
         mpv.setOptionString("tls-verify", "yes")
         mpv.setOptionString("tls-ca-file", "${context.filesDir.path}/cacert.pem")
         mpv.setOptionString("demuxer-max-bytes", "${libmpvCacheBytes()}").logIfMpvError("demuxer-max-bytes")
@@ -1797,11 +1823,20 @@ private class NuvioLibmpvView(
         applyRequestHeadersNow(currentRequestHeaders)
         setPausedNow(!playWhenReady)
         mpv.setPropertyString("aid", "auto")
+        fileLoaded = false
         mpv.command("loadfile", sourceUrl.toMpvSource(), "replace")
         currentSourceAudioUrl?.takeIf { it.isNotBlank() }?.let { sourceAudioUrl ->
             mpv.command("audio-add", sourceAudioUrl.toMpvSource(), "auto")
         }
         setPausedNow(!playWhenReady)
+    }
+
+    fun onFileStarted() {
+        fileLoaded = false
+    }
+
+    fun onFileLoaded() {
+        fileLoaded = true
     }
 
     fun attachStartupSubtitles() {
@@ -1880,7 +1915,16 @@ private class NuvioLibmpvView(
         val seeking = mpv.getPropertyBoolean("seeking") ?: false
         val cacheBufferingState = mpv.getPropertyInt("cache-buffering-state")
         val durationMs = mpv.getPropertyDouble("duration").toMillis()
-        val positionMs = mpv.getPropertyDouble("time-pos").toMillis()
+        val positionMs = mpv.getPropertyDouble("time-pos")
+            ?.let { timePos ->
+                mpvPlaybackPositionSec(
+                    timePosSec = timePos,
+                    audioPtsSec = mpv.getPropertyDouble("audio-pts"),
+                    seeking = seeking,
+                    audioDelaySec = mpv.getPropertyDouble("audio-delay") ?: 0.0,
+                )
+            }
+            .toMillis()
         val cachePositionMs = mpv.getPropertyDouble("demuxer-cache-time").toMillis()
         val isCacheBuffering = cacheBufferingState != null && cacheBufferingState in 0 until 100
         val isLoading = pausedForCache ||
@@ -1893,6 +1937,7 @@ private class NuvioLibmpvView(
             ?: 0
         return PlayerPlaybackSnapshot(
             isLoading = isLoading,
+            isOpening = !fileLoaded,
             isPlaying = !paused && !isLoading && !idle && !ended,
             isEnded = ended,
             durationMs = durationMs,
@@ -2267,8 +2312,11 @@ private const val MPV_SUBTITLE_OUTLINE_SIZE_SCALE = 1.5
 
 private fun ExoPlayer.snapshot(): PlayerPlaybackSnapshot {
     val (videoWidth, videoHeight) = videoDimensions()
+    val isLoading = playbackState == Player.STATE_IDLE || playbackState == Player.STATE_BUFFERING
     return PlayerPlaybackSnapshot(
-        isLoading = playbackState == Player.STATE_IDLE || playbackState == Player.STATE_BUFFERING,
+        isLoading = isLoading,
+        // Tracks are known once the source is opened and its container read.
+        isOpening = isLoading && currentTracks.isEmpty,
         isPlaying = isPlaying,
         isEnded = playbackState == Player.STATE_ENDED,
         durationMs = duration.coerceAtLeast(0L),
@@ -3105,8 +3153,6 @@ private fun isLoopbackPlaybackSource(value: String): Boolean = runCatching {
         else -> false
     }
 }.getOrDefault(false)
-
-private const val MPV_LOG_LEVEL_ERROR = 20
 
 private fun diagnosticPlayerMessage(value: String?): String =
     value?.replace('\n', ' ')?.replace('\r', ' ')?.take(160) ?: "none"

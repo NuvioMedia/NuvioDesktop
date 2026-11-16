@@ -316,6 +316,7 @@ data class PlayerControlsState(
     val party: PlayerControlPartyState = PlayerControlPartyState(),
     val badges: List<StreamBadge> = emptyList(),
     val chapters: List<PlayerControlChapter> = emptyList(),
+    val chapterTitleEnabled: Boolean = true,
     val chaptersLabel: String = "Chapters",
     val chaptersPanelTitle: String = "Chapters",
     val chapterRemainingTemplate: String = "{time} left",
