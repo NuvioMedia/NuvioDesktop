@@ -423,6 +423,8 @@ private fun DesktopHeroMetaRow(meta: MetaDetails, showOverallRatings: Boolean) {
     }
     val validImdbRating = meta.imdbRating
         ?.takeIf { raw -> raw.toDoubleOrNull()?.let { it > 0.0 } == true }
+    val ratingMedia = remember(meta) { meta.ratingReference() }
+    val ratingState by rememberRatingState(ratingMedia)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(space.s16),
@@ -479,6 +481,13 @@ private fun DesktopHeroMetaRow(meta: MetaDetails, showOverallRatings: Boolean) {
                     color = ImdbYellow,
                 )
             }
+        }
+        if (ratingState.isAvailable) {
+            DetailRating(
+                media = ratingMedia,
+                title = meta.name,
+                state = ratingState,
+            )
         }
     }
 }
