@@ -61,6 +61,9 @@
     <string name="addons_error_enter_url">Enter an addon URL.</string>
     <string name="addons_input_placeholder">Addon URL</string>
     <string name="addons_install_button">Install Addon</string>
+    <string name="addons_tracking_consent_title">Tracking addon</string>
+    <string name="addons_tracking_consent_body">%1$s is a tracking addon. Nuvio will send it your activity: what you play, pause and stop with the playback position, what you add to or remove from your library, and what you mark as watched or unwatched. This data leaves Nuvio and is handled by the addon's developer and the service it connects to.</string>
+    <string name="addons_tracking_consent_checkbox">I agree to share my watch activity and library with this addon</string>
     <string name="addons_loading_manifest_details">Loading manifest details...</string>
     <string name="addons_modal_checking_message">Validating the manifest URL and loading addon details before install.</string>
     <string name="addons_modal_checking_title">Checking Addon</string>
@@ -2047,9 +2050,16 @@
     <string name="library_empty_message">Saved titles will appear here after you tap Save on a details screen.</string>
     <string name="library_empty_title">Your library is empty</string>
     <string name="library_filter_all_types">All types</string>
+    <string name="library_filter_genre">Genre</string>
     <string name="library_filter_list">Select list</string>
     <string name="library_filter_sort">Sort library</string>
     <string name="library_filter_type">Select type</string>
+    <string name="library_filter_watched">Watched</string>
+    <string name="library_filter_year">Year</string>
+    <string name="library_type_all">All</string>
+    <string name="library_watched_filter_all">All</string>
+    <string name="library_watched_filter_watched">Watched</string>
+    <string name="library_watched_filter_unwatched">Unwatched</string>
     <string name="library_layout_show_horizontal">Show horizontal shelves</string>
     <string name="library_layout_show_vertical">Show vertical grid</string>
     <string name="library_load_failed">Couldn't load library</string>
@@ -2651,6 +2661,7 @@
     <string name="subtitle_shadow_description">Separate the text from bright scenes.</string>
     <string name="subtitle_shadow_opacity">Shadow opacity</string>
     <string name="subtitle_shadow_size">Shadow size</string>
+    <string name="subtitle_outline_width">Outline width</string>
     <string name="subtitle_reset_appearance">Reset appearance</string>
     <string name="window_menu_file">File</string>
     <string name="window_menu_window">Window</string>

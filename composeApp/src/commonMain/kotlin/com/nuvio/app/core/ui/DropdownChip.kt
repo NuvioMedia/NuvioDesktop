@@ -53,6 +53,7 @@ fun NuvioDropdownChip(
     enabled: Boolean = true,
     onSelected: (NuvioDropdownOption) -> Unit,
     modifier: Modifier = Modifier,
+    fillWidth: Boolean = false,
 ) {
     val tokens = MaterialTheme.nuvio
     var isSheetVisible by remember { mutableStateOf(false) }
@@ -61,7 +62,7 @@ fun NuvioDropdownChip(
 
     Box(modifier = modifier) {
         Row(
-            modifier = Modifier
+            modifier = (if (fillWidth) Modifier.fillMaxWidth() else Modifier)
                 .clip(tokens.shapes.compactCard)
                 .background(tokens.colors.surface)
                 .then(
@@ -81,6 +82,7 @@ fun NuvioDropdownChip(
                 color = if (enabled) tokens.colors.textPrimary else tokens.colors.textDisabled,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = if (fillWidth) Modifier.weight(1f) else Modifier,
             )
             Icon(
                 imageVector = Icons.Rounded.KeyboardArrowDown,
