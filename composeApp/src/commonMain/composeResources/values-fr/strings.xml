@@ -2494,6 +2494,9 @@
     <string name="random_episode_loading">Chargement des épisodes…</string>
     <string name="shuffle_starting">Démarrage de la lecture aléatoire…</string>
     <string name="shuffle_choose_episodes">Choisissez les épisodes à lire de façon aléatoire.</string>
+    <string name="shuffle_all_seasons">Toutes les saisons</string>
+    <string name="shuffle_this_season">Cette saison</string>
+    <string name="shuffle_continuous">Lecture aléatoire continue pour cette série</string>
     <string name="shuffle_preview_title">Votre épisode</string>
     <string name="shuffle_play_episode">Regarder l’épisode</string>
     <string name="shuffle_again">Tirer un autre épisode</string>

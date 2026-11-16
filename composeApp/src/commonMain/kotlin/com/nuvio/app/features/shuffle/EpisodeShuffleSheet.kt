@@ -59,6 +59,8 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun EpisodeShuffleSheet(
     meta: MetaDetails,
+    currentSeason: Int?,
+    persistentShuffleAvailable: Boolean,
     settings: EpisodeShuffleSettings,
     onSave: (EpisodeShuffleSettings) -> Boolean,
     watchedKeys: Set<String>,
@@ -81,13 +83,14 @@ internal fun EpisodeShuffleSheet(
         updated.inheritHistoryFrom(value)
         value = updated
     }
-    var includeWatched by remember { mutableStateOf(settings.includeWatched) }
+    var selectedSeason by remember { mutableStateOf<Int?>(null) }
     var selected by remember { mutableStateOf<MetaVideo?>(null) }
     var starting by remember { mutableStateOf(false) }
     val readyPicker = picker
-    val preview = selected?.let { readyPicker?.find(it.id, includeWatched) }
+    val preview = selected?.let { readyPicker?.find(it.id, includeWatched = true, season = selectedSeason) }
     val allCount = readyPicker?.count(true) ?: 0
     val unwatchedCount = readyPicker?.count(false) ?: 0
+    val currentSeasonCount = currentSeason?.let { readyPicker?.count(true, it) } ?: 0
 
     fun dismiss(after: () -> Unit = {}) {
         scope.launch {
@@ -99,7 +102,14 @@ internal fun EpisodeShuffleSheet(
         val episode = preview ?: return
         if (starting) return
         starting = true
-        if (onSave(EpisodeShuffleSettings(true, includeWatched))) dismiss { action(episode) } else starting = false
+        dismiss { action(episode) }
+    }
+
+    fun enablePersistent(includeWatched: Boolean) {
+        if (starting) return
+        starting = true
+        if (onSave(EpisodeShuffleSettings(enabled = true, includeWatched = includeWatched))) dismiss()
+        else starting = false
     }
 
     NuvioModalBottomSheet(
@@ -130,17 +140,17 @@ internal fun EpisodeShuffleSheet(
                     readyPicker == null -> Text(stringResource(Res.string.random_episode_loading))
                     allCount == 0 -> Text(stringResource(Res.string.random_episode_empty_subtitle))
                     else -> {
-                        for (include in listOf(false, true)) {
-                            OutlinedButton(
-                                onClick = { includeWatched = include; selected = readyPicker.pick(include) },
-                                enabled = include || unwatchedCount > 0,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(stringResource(if (include) Res.string.random_episode_include_watched else Res.string.random_episode_unwatched))
-                            }
+                        OutlinedButton(onClick = { selectedSeason = null; selected = readyPicker.pick(true) },
+                            modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(Res.string.shuffle_all_seasons))
                         }
-                        if (unwatchedCount == 0) Text(stringResource(Res.string.random_episode_caught_up),
-                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (currentSeason != null && currentSeason > 0) {
+                            OutlinedButton(
+                                onClick = { selectedSeason = currentSeason; selected = readyPicker.pick(true, season = currentSeason) },
+                                enabled = currentSeasonCount > 0,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(Res.string.shuffle_this_season)) }
+                        }
                     }
                 }
             } else {
@@ -169,7 +179,7 @@ internal fun EpisodeShuffleSheet(
                             .padding(horizontal = 10.dp, vertical = 5.dp),
                     )
                 }
-                Text(stringResource(if (includeWatched) Res.string.random_episode_include_watched else Res.string.random_episode_unwatched),
+                Text(stringResource(if (selectedSeason == null) Res.string.shuffle_all_seasons else Res.string.shuffle_this_season),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(Res.string.shuffle_preview_title), style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary)
@@ -192,8 +202,8 @@ internal fun EpisodeShuffleSheet(
                         else -> Res.string.shuffle_play_episode
                     }), enabled = !starting && canPlay, onClick = { play(onPlay) },
                 )
-                if ((readyPicker?.count(includeWatched) ?: 0) > 1) {
-                    OutlinedButton(enabled = !starting, onClick = { selected = readyPicker?.pick(includeWatched) },
+                if ((readyPicker?.count(true, selectedSeason) ?: 0) > 1) {
+                    OutlinedButton(enabled = !starting, onClick = { selected = readyPicker?.pick(true, season = selectedSeason) },
                         modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
                         Text(stringResource(Res.string.shuffle_again), modifier = Modifier.padding(start = 8.dp))
@@ -206,6 +216,23 @@ internal fun EpisodeShuffleSheet(
                 }
                 if (resume) TextButton(enabled = !starting && canPlay, onClick = { play(onStartFromBeginning) }, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(Res.string.cw_action_start_from_beginning))
+                }
+                if (persistentShuffleAvailable && !settings.enabled) {
+                    Text(stringResource(Res.string.shuffle_continuous), style = MaterialTheme.typography.titleSmall)
+                    TextButton(enabled = !starting && unwatchedCount > 0,
+                        onClick = { enablePersistent(false) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(Res.string.random_episode_unwatched))
+                    }
+                    TextButton(enabled = !starting, onClick = { enablePersistent(true) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(Res.string.random_episode_include_watched))
+                    }
+                }
+            }
+            if (settings.enabled) {
+                TextButton(enabled = !starting, onClick = {
+                    if (onSave(settings.copy(enabled = false))) dismiss()
+                }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(Res.string.shuffle_stop))
                 }
             }
         }

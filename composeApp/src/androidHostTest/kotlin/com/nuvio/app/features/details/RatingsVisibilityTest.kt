@@ -85,6 +85,8 @@ class RatingsVisibilityTest {
                 } else {
                     DetailSeriesContent(
                         meta = meta,
+                        selectedSeasonOverride = null,
+                        onSeasonSelect = {},
                         episodeCardStyle = if (layout.value == 0) MetaEpisodeCardStyle.Horizontal else MetaEpisodeCardStyle.List,
                         progressByVideoId = progress.value,
                         watchedKeys = watchedKeys.value,
