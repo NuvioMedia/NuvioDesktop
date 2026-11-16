@@ -223,11 +223,11 @@ internal fun PlayerScreenRuntime.disarmSourceFallback() {
 internal fun PlayerScreenRuntime.switchToP2pSourceStream(stream: StreamItem) {
     val infoHash = stream.p2pInfoHash ?: return
     if (!P2pSettingsRepository.isVisible) return
-    disarmSourceFallback()
     if (!P2pSettingsRepository.uiState.value.p2pEnabled) {
         pendingP2pSwitch = PendingPlayerP2pSwitch(stream = stream, episode = null, isAutoPlay = false)
         return
     }
+    disarmSourceFallback()
     val currentPositionMs = playbackSnapshot.positionMs.coerceAtLeast(0L)
     flushWatchProgress()
     stopActiveP2pStream()
@@ -272,11 +272,11 @@ internal fun PlayerScreenRuntime.switchToP2pEpisodeStream(
 ) {
     val infoHash = stream.p2pInfoHash ?: return
     if (!P2pSettingsRepository.isVisible) return
-    disarmSourceFallback()
     if (!P2pSettingsRepository.uiState.value.p2pEnabled) {
         pendingP2pSwitch = PendingPlayerP2pSwitch(stream = stream, episode = episode, isAutoPlay = isAutoPlay)
         return
     }
+    disarmSourceFallback()
     resetEpisodePanelAndNextEpisodeState()
     flushWatchProgress()
     stopActiveP2pStream()
