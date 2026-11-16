@@ -98,7 +98,6 @@ fun DesktopDetailBackdrop(
     heroTrailerPlayWhenReady: Boolean,
     heroTrailerMuted: Boolean,
     heroGradientColor: Color? = null,
-    showArtwork: Boolean = true,
     blurBackdrop: Boolean = false,
     onBackdropLoaded: (Painter) -> Unit = {},
     onHeroTrailerReady: () -> Unit,
@@ -152,17 +151,15 @@ fun DesktopDetailBackdrop(
         if (imageUrl != null) {
             AsyncImage(
                 model = originalTmdbImageUrl(imageUrl),
-                contentDescription = meta.name.takeIf { showArtwork },
+                contentDescription = meta.name,
                 desktopAnimation = NuvioDesktopAnimation.Always,
                 modifier = artworkModifier,
-                // Keep loading the artwork for palette extraction in the color-only modes.
-                alpha = if (showArtwork) 1f else 0f,
                 alignment = BiasAlignment(0f, DesktopBackdropVerticalBias),
                 contentScale = if (useWideArtworkFrame && !cropSideBackdrop) ContentScale.Fit else ContentScale.Crop,
                 desktopImageScaling = NuvioDesktopImageScaling.Disabled,
                 onSuccess = { state -> onBackdropLoaded(state.painter) },
             )
-        } else if (showArtwork) {
+        } else {
             DesktopStripePlaceholder(modifier = backdropModifier)
         }
 
