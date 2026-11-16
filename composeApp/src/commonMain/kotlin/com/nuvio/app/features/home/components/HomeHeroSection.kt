@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
@@ -31,16 +32,23 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
@@ -60,6 +68,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.isDesktop
+import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.core.build.TrailerPlaybackMode
+import com.nuvio.app.core.ui.LocalScreenActive
+import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
+import com.nuvio.app.features.trailer.TrailerPlaybackSource
 import com.nuvio.app.core.ui.FullscreenActionButton
 import com.nuvio.app.core.ui.DesktopBackdropVerticalBias
 import com.nuvio.app.core.ui.NuvioDesktopImageScaling
@@ -81,6 +94,7 @@ import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
+import kotlin.time.TimeSource
 
 private const val HERO_BACKGROUND_PARALLAX = 0.055f
 private const val HERO_BACKGROUND_SCALE = 1.14f
@@ -93,6 +107,8 @@ private const val HERO_SCROLL_MAX_SCALE = 1.3f
 private const val HERO_SWIPE_THRESHOLD_FRACTION = 0.16f
 private const val HERO_SWIPE_VELOCITY_THRESHOLD = 300f
 private const val HERO_AUTO_SCROLL_INTERVAL_MS = 8_000L
+private const val HERO_TRAILER_START_DELAY_MS = 800L
+private const val HERO_TRAILER_VISIBLE_SCROLL_FRACTION = 0.35f
 private const val MOBILE_HERO_VIEWPORT_RATIO = 0.82f
 private const val MOBILE_HERO_MIN_HEIGHT_DP = 360f
 private const val MOBILE_HERO_MAX_HEIGHT_DP = 760f
@@ -144,6 +160,7 @@ fun HomeHeroSection(
     }
     val coroutineScope = rememberCoroutineScope()
     var pagerDragActive by remember { mutableStateOf(false) }
+    var heroTrailerActive by remember { mutableStateOf(false) }
     val autoScrollPage = pagerState.settledPage
 
     LaunchedEffect(pagerState) {
@@ -157,8 +174,9 @@ fun HomeHeroSection(
         }
     }
 
-    ScreenActivityEffect(autoScrollPage, items.size) { active ->
-        if (!active || items.size <= 1) return@ScreenActivityEffect
+    ScreenActivityEffect(autoScrollPage, items.size, heroTrailerActive) { active ->
+        // The banner stays on its title while that title's trailer is loading or playing.
+        if (!active || items.size <= 1 || heroTrailerActive) return@ScreenActivityEffect
         delay(HERO_AUTO_SCROLL_INTERVAL_MS)
         while (pagerState.isScrollInProgress) {
             delay(100L)
@@ -227,6 +245,7 @@ fun HomeHeroSection(
                     showImdbRating = showImdbRating,
                     showMdbListRatings = showMdbListRatings,
                     onItemClick = onItemClick,
+                    onTrailerActiveChange = { heroTrailerActive = it },
                 )
             } else {
                 DefaultHomeHeroFrame(
@@ -316,6 +335,141 @@ private fun HeroBackgroundLayers(
             contentScale = ContentScale.Crop,
             desktopImageScaling = NuvioDesktopImageScaling.Disabled,
         )
+    }
+}
+
+/**
+ * Plays the settled banner title's trailer over its backdrop, under the banner's gradients.
+ * The trailer is dropped as soon as the banner is paged, scrolled mostly out of view, or its screen is covered.
+ * While one title plays, the next title's trailer is looked up so it can start without the lookup wait.
+ */
+@Composable
+private fun HomeHeroTrailerLayer(
+    items: List<MetaPreview>,
+    pagerState: PagerState,
+    listState: LazyListState?,
+    heroHeightPx: Float,
+    muted: Boolean,
+    onActiveChange: (Boolean) -> Unit,
+    onPlayingChange: (Boolean) -> Unit,
+) {
+    val enabled = AppFeaturePolicy.trailerPlaybackMode == TrailerPlaybackMode.IN_APP &&
+        rememberPosterCardStyleUiState().homeHeroTrailerEnabled
+    DisposableEffect(Unit) {
+        onDispose {
+            onActiveChange(false)
+            onPlayingChange(false)
+        }
+    }
+    if (!enabled) {
+        LaunchedEffect(Unit) {
+            onActiveChange(false)
+            onPlayingChange(false)
+        }
+        return
+    }
+
+    val screenActive = LocalScreenActive.current
+    val item = items[pagerState.settledPage % items.size]
+    val nextItem = items[(pagerState.settledPage + 1) % items.size]
+    val bannerAtRest by remember(pagerState, listState, heroHeightPx) {
+        derivedStateOf {
+            !pagerState.isScrollInProgress &&
+                pagerState.currentPage == pagerState.settledPage &&
+                heroScrollOffsetPx(listState, heroHeightPx) < heroHeightPx * HERO_TRAILER_VISIBLE_SCROLL_FRACTION
+        }
+    }
+    val canPlay = screenActive && bannerAtRest
+    var source by remember(item.type, item.id) { mutableStateOf(HomeHeroTrailerSources.cached(item)) }
+    var resolving by remember(item.type, item.id) { mutableStateOf(false) }
+    var finished by remember(item.type, item.id) { mutableStateOf(false) }
+
+    LaunchedEffect(item.type, item.id, canPlay) {
+        if (!canPlay || finished) return@LaunchedEffect
+        if (source == null) {
+            delay(HERO_TRAILER_START_DELAY_MS)
+            resolving = true
+            try {
+                val resolved = HomeHeroTrailerSources.resolve(item)
+                source = resolved
+                if (resolved == null) finished = true
+            } finally {
+                resolving = false
+            }
+        }
+        if (nextItem.id != item.id || nextItem.type != item.type) {
+            HomeHeroTrailerSources.resolve(nextItem)
+        }
+    }
+
+    val active = canPlay && !finished && (resolving || source != null)
+    val playing = canPlay && !finished && source != null
+    LaunchedEffect(active) { onActiveChange(active) }
+    LaunchedEffect(playing) { onPlayingChange(playing) }
+
+    if (canPlay && !finished) {
+        HomePosterHoverTrailer(
+            playbackSource = source,
+            soundEnabled = !muted,
+            startPositionSeconds = 0,
+            modifier = Modifier.fillMaxSize(),
+            onFinished = { finished = true },
+        )
+    }
+}
+
+/** Trailer lookups for banner titles, kept for a while so a title that comes round again starts at once. */
+private object HomeHeroTrailerSources {
+    private const val MAX_AGE_MS = 30L * 60L * 1000L
+    private val entries = mutableMapOf<String, Pair<TimeSource.Monotonic.ValueTimeMark, TrailerPlaybackSource>>()
+
+    fun cached(item: MetaPreview): TrailerPlaybackSource? {
+        val (storedAt, source) = entries[key(item)] ?: return null
+        if (storedAt.elapsedNow().inWholeMilliseconds > MAX_AGE_MS) {
+            entries.remove(key(item))
+            return null
+        }
+        return source
+    }
+
+    suspend fun resolve(item: MetaPreview): TrailerPlaybackSource? {
+        cached(item)?.let { return it }
+        val resolved = resolveHomePosterHoverTrailerPlaybackSource(item) ?: return null
+        entries[key(item)] = TimeSource.Monotonic.markNow() to resolved
+        return resolved
+    }
+
+    private fun key(item: MetaPreview): String = "${item.type}:${item.id}"
+}
+
+@Composable
+private fun HomeHeroTrailerMuteButton(
+    muted: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    Surface(
+        onClick = onToggle,
+        modifier = modifier.size(48.dp),
+        shape = CircleShape,
+        color = colorScheme.surfaceVariant.copy(alpha = 0.82f),
+        contentColor = colorScheme.onSurface,
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (muted) {
+                    Icons.AutoMirrored.Rounded.VolumeOff
+                } else {
+                    Icons.AutoMirrored.Rounded.VolumeUp
+                },
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+            )
+        }
     }
 }
 
@@ -567,11 +721,14 @@ private fun DesktopHomeHeroFrame(
     showImdbRating: Boolean,
     showMdbListRatings: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
+    onTrailerActiveChange: (Boolean) -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val opacity = NuvioTokens.Opacity
     val space = NuvioTokens.Space
     val backgroundColor = colorScheme.background
+    var heroTrailerMuted by rememberSaveable { mutableStateOf(true) }
+    var heroTrailerPlaying by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -588,6 +745,16 @@ private fun DesktopHomeHeroFrame(
             stretchPx = stretchPx,
             includePagerNeighbors = includePagerNeighbors,
             desktopFrame = true,
+        )
+
+        HomeHeroTrailerLayer(
+            items = items,
+            pagerState = pagerState,
+            listState = listState,
+            heroHeightPx = heroHeightPx,
+            muted = heroTrailerMuted,
+            onActiveChange = onTrailerActiveChange,
+            onPlayingChange = { heroTrailerPlaying = it },
         )
 
         Box(
@@ -665,6 +832,21 @@ private fun DesktopHomeHeroFrame(
                     showMdbListRatings = showMdbListRatings,
                     onItemClick = onItemClick,
                     includePagerNeighbors = includePagerNeighbors,
+                )
+            }
+
+            if (heroTrailerPlaying) {
+                HomeHeroTrailerMuteButton(
+                    muted = heroTrailerMuted,
+                    onToggle = { heroTrailerMuted = !heroTrailerMuted },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(
+                            top = space.s32,
+                            end = contentHorizontalPadding +
+                                if (isFullscreenActionSupported) 48.dp + space.s12 else 0.dp,
+                        ),
                 )
             }
 
