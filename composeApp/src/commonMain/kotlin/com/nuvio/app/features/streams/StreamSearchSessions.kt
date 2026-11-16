@@ -135,7 +135,7 @@ internal object StreamSearchSessions {
             removeExpiredLocked()
             removeObsoleteLocked(key)
             if (forceRefresh) {
-                sessions.remove(key)?.cancel()
+                sessions.remove(key)
             } else {
                 sessions[key]?.let { existing ->
                     log.d { "Joining source search for ${key.type} ${key.videoId}" }
