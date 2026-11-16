@@ -95,11 +95,6 @@ struct Player {
     int snapResets = 0;         // consecutive watchdog resets without a snapshot
     int snapStill = 0;          // consecutive snapshots identical to the last pushed one
     int snapSkip = 0;           // composite ticks left before the next request while still
-    long lastUiPos = -1;
-    long lastUiBuf = -1;
-    long lastUiVol = -1;
-    bool lastUiPaused = false;
-    bool lastUiLoading = false;
     bool overlayDirtyReported = false;
     std::string lastUpdateJs;
     // Controls-state payload buffering (macOS/Windows parity): the first
@@ -955,18 +950,6 @@ gboolean pushPlayerUpdate(gpointer data) {
     volumeLevel = std::max(0.0, std::min(kMaxVolumePercent / 100.0, volumeLevel));
     bool paused = mpvGetFlag(player->mpv, "pause");
     bool loading = playerLoading(player);
-    long posSec = (long)position;
-    long bufSec = (long)bufferedPosition;
-    long vol = (long)(volumeLevel * 1000);
-    if (posSec != player->lastUiPos || bufSec != player->lastUiBuf || vol != player->lastUiVol ||
-        paused != player->lastUiPaused || loading != player->lastUiLoading) {
-        player->lastUiPos = posSec;
-        player->lastUiBuf = bufSec;
-        player->lastUiVol = vol;
-        player->lastUiPaused = paused;
-        player->lastUiLoading = loading;
-        if (!player->overlayDirtyReported) wakeSnapshots(player);
-    }
     std::string audioTracks = buildTracksJson(player->mpv, "audio");
     std::string subtitleTracks = buildTracksJson(player->mpv, "sub");
     char head[224];
