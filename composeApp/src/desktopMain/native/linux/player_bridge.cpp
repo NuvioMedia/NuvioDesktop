@@ -640,34 +640,6 @@ void presentOverlaySurface(Player *player, cairo_surface_t *surf) {
 // single window (XWayland won't alpha-blend sibling windows; mpv does the compose
 // that Core Animation / DWM do on macOS / Windows). Only runs while the chrome is
 // visible (plus a short fade-out grace) so normal watching pays nothing.
-bool drawOverlaySurface(Player *player) {
-    if (!player->webview || !player->gtkWindow || !player->overlayXid) return false;
-    GtkWidget *view = GTK_WIDGET(player->webview);
-    GdkWindow *ovGw = gtk_widget_get_window(player->gtkWindow);
-    if (!ovGw || !gtk_widget_get_realized(view)) return false;
-    XWindowAttributes wa;
-    if (!XGetWindowAttributes(GDK_WINDOW_XDISPLAY(ovGw), player->overlayXid, &wa) ||
-        wa.width <= 0 || wa.height <= 0) {
-        return false;
-    }
-    int scale = gdk_window_get_scale_factor(ovGw);
-    if (scale < 1) scale = 1;
-    GtkAllocation alloc;
-    gtk_widget_get_allocation(view, &alloc);
-    if (alloc.width * scale != wa.width || alloc.height * scale != wa.height) return true;
-    cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, wa.width, wa.height);
-    if (cairo_surface_status(surf) != CAIRO_STATUS_SUCCESS) {
-        cairo_surface_destroy(surf);
-        return false;
-    }
-    cairo_surface_set_device_scale(surf, scale, scale);
-    cairo_t *cr = cairo_create(surf);
-    gtk_widget_draw(view, cr);
-    cairo_destroy(cr);
-    presentOverlaySurface(player, surf);
-    return true;
-}
-
 void compositeOverlay(Player *player) {
     if (!player->overlayXid || !player->mpv || !player->gtkWindow) return;
     GdkWindow *gw = gtk_widget_get_window(player->gtkWindow);
@@ -756,7 +728,7 @@ void compositeOverlay(Player *player) {
             player->snapCooldownTicks--;
         } else if (player->snapSkip > 0) {
             player->snapSkip--;
-        } else if (!drawOverlaySurface(player)) {
+        } else {
             player->snapInFlight = true;
             player->snapWaitTicks = 0;
             if (!player->snapCancel) player->snapCancel = g_cancellable_new();
