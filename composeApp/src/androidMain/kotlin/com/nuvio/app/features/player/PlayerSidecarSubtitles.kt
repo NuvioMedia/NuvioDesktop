@@ -37,6 +37,8 @@ internal class SidecarSubtitleController(
     private val scope: CoroutineScope,
     private val getPlayer: () -> Player?,
     private val getSubtitleDelayMs: () -> Int = { 0 },
+    private val getAudioDelayUs: () -> Long = { 0L },
+    private val presentCues: (List<Cue>) -> List<Cue> = { it },
 ) {
     private var sidecarSubtitleJob: Job? = null
     private var sidecarGenerationCounter = 0L
@@ -44,6 +46,8 @@ internal class SidecarSubtitleController(
     var activeSidecarSubtitleKey: String? = null
         private set
     var sidecarTimedCues: List<CuesWithTiming> = emptyList()
+        private set
+    var subtitleMimeType: String? = null
         private set
     private var lastSidecarCueSignature: Long? = null
     private var exoSubtitleViewRef: WeakReference<SubtitleView>? = null
@@ -86,6 +90,7 @@ internal class SidecarSubtitleController(
         sidecarSubtitleJob?.cancel()
         sidecarSubtitleJob = null
         activeSidecarSubtitleKey = null
+        subtitleMimeType = null
         activeSidecarGeneration = 0L
         AutoSyncSyncedSubtitle.clear() // AutoSync hook
         sidecarTimedCues = emptyList()
@@ -93,7 +98,7 @@ internal class SidecarSubtitleController(
         if (clearView) {
             postToSubtitleView { view ->
                 view.setTag(R.id.player_view_sidecar_generation_tag, null)
-                view.setCues(emptyList())
+                view.setCues(presentCues(emptyList()))
             }
         }
     }
@@ -108,6 +113,7 @@ internal class SidecarSubtitleController(
 
         val subtitleKey = url
         val urlMimeHint = PlayerSubtitleUtils.mimeTypeFromUrl(url)
+        subtitleMimeType = urlMimeHint
 
         sidecarSubtitleJob?.cancel()
         val generation = ++sidecarGenerationCounter
@@ -118,12 +124,12 @@ internal class SidecarSubtitleController(
         resetSidecarCursor()
         postToSubtitleView { view ->
             view.setTag(R.id.player_view_sidecar_generation_tag, generation)
-            view.setCues(emptyList())
+            view.setCues(presentCues(emptyList()))
         }
         fun isCurrent() =
             activeSidecarSubtitleKey == subtitleKey && activeSidecarGeneration == generation
 
-        sidecarSubtitleJob = scope.launch {
+        sidecarSubtitleJob = scope.launch(Dispatchers.Main.immediate) {
             try {
                 val rawBody = rawBodyLoader?.invoke() ?: withContext(Dispatchers.IO) {
                     httpGetTextWithHeaders(url = url, headers = headers)
@@ -146,12 +152,13 @@ internal class SidecarSubtitleController(
                     sidecarTimedCues = emptyList()
                     postToSubtitleView { view ->
                         view.setTag(R.id.player_view_sidecar_generation_tag, null)
-                        view.setCues(emptyList())
+                        view.setCues(presentCues(emptyList()))
                     }
                     return@launch
                 }
 
                 sidecarTimedCues = parseResult.cues
+                subtitleMimeType = parseResult.effectiveMime
                 Log.d(
                     SIDECAR_TAG,
                     "Sidecar subtitle ready url=$url cues=${parseResult.cues.size} mime=${parseResult.effectiveMime} source=${parseResult.source} (buffer preserved)"
@@ -174,7 +181,7 @@ internal class SidecarSubtitleController(
                 sidecarTimedCues = emptyList()
                 postToSubtitleView { view ->
                     view.setTag(R.id.player_view_sidecar_generation_tag, null)
-                    view.setCues(emptyList())
+                    view.setCues(presentCues(emptyList()))
                 }
             }
         }
@@ -186,7 +193,8 @@ internal class SidecarSubtitleController(
         if (cues.isEmpty() || activeSidecarSubtitleKey == null) return
         val player = getPlayer() ?: return
         val delayUs = getSubtitleDelayMs().toLong() * 1_000L
-        val positionUs = (player.currentPosition.coerceAtLeast(0L) * 1_000L - delayUs).coerceAtLeast(0L)
+        val positionUs = (player.currentPosition.coerceAtLeast(0L) * 1_000L + getAudioDelayUs() - delayUs)
+            .coerceAtLeast(0L)
         // Null means "the active cue set did not change": nothing to allocate, nothing to post.
         val active = activeSidecarCuesOrNull(cues, positionUs) ?: return
         val currentKey = activeSidecarSubtitleKey ?: return
@@ -197,7 +205,7 @@ internal class SidecarSubtitleController(
                 activeSidecarGeneration == currentGeneration &&
                 view.getTag(R.id.player_view_sidecar_generation_tag) == currentGeneration
             ) {
-                view.setCues(active)
+                view.setCues(presentCues(active))
             }
         }
     }
@@ -310,7 +318,7 @@ internal class SidecarSubtitleController(
         renderSidecarCuesAtCurrentPosition()
 
         if (urlChanged) {
-            sidecarSubtitleJob = scope.launch {
+            sidecarSubtitleJob = scope.launch(Dispatchers.Main.immediate) {
                 while (
                     isActive &&
                     activeSidecarSubtitleKey == newUrl &&

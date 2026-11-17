@@ -44,9 +44,12 @@ internal fun PlayerScreen(
     initialPositionMs: Long = 0L,
     initialProgressFraction: Float? = null,
     contentLanguage: String? = null,
+    subtitleExtras: SubtitleRequestExtras? = null,
     launchId: Long? = null,
     sourceFilename: String? = null,
     stream: com.nuvio.app.features.streams.StreamItem? = null,
+    sourceFromLinkCache: Boolean = false,
+    sourceAutoSelected: Boolean = false,
 ) {
     PlayerScreenContent(
         PlayerScreenArgs(
@@ -87,10 +90,13 @@ internal fun PlayerScreen(
             initialPositionMs = initialPositionMs,
             initialProgressFraction = initialProgressFraction,
             contentLanguage = contentLanguage,
+            subtitleExtras = subtitleExtras,
             launchId = launchId,
             sourceFilename = sourceFilename,
             onOpenPartyMedia = onOpenPartyMedia,
             stream = stream,
+            sourceFromLinkCache = sourceFromLinkCache,
+            sourceAutoSelected = sourceAutoSelected,
         )
     )
 }

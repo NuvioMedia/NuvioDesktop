@@ -49,11 +49,13 @@ internal object DesktopPlayerPictureInPicture {
         pipWindow?.let { window ->
             if (videoSize.width > 0 && videoSize.height > 0) {
                 val ratio = videoSize.width.toFloat() / videoSize.height.toFloat()
+                if (window.aspectRatio == ratio) return@let
                 window.aspectRatio = ratio
                 runCatching {
                     val windowPointer = AwtNativeViewResolver.resolveNativeViewPointer(window)
                     NativePlayerBridge.setWindowAspectRatio(windowPointer, ratio)
-                }
+                }.onFailure { error -> log.w(error) { "failed to update PiP aspect ratio" } }
+                window.bounds = desktopPipBoundsForAspectRatio(window.bounds, ratio)
                 window.revalidate()
             }
         }
@@ -79,9 +81,11 @@ internal object DesktopPlayerPictureInPicture {
         val window = pipWindow
         pipWindow = null
         isEnabled = false
+        controller?.setPictureInPictureActive(false)
         window?.dispose()
         host = null
         controller = null
+        lastVideoSize = IntSize.Zero
         transition = false
         notifyChanged()
     }
@@ -136,6 +140,7 @@ internal object DesktopPlayerPictureInPicture {
             transition = false
             return
         }
+        player.setPictureInPictureActive(true)
         isEnabled = true
         log.d { "PiP entered" }
         transition = false
@@ -155,6 +160,7 @@ internal object DesktopPlayerPictureInPicture {
             log.d { "restoring PiP native surface success=$restored" }
             mainHost.requestFocusInWindow()
         }
+        player?.setPictureInPictureActive(false)
         runCatching {
             val windowPointer = AwtNativeViewResolver.resolveNativeViewPointer(window)
             NativePlayerBridge.setWindowResizable(windowPointer, false)
@@ -183,13 +189,12 @@ internal object DesktopPlayerPictureInPicture {
             ?: GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.defaultConfiguration
         val screen = configuration.bounds
         val insets = ToolkitInsets.get(configuration)
-        val width = 480
-        val height = (width / aspectRatio).toInt()
+        val size = desktopPipBoundsForAspectRatio(Rectangle(0, 0, 480, 180), aspectRatio)
         return Rectangle(
-            screen.x + screen.width - insets.right - width - 24,
-            screen.y + screen.height - insets.bottom - height - 24,
-            width,
-            height,
+            screen.x + screen.width - insets.right - size.width - 24,
+            screen.y + screen.height - insets.bottom - size.height - 24,
+            size.width,
+            size.height,
         )
     }
 

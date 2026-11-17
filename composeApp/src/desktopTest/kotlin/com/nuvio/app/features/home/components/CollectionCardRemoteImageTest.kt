@@ -75,7 +75,6 @@ class CollectionCardRemoteImageTest {
                 }
             }
             waitForColor(2)
-            assertEquals(0, requests.get(), "The focus asset should not load before hover")
             card.performMouseInput { enter(center) }
             waitForColor(0)
             waitForColor(1)

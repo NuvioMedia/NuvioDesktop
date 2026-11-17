@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
@@ -54,7 +53,6 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -68,7 +66,6 @@ import com.nuvio.app.core.ui.NuvioDesktopImageScaling
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.isFullscreenActionSupported
-import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.heroStretchHeight
 import com.nuvio.app.core.ui.ScreenActivityEffect
 import com.nuvio.app.core.ui.heroStretchZoom
@@ -84,7 +81,6 @@ import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 private const val HERO_BACKGROUND_PARALLAX = 0.055f
 private const val HERO_BACKGROUND_SCALE = 1.14f
@@ -228,6 +224,8 @@ fun HomeHeroSection(
                         layout.contentHorizontalPadding,
                     ),
                     coroutineScope = coroutineScope,
+                    showImdbRating = showImdbRating,
+                    showMdbListRatings = showMdbListRatings,
                     onItemClick = onItemClick,
                 )
             } else {
@@ -400,6 +398,8 @@ private fun HeroDesktopContentLayers(
     pagerState: PagerState,
     layout: HomeHeroLayout,
     heroWidthPx: Float,
+    showImdbRating: Boolean,
+    showMdbListRatings: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
     includePagerNeighbors: Boolean,
 ) {
@@ -423,6 +423,8 @@ private fun HeroDesktopContentLayers(
             DesktopHeroContentBlock(
                 item = items[page % items.size],
                 layout = layout,
+                showImdbRating = showImdbRating,
+                showMdbListRatings = showMdbListRatings,
                 onItemClick = onItemClick,
             )
         }
@@ -562,6 +564,8 @@ private fun DesktopHomeHeroFrame(
     includePagerNeighbors: Boolean,
     contentHorizontalPadding: Dp,
     coroutineScope: CoroutineScope,
+    showImdbRating: Boolean,
+    showMdbListRatings: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -657,6 +661,8 @@ private fun DesktopHomeHeroFrame(
                     pagerState = pagerState,
                     layout = layout,
                     heroWidthPx = heroWidthPx,
+                    showImdbRating = showImdbRating,
+                    showMdbListRatings = showMdbListRatings,
                     onItemClick = onItemClick,
                     includePagerNeighbors = includePagerNeighbors,
                 )
@@ -766,48 +772,6 @@ private fun currentHeroItem(
 }
 
 @Composable
-private fun HeroPageIndicatorDot(
-    pagerState: PagerState,
-    page: Int,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.onBackground)
-            .graphicsLayer {
-                val activeFraction = heroPageVisibility(pagerState, page)
-                alpha = 0.35f + (0.57f * activeFraction)
-            }
-            .heroPageIndicatorSize(pagerState = pagerState, page = page),
-    )
-}
-
-private fun Modifier.heroPageIndicatorSize(
-    pagerState: PagerState,
-    page: Int,
-): Modifier = layout { measurable, constraints ->
-    val activeFraction = heroPageVisibility(pagerState, page)
-    val widthPx = (8.dp.toPx() + (24.dp.toPx() * activeFraction)).roundToInt()
-    val heightPx = 8.dp.roundToPx()
-    val constrainedWidth = widthPx.coerceIn(constraints.minWidth, constraints.maxWidth)
-    val constrainedHeight = heightPx.coerceIn(constraints.minHeight, constraints.maxHeight)
-    val placeable = measurable.measure(
-        constraints.copy(
-            minWidth = constrainedWidth,
-            maxWidth = constrainedWidth,
-            minHeight = constrainedHeight,
-            maxHeight = constrainedHeight,
-        ),
-    )
-
-    layout(constrainedWidth, constrainedHeight) {
-        placeable.place(0, 0)
-    }
-}
-
-@Composable
 fun HomeHeroReservedSpace(
     modifier: Modifier = Modifier,
     viewportHeight: Dp? = null,
@@ -901,6 +865,8 @@ private fun HeroContentBlock(
 private fun DesktopHeroContentBlock(
     item: MetaPreview,
     layout: HomeHeroLayout,
+    showImdbRating: Boolean,
+    showMdbListRatings: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -957,21 +923,13 @@ private fun DesktopHeroContentBlock(
             )
         }
 
-        val genreText = desktopHeroGenreText(item)
-        if (genreText.isNotBlank()) {
-            Spacer(modifier = Modifier.height(NuvioTokens.Space.s12))
-            Text(
-                text = genreText,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = NuvioTokens.Type.bodyMd,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = NuvioTokens.LetterSpacing.none,
-                ),
-                color = colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Spacer(modifier = Modifier.height(NuvioTokens.Space.s12))
+        HomeHeroMetaRows(
+            item = item,
+            isTablet = true,
+            showImdbRating = showImdbRating,
+            showMdbListRatings = showMdbListRatings,
+        )
 
         item.description?.takeIf { it.isNotBlank() }?.let { description ->
             Spacer(modifier = Modifier.height(NuvioTokens.Space.s16))
@@ -1032,24 +990,6 @@ private fun desktopHeroLogoSlotHeight(layout: HomeHeroLayout): Dp =
         layout.contentMaxWidth >= 520.dp -> 112.dp
         else -> 104.dp
     }
-
-private fun desktopHeroGenreText(item: MetaPreview): String =
-    item.genres
-        .take(3)
-        .joinToString(" • ")
-        .ifBlank { item.type.replaceFirstChar(Char::uppercase) }
-
-@Composable
-private fun HeroMetaText(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onBackground,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
 
 internal fun homeHeroLayout(
     maxWidthDp: Float,
@@ -1200,16 +1140,6 @@ private fun mobileHeroHeight(
     } else {
         cappedHeight.coerceIn(MOBILE_HERO_MIN_HEIGHT_DP.dp, MOBILE_HERO_MAX_HEIGHT_DP.dp)
     }
-}
-
-@Composable
-private fun HeroMetaDot() {
-    Box(
-        modifier = Modifier
-            .size(4.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)),
-    )
 }
 
 private fun heroScrollOffsetPx(

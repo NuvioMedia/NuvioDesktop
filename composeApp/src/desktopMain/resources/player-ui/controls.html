@@ -325,27 +325,19 @@
                       <button class="panel-button" id="subtitleDelayReset" type="button">Reset</button>
                     </div>
                   </div>
-                  <div class="style-section style-toggle-section">
-                    <span class="style-label" id="customSubtitleStyleLabel">Use custom styling</span>
-                    <button class="panel-button" id="customSubtitleStyleToggle" type="button">On</button>
-                  </div>
-                  <div class="style-section">
-                    <span class="style-label" id="fontSizeLabel">Font Size</span>
-                    <div class="stepper">
-                      <button class="round-step" id="fontSizeMinus" type="button">-</button>
-                      <span class="stepper-value" id="fontSizeValue">18sp</span>
-                      <button class="round-step" id="fontSizePlus" type="button">+</button>
-                    </div>
-                  </div>
-                  <div class="style-section">
-                    <span class="style-label" id="bottomOffsetLabel">Bottom Offset</span>
-                    <div class="stepper">
-                      <button class="round-step" id="bottomOffsetMinus" type="button">-</button>
-                      <span class="stepper-value" id="bottomOffsetValue">20</span>
-                      <button class="round-step" id="bottomOffsetPlus" type="button">+</button>
-                    </div>
-                  </div>
                   <div class="custom-subtitle-style-controls" id="customSubtitleStyleControls">
+                    <div class="style-section">
+                      <span class="style-label" id="subtitleFontLabel">Font</span>
+                      <button class="font-row" id="subtitleFontRow" type="button"><span id="subtitleFontName">Default</span><span class="font-row-chevron">›</span></button>
+                    </div>
+                    <div class="style-section">
+                      <span class="style-label" id="fontSizeLabel">Font Size</span>
+                      <div class="stepper">
+                        <button class="round-step" id="fontSizeMinus" type="button">-</button>
+                        <span class="stepper-value" id="fontSizeValue">18sp</span>
+                        <button class="round-step" id="fontSizePlus" type="button">+</button>
+                      </div>
+                    </div>
                     <div class="style-section">
                       <span class="style-label" id="boldLabel">Bold</span>
                       <button class="panel-button" id="boldToggle" type="button">Off</button>
@@ -363,10 +355,52 @@
                       </div>
                     </div>
                     <div class="style-section">
+                      <span class="style-label" id="backgroundColorLabel">Background Color</span>
+                      <div class="swatch-row" id="backgroundColorSwatches"></div>
+                    </div>
+                    <div class="style-section">
+                      <span class="style-label" id="backgroundOpacityLabel">Background opacity</span>
+                      <div class="stepper">
+                        <button class="round-step" id="backgroundOpacityMinus" type="button">-</button>
+                        <span class="stepper-value" id="backgroundOpacityValue">0%</span>
+                        <button class="round-step" id="backgroundOpacityPlus" type="button">+</button>
+                      </div>
+                    </div>
+                    <div class="style-section">
                       <span class="style-label" id="outlineLabel">Outline</span>
                       <button class="panel-button" id="outlineToggle" type="button">On</button>
+                    </div>
+                    <div class="style-section" id="outlineColorSection">
                       <span class="style-label" id="outlineColorLabel">Outline Color</span>
                       <div class="swatch-row" id="outlineColorSwatches"></div>
+                    </div>
+                    <div class="style-section">
+                      <span class="style-label" id="shadowLabel">Drop shadow</span>
+                      <button class="panel-button" id="shadowToggle" type="button">Off</button>
+                    </div>
+                    <div class="style-section" id="shadowOpacitySection">
+                      <span class="style-label" id="shadowOpacityLabel">Shadow opacity</span>
+                      <div class="stepper">
+                        <button class="round-step" id="shadowOpacityMinus" type="button">-</button>
+                        <span class="stepper-value" id="shadowOpacityValue">75%</span>
+                        <button class="round-step" id="shadowOpacityPlus" type="button">+</button>
+                      </div>
+                    </div>
+                    <div class="style-section" id="shadowSizeSection">
+                      <span class="style-label" id="shadowSizeLabel">Shadow size</span>
+                      <div class="stepper">
+                        <button class="round-step" id="shadowSizeMinus" type="button">-</button>
+                        <span class="stepper-value" id="shadowSizeValue">2</span>
+                        <button class="round-step" id="shadowSizePlus" type="button">+</button>
+                      </div>
+                    </div>
+                    <div class="style-section">
+                      <span class="style-label" id="bottomOffsetLabel">Bottom Offset</span>
+                      <div class="stepper">
+                        <button class="round-step" id="bottomOffsetMinus" type="button">-</button>
+                        <span class="stepper-value" id="bottomOffsetValue">20</span>
+                        <button class="round-step" id="bottomOffsetPlus" type="button">+</button>
+                      </div>
                     </div>
                   </div>
                   <div class="style-section">
@@ -379,7 +413,7 @@
                     <div id="autoSyncCueList"></div>
                   </div>
                   <div class="style-section">
-                    <button class="panel-button" id="subtitleStyleReset" type="button">Reset Defaults</button>
+                    <button class="panel-button" id="subtitleStyleReset" type="button">Reset appearance</button>
                   </div>
                 </div>
               </div>
@@ -403,6 +437,20 @@
       </section>
       <section class="modal-layer stream-info-modal" id="streamInfoModal" aria-label="Stream info" hidden>
         <div class="stream-info-content" id="streamInfoContent"></div>
+      </section>
+      <section class="modal-layer" id="subtitleFontModal" aria-label="Font" hidden>
+        <div class="track-panel font-picker-panel">
+          <div class="track-header-row">
+            <div class="track-title" id="subtitleFontModalTitle">Font</div>
+          </div>
+          <div class="track-list" id="subtitleFontList"></div>
+          <div class="stream-subtitle" id="subtitleFontHint"></div>
+          <div class="stream-subtitle font-picker-error" id="subtitleFontError" hidden></div>
+          <div class="panel-actions">
+            <button class="panel-button" id="subtitleFontImport" type="button">Import font</button>
+            <button class="panel-button primary" id="subtitleFontDone" type="button">Done</button>
+          </div>
+        </div>
       </section>
       <section class="modal-layer player-side-modal" id="chaptersModal" aria-label="Chapters" hidden>
         <div class="track-panel player-side-panel">

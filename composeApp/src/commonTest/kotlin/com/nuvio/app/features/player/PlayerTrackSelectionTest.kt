@@ -281,6 +281,51 @@ class PlayerTrackSelectionTest {
     }
 
     @Test
+    fun restoreIgnoresSameTrackIdWithDifferentLanguage() {
+        // Episode 1 saved English at id "track-1"; episode 2 has Russian at that id.
+        // Desktop doesn't save the forced flag, so subtitleIsForced stays null.
+        val selectedIndex = findPersistedSubtitleTrackIndex(
+            tracks = listOf(
+                subtitleTrack(index = 0, language = "eng", isForced = true),
+                subtitleTrack(index = 1, language = "rus", isForced = false),
+            ),
+            preference = PersistedPlayerTrackPreference(
+                subtitleType = PersistedSubtitleSelectionType.INTERNAL,
+                subtitleLanguage = "eng",
+                subtitleTrackId = "track-1",
+            ),
+        )
+
+        assertEquals(0, selectedIndex)
+    }
+
+    @Test
+    fun forcedPickSavedWithoutFlagRestoresForcedTrackNotFullOne() {
+        // Older desktop builds saved no forced flag; the name still says forced.
+        val preference = PersistedPlayerTrackPreference(
+            subtitleType = PersistedSubtitleSelectionType.INTERNAL,
+            subtitleLanguage = "eng",
+            subtitleName = "English-FORCED-PGS",
+            subtitleTrackId = "track-0",
+        )
+
+        val withForced = findPersistedSubtitleTrackIndex(
+            tracks = listOf(
+                subtitleTrack(index = 0, language = "eng", isForced = false),
+                subtitleTrack(index = 1, language = "eng", isForced = true),
+            ),
+            preference = preference,
+        )
+        val withoutForced = findPersistedSubtitleTrackIndex(
+            tracks = listOf(subtitleTrack(index = 0, language = "eng", isForced = false)),
+            preference = preference,
+        )
+
+        assertEquals(1, withForced)
+        assertEquals(-1, withoutForced)
+    }
+
+    @Test
     fun forcedAddonMatchIgnoresRegularTranslationAddons() {
         val regular = addonSubtitle(id = "english", language = "en")
         val forced = addonSubtitle(
@@ -383,6 +428,24 @@ class PlayerTrackSelectionTest {
         language = language,
         isForced = isForced,
     )
+
+    @Test
+    fun persistedAddonSubtitleMatchesStableIdWhenUrlChanges() {
+        val subtitles = listOf(
+            addonSubtitle(id = "pl-first", language = "pol", url = "https://example.com/e2/a.srt"),
+            addonSubtitle(id = "pl-second", language = "pol", url = "https://example.com/e2/b.srt"),
+        )
+        val preference = PersistedPlayerTrackPreference(
+            subtitleType = PersistedSubtitleSelectionType.ADDON,
+            subtitleLanguage = "pol",
+            subtitleName = "Polish",
+            addonSubtitleId = "pl-second",
+            addonSubtitleUrl = "https://example.com/e1/b.srt",
+            addonSubtitleAddonName = "Addon",
+        )
+
+        assertEquals("pl-second", findPersistedAddonSubtitle(subtitles, preference)?.id)
+    }
 
     private fun addonSubtitle(
         id: String,

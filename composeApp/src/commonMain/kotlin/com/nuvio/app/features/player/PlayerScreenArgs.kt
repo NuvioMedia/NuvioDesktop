@@ -47,8 +47,11 @@ internal data class PlayerScreenArgs(
     val initialPositionMs: Long,
     val initialProgressFraction: Float?,
     val contentLanguage: String? = null,
+    val subtitleExtras: SubtitleRequestExtras? = null,
     val launchId: Long? = null,
     val sourceFilename: String? = null,
     val onOpenPartyMedia: (PartyMedia) -> Unit = {},
     val stream: com.nuvio.app.features.streams.StreamItem? = null,
+    val sourceFromLinkCache: Boolean = false,
+    val sourceAutoSelected: Boolean = false,
 )

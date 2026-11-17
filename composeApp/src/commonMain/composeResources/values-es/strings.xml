@@ -642,6 +642,7 @@
     <string name="downloads_status_failed">Falló</string>
     <string name="downloads_status_paused">Pausado • %1$s</string>
     <string name="episodes_cd_watched">Visto</string>
+    <string name="episodes_unavailable">No disponible</string>
     <string name="episodes_season">Temporada %1$d</string>
     <string name="episodes_specials">Especiales</string>
     <string name="floating_prompt_continue_where_left_off">Continuar donde lo dejaste</string>
@@ -1268,7 +1269,7 @@
     <string name="settings_playback_vod_cache_warning">Se seguirá escribiendo en el disco mientras se reproduce una transmisión almacenada en caché. El nuevo tamaño se aplicará la próxima vez que se inicie la aplicación.</string>
     <string name="settings_playback_exo_chapters">Mostrar capítulos</string>
     <string name="settings_playback_chapters_description">Marca los capítulos del vídeo en la barra de progreso y los muestra en una lista dentro del reproductor</string>
-    <string name="settings_playback_exo_chapters_description">Lee los capítulos de los archivos MKV para marcarlos en la barra de progreso y mostrarlos en una lista dentro del reproductor. Hace unas pocas peticiones extra al empezar a reproducir. libmpv siempre muestra los capítulos</string>
+    <string name="settings_playback_exo_chapters_description">Lee los capítulos de los archivos MKV para marcarlos en la barra de progreso y mostrarlos en una lista dentro del reproductor.</string>
     <string name="settings_tmdb_api_key_label">Clave de API</string>
     <string name="settings_tmdb_api_key_override_description">Usa tu propia clave de API de TMDB, o déjala en blanco para usar la predeterminada.</string>
     <string name="settings_tmdb_personal_api_key">Clave de API personal</string>
@@ -1794,6 +1795,13 @@
     <string name="notifications_test_send_failed">No se pudo enviar una notificación de prueba.</string>
     <string name="notifications_test_sent_for">Notificación de prueba enviada para %1$s.</string>
     <string name="player_unable_to_play_stream">No se puede reproducir este stream.</string>
+    <string name="player_error_stream_expired">El enlace de la transmisión ha caducado. Prueba con otra fuente.</string>
+    <string name="player_error_stream_removed">El enlace de la transmisión ha caducado o ha sido eliminado. Prueba con otra fuente.</string>
+    <string name="player_error_stream_rate_limited">Demasiadas solicitudes a la fuente de la transmisión. Espera un momento e inténtalo de nuevo.</string>
+    <string name="player_error_stream_unavailable">El servidor de la transmisión no está disponible en este momento. Prueba con otra fuente.</string>
+    <string name="player_error_stream_blocked">La fuente de la transmisión está bloqueada o restringida. Prueba con otra fuente.</string>
+    <string name="player_error_source_invalid_content">Error de fuente: la fuente de la transmisión devolvió contenido inválido o no reproducible. Es posible que el enlace haya caducado o que el servidor haya devuelto una página de error en lugar de vídeo.\n\nPrueba con otra fuente. [%1$s]</string>
+    <string name="player_error_unsupported_format">Esta transmisión usa un formato que tu dispositivo podría no admitir. Prueba con otra fuente. [%1$s]</string>
     <string name="player_engine_unavailable_rebuild">Motor de reproductor MPV no disponible. Reconstruya la aplicación.</string>
     <string name="profile_pin_changed_requires_refresh">El PIN de este perfil cambió. Conéctate una vez para actualizar el bloqueo en este dispositivo.</string>
     <string name="profile_pin_clear_failed">No se pudo quitar el bloqueo por PIN. Inténtalo de nuevo.</string>
@@ -2312,15 +2320,7 @@
     <string name="collections_editor_trakt_list_title_format">Lista de rutas %1$s</string>
     <string name="external_player_android_system">reproductor del sistema android</string>
     <string name="p2p_consent_title">Transmisión P2P</string>
-    <string name="p2p_consent_body">Esta transmisión utiliza tecnología peer-to-peer (P2P). Al activar P2P, reconoces y aceptas que:
-
-• Tu dirección IP será visible para otros pares de la red
-• Eres el único responsable del contenido al que accedes
-• Confirmas que tienes el derecho legal de reproducir este contenido en tu jurisdicción
-• Nuvio no aloja, distribuye ni controla ningún contenido P2P
-• Nuvio no asume ninguna responsabilidad por las consecuencias legales derivadas de tu uso del streaming P2P
-
-Utilizas esta función bajo tu propia responsabilidad. P2P se puede desactivar en cualquier momento en Ajustes.</string>
+    <string name="p2p_consent_body">Esta transmisión utiliza tecnología peer-to-peer (P2P). Al activar P2P, reconoces y aceptas que:\n\n• Tu dirección IP será visible para otros pares de la red\n• Eres el único responsable del contenido al que accedes\n• Confirmas que tienes el derecho legal de reproducir este contenido en tu jurisdicción\n• Nuvio no aloja, distribuye ni controla ningún contenido P2P\n• Nuvio no asume ninguna responsabilidad por las consecuencias legales derivadas de tu uso del streaming P2P\n\nUtilizas esta función bajo tu propia responsabilidad. P2P se puede desactivar en cualquier momento en Ajustes.</string>
     <string name="p2p_consent_enable">Habilitar P2P</string>
     <string name="p2p_consent_cancel">Cancelar</string>
     <string name="p2p_error_unknown">Error de torrent desconocido</string>
@@ -2374,6 +2374,8 @@ Utilizas esta función bajo tu propia responsabilidad. P2P se puede desactivar e
         <item quantity="one">%d título</item>
         <item quantity="other">%d títulos</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d título</string>
+    <string name="entity_browse_title_count_other">%1$d títulos</string>
     <string name="settings_playback_auto_skip_segments">Omisión automática</string>
     <string name="settings_playback_auto_skip_none">Ninguna</string>
     <string name="settings_playback_auto_skip_intro">Intro / Apertura</string>
@@ -2467,4 +2469,55 @@ Utilizas esta función bajo tu propia responsabilidad. P2P se puede desactivar e
     <string name="stream_info_subtitle_source_embedded">Integrado</string>
     <string name="stream_info_player_engine">Motor de reproducción</string>
     <string name="stream_info_server">Servidor</string>
+    <string name="settings_group_you">Tú</string>
+    <string name="settings_group_look">Personalización</string>
+    <string name="settings_group_watch">Multimedia</string>
+    <string name="settings_group_services">Servicios</string>
+    <string name="settings_group_system">Sistema</string>
+    <string name="compose_settings_page_layout">Diseño</string>
+    <string name="compose_settings_root_layout_description">Inicio, tarjetas, detalles, fuentes y navegación</string>
+    <string name="compose_settings_root_about_description">Información de la app, actualizaciones y agradecimientos</string>
+    <string name="settings_playback_page_player">Reproductor</string>
+    <string name="settings_playback_page_player_description">Reproductor predeterminado y motor de reproducción</string>
+    <string name="settings_playback_page_stream_selection">Selección de fuentes</string>
+    <string name="settings_playback_page_stream_selection_description">Elige las fuentes automáticamente o reutiliza el último enlace</string>
+    <string name="settings_playback_page_up_next">A continuación</string>
+    <string name="settings_playback_page_up_next_description">Reproducción automática del siguiente episodio y cuándo mostrar el aviso</string>
+    <string name="settings_playback_page_skip">Saltar segmentos</string>
+    <string name="settings_playback_page_skip_description">Salta intros, resúmenes y créditos</string>
+    <string name="settings_playback_page_interface">Interfaz del reproductor</string>
+    <string name="settings_playback_page_interface_description">Controles, superposiciones, gestos táctiles y mantener pulsado para acelerar</string>
+    <string name="settings_playback_page_audio">Audio</string>
+    <string name="settings_playback_page_audio_description">Idiomas preferidos y salida de audio</string>
+    <string name="settings_playback_page_subtitles">Subtítulos</string>
+    <string name="settings_playback_page_subtitles_description">Idiomas, estilo y renderizado</string>
+    <string name="settings_playback_page_video">Vídeo</string>
+    <string name="settings_playback_page_video_description">Decodificación, salida de vídeo y HDR</string>
+    <string name="settings_playback_page_buffer">Búfer y caché</string>
+    <string name="settings_playback_page_buffer_description">Memoria, almacenamiento en búfer y caché en disco</string>
+    <string name="settings_playback_page_p2p">Transmisión P2P</string>
+    <string name="settings_playback_page_p2p_description">Reproducción de torrents, perfil y caché</string>
+    <string name="settings_appearance_description">Temas, icono de la app e idioma</string>
+    <string name="settings_appearance_title">Apariencia</string>
+    <string name="subtitle_appearance">Apariencia</string>
+    <string name="subtitle_preview">Vista previa</string>
+    <string name="subtitle_preview_text">Toda historia empieza con un poco de curiosidad.</string>
+    <string name="subtitle_appearance_hint">Se aplica a los subtítulos de texto. Los subtítulos ASS con estilo y los de imagen conservan su aspecto original.</string>
+    <string name="subtitle_font">Tipografía</string>
+    <string name="subtitle_font_default">Predeterminada</string>
+    <string name="subtitle_font_sans">Sin serifa</string>
+    <string name="subtitle_font_serif">Con serifa</string>
+    <string name="subtitle_font_mono">Monoespaciada</string>
+    <string name="subtitle_font_import">Importar tipografía</string>
+    <string name="subtitle_font_import_hint">Elige un archivo .ttf u .otf de hasta 10 MB. Las tipografías importadas se quedan en este dispositivo.</string>
+    <string name="subtitle_font_import_error">No se pudo importar esta tipografía. Elige un archivo .ttf u .otf válido de menos de 10 MB.</string>
+    <string name="subtitle_font_missing">Tipografía no disponible en este dispositivo. Se usa la tipografía predeterminada.</string>
+    <string name="subtitle_font_remove">Eliminar %1$s</string>
+    <string name="subtitle_background_opacity">Opacidad del fondo</string>
+    <string name="subtitle_background_roundness">Redondeo de las esquinas</string>
+    <string name="subtitle_shadow">Sombra</string>
+    <string name="subtitle_shadow_description">Separa el texto de las escenas luminosas.</string>
+    <string name="subtitle_shadow_opacity">Opacidad de la sombra</string>
+    <string name="subtitle_shadow_size">Tamaño de la sombra</string>
+    <string name="subtitle_reset_appearance">Restablecer apariencia</string>
 </resources>

@@ -25,8 +25,10 @@ import com.nuvio.app.features.details.components.DetailHeroMetaBadge
 import com.nuvio.app.features.details.components.ImdbRatingSourceLabel
 import com.nuvio.app.features.details.components.ImdbYellow
 import com.nuvio.app.features.details.components.RatingsRow
+import com.nuvio.app.features.details.components.formatOneDecimal
 import com.nuvio.app.features.details.formatRuntimeForDisplay
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.isDesktop
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.media_movie
 import nuvio.composeapp.generated.resources.media_series
@@ -58,7 +60,9 @@ internal fun HomeHeroMetaRows(
     val ratings = if (showMdbListRatings) item.externalRatings else emptyList()
     val imdbRating = item.imdbRating?.trim()
         ?.takeIf { showImdbRating && ratings.isEmpty() }
-        ?.takeIf { raw -> raw.toDoubleOrNull()?.let { it > 0.0 } == true }
+        ?.toDoubleOrNull()
+        ?.takeIf { it > 0.0 }
+        ?.let(::formatOneDecimal)
     val primaryImdbRating = imdbRating?.takeIf { !isSeries && badges.isEmpty() }
     val secondaryImdbRating = imdbRating?.takeIf { primaryImdbRating == null }
     val horizontalAlignment = if (isTablet) Alignment.Start else Alignment.CenterHorizontally
@@ -120,7 +124,7 @@ internal fun HomeHeroMetaRows(
         if (ratings.isNotEmpty()) {
             RatingsRow(
                 ratings = ratings,
-                maxItems = HERO_RATINGS_LIMIT,
+                maxItems = if (isDesktop) Int.MAX_VALUE else HERO_RATINGS_LIMIT,
             )
         }
     }

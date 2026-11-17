@@ -1,6 +1,5 @@
 package com.nuvio.app.features.player
 
-import com.nuvio.app.features.autosync.AutoSyncFailure
 import com.nuvio.app.features.autosync.AutoSyncPlayerController
 import com.nuvio.app.features.autosync.AutoSyncSubtitleCandidate
 
@@ -32,10 +31,4 @@ internal fun PlayerEngineController.setAutoSyncAppliedListener(
     listener: ((subtitleUrl: String, delayMs: Int) -> Unit)?,
 ) {
     (this as? AutoSyncPlayerController)?.setAutoSyncAppliedListener(listener)
-}
-
-internal fun PlayerEngineController.setAutoSyncFailureListener(
-    listener: ((AutoSyncFailure) -> Unit)?,
-) {
-    (this as? AutoSyncPlayerController)?.setAutoSyncFailureListener(listener)
 }
