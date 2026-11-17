@@ -60,6 +60,7 @@ jobs:
         env:
           VERSION_FILE: composeApp/Configuration/DesktopVersion.properties
           VERSION_KEY: VERSION_NAME
+          VERSION_BUILD_KEY: VERSION_CODE
           VERSION_FIRST_PARENT: "true"
         run: ./scripts/release-metadata.sh "${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
 

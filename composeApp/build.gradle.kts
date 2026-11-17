@@ -698,10 +698,17 @@ val linuxPlayerBridgeOutput = layout.buildDirectory.file("native/linux/libplayer
 val linuxPlayerBridgeJavaHome = providers.systemProperty("java.home").get()
 val linuxPlayerBridgeSourceFile = linuxPlayerBridgeSource.asFile
 val linuxPlayerBridgeOutputFile = linuxPlayerBridgeOutput.get().asFile
+// Keep the distributed bridge compatible with x86-64 CPUs without AVX.
+val linuxPlayerBridgeCpuFlags = if (isLinuxHost && normalizedLinuxArch(System.getProperty("os.arch")) == "x86_64") {
+    "-march=x86-64 -mtune=generic"
+} else {
+    ""
+}
 val buildLinuxPlayerBridge = tasks.register<Exec>("buildLinuxPlayerBridge") {
     notCompatibleWithConfigurationCache("Builds a host-local player bridge against system libmpv.")
     enabled = isLinuxHost
     inputs.file(linuxPlayerBridgeSourceFile)
+    inputs.property("cpuFlags", linuxPlayerBridgeCpuFlags)
     outputs.file(linuxPlayerBridgeOutputFile)
     val src = linuxPlayerBridgeSourceFile.absolutePath
     val out = linuxPlayerBridgeOutputFile.absolutePath
@@ -713,6 +720,7 @@ val buildLinuxPlayerBridge = tasks.register<Exec>("buildLinuxPlayerBridge") {
         "c++ -std=c++17 -shared -fPIC -O2 " +
             "-I'$jni' -I'$jni/linux' " +
             "$(pkg-config --cflags mpv webkit2gtk-4.1 gtk+-3.0 x11 xcomposite xext) " +
+            "$linuxPlayerBridgeCpuFlags " +
             "'$src' -o '$out' " +
             "$(pkg-config --libs mpv webkit2gtk-4.1 gtk+-3.0 x11 xcomposite xext) -lpthread",
     )
@@ -1700,4 +1708,12 @@ configurations.all {
     exclude(group = "androidx.media3", module = "media3-datasource")
     exclude(group = "androidx.media3", module = "media3-datasource-okhttp")
     exclude(group = "androidx.media3", module = "media3-extractor")
+}
+
+composeCompiler {
+    stabilityConfigurationFiles.add(project.layout.projectDirectory.file("compose_stability_config.conf"))
+    if (providers.gradleProperty("composeCompilerReports").orNull == "true") {
+        metricsDestination = layout.buildDirectory.dir("compose_metrics")
+        reportsDestination = layout.buildDirectory.dir("compose_reports")
+    }
 }

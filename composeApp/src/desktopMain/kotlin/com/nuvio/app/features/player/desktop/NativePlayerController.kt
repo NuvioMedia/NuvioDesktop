@@ -1726,6 +1726,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
             append('}')
         }
         append(',')
+        appendJsonField("chapterTitleEnabled", chapterTitleEnabled)
+        append(',')
         appendJsonField("chaptersLabel", chaptersLabel)
         append(',')
         appendJsonField("chaptersPanelTitle", chaptersPanelTitle)
