@@ -74,7 +74,7 @@ internal fun DesktopNavigationBar(
         label = "desktop_nav_glow",
     )
     BoxWithConstraints(
-        modifier = modifier.fillMaxWidth().padding(contentPadding).padding(horizontal = 16.dp),
+        modifier = modifier.fillMaxWidth().nuvioTrackTopBarFocus().padding(contentPadding).padding(horizontal = 16.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
         val viewportWidth = windowWidth ?: maxWidth

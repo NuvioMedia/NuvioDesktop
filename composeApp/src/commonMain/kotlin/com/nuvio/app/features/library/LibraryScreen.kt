@@ -176,6 +176,7 @@ fun LibraryScreen(
     }
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+
     ScreenActivityEffect(listState) { screenActive ->
         if (!screenActive) listState.stopScroll()
     }

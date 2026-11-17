@@ -30,6 +30,7 @@ import com.nuvio.app.core.ui.PosterLandscapeAspectRatio
 import com.nuvio.app.core.ui.desktopCatalogShelfPosterBaseWidthDp
 import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.collection.Collection
@@ -120,14 +121,15 @@ private fun CollectionFolderCard(
         }
     }
 
+    val shapeCorner = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
     Column(
         modifier = Modifier
+            .nuvioFocusBorder(shapeCorner)
             .posterCardClickable(onClick = onClick, onLongClick = null)
             .then(modifier)
             .width(cardWidth),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        val shapeCorner = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
         val imageUrl = collectionFolderCardImageUrl(folder)
         Card(
             modifier = Modifier

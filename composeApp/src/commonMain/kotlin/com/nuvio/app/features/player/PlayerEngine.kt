@@ -17,6 +17,8 @@ interface PlayerEngineController {
     fun retry()
     fun setPlaybackSpeed(speed: Float)
     fun setMuted(muted: Boolean) {}
+    /** Adjusts output volume by [deltaFraction] on a 0..1 scale; true when the platform applied it. */
+    fun adjustVolumeBy(deltaFraction: Float): Boolean = false
     fun getAudioTracks(): List<AudioTrack>
     fun getSubtitleTracks(): List<SubtitleTrack>
     fun applyAudioLanguagePreferences(languages: List<String>)
