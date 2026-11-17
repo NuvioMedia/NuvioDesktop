@@ -196,7 +196,7 @@ actual fun PlatformKeyboardNavigationHost() {
                     // register one, fall back to the same navigation back used by the Escape key.
                     XboxButton.B -> {
                         ControllerSoundPlayer.playBack()
-                        DesktopEscapeShortcut.onBack?.invoke()
+                        DesktopEscapeShortcut.dispatch()
                     }
                     else -> Unit
                 }
