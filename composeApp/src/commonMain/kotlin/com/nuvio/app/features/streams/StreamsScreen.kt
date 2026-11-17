@@ -90,6 +90,7 @@ import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.core.ui.featherArtwork
 import com.nuvio.app.core.ui.rememberArtworkBackdrop
+import com.nuvio.app.core.ui.platformTouchScroll
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -1229,6 +1230,7 @@ private fun DesktopStreamActionsMenu(
     ) {
         Column(
             modifier = Modifier
+                .platformTouchScroll()
                 .width(244.dp)
                 .shadow(elevation = 14.dp, shape = menuShape)
                 .clip(menuShape)
