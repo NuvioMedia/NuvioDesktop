@@ -1118,8 +1118,6 @@ public:
         return flagProperty("pause", true);
     }
 
-    // Exact seeks: with hr-seek=no a plain seek lands on a keyframe, up to one GOP
-    // (often ~10 s) away from the requested position.
     void seekToMilliseconds(long long positionMs) {
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
@@ -1806,7 +1804,6 @@ private:
                 "stream-lavf-o",
                 "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_on_http_error=%23%408,429,500,502,503,504,reconnect_delay_max=15"
             );
-            setMpvOptionStringLocked("hr-seek", "no");
             std::string shaderCacheDirectory = mpvShaderCacheDirectory();
             if (!shaderCacheDirectory.empty()) {
                 setMpvOptionStringLocked("gpu-shader-cache-dir", shaderCacheDirectory.c_str());
