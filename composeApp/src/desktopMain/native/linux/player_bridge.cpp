@@ -1585,6 +1585,15 @@ extern "C" {
 // types once and canonically; the bridge thread's gtk_init then no-ops.
 // Approach from skoruppa's linux-webkitgtk branch (initGtkEarly).
 JNIEXPORT jboolean JNICALL NP(initGtkEarly)(JNIEnv *, jobject) {
+    const char *waylandDisplay = std::getenv("WAYLAND_DISPLAY");
+    const char *sessionType = std::getenv("XDG_SESSION_TYPE");
+    if ((waylandDisplay && *waylandDisplay) ||
+        (sessionType && std::strcmp(sessionType, "wayland") == 0)) {
+        // Rootless XWayland leaves X11 windows un-reparented. AWT needs to know
+        // before it creates the first window, or its canvas can keep stale bounds.
+        setenv("_JAVA_AWT_WM_NONREPARENTING", "1", 0);
+    }
+
     // Same backend pin as gtkThreadMain: the controls overlay is driven with
     // X11/XComposite, so GTK must not come up on the Wayland backend here.
     gdk_set_allowed_backends("x11");
