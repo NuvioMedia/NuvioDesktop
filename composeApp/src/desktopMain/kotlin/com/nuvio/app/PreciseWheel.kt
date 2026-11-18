@@ -35,6 +35,7 @@ internal fun postPreciseWheel(
     pixels: Double,
     horizontal: Boolean,
     modifiers: Int,
+    postEvent: (MouseWheelEvent) -> Unit = { Toolkit.getDefaultToolkit().systemEventQueue.postEvent(it) },
 ): Double {
     if (abs(pixels) < 1) return pixels
     // Compose scales a wheel rotation by the size of the scrolled viewport
@@ -48,7 +49,7 @@ internal fun postPreciseWheel(
     val local = Point(pointer).also { SwingUtilities.convertPointFromScreen(it, component) }
     // Compose reads a shifted wheel as horizontal.
     val shift = if (horizontal) InputEvent.SHIFT_DOWN_MASK else 0
-    Toolkit.getDefaultToolkit().systemEventQueue.postEvent(
+    postEvent(
         MouseWheelEvent(
             component,
             MouseEvent.MOUSE_WHEEL,

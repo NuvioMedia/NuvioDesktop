@@ -626,6 +626,8 @@ internal fun settingsSearchEntries(
                 stringResource(Res.string.settings_playback_touch_gestures_description),
             ) else null,
             if (!isDesktop) PlaybackSearchRow("hold-speed", stringResource(Res.string.settings_playback_hold_speed)) else null,
+            PlaybackSearchRow("exo-chapters", stringResource(Res.string.settings_playback_exo_chapters), stringResource(if (isDesktop) Res.string.settings_playback_chapters_description else Res.string.settings_playback_exo_chapters_description)),
+            PlaybackSearchRow("chapter-title", stringResource(Res.string.settings_playback_chapter_title), stringResource(Res.string.settings_playback_chapter_title_description)),
         ),
     )
     addPlaybackRows(
@@ -683,7 +685,6 @@ internal fun settingsSearchEntries(
                     add(PlaybackSearchRow("auto-switch-engine", stringResource(Res.string.settings_playback_auto_switch_engine_on_error), stringResource(Res.string.settings_playback_auto_switch_engine_on_error_description), page = SettingsPage.PlaybackPlayer))
                 }
                 add(PlaybackSearchRow("decoder-priority", stringResource(Res.string.settings_playback_decoder_priority)))
-                add(PlaybackSearchRow("exo-chapters", stringResource(Res.string.settings_playback_exo_chapters), stringResource(if (isDesktop) Res.string.settings_playback_chapters_description else Res.string.settings_playback_exo_chapters_description), page = SettingsPage.PlaybackInterface))
                 if (!isDesktop) {
                     add(PlaybackSearchRow("dv7-hevc", stringResource(Res.string.settings_playback_map_dv7_to_hevc), stringResource(Res.string.settings_playback_map_dv7_to_hevc_description)))
                     add(PlaybackSearchRow("tunneled-playback", stringResource(Res.string.settings_playback_tunneled_playback), stringResource(Res.string.settings_playback_tunneled_playback_description)))
@@ -691,6 +692,8 @@ internal fun settingsSearchEntries(
                     add(PlaybackSearchRow("custom-buffers", stringResource(Res.string.settings_playback_buffer_custom), stringResource(Res.string.settings_playback_buffer_custom_description), page = SettingsPage.PlaybackBuffer))
                     add(PlaybackSearchRow("vod-cache", stringResource(Res.string.settings_playback_vod_cache), stringResource(Res.string.settings_playback_vod_cache_description), page = SettingsPage.PlaybackBuffer))
                 }
+                add(PlaybackSearchRow("remember-audio-delay", stringResource(Res.string.settings_playback_remember_audio_delay), stringResource(Res.string.settings_playback_remember_audio_delay_description), page = SettingsPage.PlaybackAudio))
+                add(PlaybackSearchRow("downmix", stringResource(Res.string.settings_playback_downmix), stringResource(Res.string.settings_playback_downmix_description), page = SettingsPage.PlaybackAudio))
             },
         )
         addPlaybackRows(
@@ -699,8 +702,8 @@ internal fun settingsSearchEntries(
             section = playbackSubtitleRendering,
             page = SettingsPage.PlaybackSubtitles,
             rows = buildList {
-                add(PlaybackSearchRow("libass", stringResource(Res.string.settings_playback_enable_libass), stringResource(Res.string.settings_playback_enable_libass_description)))
                 if (!isDesktop) {
+                    add(PlaybackSearchRow("libass", stringResource(Res.string.settings_playback_enable_libass), stringResource(Res.string.settings_playback_enable_libass_description)))
                     add(PlaybackSearchRow("libass-render-mode", stringResource(Res.string.settings_playback_render_mode), stringResource(Res.string.settings_playback_render_mode_description)))
                     add(PlaybackSearchRow("libass-render", stringResource(Res.string.settings_playback_render_scale)))
                 }
@@ -757,6 +760,7 @@ internal fun settingsSearchEntries(
             PlaybackSearchRow("up-next", stringResource(Res.string.settings_continue_watching_up_next_title), stringResource(Res.string.settings_continue_watching_up_next_description)),
             PlaybackSearchRow("unaired-next-up", stringResource(Res.string.settings_continue_watching_show_unaired_next_up_title), stringResource(Res.string.settings_continue_watching_show_unaired_next_up_description)),
             PlaybackSearchRow("blur-next-up", stringResource(Res.string.settings_continue_watching_blur_next_up_title), stringResource(Res.string.settings_continue_watching_blur_next_up_description)),
+            PlaybackSearchRow("click-action", stringResource(Res.string.settings_continue_watching_click_action_title), stringResource(Res.string.settings_continue_watching_click_action_description)),
         ),
     )
     addContinueWatchingRows(

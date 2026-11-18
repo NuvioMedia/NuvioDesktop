@@ -1767,7 +1767,6 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         "stream-lavf-o",
         "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_on_http_error=%23%408,429,500,502,503,504,reconnect_delay_max=15"
     );
-    setMpvOptionString(_mpv, "hr-seek", "no");
 
     if (headerLines.count > 0) {
         NSMutableArray *escaped = [NSMutableArray arrayWithCapacity:headerLines.count];
@@ -2150,7 +2149,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 - (void)seekToMilliseconds:(long long)positionMs {
     if (!_mpv) return;
     std::string seconds = std::to_string((double)positionMs / 1000.0);
-    const char *command[] = {"seek", seconds.c_str(), "absolute+keyframes", NULL};
+    const char *command[] = {"seek", seconds.c_str(), "absolute+exact", NULL};
     mpv_command(_mpv, command);
     [self storeCachedPosition:(double)positionMs / 1000.0 at:CACurrentMediaTime()];
 }
@@ -2158,7 +2157,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 - (void)seekByMilliseconds:(long long)offsetMs {
     if (!_mpv) return;
     std::string seconds = std::to_string((double)offsetMs / 1000.0);
-    const char *command[] = {"seek", seconds.c_str(), "relative+keyframes", NULL};
+    const char *command[] = {"seek", seconds.c_str(), "relative+exact", NULL};
     mpv_command(_mpv, command);
     [self storeCachedPosition:[self estimatedPositionSeconds] + ((double)offsetMs / 1000.0) at:CACurrentMediaTime()];
 }
@@ -2564,7 +2563,7 @@ static void nuvioMpvWakeup(void *ctx) {
     BOOL stripSdhChanged = !_hasAppliedSubtitleStyle || _appliedSubtitleStripSdh != stripSdh;
 
     if (modeChanged) {
-        [self setStringProperty:"sub-ass-override" value:@"scale"];
+        [self setStringProperty:"sub-ass-override" value:@"no"];
     }
     if (modeChanged) {
         const char *styleOverridesCommand[] = {"change-list", "sub-ass-style-overrides", "clr", "", NULL};
@@ -3229,6 +3228,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jstring controlsPageUrl,
     jint decoderPriority,
     jboolean nvidiaRtxSuperResolutionEnabled,
+    jboolean /*nvidiaRtxHdrEnabled*/,
     jobject eventSink
 ) {
     NSView *hostView = (__bridge NSView *)(void *)(intptr_t)hostViewPtr;

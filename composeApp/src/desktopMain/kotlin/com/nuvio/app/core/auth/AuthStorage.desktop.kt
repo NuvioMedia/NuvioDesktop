@@ -15,4 +15,11 @@ internal actual object AuthStorage {
     actual fun clearAnonymousUserId() {
         store.remove("anonymous_user_id")
     }
+
+    actual fun loadFlag(key: String): Boolean =
+        store.getBoolean(key) == true
+
+    actual fun saveFlag(key: String, value: Boolean) {
+        store.putBoolean(key, value)
+    }
 }

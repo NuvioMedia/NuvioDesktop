@@ -65,6 +65,9 @@ actual fun rememberIsInPictureInPicture(): Boolean {
     return version >= 0 && DesktopPlayerPictureInPicture.isEnabled
 }
 
+@Composable
+internal actual fun rememberAudioOutputKey(enabled: Boolean): String? = null
+
 actual fun togglePlayerPictureInPicture() {
     DesktopPlayerPictureInPicture.toggle()
 }

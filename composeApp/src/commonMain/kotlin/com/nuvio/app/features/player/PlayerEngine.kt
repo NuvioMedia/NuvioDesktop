@@ -17,6 +17,8 @@ interface PlayerEngineController {
     fun retry()
     fun setPlaybackSpeed(speed: Float)
     fun setMuted(muted: Boolean) {}
+    /** Adjusts output volume by [deltaFraction] on a 0..1 scale; true when the platform applied it. */
+    fun adjustVolumeBy(deltaFraction: Float): Boolean = false
     fun getAudioTracks(): List<AudioTrack>
     fun getSubtitleTracks(): List<SubtitleTrack>
     fun applyAudioLanguagePreferences(languages: List<String>)
@@ -36,6 +38,18 @@ interface PlayerEngineController {
     ) {}
     fun setSubtitleVisible(visible: Boolean) {}
     fun setSubtitleDelayMs(delayMs: Int) {}
+    /** Whether [setAudioDelayMs] has an effect; the player hides the audio delay control otherwise. */
+    val supportsAudioDelay: Boolean get() = false
+    /** Plays the audio [delayMs] later than the video; negative values play it earlier. */
+    fun setAudioDelayMs(delayMs: Int) {}
+    /** Whether [setAudioAmplificationDb] has an effect; the player hides the amplification control otherwise. */
+    val supportsAudioAmplification: Boolean get() = false
+    /** Boosts the audio by [db] decibels, from 0 (off) to [AUDIO_AMPLIFICATION_MAX_DB]. */
+    fun setAudioAmplificationDb(db: Int) {}
+    /** Whether the audio playing now goes through a downmix whose center level [setCenterMixLevelDb] changes. */
+    fun isCenterMixActive(): Boolean = false
+    /** Center channel level in the downmix, from [CENTER_MIX_LEVEL_MIN_DB] to [CENTER_MIX_LEVEL_MAX_DB]. */
+    fun setCenterMixLevelDb(db: Int) {}
     fun configureIosVideoOutput(settings: PlayerSettingsUiState) {}
     fun updateNowPlayingMetadata(info: PlayerNowPlayingInfo) {}
     fun clearNowPlayingInfo() {}
@@ -305,6 +319,7 @@ data class PlayerControlsState(
     val party: PlayerControlPartyState = PlayerControlPartyState(),
     val badges: List<StreamBadge> = emptyList(),
     val chapters: List<PlayerControlChapter> = emptyList(),
+    val chapterTitleEnabled: Boolean = true,
     val chaptersLabel: String = "Chapters",
     val chaptersPanelTitle: String = "Chapters",
     val chapterRemainingTemplate: String = "{time} left",

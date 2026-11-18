@@ -1,10 +1,15 @@
 package com.nuvio.app.features.player
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -17,10 +22,17 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.core.ui.LocalFold
+import com.nuvio.app.controller.ControllerDirection
+import com.nuvio.app.controller.ControllerEvent
+import com.nuvio.app.controller.ControllerFocusEngine
+import com.nuvio.app.controller.XboxButton
+import com.nuvio.app.controller.audio.ControllerSoundPlayer
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.isDesktop
 import com.nuvio.app.features.details.MetaDetailsRepository
@@ -81,6 +93,45 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
 
     val runtime = remember { PlayerScreenRuntime(args) }
     runtime.args = args
+    val controllerScope = rememberCoroutineScope()
+
+    // While the player is on screen, keyboard arrows and the gamepad drive playback (seek, volume,
+    // play/pause, modals) instead of moving focus around the hidden app shell behind it.
+    DisposableEffect(runtime, controllerScope) {
+        PlayerControllerBridge.register(controllerScope) { command ->
+            runtime.handlePlayerControllerCommand(command)
+        }
+        ControllerFocusEngine.setPlayerEventHandler { event ->
+            when (event) {
+                is ControllerEvent.Navigate -> {
+                    val handled = when (event.direction) {
+                        ControllerDirection.Left -> PlayerControllerBridge.dispatch(PlayerCommand.SeekBack)
+                        ControllerDirection.Right -> PlayerControllerBridge.dispatch(PlayerCommand.SeekForward)
+                        ControllerDirection.Up -> PlayerControllerBridge.dispatch(PlayerCommand.VolumeUp)
+                        ControllerDirection.Down -> PlayerControllerBridge.dispatch(PlayerCommand.VolumeDown)
+                    }
+                    if (handled) ControllerSoundPlayer.playNavigate()
+                    handled
+                }
+                is ControllerEvent.ButtonPressed -> when (event.button) {
+                    XboxButton.A -> PlayerControllerBridge.dispatch(PlayerCommand.TogglePlayback)
+                    XboxButton.B -> PlayerControllerBridge.dispatch(PlayerCommand.Back)
+                    XboxButton.X -> PlayerControllerBridge.dispatch(PlayerCommand.Audio)
+                    XboxButton.Y -> PlayerControllerBridge.dispatch(PlayerCommand.Subtitles)
+                    XboxButton.LB, XboxButton.LT -> PlayerControllerBridge.dispatch(PlayerCommand.SeekBack)
+                    XboxButton.RB, XboxButton.RT -> PlayerControllerBridge.dispatch(PlayerCommand.SeekForward)
+                    XboxButton.Menu -> PlayerControllerBridge.dispatch(PlayerCommand.Episodes)
+                    XboxButton.View -> PlayerControllerBridge.dispatch(PlayerCommand.Sources)
+                    else -> false
+                }
+                else -> false
+            }
+        }
+        onDispose {
+            ControllerFocusEngine.setPlayerEventHandler(null)
+            PlayerControllerBridge.register(null, null)
+        }
+    }
 
     // The engine publishes a playback snapshot every 250ms. Reading the raw snapshot from this
     // scope would recompose the whole player subtree four times per second, so the values
@@ -122,7 +173,17 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
     ) {
         val density = LocalDensity.current
         val horizontalSafePadding = playerHorizontalSafePadding()
-        val metrics = remember(maxWidth) { PlayerLayoutMetrics.fromWidth(maxWidth) }
+        val isInPip = rememberIsInPictureInPicture()
+        val dockPartyPanel = LocalFold.current == null && !isInPip && maxWidth > maxHeight
+        val partyPanelWidth = if (dockPartyPanel) minOf(420.dp, maxWidth * 0.45f) else 420.dp
+        val animatedPartyPanelInset by animateDpAsState(
+            targetValue = if (runtime.showPartyPanel && dockPartyPanel) partyPanelWidth else 0.dp,
+            animationSpec = tween(if (runtime.showPartyPanel) 250 else 200),
+            label = "partyPanelInset",
+        )
+        val partyPanelInset = if (dockPartyPanel && !isDesktop) animatedPartyPanelInset else 0.dp
+        val playerWidth = maxWidth - partyPanelInset
+        val metrics = remember(playerWidth) { PlayerLayoutMetrics.fromWidth(playerWidth) }
 
         runtime.scope = rememberCoroutineScope()
         runtime.hapticFeedback = LocalHapticFeedback.current
@@ -153,6 +214,15 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
         runtime.sideGestureSystemEdgeExclusionPx = with(density) {
             PlayerSideGestureSystemEdgeExclusion.toPx()
         }
+        // Left/right system gesture insets are only non-zero when the device uses
+        // gesture navigation, so this keeps the edge back swipe working there and
+        // changes nothing for 3-button navigation.
+        val systemGestureInsets = WindowInsets.systemGestures
+        val layoutDirection = LocalLayoutDirection.current
+        runtime.horizontalSeekSystemEdgeExclusionPx = maxOf(
+            systemGestureInsets.getLeft(density, layoutDirection),
+            systemGestureInsets.getRight(density, layoutDirection),
+        ).toFloat()
         runtime.resizeModeFitLabel = stringResource(Res.string.compose_player_resize_fit)
         runtime.resizeModeFillLabel = stringResource(Res.string.compose_player_resize_fill)
         runtime.resizeModeZoomLabel = stringResource(Res.string.compose_player_resize_zoom)
@@ -190,6 +260,10 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
             videoSize = videoSize,
         )
         runtime.BindPlayerRuntimeEffects()
-        runtime.RenderPlayerRuntimeUi()
+        runtime.RenderPlayerRuntimeUi(
+            partyPanelWidth = partyPanelWidth,
+            partyPanelInset = partyPanelInset,
+            dockPartyPanel = dockPartyPanel,
+        )
     }
 }

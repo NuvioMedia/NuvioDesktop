@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import co.touchlab.kermit.Logger
@@ -118,6 +119,7 @@ internal fun PlayerScreenRuntime.openPartyPanel() {
     showPartyPanel = true
     if (!isDesktop) controlsVisible = false
     partyPanelToken += 1L
+    controlsActivityTick += 1
 }
 
 internal fun PlayerScreenRuntime.switchPartyMedia() {
@@ -207,6 +209,8 @@ internal fun PlayerScreenRuntime.currentPartyMedia(): PartyMedia = PartyMedia(
 internal fun PlayerScreenRuntime.currentPartyStream(): PartyStream? {
     val stream = activeStream ?: return null
     if (!isShareableStreamUrl(activeSourceUrl) || activeSourceAudioUrl != null) return null
+    // A media server stream that signs in through its headers would hand the server token to every member.
+    if (stream.serverTarget != null && activeSourceHeaders.isNotEmpty()) return null
     return PartyStream(
         mediaKey = partyKey,
         url = activeSourceUrl,
@@ -539,7 +543,12 @@ private fun PlayerScreenRuntime.clearPartyNudge(playback: PartyPlayback? = Party
 }
 
 @Composable
-internal fun BoxScope.RenderParty(runtime: PlayerScreenRuntime) {
+internal fun BoxScope.RenderParty(
+    runtime: PlayerScreenRuntime,
+    panelWidth: Dp,
+    modal: Boolean,
+    panelVisible: Boolean,
+) {
     val partyState by PartyRepository.state.collectAsStateWithLifecycle()
     val playback by PartyRepository.playback.collectAsStateWithLifecycle()
     val unread by PartyChat.unread.collectAsStateWithLifecycle()
@@ -560,7 +569,9 @@ internal fun BoxScope.RenderParty(runtime: PlayerScreenRuntime) {
             )
         }
         PartyPanel(
-            visible = showPartyPanel,
+            visible = panelVisible,
+            width = panelWidth,
+            modal = modal,
             state = partyState,
             showChat = showPartyChat,
             onShowChatChange = { showPartyChat = it },
