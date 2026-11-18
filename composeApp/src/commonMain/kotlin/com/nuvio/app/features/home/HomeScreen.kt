@@ -106,6 +106,7 @@ import com.nuvio.app.features.home.components.HomeCollectionRowSection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
@@ -343,6 +344,18 @@ fun HomeScreen(
     val completedSeriesCandidates = remember(recentNextUpSeedCandidates, nextUpSuppressedSeriesIds) {
         recentNextUpSeedCandidates.filter { candidate ->
             candidate.content.id !in nextUpSuppressedSeriesIds
+        }
+    }
+    val resolveTraktNextUp = effectiveWatchProgressSource == WatchProgressSource.TRAKT
+    val traktNextUpProgressKey = remember(
+        resolveTraktNextUp,
+        completedSeriesCandidates,
+        watchProgressUiState.entries,
+    ) {
+        if (resolveTraktNextUp) {
+            homeNextUpProgressKey(completedSeriesCandidates, watchProgressUiState.entries)
+        } else {
+            null
         }
     }
     val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
@@ -607,6 +620,25 @@ fun HomeScreen(
     }
 
     val preparedProjectionGeneration = cachedProjectionGeneration
+    val traktInProgressEntries = visibleContinueWatchingEntries.takeIf {
+        resolveTraktNextUp && watchProgressUiState.hasLoadedRemoteProgress
+    }
+    ScreenActivityEffect(activeProfileId, cwCacheGeneration, traktInProgressEntries) { active ->
+        if (!active || traktInProgressEntries == null) return@ScreenActivityEffect
+        withContext(Dispatchers.Default) {
+            val inProgress = buildHomeInProgressCacheSnapshot(
+                visibleEntries = traktInProgressEntries,
+                cachedEntries = ContinueWatchingEnrichmentCache.getInProgressSnapshot(activeProfileId, WatchProgressSource.TRAKT),
+            )
+            ensureActive()
+            ContinueWatchingEnrichmentCache.saveSnapshots(
+                profileId = activeProfileId,
+                source = WatchProgressSource.TRAKT,
+                generation = cwCacheGeneration,
+                inProgress = inProgress,
+            )
+        }
+    }
     ScreenActivityEffect(
         preparedProjectionGeneration,
         completedSeriesCandidates,
@@ -617,8 +649,8 @@ fun HomeScreen(
         continueWatchingPreferences.showUnairedNextUp,
         continueWatchingPreferences.upNextFromFurthestEpisode,
         continueWatchingPreferences.dismissedNextUpKeys,
-        watchProgressSeedKey,
-        visibleContinueWatchingEntries,
+        traktNextUpProgressKey ?: watchProgressSeedKey,
+        visibleContinueWatchingEntries.takeUnless { resolveTraktNextUp },
         nextUpWatchedItems,
         watchedUiState.isLoaded,
         watchedUiState.hasLoadedRemoteItems,
@@ -739,7 +771,8 @@ fun HomeScreen(
                 }
 
                 var remaining = candidates.size
-                var lastPublish = TimeSource.Monotonic.markNow()
+                // Publish Trakt's first ready batch before another refresh can cancel it.
+                var lastPublish = TimeSource.Monotonic.markNow().takeUnless { resolveTraktNextUp }
                 while (remaining > 0) {
                     var shouldPublish = false
                     var resolution: HomeNextUpCandidateResolution? = results.receive()
@@ -759,8 +792,10 @@ fun HomeScreen(
                             null
                         } else {
                             results.tryReceive().getOrNull()
-                                ?: withTimeoutOrNull(NEXT_UP_PUBLISH_INTERVAL - lastPublish.elapsedNow()) {
-                                    results.receive()
+                                ?: lastPublish?.let { previousPublish ->
+                                    withTimeoutOrNull(NEXT_UP_PUBLISH_INTERVAL - previousPublish.elapsedNow()) {
+                                        results.receive()
+                                    }
                                 }
                         }
                     }
@@ -1759,6 +1794,47 @@ internal data class CompletedSeriesCandidate(
     val markedAtEpochMs: Long,
 )
 
+internal data class HomeNextUpProgressKey(
+    val parentMetaId: String,
+    val parentMetaType: String,
+    val contentType: String,
+    val videoId: String,
+    val season: Int?,
+    val episode: Int?,
+    val episodeTitle: String?,
+    val lastUpdated: Long,
+    val lastPosition: Long,
+    val completed: Boolean,
+    val effectivelyCompleted: Boolean,
+    val excludedSeasons: Set<Int>,
+)
+
+internal fun homeNextUpProgressKey(
+    candidates: List<CompletedSeriesCandidate>,
+    entries: List<WatchProgressEntry>,
+): Set<HomeNextUpProgressKey> {
+    val candidateIds = candidates.mapTo(hashSetOf()) { it.content.id }
+    return entries.asSequence()
+        .filter { it.parentMetaId in candidateIds }
+        .map {
+            HomeNextUpProgressKey(
+                parentMetaId = it.parentMetaId,
+                parentMetaType = it.parentMetaType,
+                contentType = it.contentType,
+                videoId = it.videoId,
+                season = it.seasonNumber,
+                episode = it.episodeNumber,
+                episodeTitle = it.episodeTitle,
+                lastUpdated = it.lastUpdatedEpochMs,
+                lastPosition = it.lastPositionMs,
+                completed = it.isCompleted,
+                effectivelyCompleted = it.isEffectivelyCompleted,
+                excludedSeasons = it.excludedNextUpSeasons,
+            )
+        }
+        .toSet()
+}
+
 private data class HomeContinueWatchingCandidate(
     val lastUpdatedEpochMs: Long,
     val item: ContinueWatchingItem,
@@ -1833,13 +1909,14 @@ private fun saveContinueWatchingSnapshots(
             isNewSeasonRelease = item.isNewSeasonRelease,
         )
     }
-    val inProgressCache = buildHomeInProgressCacheSnapshot(
-        visibleEntries = visibleContinueWatchingEntries,
-        cachedEntries = ContinueWatchingEnrichmentCache.getInProgressSnapshot(
-            profileId = profileId,
-            source = source,
-        ),
-    )
+    val inProgressCache = if (source == WatchProgressSource.TRAKT) {
+        null // Trakt's in-progress rows update independently of Next Up resolution.
+    } else {
+        buildHomeInProgressCacheSnapshot(
+            visibleEntries = visibleContinueWatchingEntries,
+            cachedEntries = ContinueWatchingEnrichmentCache.getInProgressSnapshot(profileId, source),
+        )
+    }
     ContinueWatchingEnrichmentCache.saveSnapshots(
         profileId = profileId,
         source = source,

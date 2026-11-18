@@ -115,13 +115,17 @@ internal object ContinueWatchingEnrichmentCache {
         profileId: Int,
         source: WatchProgressSource,
         generation: Int,
-        nextUp: List<CachedNextUpItem>,
-        inProgress: List<CachedInProgressItem>,
+        nextUp: List<CachedNextUpItem>? = null,
+        inProgress: List<CachedInProgressItem>? = null,
         force: Boolean = false,
     ): Boolean = synchronized(cacheLock) {
         if (generation != _generation.value) return@synchronized false
 
-        val payload = CachedEnrichmentPayload(nextUp = nextUp.toList(), inProgress = inProgress.toList())
+        val previous = if (nextUp == null || inProgress == null) loadPayload(profileId, source) else null
+        val payload = CachedEnrichmentPayload(
+            nextUp = nextUp?.toList() ?: previous?.nextUp.orEmpty(),
+            inProgress = inProgress?.toList() ?: previous?.inProgress.orEmpty(),
+        )
         val scope = CacheScope(profileId = profileId, source = source)
         if (!force && cachedPayloads[scope] == payload) {
             return@synchronized true
