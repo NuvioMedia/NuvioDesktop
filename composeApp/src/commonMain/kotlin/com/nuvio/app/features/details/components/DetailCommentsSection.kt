@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.SkeletonBlock
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.nuvioDesktopRowScrollArrows
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
@@ -83,6 +84,7 @@ fun DetailCommentsSection(
                 LazyRow(
                     state = loadingListState,
                     modifier = Modifier
+                        .nuvioDesktopRowScrollArrows(loadingListState)
                         .nuvioHorizontalScrollBleed(horizontalScrollPadding)
                         .fillMaxWidth()
                         .nuvioDesktopDragScroll(loadingListState),
@@ -126,6 +128,7 @@ fun DetailCommentsSection(
                 LazyRow(
                     state = listState,
                     modifier = Modifier
+                        .nuvioDesktopRowScrollArrows(listState)
                         .nuvioHorizontalScrollBleed(horizontalScrollPadding)
                         .fillMaxWidth()
                         .nuvioDesktopDragScroll(listState),

@@ -45,6 +45,7 @@ import com.nuvio.app.core.ui.backdropControlColor
 import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.nuvioDesktopRowScrollArrows
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.details.MetaTrailer
@@ -167,6 +168,7 @@ fun DetailTrailersSection(
             LazyRow(
                 state = rowState,
                 modifier = Modifier
+                    .nuvioDesktopRowScrollArrows(rowState)
                     .nuvioHorizontalScrollBleed(horizontalScrollPadding)
                     .fillMaxWidth()
                     .nuvioDesktopDragScroll(rowState),
