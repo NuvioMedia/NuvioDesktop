@@ -227,6 +227,11 @@ actual fun PlatformKeyboardNavigationHost() {
                 return@KeyEventDispatcher ControllerManager.dispatchKeyboardSelect()
             }
 
+            if (event.keyCode == KeyEvent.VK_TAB) {
+                ControllerManager.notifyNavigationInput()
+                return@KeyEventDispatcher false
+            }
+
             val direction = when (event.keyCode) {
                 KeyEvent.VK_LEFT -> ControllerDirection.Left
                 KeyEvent.VK_RIGHT -> ControllerDirection.Right
