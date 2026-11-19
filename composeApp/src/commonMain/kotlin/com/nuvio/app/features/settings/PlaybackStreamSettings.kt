@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.enabledAddons
+import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.player.SOURCE_FALLBACK_MAX_SOURCES_RANGE
@@ -115,7 +116,7 @@ internal fun PlaybackStreamSettings(
                 if (settings.streamAutoPlayMode != StreamAutoPlayMode.MANUAL) {
                     // Excludes the engine switch on error (Android only): both react to the same failure.
                     // Only the switch that is off is locked, so both stay reachable if both ended up on.
-                    val blockedByEngineSwitch = !isIos && settings.autoSwitchPlaybackEngineOnError &&
+                    val blockedByEngineSwitch = !isIos && !isDesktop && settings.autoSwitchPlaybackEngineOnError &&
                         !settings.streamAutoPlayFallbackOnFailure
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsSwitchRow(
