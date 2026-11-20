@@ -218,6 +218,8 @@ internal expect object PlayerSettingsStorage {
     fun saveNvidiaRtxSuperResolutionEnabled(enabled: Boolean)
     fun loadNvidiaRtxHdrEnabled(): Boolean?
     fun saveNvidiaRtxHdrEnabled(enabled: Boolean)
+    fun loadAnime4kMode(): String?
+    fun saveAnime4kMode(mode: String)
     fun exportToSyncPayload(): JsonObject
     fun replaceFromSyncPayload(payload: JsonObject)
 }

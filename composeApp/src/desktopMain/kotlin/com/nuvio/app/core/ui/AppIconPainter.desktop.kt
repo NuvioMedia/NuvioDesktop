@@ -3,6 +3,7 @@ package com.nuvio.app.core.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.painter.Painter
 import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.ic_player_anime4k
 import nuvio.composeapp.generated.resources.ic_player_aspect_ratio
 import nuvio.composeapp.generated.resources.ic_player_audio_filled
 import nuvio.composeapp.generated.resources.ic_player_episodes
@@ -24,6 +25,7 @@ actual fun appIconPainter(icon: AppIconResource): Painter =
             AppIconResource.PlayerAudioFilled -> Res.drawable.ic_player_audio_filled
             AppIconResource.PlayerSource -> Res.drawable.ic_player_source
             AppIconResource.PlayerEpisodes -> Res.drawable.ic_player_episodes
+            AppIconResource.PlayerAnime4k -> Res.drawable.ic_player_anime4k
             AppIconResource.LibraryAddPlus -> Res.drawable.library_add_plus
         },
     )

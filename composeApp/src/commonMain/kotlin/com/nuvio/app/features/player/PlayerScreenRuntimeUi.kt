@@ -54,6 +54,7 @@ import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
 import com.nuvio.app.features.watching.application.WatchingState
 import com.nuvio.app.features.autosync.AutoSyncSyncedSubtitle
 import com.nuvio.app.isDesktop
+import com.nuvio.app.isWindows
 import com.nuvio.app.features.player.skip.internalSkipAction
 import com.nuvio.app.features.servers.ServerStreams
 import com.nuvio.app.features.streams.streamAddonInstanceId
@@ -304,6 +305,11 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
             title = chapter.title ?: stringResource(Res.string.compose_player_chapter_number, index + 1),
         )
     }
+    val anime4kInstall by Anime4kShaderInstaller.state.collectAsStateWithLifecycle()
+    val anime4kRuntime by Anime4kRuntime.state.collectAsStateWithLifecycle()
+    val anime4kActive = anime4kRuntime.activeMode?.hasShaders == true &&
+        anime4kRuntime.error == null &&
+        anime4kRuntime.resolvedMode != null
     val playerControlsState = PlayerControlsState(
         chapters = controlChapters,
         chapterTitleEnabled = playerSettingsUiState.chapterTitleEnabled,
@@ -345,6 +351,25 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
         unlockLabel = stringResource(Res.string.compose_player_unlock_controls),
         submitIntroLabel = stringResource(Res.string.submit_intro_action),
         videoSettingsLabel = stringResource(Res.string.player_action_video_settings),
+        anime4kVisible = isWindows,
+        anime4kModeIndex = playerSettingsUiState.anime4kMode.ordinal,
+        anime4kModeLabels = Anime4kMode.entries.map { stringResource(it.labelRes) },
+        anime4kInstalled = anime4kInstall.isInstalled,
+        anime4kInstalling = anime4kInstall.isInstalling,
+        anime4kActive = anime4kActive,
+        anime4kResolvedLabel = anime4kRuntime.resolvedMode?.let { stringResource(it.labelRes) }
+            ?: stringResource(Anime4kMode.Off.labelRes),
+        anime4kSourceWidth = anime4kRuntime.sourceWidth,
+        anime4kSourceHeight = anime4kRuntime.sourceHeight,
+        anime4kError = (anime4kRuntime.error ?: anime4kInstall.error).orEmpty(),
+        anime4kDescription = stringResource(Res.string.anime4k_menu_description),
+        anime4kDefaultBadge = stringResource(Res.string.anime4k_menu_default_badge),
+        anime4kInstallLabel = stringResource(Res.string.settings_playback_anime4k_install),
+        anime4kInstallingLabel = stringResource(Res.string.anime4k_menu_installing),
+        anime4kNotInstalledLabel = stringResource(Res.string.anime4k_menu_not_installed),
+        anime4kAppliedFormat = stringResource(Res.string.anime4k_menu_applied_format, "%s"),
+        anime4kSourceSuffix = stringResource(Res.string.anime4k_menu_source_suffix),
+        anime4kErrorFormat = stringResource(Res.string.anime4k_error_apply, "%s"),
         tapToUnlockLabel = stringResource(Res.string.compose_player_tap_to_unlock),
         pipLabel = stringResource(Res.string.compose_player_picture_in_picture),
         pipPlaceholderTitle = stringResource(Res.string.compose_player_pip_placeholder_title),
@@ -772,6 +797,35 @@ private fun PlayerScreenRuntime.RenderPlayerControls(
     val partyState by PartyRepository.state.collectAsStateWithLifecycle()
     val partyActive = partyState.party != null
     val playerBadges = if (isDesktop) emptyList() else rememberPlayerBadges()
+    val anime4kInstall by Anime4kShaderInstaller.state.collectAsStateWithLifecycle()
+    val anime4kRuntime by Anime4kRuntime.state.collectAsStateWithLifecycle()
+    val anime4kActive = anime4kRuntime.activeMode?.hasShaders == true &&
+        anime4kRuntime.error == null &&
+        anime4kRuntime.resolvedMode != null
+    LaunchedEffect(Unit) {
+        if (isWindows) Anime4kShaderInstaller.refresh()
+    }
+    val anime4kControl = if (isWindows) {
+        Anime4kControlState(
+            mode = playerSettingsUiState.anime4kMode,
+            active = anime4kActive,
+            installed = anime4kInstall.isInstalled,
+            installing = anime4kInstall.isInstalling,
+            resolvedMode = anime4kRuntime.resolvedMode,
+            sourceWidth = anime4kRuntime.sourceWidth,
+            sourceHeight = anime4kRuntime.sourceHeight,
+            error = anime4kRuntime.error ?: anime4kInstall.error,
+            onSelect = { mode ->
+                PlayerSettingsRepository.setAnime4kMode(mode)
+                if (mode.hasShaders && !anime4kInstall.isInstalled) {
+                    Anime4kShaderInstaller.install()
+                }
+            },
+            onInstall = { Anime4kShaderInstaller.install() },
+        )
+    } else {
+        null
+    }
     LaunchedEffect(folded) {
         if (folded) {
             controlsVisible = true
@@ -893,6 +947,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(
                 null
             },
             onStreamInfoClick = { openStreamInfo() },
+            anime4kControl = anime4kControl,
             parentalWarnings = parentalWarnings,
             showParentalGuide = showParentalGuide,
             onParentalGuideAnimationComplete = { showParentalGuide = false },

@@ -2582,4 +2582,46 @@
     <string name="subtitle_shadow_opacity">Opacité de l’ombre</string>
     <string name="subtitle_shadow_size">Taille de l’ombre</string>
     <string name="subtitle_reset_appearance">Réinitialiser l’apparence</string>
+
+    <!-- Anime4K -->
+    <string name="anime4k_mode_auto">Automatique</string>
+    <string name="anime4k_mode_off">Désactivé</string>
+    <string name="anime4k_mode_a">Mode A</string>
+    <string name="anime4k_mode_b">Mode B</string>
+    <string name="anime4k_mode_c">Mode C</string>
+    <string name="anime4k_mode_a_plus">Mode A+A</string>
+    <string name="anime4k_mode_b_plus">Mode B+B</string>
+    <string name="anime4k_mode_c_plus">Mode C+A</string>
+    <string name="anime4k_menu_description">Mise à l’échelle des anime en temps réel. Sollicite fortement le GPU.</string>
+    <string name="anime4k_menu_installing">Installation…</string>
+    <string name="anime4k_menu_not_installed">Les shaders Anime4K ne sont pas installés</string>
+    <string name="anime4k_menu_default_badge">PAR DÉFAUT</string>
+    <string name="anime4k_menu_active_badge">ACTIF</string>
+    <string name="anime4k_menu_applied_format">Mode appliqué : %1$s</string>
+    <string name="anime4k_menu_source_suffix">source</string>
+    <string name="anime4k_menu_source_format">Source %1$d×%2$d</string>
+    <string name="anime4k_cd_label">Mise à l’échelle Anime4K</string>
+    <string name="anime4k_error_not_installed">Installez d’abord les shaders Anime4K dans Paramètres → Lecture vidéo → Anime4K.</string>
+    <string name="anime4k_error_apply">Impossible d’appliquer Anime4K : %1$s</string>
+    <string name="settings_playback_anime4k_section">Anime4K</string>
+    <string name="settings_playback_anime4k_title">Shaders Anime4K</string>
+    <string name="settings_playback_anime4k_desc_not_installed">Installez les shaders une seule fois pour activer la mise à l’échelle des anime en temps réel.</string>
+    <string name="settings_playback_anime4k_desc_installed">Les shaders sont installés et vérifiés. Anime4K est prêt dans le lecteur.</string>
+    <string name="settings_playback_anime4k_desc_invalid">Certains shaders sont manquants ou endommagés. Réinstallez-les pour les réparer.</string>
+    <string name="settings_playback_anime4k_desc_installing">Installation des shaders Anime4K…</string>
+    <string name="settings_playback_anime4k_desc_error">La dernière installation a échoué. Consultez le message ci-dessous et réessayez.</string>
+    <string name="settings_playback_anime4k_desc_unavailable">Anime4K est disponible dans le lecteur de bureau sous Windows uniquement.</string>
+    <string name="settings_playback_anime4k_install">Installer</string>
+    <string name="settings_playback_anime4k_reinstall">Réinstaller</string>
+    <string name="settings_playback_anime4k_update">Mettre à jour</string>
+    <string name="settings_playback_anime4k_verify">Vérifier</string>
+    <string name="settings_playback_anime4k_install_progress">Installation %1$d%%</string>
+    <string name="settings_playback_anime4k_install_complete">Shaders Anime4K installés avec succès.</string>
+    <string name="settings_playback_anime4k_install_failed">Impossible d’installer les shaders Anime4K : %1$s</string>
+    <string name="settings_playback_anime4k_install_path">Dossier d’installation : %1$s</string>
+    <string name="settings_playback_anime4k_not_installed_status">Non installés</string>
+    <string name="settings_playback_anime4k_installed_status">Installés · %1$s</string>
+    <string name="settings_playback_anime4k_invalid_status">Installation incomplète</string>
+    <string name="settings_playback_anime4k_unavailable_status">Indisponible</string>
+    <string name="settings_playback_anime4k_auto_note">Le mode Automatique choisit un préréglage selon la résolution et le débit de la source ; les sources 4K restent intactes pour éviter une charge GPU inutile.</string>
 </resources>

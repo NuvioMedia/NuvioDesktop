@@ -93,6 +93,15 @@ const speedOptionList = document.getElementById("speedOptionList");
 const speedPanelTitle = document.getElementById("speedPanelTitle");
 const audioPanelTitle = document.getElementById("audioPanelTitle");
 const audioTrackList = document.getElementById("audioTrackList");
+const anime4kButton = document.getElementById("anime4kButton");
+const anime4kModal = document.getElementById("anime4kModal");
+const anime4kPanel = document.getElementById("anime4kPanel");
+const anime4kTitle = document.getElementById("anime4kTitle");
+const anime4kDescription = document.getElementById("anime4kDescription");
+const anime4kList = document.getElementById("anime4kList");
+const anime4kInstall = document.getElementById("anime4kInstall");
+const anime4kFooter = document.getElementById("anime4kFooter");
+const anime4kError = document.getElementById("anime4kError");
 const subtitleTrackList = document.getElementById("subtitleTrackList");
 const subtitlePanelTitle = document.getElementById("subtitlePanelTitle");
 const subtitleLanguageRailTitle = document.getElementById("subtitleLanguageRailTitle");
@@ -1047,6 +1056,7 @@ const rangePositionMs = () => {
 
 const modalByName = {
   audio: audioModal,
+  anime4k: anime4kModal,
   subtitles: subtitleModal,
   speed: speedModal,
   sources: sourceModal,
@@ -2413,8 +2423,99 @@ const renderChapterMarks = () => {
   setText(chapterTitle, index >= 0 && state.chapterTitleEnabled !== false ? chapters[index].title : "");
 };
 
+const positionAnime4kPanel = () => {
+  if (!anime4kButton || !anime4kPanel || !anime4kModal || anime4kModal.hidden) return;
+  const buttonRect = anime4kButton.getBoundingClientRect();
+  const panelRect = anime4kPanel.getBoundingClientRect();
+  const margin = 10;
+  const maxLeft = window.innerWidth - panelRect.width - margin;
+  const left = Math.max(margin, Math.min(buttonRect.left, maxLeft));
+  anime4kPanel.style.left = `${left}px`;
+  anime4kPanel.style.bottom = `${Math.max(margin, window.innerHeight - buttonRect.top + margin)}px`;
+};
+
+const renderAnime4kButton = () => {
+  if (!anime4kButton) return;
+  const visible = Boolean(state.anime4kVisible);
+  anime4kButton.hidden = !visible;
+  anime4kButton.classList.toggle("active", Boolean(state.anime4kActive));
+  anime4kButton.setAttribute("aria-pressed", state.anime4kActive ? "true" : "false");
+  if (!visible && activeModal === "anime4k") closePlayerModal(false);
+};
+
+const renderAnime4kModal = () => {
+  if (!anime4kModal) return;
+  const labels = Array.isArray(state.anime4kModeLabels) ? state.anime4kModeLabels : [];
+  const selectedIndex = Number.isFinite(Number(state.anime4kModeIndex))
+    ? Number(state.anime4kModeIndex)
+    : 0;
+  if (anime4kTitle) anime4kTitle.textContent = state.anime4kTitle || "ANIME4K";
+  if (anime4kDescription) anime4kDescription.textContent = state.anime4kDescription || "";
+  if (anime4kList) {
+    anime4kList.textContent = "";
+    labels.forEach((label, index) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "anime4k-row";
+      row.classList.toggle("selected", index === selectedIndex);
+      row.setAttribute("aria-pressed", index === selectedIndex ? "true" : "false");
+      const text = document.createElement("span");
+      text.className = "anime4k-row-label";
+      text.textContent = String(label || "");
+      row.appendChild(text);
+      if (index === 0) {
+        const badge = document.createElement("span");
+        badge.className = "anime4k-badge";
+        badge.textContent = state.anime4kDefaultBadge || "DEFAULT";
+        row.appendChild(badge);
+      }
+      row.addEventListener("click", event => {
+        event.stopPropagation();
+        state = { ...state, anime4kModeIndex: index };
+        renderAnime4kModal();
+        noteChromeActivity(true);
+        send("anime4k", index);
+      });
+      anime4kList.appendChild(row);
+    });
+  }
+  if (anime4kInstall) {
+    const installing = Boolean(state.anime4kInstalling);
+    const installed = Boolean(state.anime4kInstalled);
+    anime4kInstall.hidden = installed && !installing;
+    anime4kInstall.disabled = installing;
+    anime4kInstall.textContent = installing
+      ? (state.anime4kInstallingLabel || "Installing…")
+      : `${state.anime4kNotInstalledLabel || "Anime4K shaders are not installed"} · ${state.anime4kInstallLabel || "Install"}`;
+  }
+  if (anime4kFooter) {
+    const resolved = String(state.anime4kResolvedLabel || "").trim();
+    let footer = "";
+    if (resolved && selectedIndex === 0) {
+      footer = String(state.anime4kAppliedFormat || "Applied: %s").replace("%s", resolved);
+      const width = Number(state.anime4kSourceWidth) || 0;
+      const height = Number(state.anime4kSourceHeight) || 0;
+      if (width > 0 && height > 0) {
+        footer += ` · ${width}×${height} ${state.anime4kSourceSuffix || "source"}`;
+      }
+    }
+    anime4kFooter.textContent = footer;
+    anime4kFooter.hidden = !footer;
+  }
+  if (anime4kError) {
+    const error = String(state.anime4kError || "").trim();
+    const notInstalled = error.startsWith("not-installed:");
+    anime4kError.hidden = !error || notInstalled;
+    anime4kError.textContent = !error || notInstalled
+      ? ""
+      : String(state.anime4kErrorFormat || "%s").replace("%s", error);
+  }
+  window.requestAnimationFrame(positionAnime4kPanel);
+};
+
 const renderActiveModal = (modalOpened = false) => {
   if (activeModal === "audio") renderAudioTrackList();
+  if (activeModal === "anime4k") renderAnime4kModal();
   if (activeModal === "subtitles") renderSubtitleModal();
   if (activeModal === "speed") renderSpeedOptionList();
   if (activeModal === "sources") renderSourceModal(modalOpened);
@@ -2786,6 +2887,7 @@ const renderChrome = () => {
   setTextContent(speedLabel, state.playbackSpeedLabel || "1x");
   setTextContent(subtitlesLabel, state.subtitlesLabel || "Subs");
   setTextContent(audioLabel, state.audioLabel || "Audio");
+  renderAnime4kButton();
   setTextContent(sourcesLabel, state.sourcesLabel || "Sources");
   setTextContent(episodesLabel, state.episodesLabel || "Episodes");
   setActionButtonLabel("resize", state.resizeModeLabel || "Fit");
@@ -3216,6 +3318,10 @@ document.querySelectorAll("[data-command]").forEach(button => {
       openPlayerModal("subtitles");
       return;
     }
+    if (command === "anime4k") {
+      openPlayerModal("anime4k");
+      return;
+    }
     if (command === "speed") {
       openPlayerModal("speed");
       return;
@@ -3253,6 +3359,15 @@ document.querySelectorAll("[data-command]").forEach(button => {
     showCommandToast(command);
     send(command, 0);
   });
+});
+
+anime4kInstall?.addEventListener("click", event => {
+  event.stopPropagation();
+  if (state.anime4kInstalling) return;
+  state = { ...state, anime4kInstalling: true };
+  renderAnime4kModal();
+  noteChromeActivity(true);
+  send("anime4kInstall", 0);
 });
 
 toggle.addEventListener("pointerdown", event => {
@@ -4052,17 +4167,17 @@ root.addEventListener("dblclick", event => {
 root.addEventListener("wheel", event => {
   if (playbackErrorText() || activeModal) return;
   const isProgressTarget = Boolean(event.target.closest("#seek, .time-row, .time-pill, .scrub"));
-  // Seeking is the primary wheel action. Ctrl/Alt/Meta + wheel keeps volume control available.
-  const isVolumeWheel = !isProgressTarget && (event.ctrlKey || event.altKey || event.metaKey);
   const delta = event.deltaY !== 0 ? Math.sign(event.deltaY) * -1 : Math.sign(event.deltaX);
   if (delta === 0) return;
   event.preventDefault();
   noteChromeActivity();
-  if (isVolumeWheel) {
-    sendKeyboardVolume(delta);
+  // Over the timeline, wheel still scrubs. Everywhere else it is a volume control, which is
+  // the expected gesture while watching.
+  if (isProgressTarget) {
+    fineSeek(delta > 0, 5000);
     return;
   }
-  fineSeek(delta > 0, 5000);
+  sendKeyboardVolume(delta);
 }, { passive: false });
 
 document.addEventListener("keyup", event => {

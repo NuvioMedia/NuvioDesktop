@@ -51,6 +51,8 @@ interface PlayerEngineController {
     /** Center channel level in the downmix, from [CENTER_MIX_LEVEL_MIN_DB] to [CENTER_MIX_LEVEL_MAX_DB]. */
     fun setCenterMixLevelDb(db: Int) {}
     fun configureIosVideoOutput(settings: PlayerSettingsUiState) {}
+    /** Applies the Anime4K renderer state live; no-op on platforms without the desktop mpv layer. */
+    fun applyAnime4kMode(mode: Anime4kMode) {}
     fun updateNowPlayingMetadata(info: PlayerNowPlayingInfo) {}
     fun clearNowPlayingInfo() {}
 
@@ -148,6 +150,25 @@ data class PlayerControlsState(
     val unlockLabel: String = "Unlock player controls",
     val submitIntroLabel: String = "Submit Intro",
     val videoSettingsLabel: String = "Video settings",
+    val anime4kVisible: Boolean = false,
+    val anime4kModeIndex: Int = 0,
+    val anime4kModeLabels: List<String> = emptyList(),
+    val anime4kInstalled: Boolean = false,
+    val anime4kInstalling: Boolean = false,
+    val anime4kActive: Boolean = false,
+    val anime4kResolvedLabel: String = "",
+    val anime4kSourceWidth: Int = 0,
+    val anime4kSourceHeight: Int = 0,
+    val anime4kError: String = "",
+    val anime4kTitle: String = "ANIME4K",
+    val anime4kDescription: String = "",
+    val anime4kDefaultBadge: String = "DEFAULT",
+    val anime4kInstallLabel: String = "Install",
+    val anime4kInstallingLabel: String = "Installing…",
+    val anime4kNotInstalledLabel: String = "Anime4K shaders are not installed",
+    val anime4kAppliedFormat: String = "Applied: %s",
+    val anime4kSourceSuffix: String = "source",
+    val anime4kErrorFormat: String = "%s",
     val tapToUnlockLabel: String = "Tap to unlock",
     val pipLabel: String = "",
     val pipPlaceholderTitle: String = "",

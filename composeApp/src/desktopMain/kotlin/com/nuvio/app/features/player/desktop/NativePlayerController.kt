@@ -11,6 +11,9 @@ import com.nuvio.app.features.player.PlayerControlSourceItem
 import com.nuvio.app.features.player.PlayerControlSubtitleCueItem
 import com.nuvio.app.features.player.PlayerControlSubtitleLanguageItem
 import com.nuvio.app.features.player.PlayerControlSubtitleOptionItem
+import com.nuvio.app.features.player.Anime4kMode
+import com.nuvio.app.features.player.Anime4kRuntime
+import com.nuvio.app.features.player.Anime4kShaderInstaller
 import com.nuvio.app.features.player.AudioTrack
 import com.nuvio.app.features.player.ParentalWarning
 import com.nuvio.app.features.player.PlayerControlsAction
@@ -116,6 +119,21 @@ internal class NativePlayerController(
     private var pictureInPictureActive = false
     @Volatile
     private var currentVolumeLevel = rememberedVolumeLevel.coerceDesktopPlayerVolumeLevel()
+
+    /** Last Anime4K choice pushed by the UI. Re-applied after every attach/file switch. */
+    @Volatile
+    private var anime4kMode: Anime4kMode = Anime4kMode.default
+    private val anime4kGeneration = java.util.concurrent.atomic.AtomicLong(0L)
+    @Volatile
+    private var lastAppliedAnime4kChain: String? = null
+    // The RTX d3d11vpp chain the native side installed at attach, if any. Anime4K and the RTX
+    // video processor both own the frame chain; the shader profile clears/restores this so the
+    // two never stack.
+    @Volatile
+    private var rtxVideoFilter: String = ""
+    // Properties written before the native handle exists (e.g. a mode selected while the player
+    // is still being created) are replayed once createPlayer installs the handle.
+    private val pendingMpvProperties = linkedMapOf<String, String>()
     private var pendingSubtitleDelayMs: Int? = null
     private var pendingSubtitleStyle: SubtitleStyleState? = null
     private var pendingUseLibass: Boolean = false
@@ -140,6 +158,10 @@ internal class NativePlayerController(
         nvidiaRtxHdrEnabled: Boolean = false,
         onError: (String?) -> Unit,
     ) {
+        rtxVideoFilter = desktopRtxVideoFilterChain(
+            superResolution = nvidiaRtxSuperResolutionEnabled,
+            trueHdr = nvidiaRtxHdrEnabled,
+        )
         val pending = PendingSource(
             sourceUrl = sourceUrl,
             headerLines = sourceHeaders.toHeaderLines(),
@@ -358,6 +380,8 @@ internal class NativePlayerController(
                                 "initialPositionMs=${pending.initialPositionMs}"
                         }
                         applyRememberedVolume()
+                        flushPendingMpvProperties()
+                        applyAnime4kMode(anime4kMode)
                         updateControls(controlsState)
                         setResizeMode(rememberedResizeMode)
                         if (currentNowPlayingTitle.isNotEmpty() || currentArtworkUrl.isNotEmpty()) {
@@ -557,6 +581,18 @@ internal class NativePlayerController(
         }
         when (type) {
             "cursorActivity" -> host.noteCursorActivity()
+            "anime4k" -> {
+                val mode = Anime4kMode.entries.getOrNull(value.toInt()) ?: return
+                PlayerSettingsRepository.setAnime4kMode(mode)
+                if (mode.hasShaders && !Anime4kShaderInstaller.state.value.isInstalled) {
+                    Anime4kShaderInstaller.install()
+                }
+                return
+            }
+            "anime4kInstall" -> {
+                Anime4kShaderInstaller.install()
+                return
+            }
             "scrubChange" -> {
                 val handled = onScrubChange(value.toLong())
                 log.d { "scrubChange positionMs=${value.toLong()} handled=$handled handle=$handle" }
@@ -964,10 +1000,167 @@ internal class NativePlayerController(
             if (current == 0L) return
             handle = 0L
             lastSentControlsStructureKey = null
+            anime4kGeneration.incrementAndGet()
+            lastAppliedAnime4kChain = null
             // Register and start teardown atomically so terminal release cannot sample an empty
             // worker slot between detaching the handle and starting native disposal.
             startTrackedDisposeLocked(current)
         }
+    }
+
+    /**
+     * Applies the Anime4K renderer state without re-creating mpv. Changing `glsl-shaders` is a
+     * renderer-only operation: playback, audio and the demuxer keep running.
+     */
+    override fun applyAnime4kMode(mode: Anime4kMode) {
+        anime4kMode = mode
+        val generation = anime4kGeneration.incrementAndGet()
+        if (mode != Anime4kMode.Auto || readAnime4kSourceInfo() != null) {
+            applyAnime4kNow(mode)
+            return
+        }
+        // Auto needs the decoded source size. Right after attach mpv may still report 0x0, so wait
+        // briefly for the first video frame instead of falling back to a fixed preset.
+        Thread({
+            repeat(40) {
+                if (generation != anime4kGeneration.get() || handle == 0L) return@Thread
+                if (readAnime4kSourceInfo() != null) {
+                    applyAnime4kNow(mode)
+                    return@Thread
+                }
+                try {
+                    Thread.sleep(250L)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return@Thread
+                }
+            }
+            if (generation == anime4kGeneration.get() && handle != 0L) applyAnime4kNow(mode)
+        }, "nuvio-anime4k-$generation").apply { isDaemon = true }.start()
+    }
+
+    private fun applyAnime4kNow(mode: Anime4kMode) {
+        val current = handle.takeIf { it != 0L } ?: run {
+            if (mode == Anime4kMode.Off) {
+                pendingMpvProperties["glsl-shaders"] = ""
+            }
+            return
+        }
+        if (mode == Anime4kMode.Off) {
+            anime4kGeneration.incrementAndGet()
+            val hadChain = lastAppliedAnime4kChain?.isNotEmpty() == true
+            if (!setMpvPropertyInternal("glsl-shaders", "")) return
+            lastAppliedAnime4kChain = ""
+            if (hadChain) restoreRtxVideoFilter()
+            Anime4kRuntime.report(activeMode = Anime4kMode.Off)
+            return
+        }
+        val source = readAnime4kSourceInfo()
+        val chain = DesktopAnime4kShaders.chainFor(mode, source)
+        val resolved = DesktopAnime4kShaders.resolvedMode(mode, source)
+        chain.onFailure { error ->
+            Anime4kRuntime.report(
+                activeMode = mode,
+                resolvedMode = resolved,
+                width = source?.width ?: 0,
+                height = source?.height ?: 0,
+                error = "not-installed:${error.message.orEmpty()}",
+            )
+            // Make sure a previous chain cannot keep running after a failed switch.
+            if (lastAppliedAnime4kChain?.isNotEmpty() == true) {
+                setMpvPropertyInternal("glsl-shaders", "")
+                lastAppliedAnime4kChain = ""
+            }
+        }.onSuccess { value ->
+            if (value != lastAppliedAnime4kChain) {
+                val hadChain = lastAppliedAnime4kChain?.isNotEmpty() == true
+                if (value.isNotEmpty() && rtxVideoFilter.isNotEmpty()) {
+                    // The two frame pipelines cannot run together: d3d11vpp hands Anime4K an
+                    // already-upscaled, possibly PQ-encoded frame. Drop it for this session.
+                    setMpvPropertyInternal("vf", "")
+                }
+                if (!setMpvPropertyInternal("glsl-shaders", value)) {
+                    Anime4kRuntime.report(
+                        activeMode = mode,
+                        resolvedMode = resolved,
+                        width = source?.width ?: 0,
+                        height = source?.height ?: 0,
+                        error = "player-bridge:Anime4K is unavailable in this player build.",
+                    )
+                    return@onSuccess
+                }
+                lastAppliedAnime4kChain = value
+                if (value.isEmpty() && hadChain) restoreRtxVideoFilter()
+                if (value.isNotEmpty()) {
+                    runCatching { NativePlayerBridge.forceVideoRedraw(current) }
+                }
+            }
+            Anime4kRuntime.report(
+                activeMode = mode,
+                resolvedMode = resolved,
+                width = source?.width ?: 0,
+                height = source?.height ?: 0,
+            )
+        }
+    }
+
+    private fun readAnime4kSourceInfo(): Anime4kSourceInfo? {
+        val current = handle.takeIf { it != 0L } ?: return null
+        val width = NativePlayerBridge.stringProperty(current, "video-params/w").toIntOrNull() ?: 0
+        val height = NativePlayerBridge.stringProperty(current, "video-params/h").toIntOrNull() ?: 0
+        if (width <= 0 || height <= 0) return null
+        val bitrateBps = NativePlayerBridge.stringProperty(current, "video-bitrate").toDoubleOrNull()
+        return Anime4kSourceInfo(
+            width = width,
+            height = height,
+            bitrateKbps = bitrateBps?.takeIf { it > 0 }?.div(1000.0)?.toInt(),
+        )
+    }
+
+    private fun restoreRtxVideoFilter() {
+        if (rtxVideoFilter.isEmpty()) return
+        if (!setMpvPropertyInternal("vf", rtxVideoFilter)) return
+        handle.takeIf { it != 0L }?.let { current ->
+            runCatching { NativePlayerBridge.forceVideoRedraw(current) }
+        }
+    }
+
+    /** Public, safe write used by the desktop video profile. Queues when the handle is pending. */
+    fun setMpvProperty(name: String, value: String) {
+        if (handle == 0L) {
+            synchronized(lifecycleLock) { pendingMpvProperties[name] = value }
+            return
+        }
+        setMpvPropertyInternal(name, value)
+    }
+
+    private fun setMpvPropertyInternal(name: String, value: String): Boolean {
+        val current = handle.takeIf { it != 0L } ?: return false
+        return runCatching {
+            val result = NativePlayerBridge.setMpvProperty(current, name, value)
+            if (result < 0) {
+                Anime4kRuntime.report(
+                    activeMode = anime4kMode,
+                    error = "mpv:$name:$result",
+                )
+                false
+            } else {
+                true
+            }
+        }.getOrElse { error ->
+            Anime4kRuntime.report(
+                activeMode = anime4kMode,
+                error = "player-bridge:${error.message ?: error.javaClass.simpleName}",
+            )
+            false
+        }
+    }
+
+    private fun flushPendingMpvProperties() {
+        val pending = synchronized(lifecycleLock) {
+            pendingMpvProperties.toMap().also { pendingMpvProperties.clear() }
+        }
+        pending.forEach { (name, value) -> setMpvPropertyInternal(name, value) }
     }
 
     override fun play() {
@@ -1371,6 +1564,44 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         appendJsonField("submitIntroLabel", submitIntroLabel)
         append(',')
         appendJsonField("videoSettingsLabel", videoSettingsLabel)
+        append(',')
+        appendJsonField("anime4kVisible", anime4kVisible)
+        append(',')
+        appendJsonField("anime4kModeIndex", anime4kModeIndex)
+        append(',')
+        appendJsonArrayField("anime4kModeLabels", anime4kModeLabels) { append(it.toJsonString()) }
+        append(',')
+        appendJsonField("anime4kInstalled", anime4kInstalled)
+        append(',')
+        appendJsonField("anime4kInstalling", anime4kInstalling)
+        append(',')
+        appendJsonField("anime4kActive", anime4kActive)
+        append(',')
+        appendJsonField("anime4kResolvedLabel", anime4kResolvedLabel)
+        append(',')
+        appendJsonField("anime4kSourceWidth", anime4kSourceWidth)
+        append(',')
+        appendJsonField("anime4kSourceHeight", anime4kSourceHeight)
+        append(',')
+        appendJsonField("anime4kError", anime4kError)
+        append(',')
+        appendJsonField("anime4kTitle", anime4kTitle)
+        append(',')
+        appendJsonField("anime4kDescription", anime4kDescription)
+        append(',')
+        appendJsonField("anime4kDefaultBadge", anime4kDefaultBadge)
+        append(',')
+        appendJsonField("anime4kInstallLabel", anime4kInstallLabel)
+        append(',')
+        appendJsonField("anime4kInstallingLabel", anime4kInstallingLabel)
+        append(',')
+        appendJsonField("anime4kNotInstalledLabel", anime4kNotInstalledLabel)
+        append(',')
+        appendJsonField("anime4kAppliedFormat", anime4kAppliedFormat)
+        append(',')
+        appendJsonField("anime4kSourceSuffix", anime4kSourceSuffix)
+        append(',')
+        appendJsonField("anime4kErrorFormat", anime4kErrorFormat)
         append(',')
         appendJsonField("playbackErrorTitle", playbackErrorTitle)
         append(',')
@@ -2036,3 +2267,16 @@ private fun String.toJsonString(): String =
         }
         append('"')
     }
+
+
+/**
+ * Mirrors the vf chain startMpv installs in player_bridge.cpp when RTX video enhancement is on.
+ * Kept here so a live Anime4K disable can put the exact same chain back without re-attaching.
+ */
+internal fun desktopRtxVideoFilterChain(superResolution: Boolean, trueHdr: Boolean): String = when {
+    superResolution && trueHdr ->
+        "d3d11vpp=scale=2:scaling-mode=nvidia:format=x2bgr10:nvidia-true-hdr,format=x2bgr10:transfer=pq:primaries=bt.2020"
+    superResolution -> "d3d11vpp=scale=2:scaling-mode=nvidia"
+    trueHdr -> "d3d11vpp=format=x2bgr10:nvidia-true-hdr,format=x2bgr10:transfer=pq:primaries=bt.2020"
+    else -> ""
+}

@@ -49,9 +49,15 @@ object ServerConfigurationRepository {
     }
 }
 
+internal const val OFFICIAL_BACKEND_URL = "https://api.nuvio.tv"
+internal const val OFFICIAL_PUBLISHABLE_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzgxNTIxMzQ2LCJleHAiOjE5MzkyMDEzNDZ9.tmQaj682pwzehpqlgCDMnySOqiUvpgRbrE43T4VJpDI"
+
 internal fun officialConfiguration() = ServerConfiguration(
-    backendUrl = SupabaseConfig.URL.trim().trimEnd('/'),
-    publishableKey = SupabaseConfig.ANON_KEY.trim(),
+    // Builds made without local.properties used to end up with an empty URL, which clients treat
+    // as https://localhost and cannot reach. Fall back to the official public server instead.
+    backendUrl = SupabaseConfig.URL.trim().trimEnd('/').ifBlank { OFFICIAL_BACKEND_URL },
+    publishableKey = SupabaseConfig.ANON_KEY.trim().ifBlank { OFFICIAL_PUBLISHABLE_KEY },
     capabilities = ServerCapabilities(
         emailPasswordAuth = true,
         tvLogin = true,

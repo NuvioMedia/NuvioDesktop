@@ -125,6 +125,7 @@ internal fun PlayerControlsShell(
     onSubmitIntroClick: (() -> Unit)? = null,
     onSwitchEngineClick: (() -> Unit)? = null,
     onStreamInfoClick: () -> Unit = {},
+    anime4kControl: Anime4kControlState? = null,
     parentalWarnings: List<ParentalWarning> = emptyList(),
     showParentalGuide: Boolean = false,
     onParentalGuideAnimationComplete: () -> Unit = {},
@@ -320,6 +321,8 @@ internal fun PlayerControlsShell(
                     onEpisodesClick = onEpisodesClick,
                     chapters = chapters,
                     onChaptersClick = onChaptersClick,
+                    anime4kControl = anime4kControl,
+                    onInteraction = onInteraction,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
@@ -377,6 +380,7 @@ internal fun PlayerControlsShell(
                         onOpenInExternalPlayer = onOpenInExternalPlayer,
                         onStreamInfoClick = onStreamInfoClick,
                         onSubmitIntroClick = onSubmitIntroClick,
+                        anime4kControl = anime4kControl,
                         onInteraction = onInteraction,
                     )
                 }
@@ -695,6 +699,8 @@ private fun ProgressControls(
     onEpisodesClick: (() -> Unit)? = null,
     chapters: List<PlayerChapter> = emptyList(),
     onChaptersClick: (() -> Unit)? = null,
+    anime4kControl: Anime4kControlState? = null,
+    onInteraction: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val aspectRatioPainter = appIconPainter(AppIconResource.PlayerAspectRatio)
@@ -755,6 +761,12 @@ private fun ProgressControls(
                         painter = audioPainter,
                         onClick = onAudioClick,
                     )
+                    if (anime4kControl != null) {
+                        Anime4kPlayerAction(
+                            state = anime4kControl,
+                            onInteraction = onInteraction,
+                        )
+                    }
                     if (onChaptersClick != null) {
                         PlayerActionPillButton(
                             label = stringResource(Res.string.compose_player_chapters),

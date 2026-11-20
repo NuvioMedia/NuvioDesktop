@@ -121,6 +121,7 @@ internal fun PlayerControlActions(
     onOpenInExternalPlayer: (() -> Unit)?,
     onStreamInfoClick: () -> Unit,
     onSubmitIntroClick: (() -> Unit)?,
+    anime4kControl: Anime4kControlState? = null,
     onInteraction: () -> Unit,
 ) {
     val actions = playerControlActions(
@@ -138,6 +139,7 @@ internal fun PlayerControlActions(
         onOpenInExternalPlayer = onOpenInExternalPlayer,
         onStreamInfoClick = onStreamInfoClick,
         onSubmitIntroClick = onSubmitIntroClick,
+        anime4kControl = anime4kControl,
     )
     val hasOverflow = actions.size > 5
     var expanded by remember(hasOverflow) { mutableStateOf(false) }
@@ -157,16 +159,23 @@ internal fun PlayerControlActions(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 actions.take(if (expanded) actions.size else 5).forEach { action ->
-                    PlayerAction(
-                        description = action.description,
-                        onClick = {
-                            onInteraction()
-                            action.onClick()
-                        },
-                        icon = action.icon,
-                        painter = action.painter,
-                        iconSize = action.iconSize,
-                    )
+                    if (action.kind == PlayerControlActionKind.Anime4k && anime4kControl != null) {
+                        Anime4kPlayerAction(
+                            state = anime4kControl,
+                            onInteraction = onInteraction,
+                        )
+                    } else {
+                        PlayerAction(
+                            description = action.description,
+                            onClick = {
+                                onInteraction()
+                                action.onClick()
+                            },
+                            icon = action.icon,
+                            painter = action.painter,
+                            iconSize = action.iconSize,
+                        )
+                    }
                 }
                 if (hasOverflow) {
                     PlayerAction(
@@ -239,6 +248,7 @@ internal fun playerControlActions(
     onOpenInExternalPlayer: (() -> Unit)?,
     onStreamInfoClick: () -> Unit,
     onSubmitIntroClick: (() -> Unit)?,
+    anime4kControl: Anime4kControlState? = null,
 ): List<PlayerControlAction> =
     listOfNotNull(
         onNextEpisodeClick?.let {
@@ -255,6 +265,12 @@ internal fun playerControlActions(
             stringResource(Res.string.compose_player_audio), onAudioClick,
             painter = appIconPainter(AppIconResource.PlayerAudioFilled),
         ),
+        anime4kControl?.let {
+            PlayerControlAction(
+                stringResource(Res.string.anime4k_cd_label), {},
+                kind = PlayerControlActionKind.Anime4k,
+            )
+        },
         onChaptersClick?.let {
             PlayerControlAction(
                 stringResource(Res.string.compose_player_chapters), it,
@@ -305,10 +321,16 @@ internal fun playerControlActions(
         },
     )
 
+internal enum class PlayerControlActionKind {
+    Normal,
+    Anime4k,
+}
+
 internal data class PlayerControlAction(
     val description: String,
     val onClick: () -> Unit,
     val icon: ImageVector? = null,
     val painter: Painter? = null,
     val iconSize: Dp = 24.dp,
+    val kind: PlayerControlActionKind = PlayerControlActionKind.Normal,
 )

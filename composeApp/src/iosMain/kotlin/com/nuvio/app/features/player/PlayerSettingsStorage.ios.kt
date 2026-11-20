@@ -122,6 +122,7 @@ actual object PlayerSettingsStorage {
     private const val iosGammaKey = "ios_gamma"
     private const val nvidiaRtxSuperResolutionEnabledKey = "nvidia_rtx_super_resolution_enabled"
     private const val nvidiaRtxHdrEnabledKey = "nvidia_rtx_hdr_enabled"
+    private const val anime4kModeKey = "anime4k_mode"
     private val syncKeys = listOf(
         showLoadingOverlayKey,
         showPlayerLoadingStatusKey,
@@ -132,6 +133,7 @@ actual object PlayerSettingsStorage {
         holdToSpeedValueKey,
         nvidiaRtxSuperResolutionEnabledKey,
         nvidiaRtxHdrEnabledKey,
+        anime4kModeKey,
         touchGesturesEnabledKey,
         externalPlayerEnabledKey,
         externalPlayerForwardSubtitlesKey,
@@ -1316,6 +1318,13 @@ actual object PlayerSettingsStorage {
         NSUserDefaults.standardUserDefaults.setBool(enabled, forKey = ProfileScopedKey.of(nvidiaRtxHdrEnabledKey))
     }
 
+    actual fun loadAnime4kMode(): String? =
+        NSUserDefaults.standardUserDefaults.stringForKey(ProfileScopedKey.of(anime4kModeKey))
+
+    actual fun saveAnime4kMode(mode: String) {
+        NSUserDefaults.standardUserDefaults.setObject(mode, forKey = ProfileScopedKey.of(anime4kModeKey))
+    }
+
     actual fun exportToSyncPayload(): JsonObject = buildJsonObject {
         loadShowLoadingOverlay()?.let { put(showLoadingOverlayKey, encodeSyncBoolean(it)) }
         loadShowPlayerLoadingStatus()?.let { put(showPlayerLoadingStatusKey, encodeSyncBoolean(it)) }
@@ -1415,6 +1424,7 @@ actual object PlayerSettingsStorage {
         loadIosGamma()?.let { put(iosGammaKey, encodeSyncInt(it)) }
         loadNvidiaRtxSuperResolutionEnabled()?.let { put(nvidiaRtxSuperResolutionEnabledKey, encodeSyncBoolean(it)) }
         loadNvidiaRtxHdrEnabled()?.let { put(nvidiaRtxHdrEnabledKey, encodeSyncBoolean(it)) }
+        loadAnime4kMode()?.let { put(anime4kModeKey, encodeSyncString(it)) }
     }
 
     actual fun replaceFromSyncPayload(payload: JsonObject) {
@@ -1513,5 +1523,6 @@ actual object PlayerSettingsStorage {
         payload.decodeSyncInt(iosGammaKey)?.let(::saveIosGamma)
         payload.decodeSyncBoolean(nvidiaRtxSuperResolutionEnabledKey)?.let(::saveNvidiaRtxSuperResolutionEnabled)
         payload.decodeSyncBoolean(nvidiaRtxHdrEnabledKey)?.let(::saveNvidiaRtxHdrEnabled)
+        payload.decodeSyncString(anime4kModeKey)?.let(::saveAnime4kMode)
     }
 }

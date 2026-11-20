@@ -131,6 +131,7 @@ internal fun PlaybackVideoSettings(
                         )
                     }
                 }
+                Anime4kSettingsSection(isTablet = isTablet)
             }
         } else {
             SettingsSection(

@@ -126,6 +126,7 @@ data class PlayerSettingsUiState(
     val iosGamma: Int = 0,
     val nvidiaRtxSuperResolutionEnabled: Boolean = false,
     val nvidiaRtxHdrEnabled: Boolean = false,
+    val anime4kMode: Anime4kMode = Anime4kMode.default,
 )
 
 /** How many further sources falling back may try after the auto-selected one fails, by default and at most. */
@@ -243,6 +244,7 @@ object PlayerSettingsRepository {
     private var iosGamma = 0
     private var nvidiaRtxSuperResolutionEnabled = false
     private var nvidiaRtxHdrEnabled = false
+    private var anime4kMode = Anime4kMode.default
 
     fun ensureLoaded() {
         if (hasLoaded) return
@@ -348,6 +350,7 @@ object PlayerSettingsRepository {
         iosGamma = 0
         nvidiaRtxSuperResolutionEnabled = false
         nvidiaRtxHdrEnabled = false
+        anime4kMode = Anime4kMode.default
         publish()
     }
 
@@ -544,6 +547,7 @@ object PlayerSettingsRepository {
         iosGamma = PlayerSettingsStorage.loadIosGamma() ?: 0
         nvidiaRtxSuperResolutionEnabled = PlayerSettingsStorage.loadNvidiaRtxSuperResolutionEnabled() ?: false
         nvidiaRtxHdrEnabled = PlayerSettingsStorage.loadNvidiaRtxHdrEnabled() ?: false
+        anime4kMode = Anime4kMode.fromStorage(PlayerSettingsStorage.loadAnime4kMode())
         publish()
     }
 
@@ -1218,6 +1222,14 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveNvidiaRtxHdrEnabled(enabled)
     }
 
+    fun setAnime4kMode(mode: Anime4kMode) {
+        ensureLoaded()
+        if (anime4kMode == mode) return
+        anime4kMode = mode
+        publish()
+        PlayerSettingsStorage.saveAnime4kMode(mode.name)
+    }
+
     fun setLibassRenderType(renderType: String) {
         ensureLoaded()
         if (libassRenderType == renderType) return
@@ -1501,6 +1513,7 @@ object PlayerSettingsRepository {
             iosGamma = iosGamma,
             nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
             nvidiaRtxHdrEnabled = nvidiaRtxHdrEnabled,
+            anime4kMode = anime4kMode,
         )
     }
 

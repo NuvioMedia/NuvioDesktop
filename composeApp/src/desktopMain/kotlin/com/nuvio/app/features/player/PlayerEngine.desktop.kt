@@ -176,6 +176,8 @@ private fun NativePlayerSurface(
     val decoderPriority = playerSettings.decoderPriority
     val nvidiaRtxSuperResolutionEnabled = playerSettings.nvidiaRtxSuperResolutionEnabled
     val nvidiaRtxHdrEnabled = playerSettings.nvidiaRtxHdrEnabled
+    val anime4kMode = playerSettings.anime4kMode
+    val anime4kInstall by com.nuvio.app.features.player.Anime4kShaderInstaller.state.collectAsState()
 
     SideEffect {
         onControllerReady(readyController)
@@ -273,6 +275,12 @@ private fun NativePlayerSurface(
 
     LaunchedEffect(controller, resizeMode) {
         controller.setResizeMode(resizeMode)
+    }
+
+    // A mode change is a renderer-only update: no re-attach, no decoder restart.
+    LaunchedEffect(controller, anime4kMode, sourceAvailable, anime4kInstall.isInstalled) {
+        if (!sourceAvailable) return@LaunchedEffect
+        controller.applyAnime4kMode(anime4kMode)
     }
 
     LaunchedEffect(controller, controlsState) {

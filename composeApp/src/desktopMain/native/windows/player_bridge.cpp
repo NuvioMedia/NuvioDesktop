@@ -1856,6 +1856,20 @@ private:
         eventThread = std::thread([self]() { self->drainMpvEvents(); });
     }
 
+    // A live shader change can land while playback is paused, where gpu-next has no new frame to
+    // present. Force one repaint of the embedded surface so the selected preset is visible
+    // immediately instead of on the next seek.
+public:
+    void forceVideoRedraw() {
+        auto self = shared_from_this();
+        postUiTask([self]() {
+            if (!self->containerHwnd || !IsWindow(self->containerHwnd)) return;
+            InvalidateRect(self->containerHwnd, nullptr, FALSE);
+            UpdateWindow(self->containerHwnd);
+        });
+    }
+private:
+
     void layoutNativeSubviews() {
         if (!hostHwnd || !IsWindow(hostHwnd)) {
             return;
@@ -2149,6 +2163,16 @@ private:
         if (!mpv) return;
         mpvApi().setPropertyString(mpv, name, value.c_str());
     }
+
+    // Used by the Anime4K profile for `glsl-shaders` and `glsl-shader-opts`. mpv applies both
+    // live: the renderer rebuilds its shader chain without touching the demuxer/decoder.
+public:
+    int setMpvPropertyString(const std::string &name, const std::string &value) {
+        std::lock_guard<std::mutex> lock(mpvMutex);
+        if (!mpv) return -1;
+        return mpvApi().setPropertyString(mpv, name.c_str(), value.c_str());
+    }
+private:
 
     void command(const std::vector<std::string> &args) {
         if (args.empty()) return;
@@ -2913,6 +2937,21 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_stringProperty(JNIEnv *env, jobject, jlong handle, jstring name) {
     auto player = playerFromHandle(handle);
     return newJavaStringUtf8(env, player ? player->mpvStringProperty(jstringToUtf8(env, name).c_str()) : "");
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setMpvProperty(
+    JNIEnv *env, jobject, jlong handle, jstring name, jstring value
+) {
+    auto player = playerFromHandle(handle);
+    if (!player) return -1;
+    return player->setMpvPropertyString(jstringToUtf8(env, name), jstringToUtf8(env, value));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_forceVideoRedraw(JNIEnv *, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    if (player) player->forceVideoRedraw();
 }
 
 extern "C" JNIEXPORT jstring JNICALL

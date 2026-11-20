@@ -52,8 +52,10 @@ actual object AppUpdaterPlatform {
     actual val isSupported: Boolean
         get() = currentOs != DesktopUpdaterOs.UNKNOWN && linuxInstallMethod != LinuxInstallMethod.FLATPAK
 
+    // Fork builds must never offer the upstream installer: it would replace this
+    // build with the official one. Updates are read from the fork's own releases.
     actual val releaseSource: AppUpdateReleaseSource = AppUpdateReleaseSource(
-        owner = "NuvioMedia",
+        owner = "broknnn",
         repo = "NuvioDesktop",
         channelBranch = null,
         includePrereleases = true,
