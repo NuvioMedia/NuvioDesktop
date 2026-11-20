@@ -2,9 +2,11 @@ package com.nuvio.app.core.storage
 
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
 import java.util.Comparator
 import java.util.Locale
 import java.util.Properties
@@ -162,8 +164,31 @@ internal object DesktopStorage {
 
         private fun persist() {
             Files.createDirectories(file.parent)
-            Files.newOutputStream(file).use { output ->
-                properties.store(output, "Nuvio desktop preferences")
+            // Write next to the store and swap the finished file in, so a crash
+            // or a full disk during a save cannot truncate the settings that are
+            // already on disk: the old file stays readable until the new one is
+            // complete.
+            val temp = file.resolveSibling("${file.fileName}.tmp")
+            try {
+                Files.newOutputStream(temp).use { output ->
+                    properties.store(output, "Nuvio desktop preferences")
+                }
+                moveIntoPlace(temp, file)
+            } finally {
+                runCatching { Files.deleteIfExists(temp) }
+            }
+        }
+
+        private fun moveIntoPlace(source: Path, target: Path) {
+            try {
+                Files.move(
+                    source,
+                    target,
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING)
             }
         }
     }
