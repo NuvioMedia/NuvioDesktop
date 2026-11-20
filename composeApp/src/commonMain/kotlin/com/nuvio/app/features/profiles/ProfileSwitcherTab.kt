@@ -83,6 +83,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.controller.ControllerFocusEngine
+import com.nuvio.app.controller.ControllerFocusZone
+import com.nuvio.app.controller.ControllerManager
+import com.nuvio.app.controller.RegisterControllerHandler
+import com.nuvio.app.controller.controllerFocusable
 import dev.chrisbanes.haze.hazeEffect
 import com.nuvio.app.core.ui.NuvioDesktopAnimation
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
@@ -364,6 +369,33 @@ fun SidebarProfileSwitcherStack(
         }
     }
 
+    // B closes the PIN step first, then the switcher; without this the app-level back handler
+    // would navigate away from the screen underneath the popup.
+    RegisterControllerHandler(
+        key = "profile_switcher",
+        onBack = {
+            if (pinProfile != null) {
+                pinProfile = null
+            } else {
+                onDismissRequest()
+            }
+            true
+        },
+    )
+
+    // When the popup is opened with the controller/keyboard, move the spatial focus into it so the
+    // next A press selects a profile instead of toggling the popup closed again.
+    LaunchedEffect(profiles, pinProfile) {
+        if (!ControllerManager.isNavigationActive.value) return@LaunchedEffect
+        delay(80)
+        val targetId = pinProfile?.let { "pin_key_5" }
+            ?: profiles.firstOrNull { it.profileIndex == activeProfile?.profileIndex }
+                ?.let { "profile_switch_${it.profileIndex}" }
+            ?: profiles.firstOrNull()?.let { "profile_switch_${it.profileIndex}" }
+            ?: "profile_switch_add"
+        ControllerFocusEngine.requestFocus(targetId, triggerScroll = false)
+    }
+
     Box(modifier = modifier) {
         if (pinProfile == null) {
             Column(
@@ -427,6 +459,13 @@ private fun SidebarProfileSwitcherRow(
                 },
             )
             .clickable(onClick = onClick)
+            .controllerFocusable(
+                id = "profile_switch_${profile.profileIndex}",
+                zone = ControllerFocusZone.Overlay,
+                groupKey = "profile_switcher",
+                selectLabel = profile.name,
+                onSelect = onClick,
+            )
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -475,6 +514,13 @@ private fun SidebarAddProfileRow(
             .height(40.dp)
             .clip(tokens.shapes.compactCard)
             .clickable(onClick = onClick)
+            .controllerFocusable(
+                id = "profile_switch_add",
+                zone = ControllerFocusZone.Overlay,
+                groupKey = "profile_switcher",
+                selectLabel = stringResource(Res.string.compose_profile_add_profile),
+                onSelect = onClick,
+            )
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -594,7 +640,14 @@ private fun SidebarCompactPinEntry(
                     .size(30.dp)
                     .clip(tokens.shapes.avatar)
                     .background(tokens.colors.surfaceCard)
-                    .clickable(onClick = onCancel),
+                    .clickable(onClick = onCancel)
+                    .controllerFocusable(
+                        id = "pin_cancel",
+                        zone = ControllerFocusZone.Overlay,
+                        groupKey = "pin_keypad",
+                        selectLabel = stringResource(Res.string.action_back),
+                        onSelect = onCancel,
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -686,7 +739,14 @@ private fun SidebarCompactPinKeypad(
                                     .size(30.dp)
                                     .clip(tokens.shapes.avatar)
                                     .background(tokens.colors.surface)
-                                    .clickable(onClick = onBackspace),
+                                    .clickable(onClick = onBackspace)
+                                    .controllerFocusable(
+                                        id = "pin_key_backspace",
+                                        zone = ControllerFocusZone.Overlay,
+                                        groupKey = "pin_keypad",
+                                        selectLabel = stringResource(Res.string.pin_backspace),
+                                        onSelect = onBackspace,
+                                    ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
@@ -703,7 +763,15 @@ private fun SidebarCompactPinKeypad(
                                     .size(30.dp)
                                     .clip(tokens.shapes.avatar)
                                     .background(tokens.colors.surface)
-                                    .clickable { onDigit(key) },
+                                    .clickable { onDigit(key) }
+                                    .controllerFocusable(
+                                        id = "pin_key_$key",
+                                        zone = ControllerFocusZone.Overlay,
+                                        groupKey = "pin_keypad",
+                                        selectLabel = key,
+                                        onSelect = { onDigit(key) },
+                                        onSecondaryAction = { onBackspace() },
+                                    ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(

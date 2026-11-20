@@ -802,6 +802,14 @@ internal fun DesktopHoverSidebar(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { onProfileStackVisibleChange(!profileStackVisible) },
+                    )
+                    .controllerFocusable(
+                        id = "sidebar_profile_trigger",
+                        zone = ControllerFocusZone.Navigation,
+                        shape = RoundedCornerShape(12.dp),
+                        cornerRadius = 12.dp,
+                        selectLabel = activeProfileName,
+                        onSelect = { onProfileStackVisibleChange(!profileStackVisible) },
                     ),
                 contentAlignment = Alignment.Center,
             ) {
