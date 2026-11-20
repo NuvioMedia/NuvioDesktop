@@ -10,14 +10,25 @@ package com.nuvio.app.core.ui
  * the system Back button on every screen, including the player.
  */
 internal object DesktopEscapeShortcut {
+    /** Routes Escape through Compose's NavigationBackHandler ordering (screens, dialogs, NavDisplay). */
     @Volatile
-    var onBack: (() -> Unit)? = null
+    var composeBack: (() -> Boolean)? = null
 
-    fun register(handler: () -> Unit) {
-        onBack = handler
+    @Volatile
+    private var fallback: (() -> Unit)? = null
+
+    fun setFallback(handler: () -> Unit) {
+        fallback = handler
     }
 
-    fun unregister(handler: () -> Unit) {
-        if (onBack === handler) onBack = null
+    fun clearFallback(handler: () -> Unit) {
+        if (fallback === handler) fallback = null
+    }
+
+    fun dispatch(): Boolean {
+        if (composeBack?.invoke() == true) return true
+        val appFallback = fallback ?: return false
+        appFallback()
+        return true
     }
 }
