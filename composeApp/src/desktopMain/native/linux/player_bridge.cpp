@@ -230,6 +230,34 @@ void gtkSync(std::function<void()> fn) {
     s.cv.wait(lock, [&] { return s.done; });
 }
 
+// ---- X error handler -----------------------------------------------------
+// libmpv's X11 VO resets the process-wide X error handler to NULL (Xlib's
+// default, which exits on any X error) when it shuts down. Put the app's
+// handler back after each mpv instance is destroyed. Both steps run on the
+// GTK thread so a GDK error trap can't capture or undo the change.
+
+XErrorHandler gAppXErrorHandler = nullptr;
+std::once_flag gAppXErrorHandlerOnce;
+
+int ignoreXError(Display *, XErrorEvent *) { return 0; }
+
+void rememberAppXErrorHandler() {
+    std::call_once(gAppXErrorHandlerOnce, [] {
+        ensureGtk();
+        gtkSync([] {
+            // Xlib has no getter: swap in a no-op handler to read the current one.
+            XErrorHandler current = XSetErrorHandler(ignoreXError);
+            XSetErrorHandler(current);
+            gAppXErrorHandler = current;
+        });
+    });
+}
+
+void restoreAppXErrorHandler() {
+    if (!gAppXErrorHandler) return;
+    gtkSync([] { XSetErrorHandler(gAppXErrorHandler); });
+}
+
 // ---- small helpers -------------------------------------------------------
 
 std::string jstringToUtf8(JNIEnv *env, jstring value) {
@@ -1669,6 +1697,7 @@ JNIEXPORT jlong JNICALL NP(create)(
     // this C-level change does not affect Java number formatting.
     setlocale(LC_NUMERIC, "C");
 
+    rememberAppXErrorHandler();
     auto *player = new Player();
     player->mpv = mpv_create();
     if (!player->mpv) {
@@ -1813,6 +1842,7 @@ JNIEXPORT jlong JNICALL NP(create)(
         }
         mpv_destroy(player->mpv);
         player->mpv = nullptr;
+        restoreAppXErrorHandler();
     }
     if (!player->mpv || initResult < 0) {
         delete player;
@@ -1875,6 +1905,7 @@ JNIEXPORT void JNICALL NP(dispose)(JNIEnv *env, jobject, jlong handle) {
     if (player->eventThread.joinable()) player->eventThread.join();
     if (player->eventSink) env->DeleteGlobalRef(player->eventSink);
     if (player->mpv) mpv_terminate_destroy(player->mpv);
+    restoreAppXErrorHandler();
     delete player;
 }
 
