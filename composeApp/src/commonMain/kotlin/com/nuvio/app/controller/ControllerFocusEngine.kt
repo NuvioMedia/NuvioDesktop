@@ -299,7 +299,8 @@ object ControllerFocusEngine {
         }
     }
 
-    internal fun getActiveScrollable(): ControllerScrollableEntry? {        val valid = registeredScrollables.filter { entry ->
+    internal fun getActiveScrollable(): ControllerScrollableEntry? {
+        val valid = registeredScrollables.filter { entry ->
             val l = entry.lazyListState
             val s = entry.scrollState
             val g = entry.lazyGridState
@@ -312,6 +313,40 @@ object ControllerFocusEngine {
             entry.lazyListState?.layoutInfo?.visibleItemsInfo?.isNotEmpty() == true ||
             entry.lazyGridState?.layoutInfo?.visibleItemsInfo?.isNotEmpty() == true
         } ?: valid.lastOrNull() ?: registeredScrollables.lastOrNull()
+    }
+
+    /**
+     * Keeps the spatial selection on screen after a programmatic or lazy-list scroll.
+     *
+     * Lazy containers can keep an item composed while it leaves the viewport, so the focused node
+     * stays "valid" but is no longer visible and its ring disappears. When that happens, move the
+     * selection to the nearest visible content item without scrolling again.
+     */
+    internal fun ensureFocusWithinActiveViewport() {
+        val entry = getActiveScrollable() ?: return
+        val viewportTop = entry.viewportTopInRoot.takeIf { it.isFinite() } ?: return
+        val viewportHeight = entry.viewportHeight
+        if (viewportHeight <= 0f) return
+
+        val current = _focusedNodeId.value?.let { nodes[it] }?.takeIf { it.isVisibleAndValid } ?: return
+        if (current.zone != ControllerFocusZone.Content) return
+
+        val viewportBottom = viewportTop + viewportHeight
+        val centerY = current.boundsInRoot.center.y
+        if (centerY >= viewportTop - 12f && centerY <= viewportBottom + 12f) return
+
+        val candidates = nodes.values.filter {
+            it.zone == ControllerFocusZone.Content &&
+                it.id != current.id &&
+                it.isVisibleAndValid &&
+                it.boundsInRoot.center.y in viewportTop..viewportBottom
+        }
+        if (candidates.isEmpty()) return
+
+        val target = candidates.minByOrNull {
+            abs(it.boundsInRoot.center.x - current.boundsInRoot.center.x)
+        } ?: return
+        focusNodeInternal(target, triggerScroll = false)
     }
 
     fun setNavigationZoneExpanded(expanded: Boolean) {
@@ -2246,6 +2281,7 @@ fun RegisterControllerVerticalScroll(
 ): Modifier {
     val isScreenActive = LocalScreenActive.current
     val scope = rememberCoroutineScope()
+    var focusVisibilityJob by remember { mutableStateOf<Job?>(null) }
     DisposableEffect(lazyListState, scrollState, lazyGridState, isScreenActive) {
         if (isScreenActive) {
             ControllerFocusEngine.registerVerticalScrollable(
@@ -2285,6 +2321,16 @@ fun RegisterControllerVerticalScroll(
                 ControllerFocusEngine.setTopBarVisibleByScroll(false)
             } else if (idx < lastIndex || (idx == lastIndex && off < lastOffset - 8)) {
                 ControllerFocusEngine.setTopBarVisibleByScroll(true)
+            }
+            // A lazy container can keep the focused item composed after it leaves the viewport,
+            // which hides its ring while the list keeps scrolling. Once scrolling settles, pull the
+            // selection back to the nearest visible item.
+            if (ControllerManager.isNavigationActive.value) {
+                focusVisibilityJob?.cancel()
+                focusVisibilityJob = scope.launch {
+                    delay(260)
+                    ControllerFocusEngine.ensureFocusWithinActiveViewport()
+                }
             }
             lastIndex = idx
             lastOffset = off
