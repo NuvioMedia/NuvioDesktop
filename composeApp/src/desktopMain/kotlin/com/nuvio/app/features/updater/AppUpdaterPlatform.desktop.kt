@@ -56,7 +56,7 @@ actual object AppUpdaterPlatform {
     // build with the official one. Updates are read from the fork's own releases.
     actual val releaseSource: AppUpdateReleaseSource = AppUpdateReleaseSource(
         owner = "broknnn",
-        repo = "NuvioDesktop",
+        repo = "NuvioDesktop-Anime4K",
         channelBranch = null,
         includePrereleases = true,
         userAgent = "NuvioDesktop",
