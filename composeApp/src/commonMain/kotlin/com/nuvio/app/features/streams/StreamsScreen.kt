@@ -90,6 +90,7 @@ import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.core.ui.featherArtwork
 import com.nuvio.app.core.ui.rememberArtworkBackdrop
+import com.nuvio.app.core.ui.platformTouchScroll
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -793,6 +794,15 @@ internal fun StreamList(
         StreamBadgeSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
 
+    // As on TV, picking another addon filter starts at the top of its results. Only a change of
+    // filter does it, so the position kept when coming back from the player stays.
+    var shownFilter by remember { mutableStateOf(uiState.selectedFilter) }
+    LaunchedEffect(uiState.selectedFilter) {
+        if (uiState.selectedFilter == shownFilter) return@LaunchedEffect
+        shownFilter = uiState.selectedFilter
+        listState.scrollToItem(0)
+    }
+
     CompositionLocalProvider(LocalStreamSizeLabelFormat provides formatStreamSize) {
     Box(modifier = modifier.fillMaxWidth()) {
         LazyColumn(
@@ -1220,6 +1230,7 @@ private fun DesktopStreamActionsMenu(
     ) {
         Column(
             modifier = Modifier
+                .platformTouchScroll()
                 .width(244.dp)
                 .shadow(elevation = 14.dp, shape = menuShape)
                 .clip(menuShape)

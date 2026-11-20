@@ -1377,6 +1377,10 @@ button:disabled {
   transition: opacity 180ms ease;
 }
 
+.opening-overlay[hidden] {
+  display: none;
+}
+
 .opening-overlay.visible {
   opacity: 1;
   pointer-events: auto;
@@ -1620,7 +1624,7 @@ button:disabled {
   background:
     var(--theme-accent-gradient, linear-gradient(var(--theme-timeline-fill), var(--theme-timeline-fill)))
       left center / var(--progress, 0%) 100% no-repeat,
-    linear-gradient(var(--theme-buffering-track)) left center / var(--bufferProgress, 0%) 100% no-repeat,
+    linear-gradient(var(--theme-buffering-track), var(--theme-buffering-track)) left center / var(--bufferProgress, 0%) 100% no-repeat,
     var(--theme-timeline-track);
 }
 

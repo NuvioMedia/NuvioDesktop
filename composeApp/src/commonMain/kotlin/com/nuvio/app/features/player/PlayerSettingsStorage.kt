@@ -13,6 +13,12 @@ internal expect object PlayerSettingsStorage {
     fun saveShowLoadingOverlay(enabled: Boolean)
     fun loadAutoSwitchPlaybackEngineOnError(): Boolean?
     fun saveAutoSwitchPlaybackEngineOnError(enabled: Boolean)
+    fun loadStreamAutoPlayFallbackOnFailure(): Boolean?
+    fun saveStreamAutoPlayFallbackOnFailure(enabled: Boolean)
+    fun loadStreamAutoPlayFallbackMaxSources(): Int?
+    fun saveStreamAutoPlayFallbackMaxSources(count: Int)
+    fun loadStreamAutoPlayFallbackStartupTimeoutSeconds(): Int?
+    fun saveStreamAutoPlayFallbackStartupTimeoutSeconds(seconds: Int)
     fun loadShowPlayerLoadingStatus(): Boolean?
     fun saveShowPlayerLoadingStatus(enabled: Boolean)
     fun loadPauseOverlayEnabled(): Boolean?
@@ -79,8 +85,10 @@ internal expect object PlayerSettingsStorage {
     fun saveAndroidLibmpvHardwareDecodingEnabled(enabled: Boolean)
     fun loadAndroidLibmpvYuv420pEnabled(): Boolean?
     fun loadAndroidExoChaptersEnabled(): Boolean?
+    fun loadChapterTitleEnabled(): Boolean?
     fun saveAndroidLibmpvYuv420pEnabled(enabled: Boolean)
     fun saveAndroidExoChaptersEnabled(enabled: Boolean)
+    fun saveChapterTitleEnabled(enabled: Boolean)
     fun loadRememberAudioDelayPerDevice(): Boolean?
     fun saveRememberAudioDelayPerDevice(enabled: Boolean)
     fun loadPersistAudioAmplification(): Boolean?
@@ -208,6 +216,8 @@ internal expect object PlayerSettingsStorage {
     fun saveIosGamma(value: Int)
     fun loadNvidiaRtxSuperResolutionEnabled(): Boolean?
     fun saveNvidiaRtxSuperResolutionEnabled(enabled: Boolean)
+    fun loadNvidiaRtxHdrEnabled(): Boolean?
+    fun saveNvidiaRtxHdrEnabled(enabled: Boolean)
     fun exportToSyncPayload(): JsonObject
     fun replaceFromSyncPayload(payload: JsonObject)
 }

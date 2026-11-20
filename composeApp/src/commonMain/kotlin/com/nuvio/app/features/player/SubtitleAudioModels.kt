@@ -90,6 +90,9 @@ val PlayerSettingsUiState.effectiveDownmixEnabled: Boolean
 internal fun audioAmplificationGain(db: Int): Double =
     10.0.pow(db.coerceIn(AUDIO_AMPLIFICATION_MIN_DB, AUDIO_AMPLIFICATION_MAX_DB) / 20.0)
 
+internal const val SUBTITLE_OUTLINE_WIDTH_DEFAULT = 2
+internal val subtitleOutlineWidthRange: IntRange = 1..5
+
 internal val subtitleFontSizeRangeSp: IntRange
     get() = if (isDesktop) 6..32 else if (isIos) 6..40 else 12..40
 
@@ -98,12 +101,12 @@ data class SubtitleStyleState(
     val backgroundColor: Color = Color.Transparent,
     val outlineColor: Color = Color.Black,
     val outlineEnabled: Boolean = true,
-    val outlineWidth: Int = 2,
+    val outlineWidth: Int = SUBTITLE_OUTLINE_WIDTH_DEFAULT,
     val bold: Boolean = false,
     val fontSizeSp: Int = 18,
     val bottomOffset: Int = 20,
     val stripSdh: Boolean = false,
-    val useForcedSubtitles: Boolean = false,
+    val useForcedSubtitles: Boolean = true,
     val showOnlyPreferredLanguages: Boolean = false,
     val appearance: SubtitleAppearance = SubtitleAppearance(),
 ) {

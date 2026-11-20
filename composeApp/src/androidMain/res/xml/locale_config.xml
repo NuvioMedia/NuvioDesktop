@@ -22,7 +22,9 @@
     <locale android:name="ta"/>
     <locale android:name="tr"/>
     <locale android:name="ur"/>
+    <locale android:name="uk"/>
     <locale android:name="nb"/>
 	<locale android:name="ja"/>
     <locale android:name="vi"/>
+    <locale android:name="zh"/>
 </locale-config>
