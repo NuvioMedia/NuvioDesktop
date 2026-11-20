@@ -130,29 +130,11 @@ private fun applyNavigationCursor(hidden: Boolean) {
     }
 }
 
-/**
- * Writes spatial-navigation diagnostics to /tmp/nuvio-nav.log so focus problems reported from a
- * packaged build can be inspected without a terminal. Temporary: removed once Home navigation is
- * confirmed stable.
- */
-private fun installNavDebugSink() {
-    val file = java.io.File("/tmp/nuvio-nav.log")
-    runCatching { file.writeText("") }
-    ControllerFocusEngine.debugLogging = true
-    ControllerFocusEngine.debugSink = { message ->
-        runCatching { file.appendText("${System.currentTimeMillis()} $message\n") }
-    }
-}
-
 @Composable
 actual fun PlatformKeyboardNavigationHost() {
     val focusManager = LocalFocusManager.current
 
     DesktopKeyboardShortcutHost()
-
-    LaunchedEffect(Unit) {
-        installNavDebugSink()
-    }
 
     // Controller polling + navigation feedback sounds. DesktopControllerInput normalises XInput
     // (Windows) and SDL2 (Linux/macOS) into the same spatial-engine events.

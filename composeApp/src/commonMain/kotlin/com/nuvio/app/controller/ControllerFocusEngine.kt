@@ -221,19 +221,6 @@ object ControllerFocusEngine {
     )
 
     private val registeredScrollables = mutableListOf<ControllerScrollableEntry>()
-
-    /** Optional diagnostics hook installed by the desktop host (see PlatformKeyboardNavigation). */
-    @Volatile
-    internal var debugLogging: Boolean = false
-
-    @Volatile
-    internal var debugSink: ((String) -> Unit)? = null
-
-    private fun navDebug(message: String) {
-        if (!debugLogging) return
-        val sink = debugSink
-        if (sink != null) sink(message) else println("[NAV] $message")
-    }
     private var activeCoroutineScope: CoroutineScope? = null
     private var activeVerticalScrollJob: Job? = null
     private var activeHorizontalScrollJob: Job? = null
@@ -373,10 +360,6 @@ object ControllerFocusEngine {
         val sameGroup = candidates.filter { it.groupKey != null && it.groupKey == current.groupKey }
         val pool = sameGroup.ifEmpty { candidates }
         val target = pool.minByOrNull { abs(it.boundsInRoot.center.y - bounds.center.y) } ?: return
-        navDebug(
-            "viewport-correct current=${current.id} cy=${bounds.center.y.toInt()} " +
-                "viewport=$viewportTop..${viewportBottom.toInt()} target=${target.id}",
-        )
         focusNodeInternal(target, triggerScroll = false)
     }
 
@@ -731,14 +714,6 @@ object ControllerFocusEngine {
         val previousId = _focusedNodeId.value
         _focusedNodeId.value = node.id
         _focusedNodeSnapshot.value = node.toSnapshot()
-        if (debugLogging) {
-            val b = node.boundsInRoot
-            navDebug(
-                "focus ${previousId ?: "-"} -> ${node.id} zone=${node.zone} group=${node.groupKey} " +
-                    "top=${b.top.toInt()} bottom=${b.bottom.toInt()} cy=${b.center.y.toInt()} " +
-                    "triggerScroll=$triggerScroll dir=$direction",
-            )
-        }
         if (!isInternalCleanupFocus) {
             lastFocusedByZone[node.zone] = node.id
             node.groupKey?.let { group ->
@@ -1620,12 +1595,6 @@ object ControllerFocusEngine {
             composedRows.indices.minByOrNull { abs(composedRows[it].centerY - currentCenterY) } ?: 0
         }
         val currentRow = composedRows[effectiveRowIndex]
-        if (debugLogging) {
-            val rowsSummary = composedRows.mapIndexed { index, row ->
-                "$index:${row.nodes.firstOrNull()?.id}@${row.centerY.toInt()}"
-            }
-            navDebug("vertical dir=$direction current=${current.id} row=$effectiveRowIndex rows=$rowsSummary")
-        }
 
         // 2. Strict Rule for Row Header Chevrons:
         // A row's chevron can be focused when:
@@ -1688,7 +1657,6 @@ object ControllerFocusEngine {
 
                 activeVerticalScrollJob?.cancel()
                 activeVerticalScrollJob = scope.launch {
-                    navDebug("scroll down distance=$scrollDistance rowIndex=$effectiveRowIndex")
                     val fallbackSpec = tween<Float>(200, easing = FastOutSlowInEasing)
                     if (listState != null) {
                         runCatching { listState.animateScrollBy(scrollDistance, fallbackSpec) }
@@ -1710,7 +1678,6 @@ object ControllerFocusEngine {
                         refreshedRows.lastOrNull()
                     }
                     val target = targetRow?.let { selectBestTargetNodeInRow(current, it) }
-                    navDebug("scroll down settled refreshedRows=${refreshedRows.size} target=${target?.id}")
                     if (target != null) {
                         focusNodeInternal(target, triggerScroll = true, suppressVerticalScroll = false, direction = direction)
                     } else {
