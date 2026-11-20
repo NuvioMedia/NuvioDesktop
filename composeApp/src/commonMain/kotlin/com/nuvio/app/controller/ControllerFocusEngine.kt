@@ -216,9 +216,24 @@ object ControllerFocusEngine {
         /** Viewport bounds in root coordinates, tracked by [RegisterControllerVerticalScroll]. */
         var viewportTopInRoot: Float = Float.NaN,
         var viewportHeight: Float = 0f,
+        var viewportLeftInRoot: Float = Float.NaN,
+        var viewportWidth: Float = 0f,
     )
 
     private val registeredScrollables = mutableListOf<ControllerScrollableEntry>()
+
+    /** Optional diagnostics hook installed by the desktop host (see PlatformKeyboardNavigation). */
+    @Volatile
+    internal var debugLogging: Boolean = false
+
+    @Volatile
+    internal var debugSink: ((String) -> Unit)? = null
+
+    private fun navDebug(message: String) {
+        if (!debugLogging) return
+        val sink = debugSink
+        if (sink != null) sink(message) else println("[NAV] $message")
+    }
     private var activeCoroutineScope: CoroutineScope? = null
     private var activeVerticalScrollJob: Job? = null
     private var activeHorizontalScrollJob: Job? = null
@@ -288,6 +303,8 @@ object ControllerFocusEngine {
         lazyGridState: LazyGridState? = null,
         topInRoot: Float,
         height: Float,
+        leftInRoot: Float = Float.NaN,
+        width: Float = 0f,
     ) {
         registeredScrollables.firstOrNull {
             (lazyListState != null && it.lazyListState === lazyListState) ||
@@ -296,6 +313,8 @@ object ControllerFocusEngine {
         }?.let { entry ->
             entry.viewportTopInRoot = topInRoot
             entry.viewportHeight = height
+            entry.viewportLeftInRoot = leftInRoot
+            entry.viewportWidth = width
         }
     }
 
@@ -327,25 +346,37 @@ object ControllerFocusEngine {
         val viewportTop = entry.viewportTopInRoot.takeIf { it.isFinite() } ?: return
         val viewportHeight = entry.viewportHeight
         if (viewportHeight <= 0f) return
+        val viewportBottom = viewportTop + viewportHeight
+        val viewportLeft = entry.viewportLeftInRoot.takeIf { it.isFinite() } ?: Float.NEGATIVE_INFINITY
+        val viewportRight = if (viewportLeft.isFinite()) viewportLeft + entry.viewportWidth else Float.POSITIVE_INFINITY
 
         val current = _focusedNodeId.value?.let { nodes[it] }?.takeIf { it.isVisibleAndValid } ?: return
         if (current.zone != ControllerFocusZone.Content) return
 
-        val viewportBottom = viewportTop + viewportHeight
-        val centerY = current.boundsInRoot.center.y
-        if (centerY >= viewportTop - 12f && centerY <= viewportBottom + 12f) return
+        // Only act when the focused item is completely outside the viewport. A card that merely
+        // peeks in at the bottom (the next row) must keep the focus, otherwise the ring jumps to
+        // the row below while the user is still on the current one.
+        val bounds = current.boundsInRoot
+        val overlapsVertically = bounds.bottom > viewportTop + 2f && bounds.top < viewportBottom - 2f
+        if (overlapsVertically) return
 
         val candidates = nodes.values.filter {
             it.zone == ControllerFocusZone.Content &&
                 it.id != current.id &&
                 it.isVisibleAndValid &&
-                it.boundsInRoot.center.y in viewportTop..viewportBottom
+                it.boundsInRoot.top >= viewportTop + 2f &&
+                it.boundsInRoot.bottom <= viewportBottom - 2f &&
+                it.boundsInRoot.center.x in viewportLeft..viewportRight
         }
         if (candidates.isEmpty()) return
 
-        val target = candidates.minByOrNull {
-            abs(it.boundsInRoot.center.x - current.boundsInRoot.center.x)
-        } ?: return
+        val sameGroup = candidates.filter { it.groupKey != null && it.groupKey == current.groupKey }
+        val pool = sameGroup.ifEmpty { candidates }
+        val target = pool.minByOrNull { abs(it.boundsInRoot.center.y - bounds.center.y) } ?: return
+        navDebug(
+            "viewport-correct current=${current.id} cy=${bounds.center.y.toInt()} " +
+                "viewport=$viewportTop..${viewportBottom.toInt()} target=${target.id}",
+        )
         focusNodeInternal(target, triggerScroll = false)
     }
 
@@ -700,6 +731,14 @@ object ControllerFocusEngine {
         val previousId = _focusedNodeId.value
         _focusedNodeId.value = node.id
         _focusedNodeSnapshot.value = node.toSnapshot()
+        if (debugLogging) {
+            val b = node.boundsInRoot
+            navDebug(
+                "focus ${previousId ?: "-"} -> ${node.id} zone=${node.zone} group=${node.groupKey} " +
+                    "top=${b.top.toInt()} bottom=${b.bottom.toInt()} cy=${b.center.y.toInt()} " +
+                    "triggerScroll=$triggerScroll dir=$direction",
+            )
+        }
         if (!isInternalCleanupFocus) {
             lastFocusedByZone[node.zone] = node.id
             node.groupKey?.let { group ->
@@ -1238,16 +1277,15 @@ object ControllerFocusEngine {
             }
 
             if (abs(delta) > 4f) {
-                val smoothScrollSpec = tween<Float>(
-                    durationMillis = 300,
-                    easing = FastOutSlowInEasing,
-                )
+                // Center the newly focused row immediately. An animated scroll (300 ms) cannot
+                // finish between key repeats, so rows used to stay pinned at the screen edge where
+                // the ring was clipped and looked like it had disappeared.
                 if (listState != null) {
-                    runCatching { listState.animateScrollBy(delta, smoothScrollSpec) }
+                    runCatching { listState.scrollBy(delta) }
                 } else if (gridState != null) {
-                    runCatching { gridState.animateScrollBy(delta, smoothScrollSpec) }
+                    runCatching { gridState.scrollBy(delta) }
                 } else if (scrollState != null) {
-                    runCatching { scrollState.animateScrollBy(delta, smoothScrollSpec) }
+                    runCatching { scrollState.scrollBy(delta) }
                 }
             }
         }
@@ -1582,6 +1620,12 @@ object ControllerFocusEngine {
             composedRows.indices.minByOrNull { abs(composedRows[it].centerY - currentCenterY) } ?: 0
         }
         val currentRow = composedRows[effectiveRowIndex]
+        if (debugLogging) {
+            val rowsSummary = composedRows.mapIndexed { index, row ->
+                "$index:${row.nodes.firstOrNull()?.id}@${row.centerY.toInt()}"
+            }
+            navDebug("vertical dir=$direction current=${current.id} row=$effectiveRowIndex rows=$rowsSummary")
+        }
 
         // 2. Strict Rule for Row Header Chevrons:
         // A row's chevron can be focused when:
@@ -1644,6 +1688,7 @@ object ControllerFocusEngine {
 
                 activeVerticalScrollJob?.cancel()
                 activeVerticalScrollJob = scope.launch {
+                    navDebug("scroll down distance=$scrollDistance rowIndex=$effectiveRowIndex")
                     val fallbackSpec = tween<Float>(200, easing = FastOutSlowInEasing)
                     if (listState != null) {
                         runCatching { listState.animateScrollBy(scrollDistance, fallbackSpec) }
@@ -1665,6 +1710,7 @@ object ControllerFocusEngine {
                         refreshedRows.lastOrNull()
                     }
                     val target = targetRow?.let { selectBestTargetNodeInRow(current, it) }
+                    navDebug("scroll down settled refreshedRows=${refreshedRows.size} target=${target?.id}")
                     if (target != null) {
                         focusNodeInternal(target, triggerScroll = true, suppressVerticalScroll = false, direction = direction)
                     } else {
@@ -2355,6 +2401,8 @@ fun RegisterControllerVerticalScroll(
             lazyGridState = lazyGridState,
             topInRoot = bounds.top,
             height = bounds.height,
+            leftInRoot = bounds.left,
+            width = bounds.width,
         )
     }
 }
@@ -2388,10 +2436,16 @@ fun Modifier.controllerFocusable(
     onMoveDown: (() -> Boolean)? = null,
     onMoveLeft: (() -> Boolean)? = null,
     onMoveRight: (() -> Boolean)? = null,
+    /** Appends the ambient group key to [id] so the same card in two rows gets distinct ids. */
+    dedupeByGroup: Boolean = false,
     onSelect: () -> Unit,
 ): Modifier = composed {
-    val effectiveId = remember(id) {
-        id.ifEmpty { "ctrl_node_${++autoControllerNodeCounter}" }
+    val ambientZone = LocalControllerFocusZone.current
+    val ambientGroupKey = LocalControllerGroupKey.current
+    val ambientRowState = LocalControllerRowLazyListState.current
+    val effectiveId = remember(id, ambientGroupKey, dedupeByGroup) {
+        val base = id.ifEmpty { "ctrl_node_${++autoControllerNodeCounter}" }
+        if (dedupeByGroup && !ambientGroupKey.isNullOrEmpty()) "$base@$ambientGroupKey" else base
     }
     val effectiveSelectLabel = actionLabel ?: selectLabel
     val effectiveFocusScale = scaleOnFocus ?: focusScale
@@ -2401,9 +2455,6 @@ fun Modifier.controllerFocusable(
     val focusedNodeId by ControllerFocusEngine.focusedNodeId.collectAsState()
     val isFocused = effectiveEnabled && isControllerActive && focusedNodeId == effectiveId
 
-    val ambientZone = LocalControllerFocusZone.current
-    val ambientGroupKey = LocalControllerGroupKey.current
-    val ambientRowState = LocalControllerRowLazyListState.current
     val effectiveZone = zone ?: ambientZone
     val effectiveGroupKey = groupKey ?: ambientGroupKey
 

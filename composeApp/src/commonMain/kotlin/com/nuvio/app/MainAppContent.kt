@@ -210,6 +210,7 @@ import com.nuvio.app.core.ui.PresenceSnapshot
 import androidx.compose.ui.ExperimentalComposeUiApi
 import com.nuvio.app.features.player.dispatchNavigationBack
 import com.nuvio.app.core.ui.PlatformEscapeShortcut
+import com.nuvio.app.controller.ControllerFocusEngine
 import com.nuvio.app.controller.ControllerMainOverlay
 import com.nuvio.app.controller.ControllerNavigationHost
 
@@ -1421,6 +1422,46 @@ internal fun MainAppContent(
                     selectedTab = selectedTab,
                     onBack = {
                         navigateBack()
+                        true
+                    },
+                    onBumperLeft = {
+                        if (currentRoute is TabsRoute) {
+                            val tabs = AppScreenTab.entries
+                            activateTab(tabs[(selectedTab.ordinal - 1 + tabs.size) % tabs.size])
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    onBumperRight = {
+                        if (currentRoute is TabsRoute) {
+                            val tabs = AppScreenTab.entries
+                            activateTab(tabs[(selectedTab.ordinal + 1) % tabs.size])
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    onSearch = {
+                        if (currentRoute is TabsRoute) {
+                            activateTab(AppScreenTab.Search)
+                            searchFocusRequestCount++
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    onOpenNavigation = {
+                        ControllerFocusEngine.setNavigationZoneExpanded(true)
+                        ControllerFocusEngine.requestFocus(
+                            when (selectedTab) {
+                                AppScreenTab.Home -> "sidebar_home"
+                                AppScreenTab.Search -> "sidebar_search"
+                                AppScreenTab.Library -> "sidebar_library"
+                                AppScreenTab.Settings -> "sidebar_settings"
+                            },
+                            triggerScroll = false,
+                        )
                         true
                     },
                 )

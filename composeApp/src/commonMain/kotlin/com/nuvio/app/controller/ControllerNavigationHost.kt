@@ -35,6 +35,8 @@ fun ControllerNavigationHost(
     onBack: () -> Boolean,
     onBumperLeft: (() -> Boolean)? = null,
     onBumperRight: (() -> Boolean)? = null,
+    onSearch: (() -> Boolean)? = null,
+    onOpenNavigation: (() -> Boolean)? = null,
 ) {
     val routeIdentity = when (currentRoute) {
         is DetailRoute -> "DetailRoute:${currentRoute.type}:${currentRoute.id}"
@@ -122,6 +124,8 @@ fun ControllerNavigationHost(
         onBack = onBack,
         onBumperLeft = onBumperLeft,
         onBumperRight = onBumperRight,
+        onActionY = onSearch,
+        onMenuButton = onOpenNavigation,
     )
 }
 
