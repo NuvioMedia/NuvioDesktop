@@ -2064,6 +2064,15 @@ object ControllerFocusEngine {
             }
         }
 
+        // At the edge of a content row (e.g. the last poster of a shelf) consume horizontal input
+        // instead of leaking to Compose's focus search: the fallback moved an invisible Compose
+        // focus and made the spatial ring blink on and off at the end of the row.
+        if (activeZone == ControllerFocusZone.Content &&
+            (direction == ControllerDirection.Left || direction == ControllerDirection.Right)
+        ) {
+            return true
+        }
+
         return false
     }
 
