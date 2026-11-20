@@ -5,17 +5,33 @@ import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.attribute.PosixFileAttributeView
+import java.nio.file.attribute.PosixFilePermissions
 import java.util.Comparator
 import java.util.Locale
 import java.util.Properties
 import kotlin.io.path.exists
+
+// These stores hold Trakt and SIMKL tokens, debrid API keys, and the addon list,
+// so they stay readable by their owner only. File systems without POSIX
+// attributes (Windows, and some network mounts) keep their platform defaults.
+private const val ownerOnlyFilePermissions = "rw-------"
+private const val ownerOnlyDirectoryPermissions = "rwx------"
+
+internal fun restrictToOwner(path: Path, permissions: String) {
+    val view = Files.getFileAttributeView(path, PosixFileAttributeView::class.java) ?: return
+    runCatching { view.setPermissions(PosixFilePermissions.fromString(permissions)) }
+}
 
 internal object DesktopStorage {
     private val json = Json { ignoreUnknownKeys = true }
     private val stores = mutableMapOf<String, Store>()
 
     val rootDir: Path by lazy {
-        resolveAppDataDir().also { Files.createDirectories(it) }
+        resolveAppDataDir().also { directory ->
+            Files.createDirectories(directory)
+            restrictToOwner(directory, ownerOnlyDirectoryPermissions)
+        }
     }
 
     val cacheDir: Path by lazy {
@@ -165,6 +181,7 @@ internal object DesktopStorage {
             Files.newOutputStream(file).use { output ->
                 properties.store(output, "Nuvio desktop preferences")
             }
+            restrictToOwner(file, ownerOnlyFilePermissions)
         }
     }
 }
