@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.isDesktop
 
 private const val TOP_SUBTITLE_INSET_FRACTION = 0.08f
 private const val SIDE_SUBTITLE_INSET_FRACTION = 0.05f
@@ -131,7 +132,7 @@ internal fun StyledSubtitleText(
         val lineLeft = (0 until layout.lineCount).minOfOrNull { layout.getLineLeft(it) } ?: 0f
         val lineRight = (0 until layout.lineCount).maxOfOrNull { layout.getLineRight(it) } ?: 0f
         val textHeight = with(density) { (layout.size.height + paddingY * 2).toDp() }
-        val radius = with(density) { (style.appearance.backgroundRadius.dp * scale).toPx() }
+        val radius = if (isDesktop) 0f else with(density) { (style.appearance.backgroundRadius.dp * scale).toPx() }
         val outline = with(density) { (style.outlineWidth.dp * scale).toPx() } / 2f
         val shadowSize = with(density) { (style.appearance.shadowSize.dp * scale).toPx() }
         Canvas(

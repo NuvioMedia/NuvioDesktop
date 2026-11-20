@@ -99,12 +99,14 @@ internal fun SubtitleAppearanceSettings(
                 valueRange = 0..100, step = 5, isTablet = isTablet, enabled = enabled,
                 onValueChange = { onStyleChanged(style.copy(backgroundColor = style.backgroundColor.copy(alpha = it / 100f))) },
             )
-            SettingsSliderRow(
-                title = stringResource(Res.string.subtitle_background_roundness),
-                value = style.appearance.backgroundRadius, valueText = { it.toString() },
-                valueRange = 0..24, step = 2, isTablet = isTablet, enabled = enabled && style.backgroundColor.alpha > 0,
-                onValueChange = { onStyleChanged(style.copy(appearance = style.appearance.copy(backgroundRadius = it))) },
-            )
+            if (!isDesktop) {
+                SettingsSliderRow(
+                    title = stringResource(Res.string.subtitle_background_roundness),
+                    value = style.appearance.backgroundRadius, valueText = { it.toString() },
+                    valueRange = 0..24, step = 2, isTablet = isTablet, enabled = enabled && style.backgroundColor.alpha > 0,
+                    onValueChange = { onStyleChanged(style.copy(appearance = style.appearance.copy(backgroundRadius = it))) },
+                )
+            }
         }
         SettingsGroup(isTablet) {
             SettingsSwitchRow(
