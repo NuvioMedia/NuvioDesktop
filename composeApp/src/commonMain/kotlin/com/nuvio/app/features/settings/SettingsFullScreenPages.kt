@@ -76,6 +76,8 @@ fun HomescreenSettingsScreen(
             heroEnabled = homescreenSettingsUiState.heroEnabled,
             showCatalogType = homescreenSettingsUiState.showCatalogType,
             hideUnreleasedContent = homescreenSettingsUiState.hideUnreleasedContent,
+            dynamicAmbientEnabled = homescreenSettingsUiState.dynamicAmbientEnabled,
+            collectionGifPlayback = homescreenSettingsUiState.collectionGifPlayback,
             items = homescreenSettingsUiState.items,
             isCatalogLoading = addonManifestsLoading,
             catalogErrorMessage = addonManifestErrorMessage,

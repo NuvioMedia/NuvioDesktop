@@ -781,6 +781,14 @@
     <string name="settings_homescreen_selected_count">%1$d of %2$d selected</string>
     <string name="settings_homescreen_show_hero">Show Hero Section</string>
     <string name="settings_homescreen_show_hero_description">Display hero carousel at top of home.</string>
+    <string name="settings_homescreen_dynamic_ambient">Dynamic ambient background</string>
+    <string name="settings_homescreen_dynamic_ambient_description">Tint the home background with the colors of the focused title. Turn off for a plain background.</string>
+    <string name="settings_homescreen_collection_gifs">Collection GIFs</string>
+    <string name="settings_homescreen_collection_gifs_description">Choose when animated covers on collection cards should play.</string>
+    <string name="settings_homescreen_collection_gifs_focused">Only when focused</string>
+    <string name="settings_homescreen_collection_gifs_always">Always play</string>
+    <string name="settings_homescreen_collection_gifs_focused_description">GIFs animate only while the card is hovered or focused. Lowest CPU usage.</string>
+    <string name="settings_homescreen_collection_gifs_always_description">Every visible GIF animates while the home screen is open. Uses more CPU.</string>
     <string name="layout_hide_unreleased">Hide Unreleased Content</string>
     <string name="layout_hide_unreleased_sub">Hide movies and shows that haven't been released yet.</string>
     <string name="layout_catalog_type">Show Catalog Type</string>

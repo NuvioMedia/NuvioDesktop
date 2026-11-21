@@ -40,10 +40,40 @@ data class HomeCatalogSettingsItem(
         get() = customTitle.ifBlank { defaultTitle }
 }
 
+/**
+ * Controls when animated GIF covers on collection cards are played.
+ *
+ * [Focused] keeps the desktop behaviour of animating a GIF only while the card is
+ * hovered/focused, which is the cheapest option. [Always] keeps every visible GIF
+ * running while the home screen is on screen.
+ */
+enum class CollectionGifPlaybackMode {
+    Focused,
+    Always,
+    ;
+
+    companion object {
+        fun parse(raw: String?): CollectionGifPlaybackMode? = when (raw?.lowercase()) {
+            "focused" -> Focused
+            "always" -> Always
+            else -> null
+        }
+
+        fun persist(mode: CollectionGifPlaybackMode): String = when (mode) {
+            Focused -> "focused"
+            Always -> "always"
+        }
+
+        val Default: CollectionGifPlaybackMode = Focused
+    }
+}
+
 data class HomeCatalogSettingsUiState(
     val heroEnabled: Boolean = true,
     val showCatalogType: Boolean = true,
     val hideUnreleasedContent: Boolean = false,
+    val dynamicAmbientEnabled: Boolean = true,
+    val collectionGifPlayback: CollectionGifPlaybackMode = CollectionGifPlaybackMode.Focused,
     val items: List<HomeCatalogSettingsItem> = emptyList(),
 ) {
     val signature: String
@@ -73,6 +103,8 @@ internal data class HomeCatalogSettingsSnapshot(
     val heroEnabled: Boolean,
     val showCatalogType: Boolean,
     val hideUnreleasedContent: Boolean,
+    val dynamicAmbientEnabled: Boolean,
+    val collectionGifPlayback: CollectionGifPlaybackMode,
     val preferences: Map<String, HomeCatalogPreference>,
 )
 
@@ -90,6 +122,8 @@ private data class StoredHomeCatalogSettingsPayload(
     val heroEnabled: Boolean = true,
     val showCatalogType: Boolean = true,
     val hideUnreleasedContent: Boolean = false,
+    val dynamicAmbientEnabled: Boolean = true,
+    val collectionGifPlayback: String = "focused",
     val items: List<StoredHomeCatalogPreference> = emptyList(),
 )
 
@@ -108,6 +142,8 @@ object HomeCatalogSettingsRepository {
         heroEnabled = true,
         showCatalogType = true,
         hideUnreleasedContent = false,
+        dynamicAmbientEnabled = true,
+        collectionGifPlayback = CollectionGifPlaybackMode.Default,
         preferences = emptyMap(),
     )
     private val snapshotRef = atomic(emptySnapshot)
@@ -127,6 +163,8 @@ object HomeCatalogSettingsRepository {
     private var heroEnabled = true
     private var showCatalogType = true
     private var hideUnreleasedContent = false
+    private var dynamicAmbientEnabled = true
+    private var collectionGifPlayback = CollectionGifPlaybackMode.Default
 
     fun onProfileChanged() {
         hasLoaded = false
@@ -134,6 +172,8 @@ object HomeCatalogSettingsRepository {
         heroEnabled = true
         showCatalogType = true
         hideUnreleasedContent = false
+        dynamicAmbientEnabled = true
+        collectionGifPlayback = CollectionGifPlaybackMode.Default
         definitions = emptyList()
         collectionDefinitions = emptyList()
         snapshotRef.value = emptySnapshot
@@ -153,6 +193,8 @@ object HomeCatalogSettingsRepository {
         heroEnabled = true
         showCatalogType = true
         hideUnreleasedContent = false
+        dynamicAmbientEnabled = true
+        collectionGifPlayback = CollectionGifPlaybackMode.Default
         snapshotRef.value = emptySnapshot
         lastPersistedPayload = null
         _uiState.value = HomeCatalogSettingsUiState()
@@ -248,6 +290,22 @@ object HomeCatalogSettingsRepository {
         HomeCatalogSettingsSyncService.triggerPush()
     }
 
+    fun setDynamicAmbientEnabled(enabled: Boolean) {
+        ensureLoaded()
+        if (dynamicAmbientEnabled == enabled) return
+        dynamicAmbientEnabled = enabled
+        publish()
+        persist()
+    }
+
+    fun setCollectionGifPlayback(mode: CollectionGifPlaybackMode) {
+        ensureLoaded()
+        if (collectionGifPlayback == mode) return
+        collectionGifPlayback = mode
+        publish()
+        persist()
+    }
+
     fun setHeroSourceEnabled(key: String, enabled: Boolean) {
         updatePreference(key, pushRemote = false) { preference ->
             if (!enabled) {
@@ -277,6 +335,8 @@ object HomeCatalogSettingsRepository {
         heroEnabled = true
         showCatalogType = true
         hideUnreleasedContent = false
+        dynamicAmbientEnabled = true
+        collectionGifPlayback = CollectionGifPlaybackMode.Default
         preferences = emptyMap()
         normalizePreferences()
         publish()
@@ -329,6 +389,9 @@ object HomeCatalogSettingsRepository {
             heroEnabled = parsedPayload.heroEnabled
             showCatalogType = parsedPayload.showCatalogType
             hideUnreleasedContent = parsedPayload.hideUnreleasedContent
+            dynamicAmbientEnabled = parsedPayload.dynamicAmbientEnabled
+            collectionGifPlayback = CollectionGifPlaybackMode.parse(parsedPayload.collectionGifPlayback)
+                ?: CollectionGifPlaybackMode.Default
             preferences = parsedPayload.items.associateBy { it.key }
             publish()
             return
@@ -395,6 +458,8 @@ object HomeCatalogSettingsRepository {
             heroEnabled = heroEnabled,
             showCatalogType = showCatalogType,
             hideUnreleasedContent = hideUnreleasedContent,
+            dynamicAmbientEnabled = dynamicAmbientEnabled,
+            collectionGifPlayback = collectionGifPlayback,
             preferences = preferences.mapValues { (_, value) ->
                 HomeCatalogPreference(
                     customTitle = value.customTitle,
@@ -441,6 +506,8 @@ object HomeCatalogSettingsRepository {
             heroEnabled = heroEnabled,
             showCatalogType = showCatalogType,
             hideUnreleasedContent = hideUnreleasedContent,
+            dynamicAmbientEnabled = dynamicAmbientEnabled,
+            collectionGifPlayback = collectionGifPlayback,
             items = items,
         )
         if (_uiState.value != nextState) _uiState.value = nextState
@@ -452,6 +519,8 @@ object HomeCatalogSettingsRepository {
                 heroEnabled = heroEnabled,
                 showCatalogType = showCatalogType,
                 hideUnreleasedContent = hideUnreleasedContent,
+                dynamicAmbientEnabled = dynamicAmbientEnabled,
+                collectionGifPlayback = CollectionGifPlaybackMode.persist(collectionGifPlayback),
                 items = preferences.values.sortedBy { it.order },
             ),
         )
