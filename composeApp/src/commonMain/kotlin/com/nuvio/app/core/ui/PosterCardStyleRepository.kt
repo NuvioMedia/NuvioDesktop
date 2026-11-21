@@ -46,6 +46,7 @@ private data class StoredPosterCardStylePreferences(
     val hoverPreviewTrailerEnabled: Boolean = false,
     val hoverPreviewTrailerSoundEnabled: Boolean = false,
     val hoverPreviewTrailerStartSeconds: Int = DefaultHoverPreviewTrailerStartSeconds,
+    val homeHeroTrailerEnabled: Boolean = false,
     val alwaysShowLandscapeClearlogo: Boolean = false,
     val animatedArtworkMode: String = AnimatedArtworkMode.Always.name,
 )
@@ -61,6 +62,7 @@ data class PosterCardStyleUiState(
     val hoverPreviewTrailerEnabled: Boolean = false,
     val hoverPreviewTrailerSoundEnabled: Boolean = false,
     val hoverPreviewTrailerStartSeconds: Int = DefaultHoverPreviewTrailerStartSeconds,
+    val homeHeroTrailerEnabled: Boolean = false,
     val alwaysShowLandscapeClearlogo: Boolean = false,
     val animatedArtworkMode: AnimatedArtworkMode = AnimatedArtworkMode.Always,
 )
@@ -145,6 +147,13 @@ object PosterCardStyleRepository {
         persist()
     }
 
+    fun setHomeHeroTrailerEnabled(enabled: Boolean) {
+        ensureLoaded()
+        if (_uiState.value.homeHeroTrailerEnabled == enabled) return
+        _uiState.value = _uiState.value.copy(homeHeroTrailerEnabled = enabled)
+        persist()
+    }
+
     fun setHoverPreviewTrailerSoundEnabled(enabled: Boolean) {
         ensureLoaded()
         if (_uiState.value.hoverPreviewTrailerSoundEnabled == enabled) return
@@ -184,6 +193,7 @@ object PosterCardStyleRepository {
             hoverPreviewTrailerEnabled = _uiState.value.hoverPreviewTrailerEnabled,
             hoverPreviewTrailerSoundEnabled = _uiState.value.hoverPreviewTrailerSoundEnabled,
             hoverPreviewTrailerStartSeconds = _uiState.value.hoverPreviewTrailerStartSeconds,
+            homeHeroTrailerEnabled = _uiState.value.homeHeroTrailerEnabled,
             animatedArtworkMode = _uiState.value.animatedArtworkMode,
         )
         if (_uiState.value == defaults) return
@@ -223,6 +233,7 @@ object PosterCardStyleRepository {
                 hoverPreviewTrailerStartSeconds = normalizeHoverPreviewTrailerStartSeconds(
                     stored.hoverPreviewTrailerStartSeconds,
                 ),
+                homeHeroTrailerEnabled = stored.homeHeroTrailerEnabled,
                 alwaysShowLandscapeClearlogo = stored.alwaysShowLandscapeClearlogo,
                 animatedArtworkMode = AnimatedArtworkMode.entries
                     .firstOrNull { it.name == stored.animatedArtworkMode }
@@ -247,6 +258,7 @@ object PosterCardStyleRepository {
                     hoverPreviewTrailerEnabled = _uiState.value.hoverPreviewTrailerEnabled,
                     hoverPreviewTrailerSoundEnabled = _uiState.value.hoverPreviewTrailerSoundEnabled,
                     hoverPreviewTrailerStartSeconds = _uiState.value.hoverPreviewTrailerStartSeconds,
+                    homeHeroTrailerEnabled = _uiState.value.homeHeroTrailerEnabled,
                     alwaysShowLandscapeClearlogo = _uiState.value.alwaysShowLandscapeClearlogo,
                     animatedArtworkMode = _uiState.value.animatedArtworkMode.name,
                 ),

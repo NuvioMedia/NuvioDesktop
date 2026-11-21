@@ -38,6 +38,8 @@ import nuvio.composeapp.generated.resources.settings_hover_preview_enabled
 import nuvio.composeapp.generated.resources.settings_hover_preview_enabled_description
 import nuvio.composeapp.generated.resources.settings_hover_preview_section_behavior
 import nuvio.composeapp.generated.resources.settings_hover_preview_section_trailer
+import nuvio.composeapp.generated.resources.settings_home_hero_trailer_enabled
+import nuvio.composeapp.generated.resources.settings_home_hero_trailer_enabled_description
 import nuvio.composeapp.generated.resources.settings_hover_preview_trailer_enabled
 import nuvio.composeapp.generated.resources.settings_hover_preview_trailer_enabled_description
 import nuvio.composeapp.generated.resources.settings_hover_preview_trailer_sound_enabled
@@ -105,6 +107,14 @@ internal fun LazyListScope.hoverPreviewSettingsContent(
                         isTablet = isTablet,
                         enabled = uiState.hoverPreviewEnabled && uiState.hoverPreviewTrailerEnabled,
                         startSeconds = uiState.hoverPreviewTrailerStartSeconds,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_home_hero_trailer_enabled),
+                        description = stringResource(Res.string.settings_home_hero_trailer_enabled_description),
+                        checked = uiState.homeHeroTrailerEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PosterCardStyleRepository::setHomeHeroTrailerEnabled,
                     )
                 }
             }
