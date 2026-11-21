@@ -279,18 +279,23 @@ fun NuvioPosterCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(shape.aspectRatio)
-                .clip(cardShape)
-                .background(tokens.colors.surface)
-                .nuvioCardDepth(
-                    shape = cardShape,
-                    surface = NuvioCardDepthSurface.Posters,
-                )
+                // The focus ring is drawn by posterCardClickable and must sit outside the clip so
+                // the rounded card clip cannot cut it away.
                 .posterCardClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
                     zoomImageUrl = imageUrl,
                     zoomCornerRadius = posterCardStyle.cornerRadiusDp.dp,
                     hoverScaleEnabled = false,
+                )
+                // Compose focus is used on Compose-driven routes (details rails), where the spatial
+                // engine defers navigation; keep a visible ring there too.
+                .nuvioFocusBorder(cardShape)
+                .clip(cardShape)
+                .background(tokens.colors.surface)
+                .nuvioCardDepth(
+                    shape = cardShape,
+                    surface = NuvioCardDepthSurface.Posters,
                 ),
             contentAlignment = Alignment.Center,
         ) {
