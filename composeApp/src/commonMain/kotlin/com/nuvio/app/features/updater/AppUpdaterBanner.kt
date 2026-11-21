@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -69,6 +70,7 @@ import nuvio.composeapp.generated.resources.action_update
 import nuvio.composeapp.generated.resources.updates_debug_test_complete
 import nuvio.composeapp.generated.resources.updates_downloading_progress
 import nuvio.composeapp.generated.resources.updates_message_allow_installs
+import nuvio.composeapp.generated.resources.updates_message_manual_install
 import nuvio.composeapp.generated.resources.updates_message_ready
 import nuvio.composeapp.generated.resources.updates_no_release_notes
 import nuvio.composeapp.generated.resources.updates_preparing_download
@@ -90,6 +92,7 @@ fun AppUpdaterHost(
 
     val state by controller.uiState.collectAsStateWithLifecycle()
     var showReleaseNotes by rememberSaveable { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
 
     LaunchedEffect(controller) {
         controller.ensureAutoCheckStarted()
@@ -117,7 +120,16 @@ fun AppUpdaterHost(
                 AppUpdateBanner(
                     state = state,
                     update = availableUpdate,
-                    onDownload = controller::downloadUpdate,
+                    onDownload = {
+                        if (AppUpdaterPlatform.installsUpdatesInApp) {
+                            controller.downloadUpdate()
+                        } else {
+                            val source = AppUpdaterPlatform.releaseSource
+                            val url = availableUpdate.releaseUrl
+                                ?: "https://github.com/${source.owner}/${source.repo}/releases"
+                            runCatching { uriHandler.openUri(url) }
+                        }
+                    },
                     onInstall = controller::installDownloadedUpdate,
                     onShowReleaseNotes = { showReleaseNotes = true },
                     onDismiss = controller::dismissDialog,
@@ -191,11 +203,12 @@ private fun AppUpdateBanner(
         state.isDownloading -> stringResource(Res.string.updates_preparing_download)
         debugTestComplete -> stringResource(Res.string.updates_debug_test_complete)
         state.downloadedUpdatePath != null -> stringResource(Res.string.updates_message_ready)
+        !AppUpdaterPlatform.installsUpdatesInApp -> stringResource(Res.string.updates_message_manual_install)
         else -> stringResource(Res.string.updates_title_available)
     }
     val updateLabel = listOfNotNull(
         update.tag,
-        update.assetSizeBytes?.let(::formatFileSize),
+        update.assetSizeBytes?.takeIf { AppUpdaterPlatform.installsUpdatesInApp }?.let(::formatFileSize),
     ).joinToString(separator = " • ")
 
     Box(

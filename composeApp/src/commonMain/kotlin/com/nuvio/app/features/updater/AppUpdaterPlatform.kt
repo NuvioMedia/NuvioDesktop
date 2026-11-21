@@ -20,6 +20,10 @@ expect object AppUpdaterPlatform {
     val isDebugBuild: Boolean
     val hasSingleUpdateChannel: Boolean
 
+    // False when an update can be found but not installed by the app itself,
+    // so the banner sends the user to the release page instead of downloading.
+    val installsUpdatesInApp: Boolean
+
     fun getSupportedAbis(): List<String>
 
     val releaseSource: AppUpdateReleaseSource
