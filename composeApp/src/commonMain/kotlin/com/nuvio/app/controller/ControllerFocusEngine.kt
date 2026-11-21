@@ -721,6 +721,13 @@ object ControllerFocusEngine {
         suppressHorizontalScroll: Boolean = false,
         direction: ControllerDirection? = null,
     ) {
+        // On Compose-driven routes the engine must not draw its ring at all: Compose owns focus.
+        // A stale ring here made the details rails look frozen while Compose moved its own focus.
+        if (deferNavigationToCompose && node.zone != ControllerFocusZone.Overlay) {
+            _focusedNodeId.value = null
+            _focusedNodeSnapshot.value = null
+            return
+        }
         val previousId = _focusedNodeId.value
         _focusedNodeId.value = node.id
         _focusedNodeSnapshot.value = node.toSnapshot()
