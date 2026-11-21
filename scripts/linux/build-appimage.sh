@@ -69,6 +69,25 @@ app_dir="$work_dir/Nuvio.AppDir"
 mkdir -p "$app_dir"
 cp -a "$app_root"/. "$app_dir/"
 
+emoji_font="/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
+emoji_license="/usr/share/doc/fonts-noto-color-emoji/copyright"
+if [[ ! -f "$emoji_font" || ! -f "$emoji_license" ]]; then
+    echo "AppImage packaging requires the fonts-noto-color-emoji build package." >&2
+    exit 1
+fi
+
+font_dir="$app_dir/lib/fonts"
+install -Dm644 "$emoji_font" "$font_dir/NotoColorEmoji.ttf"
+install -Dm644 "$emoji_license" "$font_dir/NotoColorEmoji.LICENSE"
+cat > "$font_dir/nuvio-fonts.conf" <<'EOF'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+    <include ignore_missing="yes">fonts.conf</include>
+    <dir prefix="relative">.</dir>
+</fontconfig>
+EOF
+
 desktop_file="$app_dir/${NUVIO_LINUX_SHORTCUT_NAME}.desktop"
 nuvio_linux_write_desktop_entry_file "$desktop_file" "AppRun %u" "$NUVIO_LINUX_SHORTCUT_NAME"
 if [[ -n "$website_url" ]]; then
@@ -94,6 +113,7 @@ executable_path="$here/bin/Nuvio"
 if [[ ! -x "$executable_path" ]]; then
     executable_path="$here/bin/nuvio"
 fi
+export FONTCONFIG_FILE="${FONTCONFIG_FILE:-$here/lib/fonts/nuvio-fonts.conf}"
 exec "$executable_path" "$@"
 EOF
 chmod +x "$app_dir/AppRun"
