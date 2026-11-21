@@ -106,6 +106,15 @@ private fun FocusManager.moveSpatialFocus(direction: ControllerDirection): Boole
     }
     if (moveFocus(composeDirection)) return true
 
+    // Nothing holds Compose focus (e.g. the spatial ring was cleared when a Compose-driven route
+    // opened): seed a target immediately, even if this route was already seeded once.
+    if (!com.nuvio.app.core.ui.FocusPresence.hasAnyFocus) {
+        clearFocus(force = true)
+        if (moveFocus(FocusDirection.Next)) {
+            return moveFocus(composeDirection)
+        }
+    }
+
     // Seed the incoming screen once per route change, then apply the requested move so the first
     // arrow press reacts instead of being swallowed (previously users had to press Tab).
     if (seedRouteFocusIfNeeded()) {

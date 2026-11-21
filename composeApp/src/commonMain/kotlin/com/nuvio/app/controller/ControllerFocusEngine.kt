@@ -581,6 +581,16 @@ object ControllerFocusEngine {
         updateInteractiveContentStatus()
     }
 
+    /** Focuses the topmost node of a group (used by popups and sheets). */
+    fun focusFirstInGroup(groupKey: String): Boolean {
+        val node = nodes.values
+            .filter { it.groupKey == groupKey && it.isVisibleAndValid }
+            .minWithOrNull(compareBy({ it.boundsInRoot.top }, { it.boundsInRoot.left }))
+            ?: return false
+        focusNodeInternal(node, triggerScroll = false)
+        return true
+    }
+
     fun requestFocus(id: String, triggerScroll: Boolean = true): Boolean {
         val node = nodes[id]?.takeIf { it.isVisibleAndValid } ?: return false
         hasUserNavigatedOnCurrentRoute = true
