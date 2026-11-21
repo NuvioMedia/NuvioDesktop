@@ -1,5 +1,6 @@
 package com.nuvio.app.features.catalog
 
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.rememberAnimatedArtworkAnimation
 import com.nuvio.app.controller.RegisterControllerVerticalScroll
 import androidx.compose.foundation.background
@@ -392,7 +393,9 @@ private fun CatalogPosterTile(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(item.posterShape.catalogAspectRatio())
-                    // Keep the focus ring outside the rounded clip so it stays visible.
+                    // Compose focus border must be outside the clickable focus target; the engine
+                    // ring inside posterCardClickable stays outside the clip below.
+                    .nuvioFocusBorder(RoundedCornerShape(cornerRadiusDp.dp))
                     .posterCardClickable(
                         onClick = onClick,
                         onLongClick = onLongClick,

@@ -1,5 +1,6 @@
 package com.nuvio.app.features.home.components
 
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.rememberAnimatedArtworkAnimation
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -131,7 +132,8 @@ private fun PosterGridTile(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(item.posterShape.posterGridAspectRatio())
-                    // Keep the focus ring outside the rounded clip so it stays visible.
+                    // Compose focus border must be outside the clickable focus target.
+                    .nuvioFocusBorder(RoundedCornerShape(cornerRadiusDp.dp))
                     .posterCardClickable(
                         onClick = onClick,
                         onLongClick = onLongClick,
