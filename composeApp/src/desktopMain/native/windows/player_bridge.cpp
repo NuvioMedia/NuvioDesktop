@@ -1287,7 +1287,8 @@ public:
         const std::string &font,
         const std::string &fontsDir,
         const std::string &shadowColor,
-        double shadowOffset
+        double shadowOffset,
+        double shadowBlur
     ) {
         if (!fontsDir.empty()) setStringProperty("sub-fonts-dir", fontsDir);
         setStringProperty("sub-font", font);
@@ -1295,6 +1296,7 @@ public:
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         mpvApi().setProperty(mpv, "sub-shadow-offset", MPV_FORMAT_DOUBLE, &shadowOffset);
+        mpvApi().setProperty(mpv, "sub-blur", MPV_FORMAT_DOUBLE, &shadowBlur);
     }
 
     void applySubtitleStyle(
@@ -3082,7 +3084,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSubtitleAppeara
     jstring font,
     jstring fontsDir,
     jstring shadowColor,
-    jfloat shadowOffset
+    jfloat shadowOffset,
+    jfloat shadowBlur
 ) {
     auto player = playerFromHandle(handle);
     if (!player) return;
@@ -3090,6 +3093,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setSubtitleAppeara
         jstringToUtf8(env, font),
         jstringToUtf8(env, fontsDir),
         jstringToUtf8(env, shadowColor),
-        shadowOffset
+        shadowOffset,
+        shadowBlur
     );
 }
