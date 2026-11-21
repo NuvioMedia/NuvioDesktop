@@ -221,6 +221,26 @@ actual fun PlatformKeyboardNavigationHost() {
                 }
             }
 
+            // Keyboard equivalents of the controller hint-bar actions. They mirror the gamepad
+            // handlers (Y=Search, LB/RB=Tabs, Menu=Navigation, X=Options) and are ignored inside
+            // the player, where those keys belong to playback.
+            if (!isPlayerActive) {
+                val shortcutButton = when {
+                    event.isControlDown && event.keyCode == KeyEvent.VK_K -> XboxButton.Y
+                    event.isControlDown && event.keyCode == KeyEvent.VK_TAB ->
+                        if (event.isShiftDown) XboxButton.LB else XboxButton.RB
+                    event.isControlDown && event.keyCode == KeyEvent.VK_B -> XboxButton.Menu
+                    event.keyCode == KeyEvent.VK_CONTEXT_MENU ||
+                        (event.isShiftDown && event.keyCode == KeyEvent.VK_F10) -> XboxButton.X
+                    else -> null
+                }
+                if (shortcutButton != null) {
+                    if (ControllerManager.dispatchKeyboardShortcut(shortcutButton)) {
+                        return@KeyEventDispatcher true
+                    }
+                }
+            }
+
             // Enter activates the spatially focused item. Fall through to Compose when the engine
             // has nothing registered, so regular buttons keep their native Enter handling.
             if (event.keyCode == KeyEvent.VK_ENTER) {

@@ -247,5 +247,15 @@ object ControllerManager {
         notifyNavigationInput()
         return ControllerFocusEngine.handleEvent(ControllerEvent.ButtonPressed(XboxButton.A))
     }
+
+    /**
+     * Runs a keyboard equivalent of a gamepad shortcut (Y/LB/RB/Menu/X) through the same global
+     * handler stack the controller uses. Unlike [dispatchEvent] this does not switch the UI into
+     * controller mode, so Xbox hints stay hidden for keyboard users.
+     */
+    fun dispatchKeyboardShortcut(button: XboxButton): Boolean {
+        notifyNavigationInput()
+        return ControllerFocusEngine.handleEvent(ControllerEvent.ButtonPressed(button))
+    }
 }
 
