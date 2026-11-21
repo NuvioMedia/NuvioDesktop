@@ -29,6 +29,11 @@ object SentryInitializer {
         SentrySettingsRepository.ensureLoaded()
         applyEnabled(SentrySettingsRepository.enabled.value)
         scope.launch {
+            NativeCrashReporter.reportEndedSessions(
+                canReport = { SentrySettingsRepository.enabled.value && Sentry.isEnabled() },
+            )
+        }
+        scope.launch {
             SentrySettingsRepository.enabled.drop(1).collect(::applyEnabled)
         }
     }

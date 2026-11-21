@@ -595,7 +595,7 @@
     <string name="sentry_help_body_desktop">Reports are grouped by app version, operating system, architecture, and stack trace so the most common real crashes can be fixed first.</string>
     <string name="sentry_sent_title">Sent</string>
     <string name="sentry_sent_body">Crashes, current ANRs, stack traces, app version, build type, flavor, device and OS metadata, plus safe network breadcrumbs with method, host, path, status, duration, and exception type.</string>
-    <string name="sentry_sent_body_desktop">Unhandled application errors, stack traces, app version, operating system, architecture, Java runtime metadata, and safe diagnostic breadcrumbs.</string>
+    <string name="sentry_sent_body_desktop">Unhandled application errors, stack traces, app version, operating system, architecture, Java runtime metadata, and safe diagnostic breadcrumbs. After a native crash, the next launch also sends the crashing thread's frames, CPU features and the file names of loaded native libraries.</string>
     <string name="sentry_not_sent_title">Not sent</string>
     <string name="sentry_not_sent_body">Passwords, access tokens, refresh tokens, request bodies, response bodies, headers, cookies, screenshots, view hierarchy, session replay, raw diagnostics, and stream URL query or fragment values.</string>
     <string name="sentry_keep_enabled">Keep on</string>
