@@ -1,6 +1,8 @@
 package com.nuvio.app.features.home.components
 
 import androidx.compose.animation.animateContentSize
+import com.nuvio.app.controller.ControllerFocusZone
+import com.nuvio.app.controller.controllerFocusable
 import com.nuvio.app.core.ui.NuvioDesktopAnimation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -528,6 +530,15 @@ private fun DefaultHomeHeroFrame(
                 Surface(
                     modifier = Modifier
                         .nuvioFocusBorder(RoundedCornerShape(40.dp))
+                        .controllerFocusable(
+                            id = "home_hero_view_details",
+                            zone = ControllerFocusZone.Content,
+                            groupKey = "home_hero",
+                            shape = RoundedCornerShape(40.dp),
+                            cornerRadius = 40.dp,
+                            selectLabel = stringResource(Res.string.home_view_details),
+                            onSelect = { onItemClick?.invoke(currentHeroItem(items, pagerState)) },
+                        )
                         .clickable(enabled = onItemClick != null) {
                             onItemClick?.invoke(currentHeroItem(items, pagerState))
                         },

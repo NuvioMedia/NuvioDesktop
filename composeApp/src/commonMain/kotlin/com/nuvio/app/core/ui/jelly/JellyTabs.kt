@@ -8,10 +8,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.Dp
+import com.nuvio.app.controller.ControllerFocusZone
+import com.nuvio.app.controller.controllerFocusable
 import com.nuvio.app.core.ui.nuvioFocusBorder
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.size
@@ -102,6 +105,7 @@ internal fun JellyTabTargets(
     modifier: Modifier,
     horizontalLabels: Boolean = false,
     iconSize: Dp = if (compactSize) 24.dp else 28.dp,
+    focusIdForIndex: ((Int) -> String)? = null,
 ) {
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Row(modifier.padding(horizontal = 4.dp).selectableGroup()) {
@@ -114,6 +118,25 @@ internal fun JellyTabTargets(
             Box(
                 modifier = Modifier.weight(1f).fillMaxHeight()
                     .nuvioFocusBorder(JellyTabFocusShape)
+                    // The top bar is driven by the spatial engine; keep it out of Compose's focus
+                    // search so Down from a content list cannot land on a nav pill.
+                    .focusProperties { canFocus = false }
+                    .then(
+                        if (focusIdForIndex != null) {
+                            Modifier.controllerFocusable(
+                                id = focusIdForIndex(index),
+                                zone = ControllerFocusZone.Navigation,
+                                groupKey = "top_nav",
+                                isDefaultFocus = item.selected,
+                                shape = JellyTabFocusShape,
+                                cornerRadius = 16.dp,
+                                selectLabel = item.label,
+                                onSelect = onClick,
+                            )
+                        } else {
+                            Modifier
+                        },
+                    )
                     .selectable(
                         selected = item.selected,
                         role = Role.Tab,

@@ -279,18 +279,24 @@ fun NuvioPosterCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(shape.aspectRatio)
-                .clip(cardShape)
-                .background(tokens.colors.surface)
-                .nuvioCardDepth(
-                    shape = cardShape,
-                    surface = NuvioCardDepthSurface.Posters,
-                )
+                // Compose focus is used on Compose-driven routes (details rails), where the spatial
+                // engine defers navigation. The border must be applied *before* the clickable so it
+                // can observe the focus target that clickable creates.
+                .nuvioFocusBorder(cardShape)
+                // The engine's focus ring is drawn by posterCardClickable and must sit outside the
+                // clip so the rounded card clip cannot cut it away.
                 .posterCardClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
                     zoomImageUrl = imageUrl,
                     zoomCornerRadius = posterCardStyle.cornerRadiusDp.dp,
                     hoverScaleEnabled = false,
+                )
+                .clip(cardShape)
+                .background(tokens.colors.surface)
+                .nuvioCardDepth(
+                    shape = cardShape,
+                    surface = NuvioCardDepthSurface.Posters,
                 ),
             contentAlignment = Alignment.Center,
         ) {

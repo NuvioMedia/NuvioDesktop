@@ -141,6 +141,9 @@ internal fun Modifier.posterCardClickable(
                     selectLabel = "Open",
                     secondaryActionLabel = if (handleLongClick != null) "Options" else null,
                     onSecondaryAction = handleLongClick,
+                    // The same title can appear in several shelves; keep one focus node per shelf
+                    // so the ring never lights up in two rows at once.
+                    dedupeByGroup = true,
                     onSelect = handleClick,
                 )
             } else {

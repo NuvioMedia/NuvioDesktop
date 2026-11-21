@@ -106,6 +106,15 @@ private fun FocusManager.moveSpatialFocus(direction: ControllerDirection): Boole
     }
     if (moveFocus(composeDirection)) return true
 
+    // Nothing holds Compose focus (e.g. the spatial ring was cleared when a Compose-driven route
+    // opened): seed a target immediately, even if this route was already seeded once.
+    if (!com.nuvio.app.core.ui.FocusPresence.hasAnyFocus) {
+        clearFocus(force = true)
+        if (moveFocus(FocusDirection.Next)) {
+            return moveFocus(composeDirection)
+        }
+    }
+
     // Seed the incoming screen once per route change, then apply the requested move so the first
     // arrow press reacts instead of being swallowed (previously users had to press Tab).
     if (seedRouteFocusIfNeeded()) {
@@ -216,6 +225,26 @@ actual fun PlatformKeyboardNavigationHost() {
             if (isPlayerActive) {
                 if (event.keyCode == KeyEvent.VK_SPACE || event.keyCode == KeyEvent.VK_ENTER) {
                     if (PlayerControllerBridge.dispatch(PlayerCommand.TogglePlayback)) {
+                        return@KeyEventDispatcher true
+                    }
+                }
+            }
+
+            // Keyboard equivalents of the controller hint-bar actions. They mirror the gamepad
+            // handlers (Y=Search, LB/RB=Tabs, Menu=Navigation, X=Options) and are ignored inside
+            // the player, where those keys belong to playback.
+            if (!isPlayerActive) {
+                val shortcutButton = when {
+                    event.isControlDown && event.keyCode == KeyEvent.VK_K -> XboxButton.Y
+                    event.isControlDown && event.keyCode == KeyEvent.VK_TAB ->
+                        if (event.isShiftDown) XboxButton.LB else XboxButton.RB
+                    event.isControlDown && event.keyCode == KeyEvent.VK_B -> XboxButton.Menu
+                    event.keyCode == KeyEvent.VK_CONTEXT_MENU ||
+                        (event.isShiftDown && event.keyCode == KeyEvent.VK_F10) -> XboxButton.X
+                    else -> null
+                }
+                if (shortcutButton != null) {
+                    if (ControllerManager.dispatchKeyboardShortcut(shortcutButton)) {
                         return@KeyEventDispatcher true
                     }
                 }
