@@ -276,6 +276,35 @@ class PlayerScreenRuntimeStateTest {
     }
 
     @Test
+    fun stopScrobble_reportsEndOfFileAsWatchedAndDoesNotRepeatIt() {
+        assertEquals(
+            100f,
+            resolveStopScrobblePercent(
+                reportedProgressPercent = 50f,
+                isEnded = true,
+                hasSentCompletionScrobble = false,
+            ),
+        )
+        assertNull(
+            resolveStopScrobblePercent(
+                reportedProgressPercent = 50f,
+                isEnded = true,
+                hasSentCompletionScrobble = true,
+            ),
+        )
+        assertEquals(
+            42f,
+            resolveStopScrobblePercent(
+                reportedProgressPercent = 42f,
+                isEnded = false,
+                hasSentCompletionScrobble = false,
+            ),
+        )
+        assertEquals(100.0, externalStopScrobblePercent(positionMs = 600_000L, durationMs = 1_200_000L, playedToEnd = true))
+        assertEquals(50.0, externalStopScrobblePercent(positionMs = 600_000L, durationMs = 1_200_000L, playedToEnd = false))
+    }
+
+    @Test
     fun stopScrobble_skipsEarlyProgressWithoutActiveSession() {
         assertFalse(
             shouldSendStopScrobble(
