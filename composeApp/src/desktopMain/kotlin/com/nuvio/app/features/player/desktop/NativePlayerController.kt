@@ -1621,6 +1621,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         append(',')
         appendJsonField("nextEpisodePlayable", nextEpisodePlayable)
         append(',')
+        appendJsonField("nextEpisodeExitLabel", nextEpisodeExitLabel)
+        append(',')
         appendJsonField("showSubmitIntro", showSubmitIntro)
         append(',')
         appendJsonField("showVideoSettings", showVideoSettings)
