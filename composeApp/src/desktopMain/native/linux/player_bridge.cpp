@@ -2172,7 +2172,7 @@ JNIEXPORT void JNICALL NP(applySubtitleStyle)(
 
 JNIEXPORT void JNICALL NP(setSubtitleAppearance)(
     JNIEnv *env, jobject, jlong handle, jstring font, jstring fontsDir, jstring shadowColor,
-    jfloat shadowOffset) {
+    jfloat shadowOffset, jfloat shadowBlur) {
     Player *p = asPlayer(handle);
     if (!p) return;
     std::string dir = jstringToUtf8(env, fontsDir);
@@ -2181,6 +2181,8 @@ JNIEXPORT void JNICALL NP(setSubtitleAppearance)(
     mpv_set_property_string(p->mpv, "sub-shadow-color", jstringToUtf8(env, shadowColor).c_str());
     std::string offset = std::to_string(shadowOffset);
     mpv_set_property_string(p->mpv, "sub-shadow-offset", offset.c_str());
+    std::string blur = std::to_string(shadowBlur);
+    mpv_set_property_string(p->mpv, "sub-blur", blur.c_str());
 }
 
 // ---- Phase 2 stubs: webview controls / window chrome / focus ------------
