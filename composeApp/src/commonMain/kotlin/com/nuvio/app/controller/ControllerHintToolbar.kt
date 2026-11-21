@@ -75,6 +75,11 @@ fun ControllerHintToolbar(
     val isControllerActive by ControllerManager.isControllerActive.collectAsState()
     val screenContext by ControllerManager.screenContext.collectAsState()
     val focusedSnapshot by ControllerFocusEngine.focusedNodeSnapshot.collectAsState()
+    val glyphPreference by ControllerManager.glyphPreference.collectAsState()
+    val activeController by ControllerManager.activeController.collectAsState()
+    val glyphFamily = remember(glyphPreference, activeController) {
+        ControllerManager.resolveGlyphFamily(glyphPreference, activeController)
+    }
 
     val hints = remember(screenContext, focusedSnapshot) {
         buildContextHints(screenContext, focusedSnapshot)
@@ -112,7 +117,7 @@ fun ControllerHintToolbar(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     currentHints.forEachIndexed { index, item ->
-                        ControllerHintChip(item = item)
+                        ControllerHintChip(item = item, family = glyphFamily)
                         if (index < currentHints.lastIndex) {
                             Box(
                                 modifier = Modifier
@@ -267,6 +272,7 @@ internal fun buildContextHints(
 @Composable
 private fun ControllerHintChip(
     item: ControllerHintItem,
+    family: ControllerFamily,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -274,7 +280,7 @@ private fun ControllerHintChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        XboxButtonGlyphBadge(glyph = item.glyph)
+        XboxButtonGlyphBadge(glyph = item.glyph, family = family)
         Text(
             text = item.actionLabel,
             style = MaterialTheme.typography.labelMedium.copy(
@@ -288,45 +294,194 @@ private fun ControllerHintChip(
     }
 }
 
+/** Physical position of a face button; the app always uses the Xbox positional layout. */
+private enum class FaceSlot { South, East, West, North }
+
+private val PlayStationCross = Color(0xFF7FB3F5)
+private val PlayStationCircle = Color(0xFFFF6B6B)
+private val PlayStationSquare = Color(0xFFF28CD8)
+private val PlayStationTriangle = Color(0xFF4FD6B0)
+
+/**
+ * Text shown on shoulder, trigger and stick badges for each controller family.
+ * Index order: LB, RB, LT, RT, LS, RS.
+ */
+private fun shoulderLabels(family: ControllerFamily): List<String> = when (family) {
+    ControllerFamily.PlayStation -> listOf("L1", "R1", "L2", "R2", "L3", "R3")
+    ControllerFamily.Nintendo -> listOf("L", "R", "ZL", "ZR", "LS", "RS")
+    ControllerFamily.SteamDeck -> listOf("L1", "R1", "L2", "R2", "L3", "R3")
+    ControllerFamily.Xbox,
+    ControllerFamily.SteamController,
+    ControllerFamily.Generic,
+    -> listOf("LB", "RB", "LT", "RT", "LS", "RS")
+}
+
 @Composable
 fun XboxButtonGlyphBadge(
     glyph: XboxGlyph,
     modifier: Modifier = Modifier,
+    family: ControllerFamily = ControllerFamily.Xbox,
 ) {
+    val labels = shoulderLabels(family)
     when (glyph) {
-        XboxGlyph.A -> XboxFaceButtonBadge("A", XboxGreen, modifier)
-        XboxGlyph.B -> XboxFaceButtonBadge("B", XboxRed, modifier)
-        XboxGlyph.X -> XboxFaceButtonBadge("X", XboxBlue, modifier)
-        XboxGlyph.Y -> XboxFaceButtonBadge("Y", XboxAmber, modifier)
-        XboxGlyph.LB -> XboxBumperBadge("LB", modifier)
-        XboxGlyph.RB -> XboxBumperBadge("RB", modifier)
+        XboxGlyph.A -> FaceButtonBadge(FaceSlot.South, family, modifier)
+        XboxGlyph.B -> FaceButtonBadge(FaceSlot.East, family, modifier)
+        XboxGlyph.X -> FaceButtonBadge(FaceSlot.West, family, modifier)
+        XboxGlyph.Y -> FaceButtonBadge(FaceSlot.North, family, modifier)
+        XboxGlyph.LB -> XboxBumperBadge(labels[0], modifier)
+        XboxGlyph.RB -> XboxBumperBadge(labels[1], modifier)
         XboxGlyph.LB_RB -> {
             Row(
                 modifier = modifier,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                XboxBumperBadge("LB")
-                XboxBumperBadge("RB")
+                XboxBumperBadge(labels[0])
+                XboxBumperBadge(labels[1])
             }
         }
-        XboxGlyph.LT -> XboxTriggerBadge("LT", modifier)
-        XboxGlyph.RT -> XboxTriggerBadge("RT", modifier)
+        XboxGlyph.LT -> XboxTriggerBadge(labels[2], modifier)
+        XboxGlyph.RT -> XboxTriggerBadge(labels[3], modifier)
         XboxGlyph.LT_RT -> {
             Row(
                 modifier = modifier,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                XboxTriggerBadge("LT")
-                XboxTriggerBadge("RT")
+                XboxTriggerBadge(labels[2])
+                XboxTriggerBadge(labels[3])
             }
         }
         XboxGlyph.DPad -> XboxDPadBadge(modifier)
-        XboxGlyph.LS -> XboxStickBadge("LS", modifier)
-        XboxGlyph.RS -> XboxStickBadge("RS", modifier)
-        XboxGlyph.View -> XboxViewBadge(modifier)
-        XboxGlyph.Menu -> XboxMenuBadge(modifier)
+        XboxGlyph.LS -> XboxStickBadge(labels[4], modifier)
+        XboxGlyph.RS -> XboxStickBadge(labels[5], modifier)
+        XboxGlyph.View -> when (family) {
+            ControllerFamily.PlayStation -> PillLabelBadge("Create", modifier)
+            ControllerFamily.Nintendo -> XboxFaceButtonBadge("\u2212", GlyphWhite, modifier)
+            else -> XboxViewBadge(modifier)
+        }
+        XboxGlyph.Menu -> when (family) {
+            ControllerFamily.PlayStation -> PillLabelBadge("Options", modifier)
+            ControllerFamily.Nintendo -> XboxFaceButtonBadge("+", GlyphWhite, modifier)
+            else -> XboxMenuBadge(modifier)
+        }
+    }
+}
+
+@Composable
+private fun FaceButtonBadge(
+    slot: FaceSlot,
+    family: ControllerFamily,
+    modifier: Modifier = Modifier,
+) {
+    when (family) {
+        ControllerFamily.PlayStation -> PlayStationFaceBadge(slot, modifier)
+        // SDL is configured for positional mapping, so the south button (confirm) is labelled B
+        // on Nintendo pads, east is A, west is Y and north is X.
+        ControllerFamily.Nintendo -> XboxFaceButtonBadge(
+            when (slot) {
+                FaceSlot.South -> "B"
+                FaceSlot.East -> "A"
+                FaceSlot.West -> "Y"
+                FaceSlot.North -> "X"
+            },
+            GlyphWhite,
+            modifier,
+        )
+        // Steam Deck face buttons carry the Xbox letters but are monochrome.
+        ControllerFamily.SteamDeck -> XboxFaceButtonBadge(
+            when (slot) {
+                FaceSlot.South -> "A"
+                FaceSlot.East -> "B"
+                FaceSlot.West -> "X"
+                FaceSlot.North -> "Y"
+            },
+            GlyphWhite,
+            modifier,
+        )
+        ControllerFamily.Xbox,
+        ControllerFamily.SteamController,
+        ControllerFamily.Generic,
+        -> when (slot) {
+            FaceSlot.South -> XboxFaceButtonBadge("A", XboxGreen, modifier)
+            FaceSlot.East -> XboxFaceButtonBadge("B", XboxRed, modifier)
+            FaceSlot.West -> XboxFaceButtonBadge("X", XboxBlue, modifier)
+            FaceSlot.North -> XboxFaceButtonBadge("Y", XboxAmber, modifier)
+        }
+    }
+}
+
+@Composable
+private fun PlayStationFaceBadge(
+    slot: FaceSlot,
+    modifier: Modifier = Modifier,
+) {
+    val color = when (slot) {
+        FaceSlot.South -> PlayStationCross
+        FaceSlot.East -> PlayStationCircle
+        FaceSlot.West -> PlayStationSquare
+        FaceSlot.North -> PlayStationTriangle
+    }
+    Box(
+        modifier = modifier
+            .size(22.dp)
+            .clip(CircleShape)
+            .border(1.75.dp, color, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(10.dp)) {
+            val stroke = 1.6.dp.toPx()
+            val w = size.width
+            val h = size.height
+            when (slot) {
+                FaceSlot.South -> {
+                    drawLine(color, Offset(0f, 0f), Offset(w, h), stroke, StrokeCap.Round)
+                    drawLine(color, Offset(w, 0f), Offset(0f, h), stroke, StrokeCap.Round)
+                }
+                FaceSlot.East -> drawCircle(
+                    color = color,
+                    radius = (w - stroke) / 2f,
+                    style = Stroke(width = stroke),
+                )
+                FaceSlot.West -> drawRect(
+                    color = color,
+                    topLeft = Offset(stroke / 2f, stroke / 2f),
+                    size = Size(w - stroke, h - stroke),
+                    style = Stroke(width = stroke),
+                )
+                FaceSlot.North -> {
+                    val top = Offset(w / 2f, stroke / 2f)
+                    val left = Offset(stroke / 2f, h - stroke / 2f)
+                    val right = Offset(w - stroke / 2f, h - stroke / 2f)
+                    drawLine(color, top, left, stroke, StrokeCap.Round)
+                    drawLine(color, left, right, stroke, StrokeCap.Round)
+                    drawLine(color, right, top, stroke, StrokeCap.Round)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PillLabelBadge(
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier = modifier
+            .height(20.dp)
+            .clip(shape)
+            .border(1.65.dp, GlyphWhite, shape)
+            .padding(horizontal = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        CenteredBadgeText(
+            text = label,
+            color = GlyphWhite,
+            fontSize = 9.5.sp,
+            modifier = Modifier.fillMaxHeight(),
+        )
     }
 }
 

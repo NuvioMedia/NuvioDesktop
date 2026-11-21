@@ -93,7 +93,9 @@ internal object DesktopControllerInput {
             directions: Set<ControllerDirection>,
             buttons: Set<XboxButton>,
             now: Long,
+            onActivity: () -> Unit = {},
         ) {
+            var active = false
             for (direction in ControllerDirection.entries) {
                 val pressed = direction in directions
                 val previous = heldDirections[direction]
@@ -101,11 +103,13 @@ internal object DesktopControllerInput {
                     if (previous == null) {
                         heldDirections[direction] = now
                         repeatAt[direction] = now + REPEAT_FIRST_DELAY_MS
+                        active = true
                         ControllerManager.dispatchEvent(
                             ControllerEvent.Navigate(direction, isRepeat = false),
                         )
                     } else if (now >= (repeatAt[direction] ?: Long.MAX_VALUE)) {
                         repeatAt[direction] = now + REPEAT_INTERVAL_MS
+                        active = true
                         ControllerManager.dispatchEvent(
                             ControllerEvent.Navigate(direction, isRepeat = true),
                         )
@@ -119,10 +123,15 @@ internal object DesktopControllerInput {
             for (button in XboxButton.entries) {
                 val pressed = button in buttons
                 if (pressed && heldButtons.add(button)) {
+                    active = true
                     ControllerManager.dispatchEvent(ControllerEvent.ButtonPressed(button))
                 } else if (!pressed && heldButtons.remove(button)) {
                     ControllerManager.dispatchEvent(ControllerEvent.ButtonReleased(button))
                 }
+            }
+
+            if (active) {
+                onActivity()
             }
         }
 
@@ -135,6 +144,13 @@ internal object DesktopControllerInput {
         /** Directions currently held from the previous poll, used for stick hysteresis. */
         fun activeDirections(): Set<ControllerDirection> = heldDirections.keys
     }
+
+    private fun isAppWindowFocused(): Boolean = runCatching {
+        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow != null
+    }.getOrDefault(true)
+
+    private fun shouldIgnoreInputForBackground(): Boolean =
+        ControllerSettings.ignoreBackgroundInput.value && !isAppWindowFocused()
 
     /** Right-stick scrolling, shared by all pads (the strongest deflection wins). */
     private class AnalogScrollState {
@@ -265,7 +281,15 @@ internal object DesktopControllerInput {
                 } ?: -1
                 if (connectedIndex == -1) continue
                 input.reset()
+                ControllerManager.updateConnectedCount(1)
                 log.i { "controller connected (xinput $connectedIndex)" }
+            }
+
+            if (shouldIgnoreInputForBackground()) {
+                input.reset()
+                analog.update(0f, 0f, now)
+                sleepQuietly()
+                continue
             }
 
             val rc = runCatching { xinput.XInputGetState(connectedIndex, state) }
@@ -275,6 +299,7 @@ internal object DesktopControllerInput {
                     log.i { "controller disconnected" }
                     input.reset()
                     connectedIndex = -1
+                    ControllerManager.updateConnectedCount(0)
                 }
                 sleepQuietly()
                 continue
@@ -313,15 +338,35 @@ internal object DesktopControllerInput {
             val ax = thumbRx.takeIf { abs(it) >= ANALOG_SCROLL_DEADZONE } ?: 0f
             val ay = thumbRy.takeIf { abs(it) >= ANALOG_SCROLL_DEADZONE } ?: 0f
 
-            input.update(directions, buttons, now)
+            input.update(directions, buttons, now) {
+                ControllerManager.updateActiveController(resolveXInputControllerInfo(connectedIndex, now))
+            }
             analog.update(ax, -ay, now)
             Thread.sleep(POLL_INTERVAL_MS.coerceAtLeast(1L))
         }
     }
 
+    private fun resolveXInputControllerInfo(index: Int, now: Long): ControllerInfo {
+        if (SteamEnvironment.steamInputActive) {
+            val slot = SteamEnvironment.virtualSlots(now).firstOrNull { it.slot == index }
+                ?: SteamEnvironment.virtualSlots(now).firstOrNull()
+            if (slot != null) {
+                val family = SteamEnvironment.classify(slot.vendor, slot.product, -1, slot.name, slot.type)
+                return ControllerInfo(
+                    name = slot.name ?: "Steam Virtual Gamepad",
+                    family = family,
+                    viaSteamInput = true,
+                )
+            }
+            return ControllerInfo("Steam Virtual Gamepad", ControllerFamily.Xbox, viaSteamInput = true)
+        }
+        return ControllerInfo("Xbox Controller", ControllerFamily.Xbox, viaSteamInput = false)
+    }
+
     // ------------------------------------------------------------------ Linux/macOS: SDL2
 
     interface Sdl2Library : Library {
+        fun SDL_SetHint(name: String, value: String): Int
         fun SDL_Init(flags: Int): Int
         fun SDL_QuitSubSystem(flags: Int)
         fun SDL_PumpEvents()
@@ -335,6 +380,9 @@ internal object DesktopControllerInput {
         fun SDL_GameControllerGetButton(controller: Pointer, button: Int): Int
         fun SDL_GameControllerGetAxis(controller: Pointer, axis: Int): Short
         fun SDL_GameControllerName(controller: Pointer): String?
+        fun SDL_GameControllerGetVendor(controller: Pointer): Short
+        fun SDL_GameControllerGetProduct(controller: Pointer): Short
+        fun SDL_GameControllerGetType(controller: Pointer): Int
     }
 
     private const val SDL_INIT_JOYSTICK = 0x00000200
@@ -345,6 +393,8 @@ internal object DesktopControllerInput {
     private const val SDL_CONTROLLER_BUTTON_X = 2
     private const val SDL_CONTROLLER_BUTTON_Y = 3
     private const val SDL_CONTROLLER_BUTTON_BACK = 4
+    // Button 5 is SDL_CONTROLLER_BUTTON_GUIDE (Steam / Xbox / PS button) — never bind it so
+    // Steam / Quick Access Menu / OS overlays always own it.
     private const val SDL_CONTROLLER_BUTTON_START = 6
     private const val SDL_CONTROLLER_BUTTON_LEFTSTICK = 7
     private const val SDL_CONTROLLER_BUTTON_RIGHTSTICK = 8
@@ -354,6 +404,10 @@ internal object DesktopControllerInput {
     private const val SDL_CONTROLLER_BUTTON_DPAD_DOWN = 12
     private const val SDL_CONTROLLER_BUTTON_DPAD_LEFT = 13
     private const val SDL_CONTROLLER_BUTTON_DPAD_RIGHT = 14
+    private const val SDL_CONTROLLER_BUTTON_PADDLE1 = 16 // Upper right (R4)
+    private const val SDL_CONTROLLER_BUTTON_PADDLE2 = 17 // Upper left  (L4)
+    private const val SDL_CONTROLLER_BUTTON_PADDLE3 = 18 // Lower right (R5)
+    private const val SDL_CONTROLLER_BUTTON_PADDLE4 = 19 // Lower left  (L5)
 
     private const val SDL_CONTROLLER_AXIS_LEFTX = 0
     private const val SDL_CONTROLLER_AXIS_LEFTY = 1
@@ -361,6 +415,45 @@ internal object DesktopControllerInput {
     private const val SDL_CONTROLLER_AXIS_RIGHTY = 3
     private const val SDL_CONTROLLER_AXIS_TRIGGERLEFT = 4
     private const val SDL_CONTROLLER_AXIS_TRIGGERRIGHT = 5
+
+    private data class SdlPadEntry(
+        val handle: Pointer,
+        val name: String?,
+        val vendor: Int,
+        val product: Int,
+        val sdlType: Int,
+        val viaSteamInput: Boolean,
+        val state: PadState = PadState(),
+    ) {
+        fun resolveControllerInfo(now: Long): ControllerInfo {
+            if (viaSteamInput) {
+                val slots = SteamEnvironment.virtualSlots(now)
+                val slotNum = SteamEnvironment.virtualSlotFromName(name)
+                val slot = (if (slotNum != null) slots.firstOrNull { it.slot == slotNum } else null)
+                    ?: slots.singleOrNull()
+                if (slot != null) {
+                    val family = SteamEnvironment.classify(
+                        slot.vendor,
+                        slot.product,
+                        -1,
+                        slot.name,
+                        slot.type,
+                    )
+                    return ControllerInfo(
+                        name = slot.name ?: name ?: "Steam Virtual Gamepad",
+                        family = family,
+                        viaSteamInput = true,
+                    )
+                }
+            }
+            val family = SteamEnvironment.classify(vendor, product, sdlType, name)
+            return ControllerInfo(
+                name = name ?: "Controller",
+                family = family,
+                viaSteamInput = viaSteamInput,
+            )
+        }
+    }
 
     private fun loadSdl2(): Sdl2Library? {
         val candidates = listOf(
@@ -382,8 +475,21 @@ internal object DesktopControllerInput {
         return null
     }
 
+    private fun applySdlSteamHints(sdl: Sdl2Library) {
+        // Enable Valve HIDAPI drivers so Steam Deck (including L4/R4/L5/R5) and Steam Controller
+        // work even when Steam Input is disabled for Nuvio.
+        runCatching { sdl.SDL_SetHint("SDL_JOYSTICK_HIDAPI_STEAM_DECK", "1") }
+        runCatching { sdl.SDL_SetHint("SDL_JOYSTICK_HIDAPI_STEAM", "1") }
+        // Positional button layout so Nintendo A/B/X/Y match Xbox physical positions.
+        runCatching { sdl.SDL_SetHint("SDL_GAMECONTROLLER_USE_BUTTON_LABELS", "0") }
+        // Allow background events at the SDL level; we gate dynamically in the poll loop so
+        // toggling ControllerSettings.ignoreBackgroundInput takes effect without restarting SDL.
+        runCatching { sdl.SDL_SetHint("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1") }
+    }
+
     private fun runSdlLoop() {
         val sdl = loadSdl2() ?: return
+        applySdlSteamHints(sdl)
         if (sdl.SDL_Init(SDL_INIT_JOYSTICK or SDL_INIT_GAMECONTROLLER) != 0) {
             log.w { "SDL_Init failed - controller disabled" }
             return
@@ -391,10 +497,10 @@ internal object DesktopControllerInput {
 
         // Every attached pad is polled with its own edge-detection state, so an Xbox pad and a
         // DualSense can be connected at the same time without one masking the other's inputs.
-        val controllers = LinkedHashMap<Int, Pointer>()
-        val padStates = HashMap<Int, PadState>()
+        val controllers = LinkedHashMap<Int, SdlPadEntry>()
         val analog = AnalogScrollState()
         var lastScan = 0L
+        val hasEnvIgnoreList = !System.getenv("SDL_GAMECONTROLLER_IGNORE_DEVICES").isNullOrBlank()
 
         try {
             while (running && !Thread.currentThread().isInterrupted) {
@@ -404,22 +510,23 @@ internal object DesktopControllerInput {
                 // without waiting for input on an already-open controller.
                 runCatching { sdl.SDL_PumpEvents() }
 
-                val detached = controllers.entries.filter { (_, pad) ->
-                    runCatching { sdl.SDL_GameControllerGetAttached(pad) }.getOrDefault(0) == 0
+                val detached = controllers.entries.filter { (_, entry) ->
+                    runCatching { sdl.SDL_GameControllerGetAttached(entry.handle) }.getOrDefault(0) == 0
                 }
                 if (detached.isNotEmpty()) {
-                    detached.forEach { (instanceId, pad) ->
-                        runCatching { sdl.SDL_GameControllerClose(pad) }
+                    detached.forEach { (instanceId, entry) ->
+                        runCatching { sdl.SDL_GameControllerClose(entry.handle) }
                         controllers.remove(instanceId)
-                        padStates.remove(instanceId)
                         log.i { "controller disconnected (instance $instanceId)" }
                     }
+                    ControllerManager.updateConnectedCount(controllers.size)
                 }
 
                 if (now - lastScan >= RESCAN_INTERVAL_MS) {
                     lastScan = now
                     sdl.SDL_GameControllerUpdate()
                     val count = sdl.SDL_NumJoysticks()
+                    var added = false
                     for (index in 0 until max(0, count)) {
                         if (sdl.SDL_IsGameController(index) == 0) continue
                         // Key pads by their stable instance id so re-indexing (a pad disconnecting
@@ -429,21 +536,59 @@ internal object DesktopControllerInput {
                         val key = if (instanceId >= 0) instanceId else index
                         if (controllers.containsKey(key)) continue
                         val opened = runCatching { sdl.SDL_GameControllerOpen(index) }.getOrNull() ?: continue
-                        controllers[key] = opened
-                        padStates[key] = PadState()
                         val name = runCatching { sdl.SDL_GameControllerName(opened) }.getOrNull()
-                        log.i { "controller connected (instance $key): ${name ?: "unknown"}" }
+                        val vendor = runCatching { sdl.SDL_GameControllerGetVendor(opened).toInt() and 0xFFFF }
+                            .getOrDefault(0)
+                        val product = runCatching { sdl.SDL_GameControllerGetProduct(opened).toInt() and 0xFFFF }
+                            .getOrDefault(0)
+                        val sdlType = runCatching { sdl.SDL_GameControllerGetType(opened) }.getOrDefault(-1)
+                        val viaSteam = SteamEnvironment.isSteamVirtualGamepad(vendor, product, name)
+                        val entry = SdlPadEntry(
+                            handle = opened,
+                            name = name,
+                            vendor = vendor,
+                            product = product,
+                            sdlType = sdlType,
+                            viaSteamInput = viaSteam,
+                        )
+                        controllers[key] = entry
+                        added = true
+                        log.i {
+                            "controller connected (instance $key, vid=0x${vendor.toString(16)}, " +
+                                "pid=0x${product.toString(16)}, steam=$viaSteam): ${name ?: "unknown"}"
+                        }
                     }
+                    if (added) {
+                        ControllerManager.updateConnectedCount(controllers.size)
+                    }
+                }
+
+                if (shouldIgnoreInputForBackground()) {
+                    controllers.values.forEach { it.state.reset() }
+                    analog.update(0f, 0f, now)
+                    Thread.sleep(POLL_INTERVAL_MS.coerceAtLeast(1L))
+                    continue
                 }
 
                 if (controllers.isNotEmpty()) {
                     sdl.SDL_GameControllerUpdate()
 
+                    // If Steam Input is active and didn't set SDL_GAMECONTROLLER_IGNORE_DEVICES (or
+                    // an older SDL2 ignored it), avoid double-firing from both the physical pad and
+                    // Steam's virtual gamepad.
+                    val hasSteamVirtualPad = controllers.values.any { it.viaSteamInput }
+                    val deduplicatePhysical = !hasEnvIgnoreList &&
+                        SteamEnvironment.steamInputActive &&
+                        hasSteamVirtualPad
+
                     var ax = 0f
                     var ay = 0f
 
-                    controllers.forEach { (instanceId, pad) ->
-                        val padState = padStates.getOrPut(instanceId) { PadState() }
+                    controllers.forEach { (_, entry) ->
+                        if (deduplicatePhysical && !entry.viaSteamInput) return@forEach
+
+                        val pad = entry.handle
+                        val padState = entry.state
                         val directions = HashSet<ControllerDirection>()
                         val buttons = HashSet<XboxButton>()
 
@@ -472,10 +617,16 @@ internal object DesktopControllerInput {
                         if (pressed(SDL_CONTROLLER_BUTTON_BACK)) buttons += XboxButton.View
                         if (pressed(SDL_CONTROLLER_BUTTON_LEFTSTICK)) buttons += XboxButton.LS
                         if (pressed(SDL_CONTROLLER_BUTTON_RIGHTSTICK)) buttons += XboxButton.RS
+                        if (pressed(SDL_CONTROLLER_BUTTON_PADDLE1)) buttons += XboxButton.R4
+                        if (pressed(SDL_CONTROLLER_BUTTON_PADDLE2)) buttons += XboxButton.L4
+                        if (pressed(SDL_CONTROLLER_BUTTON_PADDLE3)) buttons += XboxButton.R5
+                        if (pressed(SDL_CONTROLLER_BUTTON_PADDLE4)) buttons += XboxButton.L5
                         if (trigger(SDL_CONTROLLER_AXIS_TRIGGERLEFT) >= 0.55f) buttons += XboxButton.LT
                         if (trigger(SDL_CONTROLLER_AXIS_TRIGGERRIGHT) >= 0.55f) buttons += XboxButton.RT
 
-                        padState.update(directions, buttons, now)
+                        padState.update(directions, buttons, now) {
+                            ControllerManager.updateActiveController(entry.resolveControllerInfo(now))
+                        }
 
                         val padAx = axis(SDL_CONTROLLER_AXIS_RIGHTX)
                         val padAy = axis(SDL_CONTROLLER_AXIS_RIGHTY)
@@ -493,7 +644,8 @@ internal object DesktopControllerInput {
                 Thread.sleep(POLL_INTERVAL_MS.coerceAtLeast(1L))
             }
         } finally {
-            controllers.values.forEach { runCatching { sdl.SDL_GameControllerClose(it) } }
+            controllers.values.forEach { runCatching { sdl.SDL_GameControllerClose(it.handle) } }
+            ControllerManager.updateConnectedCount(0)
             runCatching { sdl.SDL_QuitSubSystem(SDL_INIT_JOYSTICK or SDL_INIT_GAMECONTROLLER) }
         }
     }

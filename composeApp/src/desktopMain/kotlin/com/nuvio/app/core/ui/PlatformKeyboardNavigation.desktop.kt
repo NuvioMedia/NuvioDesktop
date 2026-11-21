@@ -8,13 +8,18 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalFocusManager
 import com.nuvio.app.controller.ControllerDirection
 import com.nuvio.app.controller.ControllerEvent
+import com.nuvio.app.controller.ControllerFamily
 import com.nuvio.app.controller.ControllerFocusEngine
 import com.nuvio.app.controller.ControllerManager
 import com.nuvio.app.controller.ControllerScreenType
+import com.nuvio.app.controller.ControllerSettings
 import com.nuvio.app.controller.DesktopControllerInput
+import com.nuvio.app.controller.SteamEnvironment
+import com.nuvio.app.controller.SteamVirtualKeyboard
 import com.nuvio.app.controller.XboxButton
 import com.nuvio.app.controller.audio.ControllerSoundPlayer
 import com.nuvio.app.controller.audio.DesktopControllerSound
+import com.nuvio.app.core.storage.DesktopStorage
 import com.nuvio.app.features.player.PlayerCommand
 import com.nuvio.app.features.player.PlayerControllerBridge
 import java.awt.AWTEvent
@@ -139,11 +144,31 @@ actual fun PlatformKeyboardNavigationHost() {
     // Controller polling + navigation feedback sounds. DesktopControllerInput normalises XInput
     // (Windows) and SDL2 (Linux/macOS) into the same spatial-engine events.
     DisposableEffect(Unit) {
+        val store = DesktopStorage.store("nuvio_controller")
+        ControllerSettings.install(
+            storage = object : ControllerSettings.Storage {
+                override fun getString(key: String): String? = store.getString(key)
+                override fun putString(key: String, value: String) = store.putString(key, value)
+                override fun getBoolean(key: String): Boolean? =
+                    if (store.contains(key)) store.getBoolean(key) else null
+                override fun putBoolean(key: String, value: Boolean) = store.putBoolean(key, value)
+            },
+            environment = ControllerSettings.Environment(
+                steamDetected = SteamEnvironment.launchedBySteam || SteamEnvironment.steamInputActive,
+                steamDeck = SteamEnvironment.steamDeck,
+                steamKeyboardAvailable = SteamEnvironment.steamKeyboardAvailable,
+            ),
+        )
+        if (SteamEnvironment.steamDeck) {
+            ControllerManager.defaultControllerFamily = ControllerFamily.SteamDeck
+        }
+        SteamVirtualKeyboard.install()
         DesktopControllerSound.install()
         DesktopControllerInput.start()
         onDispose {
             DesktopControllerInput.stop()
             DesktopControllerSound.uninstall()
+            SteamVirtualKeyboard.uninstall()
         }
     }
 

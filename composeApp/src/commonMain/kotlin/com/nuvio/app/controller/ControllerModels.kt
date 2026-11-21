@@ -34,7 +34,81 @@ enum class XboxButton(val displayLabel: String) {
     DPadRight("D-Pad"),
     View("View"),
     Menu("Menu"),
+
+    /**
+     * Back buttons / paddles: Steam Deck L4/R4/L5/R5, Xbox Elite P1-P4, DualSense Edge paddles.
+     * They only reach the app when the pad is read directly (Steam Input disabled for Nuvio);
+     * under Steam Input they are remapped by the Steam controller configuration instead.
+     * [ControllerManager] aliases them onto regular buttons, see [ControllerButtonAliases].
+     */
+    L4("L4"),
+    R4("R4"),
+    L5("L5"),
+    R5("R5"),
 }
+
+/**
+ * Default actions for the back buttons. The upper pair mirrors the bumpers (tabs / seek), the
+ * lower pair mirrors the triggers (page scroll / seek), which is what handheld users expect when
+ * they rest their fingers on the grips.
+ */
+object ControllerButtonAliases {
+    fun canonical(button: XboxButton): XboxButton = when (button) {
+        XboxButton.L4 -> XboxButton.LB
+        XboxButton.R4 -> XboxButton.RB
+        XboxButton.L5 -> XboxButton.LT
+        XboxButton.R5 -> XboxButton.RT
+        else -> button
+    }
+}
+
+/**
+ * Physical controller family, used to pick the matching button glyphs in the hint toolbar.
+ */
+enum class ControllerFamily {
+    Xbox,
+    PlayStation,
+    Nintendo,
+    SteamDeck,
+    SteamController,
+    Generic,
+}
+
+/** User preference for the hint toolbar glyphs. [Auto] follows the controller in use. */
+enum class ControllerGlyphPreference(val storageValue: String) {
+    Auto("auto"),
+    Xbox("xbox"),
+    PlayStation("playstation"),
+    Nintendo("nintendo"),
+    SteamDeck("steam_deck"),
+    ;
+
+    fun resolve(detected: ControllerFamily): ControllerFamily = when (this) {
+        Auto -> detected
+        Xbox -> ControllerFamily.Xbox
+        PlayStation -> ControllerFamily.PlayStation
+        Nintendo -> ControllerFamily.Nintendo
+        SteamDeck -> ControllerFamily.SteamDeck
+    }
+
+    companion object {
+        fun fromStorage(value: String?): ControllerGlyphPreference =
+            entries.firstOrNull { it.storageValue == value } ?: Auto
+    }
+}
+
+/**
+ * Description of the controller that most recently produced input.
+ *
+ * @param viaSteamInput true when the pad is Steam Input's virtual gamepad (Steam is remapping a
+ *   physical controller for Nuvio), so bindings come from the Steam controller configuration.
+ */
+@Immutable
+data class ControllerInfo(
+    val name: String,
+    val family: ControllerFamily,
+    val viaSteamInput: Boolean = false,
+)
 
 /**
  * Glyphs rendered in the bottom-right Controller Hint Toolbar.
@@ -191,6 +265,41 @@ object ControllerManager {
         _connectedControllerCount.value = count
     }
 
+    private val _activeController = MutableStateFlow<ControllerInfo?>(null)
+
+    /** The controller that most recently produced input, or null before any pad was used. */
+    val activeController: StateFlow<ControllerInfo?> = _activeController.asStateFlow()
+
+    private val _glyphPreference = MutableStateFlow(ControllerGlyphPreference.Auto)
+    val glyphPreference: StateFlow<ControllerGlyphPreference> = _glyphPreference.asStateFlow()
+
+    /**
+     * Family used when no pad has produced input yet (e.g. a Steam Deck, where the built-in
+     * controller is known even before the first press).
+     */
+    @Volatile
+    var defaultControllerFamily: ControllerFamily = ControllerFamily.Xbox
+
+    fun updateActiveController(info: ControllerInfo?) {
+        if (_activeController.value != info) {
+            _activeController.value = info
+        }
+    }
+
+    fun setGlyphPreference(preference: ControllerGlyphPreference) {
+        _glyphPreference.value = preference
+    }
+
+    /** Glyph family the hint toolbar should render right now. */
+    fun resolveGlyphFamily(
+        preference: ControllerGlyphPreference = _glyphPreference.value,
+        active: ControllerInfo? = _activeController.value,
+    ): ControllerFamily {
+        val detected = active?.family?.takeUnless { it == ControllerFamily.Generic }
+            ?: defaultControllerFamily
+        return preference.resolve(detected)
+    }
+
     fun updateScreenContext(context: ControllerScreenContext) {
         _screenContext.value = context
     }
@@ -199,7 +308,14 @@ object ControllerManager {
         _screenContext.value = updater(_screenContext.value)
     }
 
-    fun dispatchEvent(event: ControllerEvent) {
+    fun dispatchEvent(rawEvent: ControllerEvent) {
+        val event = when (rawEvent) {
+            is ControllerEvent.ButtonPressed ->
+                rawEvent.copy(button = ControllerButtonAliases.canonical(rawEvent.button))
+            is ControllerEvent.ButtonReleased ->
+                rawEvent.copy(button = ControllerButtonAliases.canonical(rawEvent.button))
+            else -> rawEvent
+        }
         val wokeUp = notifyControllerInput()
         if (wokeUp && event is ControllerEvent.Navigate && !ControllerFocusEngine.deferNavigationToCompose) {
             // First movement both wakes the app into controller mode and selects the initial item,

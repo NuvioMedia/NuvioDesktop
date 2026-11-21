@@ -1384,6 +1384,8 @@ object ControllerFocusEngine {
                 }
             }
             XboxButton.LS, XboxButton.RS -> false
+            // Back paddles are aliased onto LB/RB/LT/RT by ControllerManager before reaching here.
+            XboxButton.L4, XboxButton.R4, XboxButton.L5, XboxButton.R5 -> false
         }
     }
 

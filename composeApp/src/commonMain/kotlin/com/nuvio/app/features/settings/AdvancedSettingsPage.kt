@@ -15,6 +15,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.controller.ControllerGlyphPreference
+import com.nuvio.app.controller.ControllerSettings
+import com.nuvio.app.core.ui.Chip
 import com.nuvio.app.core.ui.DialogButton
 import com.nuvio.app.core.ui.DialogButtons
 import com.nuvio.app.core.ui.DialogButtonStyle
@@ -38,6 +41,7 @@ import nuvio.composeapp.generated.resources.settings_advanced_opengl_renderer_ex
 import nuvio.composeapp.generated.resources.settings_advanced_remember_last_profile
 import nuvio.composeapp.generated.resources.settings_advanced_remember_last_profile_description
 import nuvio.composeapp.generated.resources.settings_advanced_section_cache
+import nuvio.composeapp.generated.resources.settings_advanced_section_controller
 import nuvio.composeapp.generated.resources.settings_advanced_section_diagnostics
 import nuvio.composeapp.generated.resources.settings_advanced_section_discord
 import nuvio.composeapp.generated.resources.settings_advanced_section_startup
@@ -45,6 +49,17 @@ import nuvio.composeapp.generated.resources.settings_advanced_section_windows_gr
 import nuvio.composeapp.generated.resources.settings_advanced_sentry_reports
 import nuvio.composeapp.generated.resources.settings_advanced_sentry_reports_subtitle
 import nuvio.composeapp.generated.resources.settings_advanced_sentry_reports_subtitle_desktop
+import nuvio.composeapp.generated.resources.settings_controller_glyph_auto
+import nuvio.composeapp.generated.resources.settings_controller_glyph_nintendo
+import nuvio.composeapp.generated.resources.settings_controller_glyph_playstation
+import nuvio.composeapp.generated.resources.settings_controller_glyph_steam_deck
+import nuvio.composeapp.generated.resources.settings_controller_glyph_xbox
+import nuvio.composeapp.generated.resources.settings_controller_glyphs
+import nuvio.composeapp.generated.resources.settings_controller_glyphs_description
+import nuvio.composeapp.generated.resources.settings_controller_ignore_background
+import nuvio.composeapp.generated.resources.settings_controller_ignore_background_description
+import nuvio.composeapp.generated.resources.settings_controller_steam_keyboard
+import nuvio.composeapp.generated.resources.settings_controller_steam_keyboard_description
 import nuvio.composeapp.generated.resources.sentry_disable_dialog_subtitle
 import nuvio.composeapp.generated.resources.sentry_disable_dialog_subtitle_desktop
 import nuvio.composeapp.generated.resources.sentry_disable_dialog_title
@@ -177,6 +192,60 @@ internal fun LazyListScope.advancedSettingsContent(
                         checked = discordEnabled,
                         isTablet = isTablet,
                         onCheckedChange = DiscordRichPresenceRepository::setEnabled,
+                    )
+                }
+            }
+        }
+    }
+    if (ControllerSettings.isSupported) {
+        item {
+            val glyphPref by ControllerSettings.glyphPreference.collectAsStateWithLifecycle()
+            val environment by ControllerSettings.environment.collectAsStateWithLifecycle()
+            val steamKeyboardEnabled by ControllerSettings.steamKeyboardEnabled.collectAsStateWithLifecycle()
+            val ignoreBackground by ControllerSettings.ignoreBackgroundInput.collectAsStateWithLifecycle()
+
+            SettingsSection(
+                title = stringResource(Res.string.settings_advanced_section_controller),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
+                    SettingsChipRow(
+                        title = stringResource(Res.string.settings_controller_glyphs),
+                        description = stringResource(Res.string.settings_controller_glyphs_description),
+                        isTablet = isTablet,
+                    ) {
+                        ControllerGlyphPreference.entries.forEach { option ->
+                            val labelRes = when (option) {
+                                ControllerGlyphPreference.Auto -> Res.string.settings_controller_glyph_auto
+                                ControllerGlyphPreference.Xbox -> Res.string.settings_controller_glyph_xbox
+                                ControllerGlyphPreference.PlayStation -> Res.string.settings_controller_glyph_playstation
+                                ControllerGlyphPreference.Nintendo -> Res.string.settings_controller_glyph_nintendo
+                                ControllerGlyphPreference.SteamDeck -> Res.string.settings_controller_glyph_steam_deck
+                            }
+                            Chip(
+                                label = stringResource(labelRes),
+                                selected = glyphPref == option,
+                                onClick = { ControllerSettings.setGlyphPreference(option) },
+                            )
+                        }
+                    }
+                    if (environment.steamKeyboardAvailable) {
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_controller_steam_keyboard),
+                            description = stringResource(Res.string.settings_controller_steam_keyboard_description),
+                            checked = steamKeyboardEnabled,
+                            isTablet = isTablet,
+                            onCheckedChange = ControllerSettings::setSteamKeyboardEnabled,
+                        )
+                    }
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_controller_ignore_background),
+                        description = stringResource(Res.string.settings_controller_ignore_background_description),
+                        checked = ignoreBackground,
+                        isTablet = isTablet,
+                        onCheckedChange = ControllerSettings::setIgnoreBackgroundInput,
                     )
                 }
             }
