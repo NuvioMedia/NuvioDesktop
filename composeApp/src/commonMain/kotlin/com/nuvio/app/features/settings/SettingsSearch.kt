@@ -433,6 +433,17 @@ internal fun settingsSearchEntries(
         section = stringResource(Res.string.settings_advanced_section_startup),
         category = advancedCategory,
     )
+    if (DesktopTraySettings.isSupported) {
+        addRow(
+            page = SettingsPage.Advanced,
+            key = "desktop-close-to-tray",
+            title = stringResource(Res.string.settings_advanced_close_to_tray),
+            description = stringResource(Res.string.settings_advanced_close_to_tray_description),
+            pageLabel = advancedPage,
+            section = stringResource(Res.string.settings_advanced_section_window_behavior),
+            category = advancedCategory,
+        )
+    }
     if (DesktopRendererSettings.isSupported) {
         addRow(
             page = SettingsPage.Advanced,
