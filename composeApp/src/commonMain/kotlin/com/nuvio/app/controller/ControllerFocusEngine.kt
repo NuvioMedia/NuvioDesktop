@@ -746,7 +746,7 @@ object ControllerFocusEngine {
     ) {
         // On Compose-driven routes the engine must not draw its ring at all: Compose owns focus.
         // A stale ring here made the details rails look frozen while Compose moved its own focus.
-        if (deferNavigationToCompose && node.zone != ControllerFocusZone.Overlay) {
+        if (deferNavigationToCompose) {
             _focusedNodeId.value = null
             _focusedNodeSnapshot.value = null
             return

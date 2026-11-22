@@ -169,6 +169,8 @@ fun NuvioBottomSheetActionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // Compose owns focus inside sheets; the border must be outside the clickable target.
+            .nuvioFocusBorder(tokens.shapes.compactCard)
             .controllerFocusable(
                 id = actionFocusId,
                 zone = ControllerFocusZone.Overlay,

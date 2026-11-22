@@ -207,7 +207,8 @@ actual fun PlatformKeyboardNavigationHost() {
             when (event) {
                 is ControllerEvent.Navigate -> {
                     ControllerManager.notifyNavigationInput()
-                    if (activeFocusManager().moveSpatialFocus(event.direction)) {
+                    val padMoved = activeFocusManager().moveSpatialFocus(event.direction)
+                    if (padMoved) {
                         ControllerSoundPlayer.playNavigate()
                     } else if (event.direction == ControllerDirection.Up || event.direction == ControllerDirection.Down) {
                         ControllerFocusEngine.scrollActivePage(down = event.direction == ControllerDirection.Down)
