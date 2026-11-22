@@ -64,6 +64,11 @@ fun NuvioModalBottomSheet(
     // sheet is visible: arrow keys then scroll long option lists natively, instead of the spatial
     // engine moving between registered rows without being able to scroll the sheet.
     val focusManager = LocalFocusManager.current
+    // Route the desktop arrows/pad into this popup's focus owner while it is visible.
+    DisposableEffect(focusManager) {
+        ComposePopupFocus.push(focusManager)
+        onDispose { ComposePopupFocus.pop(focusManager) }
+    }
     DisposableEffect(Unit) {
         val previousDefer = ControllerFocusEngine.deferNavigationToCompose
         ControllerFocusEngine.deferNavigationToCompose = true

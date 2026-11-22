@@ -143,6 +143,8 @@ private fun applyNavigationCursor(hidden: Boolean) {
 @Composable
 actual fun PlatformKeyboardNavigationHost() {
     val focusManager = LocalFocusManager.current
+    // Popups and modal sheets own their own focus manager; arrows must move focus inside them.
+    val activeFocusManager = { ComposePopupFocus.active ?: focusManager }
 
     DesktopKeyboardShortcutHost()
 
@@ -205,7 +207,7 @@ actual fun PlatformKeyboardNavigationHost() {
             when (event) {
                 is ControllerEvent.Navigate -> {
                     ControllerManager.notifyNavigationInput()
-                    if (focusManager.moveSpatialFocus(event.direction)) {
+                    if (activeFocusManager().moveSpatialFocus(event.direction)) {
                         ControllerSoundPlayer.playNavigate()
                     } else if (event.direction == ControllerDirection.Up || event.direction == ControllerDirection.Down) {
                         ControllerFocusEngine.scrollActivePage(down = event.direction == ControllerDirection.Down)
@@ -214,7 +216,7 @@ actual fun PlatformKeyboardNavigationHost() {
                 is ControllerEvent.ButtonPressed -> when (event.button) {
                     XboxButton.A -> {
                         ControllerSoundPlayer.playSelect()
-                        focusManager.activateSpatialFocus()
+                        activeFocusManager().activateSpatialFocus()
                     }
                     // The engine routes B to registered global back handlers; when a screen does not
                     // register one, fall back to the same navigation back used by the Escape key.
@@ -307,7 +309,7 @@ actual fun PlatformKeyboardNavigationHost() {
             // directional focus search. When focus cannot move further but the page has more
             // content, scroll it a page so navigation keeps going to the end of the list.
             ControllerManager.notifyNavigationInput()
-            if (focusManager.moveSpatialFocus(direction)) {
+            if (activeFocusManager().moveSpatialFocus(direction)) {
                 ControllerSoundPlayer.playNavigate()
             } else if (direction == ControllerDirection.Up || direction == ControllerDirection.Down) {
                 ControllerFocusEngine.scrollActivePage(down = direction == ControllerDirection.Down)
