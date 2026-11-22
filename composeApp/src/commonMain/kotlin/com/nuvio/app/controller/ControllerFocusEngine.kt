@@ -1705,6 +1705,19 @@ object ControllerFocusEngine {
             }
             return true
         } else if (direction == ControllerDirection.Up) {
+            // The Home hero lives outside the shelf rows; focus it explicitly when the user moves
+            // up from the first row so Up reaches "View Details" before the top bar.
+            if (effectiveRowIndex <= 0) {
+                val heroNode = nodes.values.firstOrNull {
+                    it.groupKey == "home_hero" &&
+                        it.isVisibleAndValid &&
+                        it.boundsInRoot.center.y < current.boundsInRoot.center.y - 8f
+                }
+                if (heroNode != null) {
+                    focusNodeInternal(heroNode, triggerScroll = true, direction = direction)
+                    return true
+                }
+            }
             if (effectiveRowIndex > 0) {
                 val prevRow = composedRows[effectiveRowIndex - 1]
                 val targetNode = selectBestTargetNodeInRow(current, prevRow)

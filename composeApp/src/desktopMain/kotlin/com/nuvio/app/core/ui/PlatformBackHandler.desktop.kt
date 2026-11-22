@@ -1,6 +1,8 @@
 package com.nuvio.app.core.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
@@ -17,4 +19,15 @@ actual fun PlatformBackHandler(
         isBackEnabled = enabled,
         onBackCompleted = onBack,
     )
+
+    // Escape is observed by an AWT dispatcher before Compose sees it, so register the same modal
+    // handler there. The most recently enabled handler wins (dialogs, sheets, settings sub-pages).
+    val latestOnBack = remember(onBack) { { onBack() } }
+    DisposableEffect(enabled, latestOnBack) {
+        if (!enabled) {
+            return@DisposableEffect onDispose {}
+        }
+        DesktopEscapeShortcut.push(latestOnBack)
+        onDispose { DesktopEscapeShortcut.pop(latestOnBack) }
+    }
 }

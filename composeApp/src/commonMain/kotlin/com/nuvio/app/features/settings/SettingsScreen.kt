@@ -1,6 +1,10 @@
 package com.nuvio.app.features.settings
 
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
+import com.nuvio.app.controller.ControllerFocusEngine
 import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.core.ui.FocusPresence
 import com.nuvio.app.isDesktop
 
 import androidx.compose.foundation.layout.Arrangement
@@ -287,6 +291,17 @@ fun SettingsScreen(
                 ?: SettingsPage.Root
         }
         val previousPage = page.previousPage()
+
+        // Settings sub-pages are Compose-driven; seed a focus target so arrows/Return work right
+        // after opening a page (previously there was no ring and Return did nothing).
+        val focusManager = LocalFocusManager.current
+        LaunchedEffect(page) {
+            if (!ControllerFocusEngine.deferNavigationToCompose) return@LaunchedEffect
+            delay(200)
+            if (FocusPresence.hasAnyFocus) return@LaunchedEffect
+            focusManager.clearFocus(force = true)
+            focusManager.moveFocus(FocusDirection.Next)
+        }
 
         fun openPage(targetPage: SettingsPage) {
             if (!targetPage.isEnabledByPolicy()) return

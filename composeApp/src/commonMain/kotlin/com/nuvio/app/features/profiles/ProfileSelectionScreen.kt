@@ -307,6 +307,7 @@ fun ProfileSelectionScreen(
                             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                             shape = RoundedCornerShape(24.dp),
                         )
+                        .nuvioFocusBorder(RoundedCornerShape(24.dp))
                         .clickable(enabled = interactionEnabled) { isEditMode = !isEditMode }
                         .padding(horizontal = 24.dp, vertical = 10.dp),
                 ) {

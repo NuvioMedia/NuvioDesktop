@@ -22,6 +22,7 @@ import java.awt.Toolkit
 import java.awt.event.AWTEventListener
 import java.awt.event.KeyEvent
 import java.awt.event.MouseEvent
+import kotlinx.coroutines.delay
 
 /**
  * Route generation whose screen already received a seeded Compose focus. Compose keeps previous
@@ -175,6 +176,18 @@ actual fun PlatformKeyboardNavigationHost() {
             AWTEvent.MOUSE_EVENT_MASK or AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK,
         )
         onDispose { Toolkit.getDefaultToolkit().removeAWTEventListener(listener) }
+    }
+
+    // Compose-driven routes (settings leaves, details) start with no focus target, which left
+    // Return dead and Esc/Tab jumping to the sidebar. Seed a focus target once the route settles.
+    LaunchedEffect(Unit) {
+        ControllerFocusEngine.routeGeneration.collect {
+            delay(180)
+            if (!ControllerFocusEngine.deferNavigationToCompose) return@collect
+            if (FocusPresence.hasAnyFocus) return@collect
+            focusManager.clearFocus(force = true)
+            focusManager.moveFocus(FocusDirection.Next)
+        }
     }
 
     // Hide the mouse pointer while the user navigates with a controller or the keyboard; the first
