@@ -1,8 +1,10 @@
 package com.nuvio.app.features.settings
 
+import androidx.compose.runtime.key
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import com.nuvio.app.controller.ControllerFocusEngine
+import com.nuvio.app.controller.ControllerManager
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.ui.FocusPresence
 import com.nuvio.app.isDesktop
@@ -297,8 +299,9 @@ fun SettingsScreen(
         val focusManager = LocalFocusManager.current
         LaunchedEffect(page) {
             if (!ControllerFocusEngine.deferNavigationToCompose) return@LaunchedEffect
+            if (!ControllerManager.isNavigationActive.value) return@LaunchedEffect
             delay(200)
-            if (FocusPresence.hasAnyFocus) return@LaunchedEffect
+            // Seed the new page's content even if the sidebar still holds focus, so Return works.
             focusManager.clearFocus(force = true)
             focusManager.moveFocus(FocusDirection.Next)
         }
@@ -400,10 +403,14 @@ fun SettingsScreen(
             onRequestedPageConsumed()
         }
 
-        PlatformBackHandler(
-            enabled = screenActive && previousPage != null && (rootActionsEnabled || onExternalBack != null),
-            onBack = ::navigateBack,
-        )
+        // Re-register on every page change so the active page's handler is on top of the Escape
+        // stack (the row focus otherwise kept an older registration active).
+        key(page) {
+            PlatformBackHandler(
+                enabled = screenActive && previousPage != null && (rootActionsEnabled || onExternalBack != null),
+                onBack = ::navigateBack,
+            )
+        }
 
         if (isSelectedTab || page == SettingsPage.Root) {
             pageStateHolder.SaveableStateProvider("content") {

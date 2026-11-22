@@ -676,6 +676,13 @@ object ControllerFocusEngine {
 
         val contentNodes = nodes.values.filter { it.zone == ControllerFocusZone.Content && it.isVisibleAndValid }
         if (contentNodes.isNotEmpty()) {
+            // On Home prefer real shelf posters over header/search nodes when no memory is available,
+            // so returning from a detail screen never parks focus in the search field.
+            val candidates = if (isHomeTabActive) {
+                contentNodes.filter { it.groupKey?.startsWith("shelf_") == true }.ifEmpty { contentNodes }
+            } else {
+                contentNodes
+            }
             val routeSavedId = activeRouteKey?.let { routeFocusHistory[it]?.focusedNodeId }
             val rememberedId = routeSavedId ?: lastFocusedByZone[ControllerFocusZone.Content]
             val remembered = rememberedId?.let { id -> contentNodes.firstOrNull { it.id == id } }
@@ -684,7 +691,7 @@ object ControllerFocusEngine {
                 return true
             }
             if (preferBounds != null && preferZone == ControllerFocusZone.Content) {
-                val nearest = contentNodes.minByOrNull {
+                val nearest = candidates.minByOrNull {
                     hypot(
                         (it.boundsInRoot.center.x - preferBounds.center.x).toDouble(),
                         (it.boundsInRoot.center.y - preferBounds.center.y).toDouble(),
@@ -695,11 +702,11 @@ object ControllerFocusEngine {
                     return true
                 }
             }
-            val defaultNode = contentNodes.firstOrNull { it.isDefaultFocus }
-            val settingsSidebarTopNode = contentNodes
+            val defaultNode = candidates.firstOrNull { it.isDefaultFocus }
+            val settingsSidebarTopNode = candidates
                 .filter { it.groupKey == "settings_sidebar" }
                 .minByOrNull { it.boundsInRoot.top }
-            val topLeftNode = contentNodes.minWithOrNull(
+            val topLeftNode = candidates.minWithOrNull(
                 compareBy<ControllerFocusNode> { (it.boundsInRoot.top / 32f).toInt() }
                     .thenBy { it.boundsInRoot.left },
             )

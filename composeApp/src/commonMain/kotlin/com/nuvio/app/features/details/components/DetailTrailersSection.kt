@@ -112,6 +112,7 @@ fun DetailTrailersSection(
                         color = backdropControlColor(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                         tonalElevation = 0.dp,
                         modifier = Modifier
+                            .nuvioFocusBorder(RoundedCornerShape(sizing.selectorRadius))
                             .clip(RoundedCornerShape(sizing.selectorRadius))
                             .clickable { menuExpanded = true },
                     ) {
