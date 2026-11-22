@@ -29,9 +29,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.nuvio.app.controller.ControllerFocusEngine
@@ -58,12 +60,15 @@ fun NuvioModalBottomSheet(
     fullHeight: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    // Sheets are Compose overlays; let the spatial engine drive them while visible so the rows
-    // are reachable with Up/Down + A and B closes the sheet.
+    // Sheets are Compose overlays with their own scrollable content. Let Compose own focus while a
+    // sheet is visible: arrow keys then scroll long option lists natively, instead of the spatial
+    // engine moving between registered rows without being able to scroll the sheet.
+    val focusManager = LocalFocusManager.current
     DisposableEffect(Unit) {
-        val previous = ControllerFocusEngine.deferNavigationToCompose
-        ControllerFocusEngine.deferNavigationToCompose = false
-        onDispose { ControllerFocusEngine.deferNavigationToCompose = previous }
+        val previousDefer = ControllerFocusEngine.deferNavigationToCompose
+        ControllerFocusEngine.deferNavigationToCompose = true
+        ControllerFocusEngine.clearFocus()
+        onDispose { ControllerFocusEngine.deferNavigationToCompose = previousDefer }
     }
     RegisterControllerHandler(
         key = "nuvio_bottom_sheet",
@@ -72,10 +77,16 @@ fun NuvioModalBottomSheet(
             true
         },
     )
+    // Escape is captured by the AWT dispatcher before Compose sees it; put the sheet on top of the
+    // Escape stack so it closes instead of leaving the page underneath.
+    PlatformBackHandler(enabled = true) {
+        onDismissRequest()
+    }
     LaunchedEffect(Unit) {
         if (!ControllerManager.isNavigationActive.value) return@LaunchedEffect
-        delay(240)
-        ControllerFocusEngine.focusFirstInGroup("bottom_sheet_actions")
+        delay(220)
+        focusManager.clearFocus(force = true)
+        focusManager.moveFocus(FocusDirection.Next)
     }
 
     if (usesNativeNuvioBottomSheet) {
