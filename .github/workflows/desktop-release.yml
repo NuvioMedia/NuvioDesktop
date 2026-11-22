@@ -712,6 +712,118 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  linux_flatpak_steamframe:
+    name: Linux ARM64 - Steam Frame Flatpak
+    if: inputs.mode != 'dry-run' && (inputs.target == 'all' || inputs.target == 'linux')
+    needs: metadata
+    # Native arm64 build: the JNI bridges and libmpv must be compiled on the target architecture.
+    runs-on: ubuntu-24.04-arm
+    environment: desktop-release
+    env:
+      LOCAL_PROPERTIES_BASE64: ${{ secrets.NUVIO_DESKTOP_LOCAL_PROPERTIES_BASE64 }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_DESKTOP_DSN: ${{ secrets.SENTRY_DESKTOP_DSN }}
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v6
+
+      - name: Install Linux build dependencies
+        run: |
+          bash ./scripts/linux/install-desktop-build-dependencies.sh
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Configure desktop runtime
+        shell: bash
+        run: |
+          bash ./scripts/linux/configure-desktop-runtime.sh
+
+      - name: Build Linux ARM64 app bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew \
+            :composeApp:createReleaseDistributable \
+            :desktopSentry:sentryUploadSourceBundleJava \
+            -Pcompose.desktop.packaging.checkJdkVendor=false \
+            --no-configuration-cache \
+            --no-daemon \
+            --stacktrace
+
+          executable_path="${GITHUB_WORKSPACE}/composeApp/build/compose/binaries/main-release/app/Nuvio/bin/Nuvio"
+          if [[ ! -x "${executable_path}" ]]; then
+            echo "Expected the Linux app executable at ${executable_path}." >&2
+            find composeApp/build/compose -maxdepth 6 2>/dev/null | head -n 200 >&2
+            exit 1
+          fi
+          file "${executable_path}" | grep -q 'ARM aarch64' || { file "${executable_path}" >&2; exit 1; }
+
+      - name: Install Flatpak toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder desktop-file-utils elfutils
+
+          sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y --system flathub org.gnome.Platform//50 org.gnome.Sdk//50
+
+      - name: Build Steam Frame Flatpak bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_root="${GITHUB_WORKSPACE}/composeApp/build/compose/binaries/main-release/app/Nuvio"
+
+          mkdir -p flatpak
+          cp ./scripts/linux/nuvio-launcher.sh flatpak/nuvio-launcher.sh
+          cp ./scripts/linux/linux-shortcut-definition.sh flatpak/linux-shortcut-definition.sh
+          cp ./scripts/linux/com.nuvio.media.desktop.metainfo.xml flatpak/com.nuvio.media.desktop.metainfo.xml
+          chmod +x flatpak/nuvio-launcher.sh
+          release_date="$(date -u +%F)"
+          sed -i "s|version=\"0.0.0\"|version=\"${RELEASE_VERSION}\"|" flatpak/com.nuvio.media.desktop.metainfo.xml
+          sed -i "s|date=\"1970-01-01\"|date=\"${release_date}\"|" flatpak/com.nuvio.media.desktop.metainfo.xml
+
+          python3 ./scripts/linux/steamframe-flatpak-manifest.py \
+            ./scripts/linux/nuvio-flatpak.yml flatpak/nuvio-flatpak.yml
+          sed -i "s|\${app_root}|${app_root}|g" flatpak/nuvio-flatpak.yml
+
+          flatpak-builder --repo=flatpak-repo --force-clean flatpak-build flatpak/nuvio-flatpak.yml
+          flatpak build-bundle --arch=aarch64 flatpak-repo \
+            "Nuvio-Linux-aarch64-SteamFrame-${RELEASE_VERSION}.flatpak" com.nuvio.media.desktop
+
+      - name: Verify Steam Frame Flatpak
+        shell: bash
+        run: |
+          set -euo pipefail
+          flatpak_path="Nuvio-Linux-aarch64-SteamFrame-${RELEASE_VERSION}.flatpak"
+          if [[ ! -f "${flatpak_path}" ]]; then
+            echo "Expected Flatpak bundle was not produced: ${flatpak_path}" >&2
+            exit 1
+          fi
+          grep -q 'NUVIO_MPV_HWDEC=v4l2m2m-copy' flatpak-build/metadata \
+            || { echo "Steam Frame hwdec default missing from Flatpak metadata." >&2; exit 1; }
+          libavcodec="$(find /var/lib/flatpak/runtime/org.gnome.Platform/aarch64/50 -name 'libavcodec.so.*' -type f | head -n 1)"
+          for decoder in h264_v4l2m2m hevc_v4l2m2m vp9_v4l2m2m; do
+            grep -a -q "${decoder}" "${libavcodec}" \
+              || { echo "GNOME runtime FFmpeg lacks ${decoder}." >&2; exit 1; }
+          done
+          ls -lh "${flatpak_path}"
+
+      - name: Upload Steam Frame Flatpak
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuvio-desktop-${{ needs.metadata.outputs.version }}-linux-steamframe-flatpak
+          path: Nuvio-Linux-aarch64-SteamFrame-${{ needs.metadata.outputs.version }}.flatpak
+          if-no-files-found: error
+          retention-days: 14
+
   linux_deb:
     name: Linux x64 - DEB
     if: inputs.mode != 'dry-run' && (inputs.target == 'all' || inputs.target == 'linux')
@@ -1023,6 +1135,7 @@ jobs:
       - macos
       - windows
       - linux_flatpak
+      - linux_flatpak_steamframe
       - linux_deb
       - linux_rpm
       - linux_appimage
@@ -1049,6 +1162,7 @@ jobs:
             "release/Nuvio-macOS-x86_64-${RELEASE_VERSION}.dmg"
             "release/Nuvio-Windows-x64-${RELEASE_VERSION}.msi"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak"
+            "release/Nuvio-Linux-aarch64-SteamFrame-${RELEASE_VERSION}.flatpak"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.rpm"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"
@@ -1078,6 +1192,7 @@ jobs:
             "release/Nuvio-macOS-x86_64-${RELEASE_VERSION}.dmg"
             "release/Nuvio-Windows-x64-${RELEASE_VERSION}.msi"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak"
+            "release/Nuvio-Linux-aarch64-SteamFrame-${RELEASE_VERSION}.flatpak"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.rpm"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"

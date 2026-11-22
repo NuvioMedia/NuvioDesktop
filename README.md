@@ -25,6 +25,7 @@ Download the latest build from [GitHub Releases](https://github.com/NuvioMedia/N
 - Windows: MSI installer
 - macOS: DMG installer
 - Linux: DEB, RPM, Flatpak, or AppImage
+- Steam Frame (Linux ARM64): Flatpak with Qualcomm V4L2 hardware decoding
 
 ## Build from source
 
