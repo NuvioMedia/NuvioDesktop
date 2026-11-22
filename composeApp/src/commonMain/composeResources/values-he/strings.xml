@@ -2452,16 +2452,18 @@
     <string name="cw_airs_tomorrow">עולה מחר</string>
     <string name="cw_airs_in_days_format">משודר בעוד %1$d ימים</string>
     <plurals name="cw_airs_in_days">
-        <item quantity="one">Airs in %1$d Day</item>
-        <item quantity="other">Airs in %1$d Days</item>
+        <item quantity="one">משודר מחר</item>
+        <item quantity="two">משודר מוחרתיים</item>
+        <item quantity="other">משודר בעוד %1$d ימים</item>
     </plurals>
     <string name="cw_airs_date_short">%1$s</string>
     <string name="cw_airs_today_short">היום</string>
     <string name="cw_airs_tomorrow_short">מחר</string>
     <string name="cw_airs_in_days_short_format">בעוד %1$d ימים</string>
     <plurals name="cw_airs_in_days_short">
-        <item quantity="one">In %1$d day</item>
-        <item quantity="other">In %1$d days</item>
+        <item quantity="one">בעוד יום</item>
+        <item quantity="two">בעוד יומיים</item>
+        <item quantity="other">בעוד %1$d ימים</item>
     </plurals>
     <string name="cw_new_episode">פרק חדש</string>
     <string name="cw_new_season">עונה חדשה</string>
@@ -2523,7 +2525,8 @@
     <string name="player_external_loading_subtitles">טוען כתוביות מתוספים…</string>
     <string name="player_external_downloading_subtitles">מוריד כתוביות...</string>
     <plurals name="entity_browse_title_count">
-        <item quantity="one">%d כותרת</item>
+        <item quantity="one">כותרת אחת</item>
+        <item quantity="one">שתי כותרות</item>
         <item quantity="other">%d כותרות</item>
     </plurals>
     <string name="settings_playback_auto_skip_movie_credits">קרדיטים סופיים</string>
