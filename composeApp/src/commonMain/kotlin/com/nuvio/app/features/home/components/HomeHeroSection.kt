@@ -973,6 +973,15 @@ private fun DesktopHeroContentBlock(
                     modifier = Modifier
                         .height(48.dp)
                         .nuvioFocusBorder(RoundedCornerShape(40.dp))
+                        .controllerFocusable(
+                            id = "home_hero_view_details",
+                            zone = ControllerFocusZone.Content,
+                            groupKey = "home_hero",
+                            shape = RoundedCornerShape(40.dp),
+                            cornerRadius = 40.dp,
+                            selectLabel = stringResource(Res.string.home_view_details),
+                            onSelect = { onItemClick(item) },
+                        )
                         .clickable { onItemClick(item) },
                     color = colorScheme.onBackground,
                     contentColor = colorScheme.background,
