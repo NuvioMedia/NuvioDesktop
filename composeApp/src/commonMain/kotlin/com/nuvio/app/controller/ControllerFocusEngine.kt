@@ -581,6 +581,29 @@ object ControllerFocusEngine {
         updateInteractiveContentStatus()
     }
 
+    /**
+     * Scrolls the active container by one page. Used on Compose-driven screens where Compose focus
+     * reaches the last focusable element but the page still has content below/above it.
+     */
+    fun scrollActivePage(down: Boolean): Boolean {
+        val entry = getActiveScrollable() ?: return false
+        val listState = entry.lazyListState
+        val gridState = entry.lazyGridState
+        val scrollState = entry.scrollState
+        val viewport = listState?.layoutInfo?.viewportSize?.height?.toFloat()
+            ?: gridState?.layoutInfo?.viewportSize?.height?.toFloat()
+            ?: 720f
+        val delta = if (down) viewport * 0.7f else -viewport * 0.7f
+        entry.scope.launch {
+            when {
+                listState != null -> runCatching { listState.scrollBy(delta) }
+                gridState != null -> runCatching { gridState.scrollBy(delta) }
+                scrollState != null -> runCatching { scrollState.scrollBy(delta) }
+            }
+        }
+        return true
+    }
+
     /** Focuses the topmost node of a group (used by popups and sheets). */
     fun focusFirstInGroup(groupKey: String): Boolean {
         val node = nodes.values

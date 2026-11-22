@@ -207,6 +207,8 @@ actual fun PlatformKeyboardNavigationHost() {
                     ControllerManager.notifyNavigationInput()
                     if (focusManager.moveSpatialFocus(event.direction)) {
                         ControllerSoundPlayer.playNavigate()
+                    } else if (event.direction == ControllerDirection.Up || event.direction == ControllerDirection.Down) {
+                        ControllerFocusEngine.scrollActivePage(down = event.direction == ControllerDirection.Down)
                     }
                 }
                 is ControllerEvent.ButtonPressed -> when (event.button) {
@@ -302,10 +304,13 @@ actual fun PlatformKeyboardNavigationHost() {
             }
 
             // Screens without engine nodes (details, streams, settings, player) use Compose's own
-            // directional focus search.
+            // directional focus search. When focus cannot move further but the page has more
+            // content, scroll it a page so navigation keeps going to the end of the list.
             ControllerManager.notifyNavigationInput()
             if (focusManager.moveSpatialFocus(direction)) {
                 ControllerSoundPlayer.playNavigate()
+            } else if (direction == ControllerDirection.Up || direction == ControllerDirection.Down) {
+                ControllerFocusEngine.scrollActivePage(down = direction == ControllerDirection.Down)
             }
             true
         }
