@@ -71,7 +71,7 @@ fun NuvioModalBottomSheet(
     }
     DisposableEffect(Unit) {
         val previousDefer = ControllerFocusEngine.deferNavigationToCompose
-        ControllerFocusEngine.deferNavigationToCompose = true
+        ControllerFocusEngine.deferNavigationToCompose = false
         ControllerFocusEngine.clearFocus()
         onDispose { ControllerFocusEngine.deferNavigationToCompose = previousDefer }
     }
@@ -90,8 +90,12 @@ fun NuvioModalBottomSheet(
     LaunchedEffect(Unit) {
         if (!ControllerManager.isNavigationActive.value) return@LaunchedEffect
         delay(220)
-        focusManager.clearFocus(force = true)
-        focusManager.moveFocus(FocusDirection.Next)
+        // Sheets made of action rows are driven by the spatial engine (white ring + bring-into-view);
+        // forms without rows fall back to Compose focus.
+        if (!ControllerFocusEngine.focusFirstInGroup("bottom_sheet_actions")) {
+            focusManager.clearFocus(force = true)
+            focusManager.moveFocus(FocusDirection.Next)
+        }
     }
 
     if (usesNativeNuvioBottomSheet) {

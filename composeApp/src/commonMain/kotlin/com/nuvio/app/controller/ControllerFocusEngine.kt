@@ -2479,6 +2479,13 @@ fun Modifier.controllerFocusable(
     val effectiveGroupKey = groupKey ?: ambientGroupKey
 
     val coroutineScope = rememberCoroutineScope()
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            runCatching { bringIntoViewRequester.bringIntoView() }
+        }
+    }
 
     val latestOnSelect by rememberUpdatedState(onSelect)
     val latestOnSecondary by rememberUpdatedState(onSecondaryAction)
@@ -2574,6 +2581,7 @@ fun Modifier.controllerFocusable(
     )
 
     this
+        .bringIntoViewRequester(bringIntoViewRequester)
         .onGloballyPositioned { coordinates ->
             val bounds = if (coordinates.isAttached) coordinates.boundsInRoot() else Rect.Zero
             val unclippedBounds = if (coordinates.isAttached) {
