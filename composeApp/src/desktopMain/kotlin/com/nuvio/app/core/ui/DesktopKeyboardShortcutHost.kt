@@ -2,9 +2,13 @@ package com.nuvio.app.core.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.FocusDirection
+import androidx.navigationevent.DirectNavigationEventInput
+import androidx.navigationevent.NavigationEvent
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import java.awt.event.KeyEvent
@@ -22,6 +26,26 @@ private const val ESCAPE_DEBOUNCE_MS = 300L
 internal fun DesktopKeyboardShortcutHost() {
     val focusManager = LocalFocusManager.current
     val focusManagerState = rememberUpdatedState(focusManager)
+    val navigationEventOwner = LocalNavigationEventDispatcherOwner.current
+    val backInput = remember { DirectNavigationEventInput() }
+
+    DisposableEffect(navigationEventOwner) {
+        val navigationDispatcher = navigationEventOwner?.navigationEventDispatcher
+        navigationDispatcher?.addInput(backInput)
+        DesktopEscapeShortcut.composeBack = {
+            if (navigationDispatcher == null || !navigationDispatcher.isEnabled) {
+                false
+            } else {
+                backInput.backStarted(NavigationEvent())
+                backInput.backCompleted()
+                true
+            }
+        }
+        onDispose {
+            DesktopEscapeShortcut.composeBack = null
+            navigationDispatcher?.removeInput(backInput)
+        }
+    }
 
     DisposableEffect(Unit) {
         var lastEscapeAtMs = 0L
@@ -33,9 +57,7 @@ internal fun DesktopKeyboardShortcutHost() {
             val nowMs = System.currentTimeMillis()
             if (nowMs - lastEscapeAtMs < ESCAPE_DEBOUNCE_MS) return@KeyEventDispatcher true
             lastEscapeAtMs = nowMs
-            val back = DesktopEscapeShortcut.onBack ?: return@KeyEventDispatcher false
-            back()
-            true
+            DesktopEscapeShortcut.dispatch()
         }
         KeyboardFocusManager.getCurrentKeyboardFocusManager()
             .addKeyEventDispatcher(dispatcher)

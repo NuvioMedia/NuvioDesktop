@@ -9,7 +9,7 @@ internal actual fun PlatformEscapeShortcut(handler: () -> Unit) {
     val current = rememberUpdatedState(handler)
     DisposableEffect(Unit) {
         val bridged: () -> Unit = { current.value() }
-        DesktopEscapeShortcut.register(bridged)
-        onDispose { DesktopEscapeShortcut.unregister(bridged) }
+        DesktopEscapeShortcut.setFallback(bridged)
+        onDispose { DesktopEscapeShortcut.clearFallback(bridged) }
     }
 }
