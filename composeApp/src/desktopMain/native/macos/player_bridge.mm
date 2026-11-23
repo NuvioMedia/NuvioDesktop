@@ -2590,13 +2590,13 @@ static void nuvioMpvWakeup(void *ctx) {
                               value:[resolvedBackgroundColor hasPrefix:@"#00"] ? @"outline-and-shadow" : @"background-box"];
         }
         if (modeChanged || outlineColorChanged) {
-            [self setStringProperty:"sub-outline-color" value:resolvedOutlineColor];
+            [self setStringProperty:"sub-outline-color" legacyName:"sub-border-color" value:resolvedOutlineColor];
         }
         if (modeChanged || boldChanged) {
             [self setStringProperty:"sub-bold" value:bold ? @"yes" : @"no"];
         }
         if (modeChanged || outlineSizeChanged) {
-            mpv_set_property(_mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
+            [self setDoubleProperty:"sub-outline-size" legacyName:"sub-border-size" value:outline];
         }
     }
     if (stripSdhChanged) {
@@ -2657,6 +2657,23 @@ static void nuvioMpvWakeup(void *ctx) {
 - (void)setStringProperty:(const char *)name value:(NSString *)value {
     if (!_mpv) return;
     mpv_set_property_string(_mpv, name, (value ?: @"").UTF8String);
+}
+
+// The bundled libmpv is 0.38, which predates the sub-outline-* names (added in 0.39,
+// where sub-border-* became aliases). Try the current name, then fall back.
+- (void)setStringProperty:(const char *)name legacyName:(const char *)legacyName value:(NSString *)value {
+    if (!_mpv) return;
+    const char *utf8 = (value ?: @"").UTF8String;
+    if (mpv_set_property_string(_mpv, name, utf8) == MPV_ERROR_PROPERTY_NOT_FOUND) {
+        mpv_set_property_string(_mpv, legacyName, utf8);
+    }
+}
+
+- (void)setDoubleProperty:(const char *)name legacyName:(const char *)legacyName value:(double)value {
+    if (!_mpv) return;
+    if (mpv_set_property(_mpv, name, MPV_FORMAT_DOUBLE, &value) == MPV_ERROR_PROPERTY_NOT_FOUND) {
+        mpv_set_property(_mpv, legacyName, MPV_FORMAT_DOUBLE, &value);
+    }
 }
 
 - (void)command:(NSArray<NSString *> *)args {
