@@ -165,6 +165,10 @@ void gtkThreadMain() {
     // always provides X11, so this is safe and matches GDK_BACKEND=x11.
     gdk_set_allowed_backends("x11");
     gtk_init(nullptr, nullptr);
+    // Grayscale text antialiasing for the controls page: it is captured with
+    // transparency and scaled by mpv, which turns subpixel (LCD) antialiasing
+    // into colored fringes around the text.
+    g_object_set(gtk_settings_get_default(), "gtk-xft-rgba", "none", nullptr);
     gGtkReady.store(true);
     gtk_main();
 }
