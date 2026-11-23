@@ -37,9 +37,18 @@ internal object CatalogLaunchStore {
     }
 }
 
+// Opening the title that is already on screen (e.g. from its own collection rail) would push an
+// equal DetailRoute. Nav3 then reuses the visible entry, so its guarded back handler stays spent.
+internal fun NuvioNavigator.isShowingDetailFor(meta: MetaPreview): Boolean {
+    if (ServerCatalog.collectionTarget(meta) != null) return false
+    val current = currentRoute as? DetailRoute ?: return false
+    return current.type == meta.type && current.id == meta.id
+}
+
 internal fun NuvioNavigator.openPreview(meta: MetaPreview) {
     val collection = ServerCatalog.collectionTarget(meta)
     if (collection == null) {
+        if (isShowingDetailFor(meta)) return
         navigate(DetailRoute(type = meta.type, id = meta.id, title = meta.name))
         return
     }

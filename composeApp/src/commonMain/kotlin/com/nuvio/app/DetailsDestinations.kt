@@ -45,22 +45,26 @@ internal typealias ContentPlayAction = (
 internal fun rememberOpenMeta(navController: NuvioNavigator): (MetaPreview) -> Unit {
     val scope = rememberCoroutineScope()
     return { preview ->
-        scope.launch {
-            val resolvedId = if (preview.id.startsWith("tmdb:")) {
-                val tmdbId = preview.id.removePrefix("tmdb:").toIntOrNull()
-                val resolved = tmdbId?.let {
-                    TmdbService.tmdbToImdb(
-                        tmdbId = it,
-                        mediaType = preview.type,
-                    )
-                } ?: preview.id
-                resolved
-            } else {
-                preview.id
-            }
-            navController.openPreview(preview.copy(id = resolvedId))
-        }
+        scope.launch { navController.openMeta(preview) }
     }
+}
+
+internal suspend fun NuvioNavigator.openMeta(
+    preview: MetaPreview,
+    tmdbToImdb: suspend (tmdbId: Int, mediaType: String) -> String? = { tmdbId, mediaType ->
+        TmdbService.tmdbToImdb(tmdbId = tmdbId, mediaType = mediaType)
+    },
+) {
+    // The page may be keyed by the unresolved TMDB id, so check before resolving it.
+    if (isShowingDetailFor(preview)) return
+    val resolvedId = if (preview.id.startsWith("tmdb:")) {
+        preview.id.removePrefix("tmdb:").toIntOrNull()
+            ?.let { tmdbToImdb(it, preview.type) }
+            ?: preview.id
+    } else {
+        preview.id
+    }
+    openPreview(preview.copy(id = resolvedId))
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
