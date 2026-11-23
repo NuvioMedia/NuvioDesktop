@@ -28,6 +28,7 @@ internal fun HomePosterHoverTrailer(
     soundEnabled: Boolean,
     startPositionSeconds: Int,
     modifier: Modifier = Modifier,
+    onFinished: () -> Unit = {},
 ) {
     var trailerReady by remember(playbackSource?.videoUrl, playbackSource?.audioUrl) { mutableStateOf(false) }
     var trailerFinished by remember(playbackSource?.videoUrl, playbackSource?.audioUrl) { mutableStateOf(false) }
@@ -44,6 +45,7 @@ internal fun HomePosterHoverTrailer(
         if (trailerFinished && playbackSource != null) {
             delay(HoverTrailerFadeDurationMillis.toLong())
             playerMounted = false
+            onFinished()
         }
     }
 

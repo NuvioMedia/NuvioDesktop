@@ -803,6 +803,8 @@
     <string name="settings_hover_preview_trailer_start_time">Trailer Start Time</string>
     <string name="settings_hover_preview_trailer_start_time_description">Choose how far into the trailer the hover preview begins.</string>
     <string name="settings_hover_preview_trailer_start_time_value">%1$d s</string>
+    <string name="settings_home_hero_trailer_enabled">Home Banner Trailers</string>
+    <string name="settings_home_hero_trailer_enabled_description">Play the trailer behind the Home banner when one is available. It starts muted.</string>
     <string name="settings_playback_subtitle">Player, subtitles, and auto-play</string>
     <string name="settings_card_depth_title">CARD DEPTH EFFECT</string>
     <string name="settings_card_depth_description">Adds a lit top edge and a soft sheen to image cards for a subtle sense of depth.</string>
