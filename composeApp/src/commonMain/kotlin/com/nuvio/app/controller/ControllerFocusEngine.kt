@@ -234,8 +234,12 @@ object ControllerFocusEngine {
         val lastFocusedByGroup: Map<String, String>,
     )
 
+    private const val PENDING_RESTORE_POLL_MS = 40L
+    private const val PENDING_RESTORE_TIMEOUT_MS = 1500L
+
     private val routeFocusHistory = mutableMapOf<String, RouteFocusMemory>()
     private var pendingRestoredNodeId: String? = null
+    private var pendingRestoredAt = 0L
     private var pendingRestoreFallbackJob: Job? = null
     private var isInternalCleanupFocus: Boolean = false
 
@@ -423,9 +427,15 @@ object ControllerFocusEngine {
                     _focusedNodeId.value = null
                     _focusedNodeSnapshot.value = null
                     pendingRestoredNodeId = targetId
+                    pendingRestoredAt = System.currentTimeMillis()
                     val scope = activeCoroutineScope ?: nodes.values.firstNotNullOfOrNull { it.coroutineScope }
                     pendingRestoreFallbackJob = scope?.launch {
-                        delay(240)
+                        var waited = 0L
+                        while (pendingRestoredNodeId == targetId && waited < PENDING_RESTORE_TIMEOUT_MS) {
+                            delay(PENDING_RESTORE_POLL_MS)
+                            waited += PENDING_RESTORE_POLL_MS
+                            if (nodes[targetId]?.isVisibleAndValid == true) break
+                        }
                         if (pendingRestoredNodeId == targetId) {
                             val lateNode = nodes[targetId]?.takeIf { it.isVisibleAndValid }
                             pendingRestoredNodeId = null
@@ -498,6 +508,7 @@ object ControllerFocusEngine {
                 )
                 return
             }
+            if (System.currentTimeMillis() - pendingRestoredAt < PENDING_RESTORE_TIMEOUT_MS) return
         }
 
         if (currentId == node.id) {
