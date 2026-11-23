@@ -26,12 +26,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlin.math.absoluteValue
 import kotlin.random.Random
 
@@ -113,49 +116,65 @@ object HomeRepository {
             val desktopContinuations = mutableMapOf<String, DesktopRowContinuation>()
             var heroSourcesPublished = false
             var firstErrorMessage: String? = null
-            var batchIndex = 0
 
-            prioritizedRequests.chunked(HOME_CATALOG_FETCH_BATCH_SIZE).forEach { batch ->
-                if (activeRequestKey != requestKey) return@launch
-                val results = batch.map { request ->
-                    async {
-                        request to runCatching {
-                            request.toRow(forceRefresh = force)
-                        }
+            // Up to HOME_CATALOG_FETCH_BATCH_SIZE catalogs load at a time, in priority order, and a
+            // slot goes to the next catalog as soon as its own one answers. With fixed batches one
+            // slow addon held back every row after it until it answered. The first rows are still
+            // published together, once all of them have answered, so the top of the home does not
+            // shift while it fills in.
+            val firstRowKeys = prioritizedRequests
+                .take(HOME_CATALOG_FETCH_BATCH_SIZE)
+                .mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
+            val finished = Channel<Pair<HomeCatalogDefinition, Result<LoadedHomeRow>>>(Channel.UNLIMITED)
+            val slots = Semaphore(HOME_CATALOG_FETCH_BATCH_SIZE)
+            val fetches = prioritizedRequests.map { request ->
+                launch {
+                    slots.withPermit {
+                        finished.send(request to runCatching { request.toRow(forceRefresh = force) })
                     }
-                }.awaitAll()
+                }
+            }
+            var firstRowsPublished = false
+            var finishedSincePublish = 0
 
-                if (activeRequestKey != requestKey) return@launch
+            repeat(prioritizedRequests.size) {
+                val (request, result) = finished.receive()
+                if (activeRequestKey != requestKey) {
+                    fetches.forEach(Job::cancel)
+                    return@launch
+                }
 
-                results.mapNotNull { (request, result) ->
-                    result.getOrNull()?.let { row -> request.cacheKey to row }
-                }.forEach { (cacheKey, row) ->
+                result.getOrNull()?.let { row ->
+                    val cacheKey = request.cacheKey
                     val earlier = loadedSections[cacheKey]
                     if (!force && earlier != null && earlier.continuesWith(row.section)) {
                         desktopContinuations.remove(cacheKey)
-                        return@forEach
-                    }
-                    loadedSections[cacheKey] = row.section
-                    val continuation = row.continuation
-                    if (continuation != null) {
-                        desktopContinuations[cacheKey] = continuation
                     } else {
-                        desktopContinuations.remove(cacheKey)
+                        loadedSections[cacheKey] = row.section
+                        val continuation = row.continuation
+                        if (continuation != null) {
+                            desktopContinuations[cacheKey] = continuation
+                        } else {
+                            desktopContinuations.remove(cacheKey)
+                        }
                     }
                 }
                 if (firstErrorMessage == null) {
-                    firstErrorMessage = results.firstNotNullOfOrNull { (_, result) ->
-                        result.exceptionOrNull()?.message
-                    }
+                    firstErrorMessage = result.exceptionOrNull()?.message
                 }
-                batch.mapTo(attemptedKeys, HomeCatalogDefinition::cacheKey)
+                attemptedKeys += request.cacheKey
+                finishedSincePublish++
                 val heroSourcesResolved = attemptedKeys.containsAll(heroSourceKeys)
+                val firstRowsReady = attemptedKeys.containsAll(firstRowKeys)
                 cachedSections = loadedSections.toMap()
                 lastErrorMessage = firstErrorMessage
                 if (
-                    batchIndex == 0 ||
-                    (batchIndex + 1) % HOME_CATALOG_PUBLISH_INTERVAL == 0 ||
-                    (heroSourcesResolved && !heroSourcesPublished)
+                    (firstRowsReady && !firstRowsPublished) ||
+                    (
+                        firstRowsPublished &&
+                            finishedSincePublish >= HOME_CATALOG_FETCH_BATCH_SIZE * HOME_CATALOG_PUBLISH_INTERVAL
+                        ) ||
+                    (firstRowsReady && heroSourcesResolved && !heroSourcesPublished)
                 ) {
                     publishCurrentState(
                         isLoading = true,
@@ -163,8 +182,9 @@ object HomeRepository {
                         heroSourcesResolved = heroSourcesResolved,
                     )
                     heroSourcesPublished = heroSourcesResolved
+                    firstRowsPublished = true
+                    finishedSincePublish = 0
                 }
-                batchIndex++
             }
 
             if (activeRequestKey != requestKey) return@launch
