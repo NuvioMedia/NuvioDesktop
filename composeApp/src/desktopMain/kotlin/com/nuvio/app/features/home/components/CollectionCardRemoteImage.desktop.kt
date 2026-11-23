@@ -1,22 +1,24 @@
 package com.nuvio.app.features.home.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.nuvio.app.core.storage.DesktopStorage
@@ -30,14 +32,17 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Canvas
 import org.jetbrains.skia.Codec
@@ -124,7 +129,86 @@ private class GifCodecHolder(
     val targetWidth: Int,
     val targetHeight: Int,
     val needsScale: Boolean,
-)
+) {
+    @Volatile
+    var predecodedFrames: List<ImageBitmap>? = null
+    var frameTimestampsMs: LongArray? = null
+    var totalDurationMs: Long = 0L
+
+    fun predecodeAllFrames() {
+        if (predecodedFrames != null) return
+        val count = codec.frameCount
+        if (count <= 0) return
+        val decoded = ArrayList<ImageBitmap>(count)
+        val timestamps = LongArray(count)
+        var cumulative = 0L
+
+        val fullBitmap = if (needsScale) {
+            try {
+                Bitmap().apply { allocPixels(ImageInfo.makeN32Premul(width, height)) }
+            } catch (_: Exception) { null }
+        } else null
+
+        try {
+            for (i in 0 until count) {
+                timestamps[i] = cumulative
+                val delay = frameDelaysMs.getOrElse(i) { 100L }.coerceAtLeast(16L)
+                cumulative += delay
+
+                val frameBitmap = Bitmap().apply {
+                    allocPixels(ImageInfo.makeN32Premul(targetWidth, targetHeight))
+                }
+                if (needsScale && fullBitmap != null) {
+                    codec.readPixels(fullBitmap, i)
+                    val skiaImg = Image.makeFromBitmap(fullBitmap)
+                    try {
+                        Canvas(frameBitmap).drawImageRect(
+                            skiaImg,
+                            Rect.makeWH(width.toFloat(), height.toFloat()),
+                            Rect.makeWH(targetWidth.toFloat(), targetHeight.toFloat()),
+                            SamplingMode.LINEAR,
+                            null,
+                            true,
+                        )
+                    } finally {
+                        skiaImg.close()
+                    }
+                } else {
+                    codec.readPixels(frameBitmap, i)
+                }
+                frameBitmap.setImmutable()
+                decoded.add(frameBitmap.asComposeImageBitmap())
+            }
+            this.predecodedFrames = decoded
+            this.frameTimestampsMs = timestamps
+            this.totalDurationMs = cumulative.coerceAtLeast(1L)
+        } catch (_: Exception) {
+            // Keep predecodedFrames null on failure
+        } finally {
+            try { fullBitmap?.close() } catch (_: Exception) {}
+        }
+    }
+
+    fun frameIndexAt(elapsedMs: Long): Int {
+        val frames = predecodedFrames ?: return 0
+        if (frames.size <= 1 || totalDurationMs <= 0L) return 0
+        val loopTime = elapsedMs % totalDurationMs
+        val timestamps = frameTimestampsMs ?: return 0
+        for (i in timestamps.indices.reversed()) {
+            if (loopTime >= timestamps[i]) return i
+        }
+        return 0
+    }
+
+    fun remainingDelayForFrame(elapsedMs: Long, currentIndex: Int): Long {
+        val timestamps = frameTimestampsMs ?: return 100L
+        val nextIndex = (currentIndex + 1) % timestamps.size
+        val total = totalDurationMs
+        val loopTime = elapsedMs % total
+        val nextTime = if (nextIndex == 0) total else timestamps[nextIndex]
+        return (nextTime - loopTime).coerceIn(16L, 500L)
+    }
+}
 
 // LRU Cache holding raw GIF Codecs (max 15 items in memory, tiny compressed bytes ~10-20MB total)
 private val gifCodecCache = object : LinkedHashMap<String, GifCodecHolder?>(16, 0.75f, true) {
@@ -205,9 +289,33 @@ private suspend fun decodeGifCodec(url: String): GifCodecHolder? {
             val duration = codec.getFrameInfo(i).duration
             if (duration > 0) duration.toLong() else 100L
         }
-        GifCodecHolder(codec, delays, w, h, tw, th, needsScale)
+        val holder = GifCodecHolder(codec, delays, w, h, tw, th, needsScale)
+        holder.predecodeAllFrames()
+        holder
     } catch (_: Exception) {
         null
+    }
+}
+
+private fun calculateCropSrcRect(
+    srcWidth: Int,
+    srcHeight: Int,
+    dstWidth: Float,
+    dstHeight: Float,
+): Pair<IntOffset, IntSize> {
+    if (srcWidth <= 0 || srcHeight <= 0 || dstWidth <= 0f || dstHeight <= 0f) {
+        return IntOffset.Zero to IntSize(srcWidth.coerceAtLeast(1), srcHeight.coerceAtLeast(1))
+    }
+    val srcRatio = srcWidth.toFloat() / srcHeight
+    val dstRatio = dstWidth / dstHeight
+    return if (srcRatio > dstRatio) {
+        val visibleWidth = (srcHeight * dstRatio).roundToInt().coerceIn(1, srcWidth)
+        val xOffset = (srcWidth - visibleWidth) / 2
+        IntOffset(xOffset, 0) to IntSize(visibleWidth, srcHeight)
+    } else {
+        val visibleHeight = (srcWidth / dstRatio).roundToInt().coerceIn(1, srcHeight)
+        val yOffset = (srcHeight - visibleHeight) / 2
+        IntOffset(0, yOffset) to IntSize(srcWidth, visibleHeight)
     }
 }
 
@@ -219,13 +327,13 @@ internal actual fun CollectionCardRemoteImage(
     modifier: Modifier,
     contentScale: ContentScale,
     animateIfPossible: Boolean,
+    animateWithoutFocus: Boolean,
 ) {
     val hoverInteractionSource = remember { MutableInteractionSource() }
     val isHovered by hoverInteractionSource.collectIsHoveredAsState()
 
-    val shouldAnimate = animateIfPossible && (isHovered || staticImageUrl.isNullOrBlank())
-
-    var composeBitmap by remember(imageUrl) { mutableStateOf<ImageBitmap?>(null) }
+    val shouldAnimate = animateIfPossible &&
+        (animateWithoutFocus || isHovered || staticImageUrl.isNullOrBlank())
 
     // Prefetch as soon as the card becomes visible (not on hover) so the codec is already
     // downloaded/decoded and cached by the time the user actually hovers - hover then reads
@@ -238,90 +346,40 @@ internal actual fun CollectionCardRemoteImage(
         }
     }
 
-    if (shouldAnimate) {
-        var codecHolder by remember(imageUrl) {
-            mutableStateOf(synchronized(gifCodecCache) { gifCodecCache[imageUrl] })
+    var codecHolder by remember(imageUrl) {
+        mutableStateOf(synchronized(gifCodecCache) { gifCodecCache[imageUrl] })
+    }
+
+    LaunchedEffect(imageUrl, shouldAnimate) {
+        if (shouldAnimate && codecHolder == null) {
+            codecHolder = loadDesktopGifCodec(imageUrl)
+        }
+    }
+
+    val currentHolder = if (shouldAnimate) codecHolder else null
+    val frameIndexState = remember(currentHolder) { mutableIntStateOf(0) }
+
+    LaunchedEffect(currentHolder, shouldAnimate) {
+        if (!shouldAnimate || currentHolder == null) return@LaunchedEffect
+
+        if (currentHolder.predecodedFrames == null) {
+            withContext(Dispatchers.Default) {
+                currentHolder.predecodeAllFrames()
+            }
         }
 
-        LaunchedEffect(imageUrl) {
-            if (codecHolder == null && synchronized(gifCodecCache) { !gifCodecCache.containsKey(imageUrl) }) {
-                codecHolder = loadDesktopGifCodec(imageUrl)
-            }
+        val frames = currentHolder.predecodedFrames ?: return@LaunchedEffect
+        if (frames.size <= 1) return@LaunchedEffect
+
+        val startTime = System.currentTimeMillis()
+        while (isActive) {
+            val elapsed = System.currentTimeMillis() - startTime
+            val currentIndex = currentHolder.frameIndexAt(elapsed)
+            frameIndexState.intValue = currentIndex
+
+            val waitMs = currentHolder.remainingDelayForFrame(elapsed, currentIndex)
+            delay(waitMs)
         }
-
-        val currentHolder = codecHolder
-        if (currentHolder != null && currentHolder.frameDelaysMs.isNotEmpty()) {
-            var frameIndex by remember(imageUrl) { mutableStateOf(0) }
-
-            // Allocate ONLY ONE single reusable Skia Bitmap for this card while hovered
-            val singleBitmap = remember(imageUrl, currentHolder) {
-                try {
-                    Bitmap().apply {
-                        allocPixels(ImageInfo.makeN32Premul(currentHolder.targetWidth, currentHolder.targetHeight))
-                    }
-                } catch (_: Exception) {
-                    null
-                }
-            }
-
-            // Full-res buffer if downscaling is required
-            val fullBitmap = remember(imageUrl, currentHolder) {
-                if (currentHolder.needsScale) {
-                    try {
-                        Bitmap().apply {
-                            allocPixels(ImageInfo.makeN32Premul(currentHolder.width, currentHolder.height))
-                        }
-                    } catch (_: Exception) {
-                        null
-                    }
-                } else null
-            }
-
-            DisposableEffect(singleBitmap, fullBitmap) {
-                onDispose {
-                    try {
-                        singleBitmap?.close()
-                    } catch (_: Exception) {}
-                    try {
-                        fullBitmap?.close()
-                    } catch (_: Exception) {}
-                }
-            }
-
-            if (singleBitmap != null) {
-                LaunchedEffect(imageUrl, currentHolder, singleBitmap, fullBitmap) {
-                    while (true) {
-                        try {
-                            if (currentHolder.needsScale && fullBitmap != null) {
-                                currentHolder.codec.readPixels(fullBitmap, frameIndex)
-                                val skiaImg = Image.makeFromBitmap(fullBitmap)
-                                try {
-                                    Canvas(singleBitmap).drawImageRect(
-                                        skiaImg,
-                                        Rect.makeWH(currentHolder.width.toFloat(), currentHolder.height.toFloat()),
-                                        Rect.makeWH(currentHolder.targetWidth.toFloat(), currentHolder.targetHeight.toFloat()),
-                                        SamplingMode.LINEAR,
-                                        null,
-                                        true,
-                                    )
-                                } finally {
-                                    skiaImg.close()
-                                }
-                            } else {
-                                currentHolder.codec.readPixels(singleBitmap, frameIndex)
-                            }
-                            composeBitmap = singleBitmap.asComposeImageBitmap()
-                        } catch (_: Exception) {}
-
-                        val delayMs = currentHolder.frameDelaysMs.getOrElse(frameIndex) { 100L }
-                        delay(delayMs)
-                        frameIndex = (frameIndex + 1) % currentHolder.frameDelaysMs.size
-                    }
-                }
-            }
-        }
-    } else {
-        composeBitmap = null
     }
 
     val context = LocalPlatformContext.current
@@ -338,7 +396,28 @@ internal actual fun CollectionCardRemoteImage(
             .build()
     }
 
-    Box(modifier = modifier.hoverable(hoverInteractionSource)) {
+    Box(
+        modifier = modifier
+            .hoverable(hoverInteractionSource)
+            .drawWithContent {
+                drawContent()
+                val holder = currentHolder
+                val frames = holder?.predecodedFrames
+                if (frames != null && frames.isNotEmpty()) {
+                    val idx = frameIndexState.intValue.coerceIn(0, frames.lastIndex)
+                    val frame = frames[idx]
+                    val (srcOffset, srcSize) = calculateCropSrcRect(frame.width, frame.height, size.width, size.height)
+                    drawImage(
+                        image = frame,
+                        srcOffset = srcOffset,
+                        srcSize = srcSize,
+                        dstOffset = IntOffset.Zero,
+                        dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                        filterQuality = FilterQuality.Low,
+                    )
+                }
+            },
+    ) {
         // Stacked Base Layer: uses NuvioAsyncImage with desktop high-quality anti-aliased scaling
         AsyncImage(
             model = request,
@@ -347,16 +426,5 @@ internal actual fun CollectionCardRemoteImage(
             contentScale = contentScale,
             filterQuality = FilterQuality.High,
         )
-
-        val animatedFrame = composeBitmap
-        if (animatedFrame != null) {
-            Image(
-                bitmap = animatedFrame,
-                contentDescription = contentDescription,
-                modifier = Modifier.matchParentSize(),
-                contentScale = contentScale,
-                filterQuality = FilterQuality.High,
-            )
-        }
     }
 }

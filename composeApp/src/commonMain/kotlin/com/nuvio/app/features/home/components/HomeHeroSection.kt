@@ -1,6 +1,10 @@
 package com.nuvio.app.features.home.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import com.nuvio.app.core.ui.AmbientPalette
 import com.nuvio.app.core.ui.NuvioDesktopAnimation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,9 +50,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -103,6 +113,47 @@ private const val DESKTOP_HERO_ULTRAWIDE_BOTTOM_PADDING_DP = 192f
 private const val DESKTOP_HERO_TOP_FADE_HEIGHT_DP = 160f
 private const val DESKTOP_HERO_BOTTOM_FADE_HEIGHT_DP = 300f
 
+/**
+ * Dissolves the hero backdrop into whatever is painted behind it.
+ *
+ * A coloured overlay can never match the page wash exactly — that mismatch is what
+ * produced the hard band above the first home row. Instead of covering the hero's
+ * bottom with a guessed tint, the artwork and scrims are masked with a vertical
+ * alpha ramp so they fade to fully transparent and the continuous ambient gradient
+ * behind the hero shows through, pixel for pixel.
+ */
+private fun Modifier.heroBottomDissolve(
+    fadeHeight: Dp,
+    enabled: Boolean = true,
+): Modifier = if (!enabled) this else this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithCache {
+        val fade = fadeHeight.toPx().coerceIn(0f, size.height)
+        if (size.height <= 0f || fade <= 0f) {
+            onDrawWithContent { drawContent() }
+        } else {
+            val fadeBrush = Brush.verticalGradient(
+                colorStops = arrayOf(
+                    0.00f to Color.Black,
+                    0.26f to Color.Black,
+                    0.50f to Color.Black.copy(alpha = 0.74f),
+                    0.72f to Color.Black.copy(alpha = 0.40f),
+                    0.88f to Color.Black.copy(alpha = 0.14f),
+                    1.00f to Color.Transparent,
+                ),
+                startY = size.height - fade,
+                endY = size.height,
+            )
+            onDrawWithContent {
+                drawContent()
+                drawRect(
+                    brush = fadeBrush,
+                    blendMode = BlendMode.DstIn,
+                )
+            }
+        }
+    }
+
 internal data class HomeHeroLayout(
     val isTablet: Boolean,
     val heroHeight: Dp,
@@ -118,7 +169,7 @@ internal data class HomeHeroLayout(
 )
 
 @Composable
-fun HomeHeroSection(
+internal fun HomeHeroSection(
     items: List<MetaPreview>,
     modifier: Modifier = Modifier,
     viewportHeight: Dp? = null,
@@ -129,6 +180,8 @@ fun HomeHeroSection(
     showImdbRating: Boolean = true,
     showMdbListRatings: Boolean = false,
     onItemClick: ((MetaPreview) -> Unit)? = null,
+    onAmbientImageChange: ((String?) -> Unit)? = null,
+    ambientPalette: AmbientPalette? = null,
 ) {
     if (items.isEmpty()) return
 
@@ -146,6 +199,13 @@ fun HomeHeroSection(
     val coroutineScope = rememberCoroutineScope()
     var pagerDragActive by remember { mutableStateOf(false) }
     val autoScrollPage = pagerState.settledPage
+    val ambientImageUrl = items[pagerState.currentPage % items.size].let { item ->
+        item.banner ?: item.poster
+    }
+
+    LaunchedEffect(ambientImageUrl) {
+        onAmbientImageChange?.invoke(ambientImageUrl)
+    }
 
     LaunchedEffect(pagerState) {
         pagerState.scrollToPage(pagerState.currentPage)
@@ -220,6 +280,7 @@ fun HomeHeroSection(
                     heroHeightPx = heroHeightPx,
                     stretchPx = stretchPx,
                     includePagerNeighbors = pagerDragActive,
+                    ambientPalette = ambientPalette,
                     contentHorizontalPadding = maxOf(
                         sectionPadding ?: layout.contentHorizontalPadding,
                         layout.contentHorizontalPadding,
@@ -239,6 +300,7 @@ fun HomeHeroSection(
                     heroHeightPx = heroHeightPx,
                     stretchPx = stretchPx,
                     includePagerNeighbors = pagerDragActive,
+                    ambientPalette = ambientPalette,
                     coroutineScope = coroutineScope,
                     showImdbRating = showImdbRating,
                     showMdbListRatings = showMdbListRatings,
@@ -260,6 +322,7 @@ private fun HeroBackgroundLayers(
     stretchPx: () -> Float,
     includePagerNeighbors: Boolean,
     desktopFrame: Boolean = false,
+    artworkAlpha: Float = 1f,
 ) {
     val layerPages = rememberHeroLayerPages(
         pagerState = pagerState,
@@ -295,7 +358,7 @@ private fun HeroBackgroundLayers(
                         heroBackgroundScrollScale(scrollOffsetPx)
                     }
 
-                    alpha = heroPageVisibility(pageOffset)
+                    alpha = heroPageVisibility(pageOffset) * artworkAlpha
                     translationX = -pageOffset * heroWidthPx * HERO_BACKGROUND_PARALLAX
                     translationY = if (desktopFrame) {
                         heroDesktopBackgroundScrollTranslationY(scrollOffsetPx) * backgroundMotionStrength
@@ -442,54 +505,77 @@ private fun DefaultHomeHeroFrame(
     heroHeightPx: Float,
     stretchPx: () -> Float,
     includePagerNeighbors: Boolean,
+    ambientPalette: AmbientPalette?,
     coroutineScope: CoroutineScope,
     showImdbRating: Boolean,
     showMdbListRatings: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
 ) {
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val scrimTint by animateColorAsState(
+        targetValue = lerp(backgroundColor, ambientPalette?.primary ?: backgroundColor, 0.5f),
+        animationSpec = tween(720, easing = FastOutSlowInEasing),
+        label = "hero_scrim_tint",
+    )
+
     Box(
         modifier = Modifier.fillMaxSize(),
     ) {
-        HeroBackgroundLayers(
-            items = items,
-            pagerState = pagerState,
-            listState = listState,
-            layout = layout,
-            heroWidthPx = heroWidthPx,
-            heroHeightPx = heroHeightPx,
-            stretchPx = stretchPx,
-            includePagerNeighbors = includePagerNeighbors,
-        )
-
+        // The page ambient behind the hero is the single source of truth for the
+        // background colour, so the hero's own layers are simply dissolved into it
+        // instead of being covered by a matching (and never quite matching) overlay.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.02f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.12f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.34f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.78f),
-                        ),
-                    ),
-                ),
-        )
+                .heroBottomDissolve(layout.bottomFadeHeight, enabled = ambientPalette != null),
+        ) {
+            HeroBackgroundLayers(
+                items = items,
+                pagerState = pagerState,
+                listState = listState,
+                layout = layout,
+                heroWidthPx = heroWidthPx,
+                heroHeightPx = heroHeightPx,
+                stretchPx = stretchPx,
+                includePagerNeighbors = includePagerNeighbors,
+                artworkAlpha = 0.95f,
+            )
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(layout.bottomFadeHeight)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                            MaterialTheme.colorScheme.background,
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        val tint = scrimTint
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    tint.copy(alpha = 0.02f),
+                                    tint.copy(alpha = 0.12f),
+                                    tint.copy(alpha = 0.34f),
+                                    tint.copy(alpha = 0.78f),
+                                ),
+                            ),
+                        )
+                    },
+            )
+
+            if (ambientPalette == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(layout.bottomFadeHeight)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    backgroundColor,
+                                ),
+                            ),
                         ),
-                    ),
-                ),
-        )
+                )
+            }
+        }
 
         Column(
             modifier = Modifier
@@ -564,6 +650,7 @@ private fun DesktopHomeHeroFrame(
     heroHeightPx: Float,
     stretchPx: () -> Float,
     includePagerNeighbors: Boolean,
+    ambientPalette: AmbientPalette?,
     contentHorizontalPadding: Dp,
     coroutineScope: CoroutineScope,
     showImdbRating: Boolean,
@@ -574,71 +661,95 @@ private fun DesktopHomeHeroFrame(
     val opacity = NuvioTokens.Opacity
     val space = NuvioTokens.Space
     val backgroundColor = colorScheme.background
+    val scrimTint by animateColorAsState(
+        targetValue = lerp(backgroundColor, ambientPalette?.primary ?: backgroundColor, 0.55f),
+        animationSpec = tween(720, easing = FastOutSlowInEasing),
+        label = "hero_scrim_tint",
+    )
+    val topTint by animateColorAsState(
+        targetValue = lerp(backgroundColor, ambientPalette?.accent ?: backgroundColor, 0.4f),
+        animationSpec = tween(720, easing = FastOutSlowInEasing),
+        label = "hero_top_tint",
+    )
 
+    // No opaque plate here: the page ambient painted behind the hero is the shared
+    // background, and the hero's own layers dissolve into it at the bottom edge.
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundColor),
+        modifier = Modifier.fillMaxSize(),
     ) {
-        HeroBackgroundLayers(
-            items = items,
-            pagerState = pagerState,
-            listState = listState,
-            layout = layout,
-            heroWidthPx = heroWidthPx,
-            heroHeightPx = heroHeightPx,
-            stretchPx = stretchPx,
-            includePagerNeighbors = includePagerNeighbors,
-            desktopFrame = true,
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(layout.topFadeHeight)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            backgroundColor.copy(alpha = opacity.overlayHeavy),
-                            Color.Transparent,
-                        ),
-                    ),
-                ),
-        )
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colorStops = arrayOf(
-                            0.00f to backgroundColor.copy(alpha = 0.96f),
-                            0.08f to backgroundColor.copy(alpha = 0.90f),
-                            0.16f to backgroundColor.copy(alpha = 0.76f),
-                            0.26f to backgroundColor.copy(alpha = 0.54f),
-                            0.36f to backgroundColor.copy(alpha = 0.30f),
-                            0.46f to backgroundColor.copy(alpha = 0.12f),
-                            0.54f to Color.Transparent,
-                        ),
-                    ),
-                ),
-        )
+                .heroBottomDissolve(layout.bottomFadeHeight, enabled = ambientPalette != null),
+        ) {
+            HeroBackgroundLayers(
+                items = items,
+                pagerState = pagerState,
+                listState = listState,
+                layout = layout,
+                heroWidthPx = heroWidthPx,
+                heroHeightPx = heroHeightPx,
+                stretchPx = stretchPx,
+                includePagerNeighbors = includePagerNeighbors,
+                desktopFrame = true,
+                artworkAlpha = 0.95f,
+            )
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(layout.bottomFadeHeight)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            backgroundColor.copy(alpha = 0f),
-                            backgroundColor,
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(layout.topFadeHeight)
+                    .align(Alignment.TopCenter)
+                    .drawBehind {
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    topTint.copy(alpha = opacity.overlayHeavy),
+                                    Color.Transparent,
+                                ),
+                            ),
+                        )
+                    },
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        val tint = scrimTint
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                colorStops = arrayOf(
+                                    0.00f to tint.copy(alpha = 0.96f),
+                                    0.08f to tint.copy(alpha = 0.90f),
+                                    0.16f to tint.copy(alpha = 0.76f),
+                                    0.26f to tint.copy(alpha = 0.54f),
+                                    0.36f to tint.copy(alpha = 0.30f),
+                                    0.46f to tint.copy(alpha = 0.12f),
+                                    0.54f to Color.Transparent,
+                                ),
+                            ),
+                        )
+                    },
+            )
+
+            if (ambientPalette == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(layout.bottomFadeHeight)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    backgroundColor,
+                                ),
+                            ),
                         ),
-                    ),
-                ),
-        )
+                )
+            }
+        }
 
         Box(
             modifier = Modifier

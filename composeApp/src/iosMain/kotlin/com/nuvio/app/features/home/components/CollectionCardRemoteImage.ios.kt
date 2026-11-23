@@ -72,6 +72,7 @@ internal actual fun CollectionCardRemoteImage(
     modifier: Modifier,
     contentScale: ContentScale,
     animateIfPossible: Boolean,
+    animateWithoutFocus: Boolean,
 ) {
     if (!animateIfPossible) {
         AsyncImage(

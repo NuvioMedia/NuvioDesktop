@@ -34,10 +34,12 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.Chip
 import com.nuvio.app.core.ui.NuvioActionLabel
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.addons.AddonRepository
+import com.nuvio.app.features.home.CollectionGifPlaybackMode
 import com.nuvio.app.features.home.HomeCatalogSettingsItem
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.components.HomeEmptyStateCard
@@ -50,6 +52,14 @@ import nuvio.composeapp.generated.resources.layout_catalog_type
 import nuvio.composeapp.generated.resources.layout_catalog_type_sub
 import nuvio.composeapp.generated.resources.settings_homescreen_empty_message
 import nuvio.composeapp.generated.resources.settings_homescreen_empty_title
+import nuvio.composeapp.generated.resources.settings_homescreen_collection_gifs
+import nuvio.composeapp.generated.resources.settings_homescreen_collection_gifs_always
+import nuvio.composeapp.generated.resources.settings_homescreen_collection_gifs_always_description
+import nuvio.composeapp.generated.resources.settings_homescreen_collection_gifs_description
+import nuvio.composeapp.generated.resources.settings_homescreen_collection_gifs_focused
+import nuvio.composeapp.generated.resources.settings_homescreen_collection_gifs_focused_description
+import nuvio.composeapp.generated.resources.settings_homescreen_dynamic_ambient
+import nuvio.composeapp.generated.resources.settings_homescreen_dynamic_ambient_description
 import nuvio.composeapp.generated.resources.settings_homescreen_keep_home_focused
 import nuvio.composeapp.generated.resources.settings_homescreen_limit_reached
 import nuvio.composeapp.generated.resources.settings_homescreen_load_failed_title
@@ -65,6 +75,7 @@ import nuvio.composeapp.generated.resources.settings_homescreen_show_hero
 import nuvio.composeapp.generated.resources.settings_homescreen_show_hero_description
 import nuvio.composeapp.generated.resources.settings_homescreen_summary
 import nuvio.composeapp.generated.resources.settings_homescreen_summary_hint
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
@@ -75,6 +86,8 @@ internal fun LazyListScope.homescreenSettingsContent(
     heroEnabled: Boolean,
     showCatalogType: Boolean,
     hideUnreleasedContent: Boolean,
+    dynamicAmbientEnabled: Boolean,
+    collectionGifPlayback: CollectionGifPlaybackMode,
     items: List<HomeCatalogSettingsItem>,
     isCatalogLoading: Boolean,
     catalogErrorMessage: String?,
@@ -102,6 +115,29 @@ internal fun LazyListScope.homescreenSettingsContent(
                     isTablet = isTablet,
                     onCheckedChange = HomeCatalogSettingsRepository::setHeroEnabled,
                 )
+                SettingsGroupDivider(isTablet = isTablet)
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_homescreen_dynamic_ambient),
+                    description = stringResource(Res.string.settings_homescreen_dynamic_ambient_description),
+                    checked = dynamicAmbientEnabled,
+                    isTablet = isTablet,
+                    onCheckedChange = HomeCatalogSettingsRepository::setDynamicAmbientEnabled,
+                )
+                SettingsGroupDivider(isTablet = isTablet)
+                SettingsChipRow(
+                    title = stringResource(Res.string.settings_homescreen_collection_gifs),
+                    description = stringResource(Res.string.settings_homescreen_collection_gifs_description),
+                    isTablet = isTablet,
+                    footer = stringResource(collectionGifPlayback.descriptionRes),
+                ) {
+                    CollectionGifPlaybackMode.entries.forEach { mode ->
+                        Chip(
+                            label = stringResource(mode.labelRes),
+                            selected = collectionGifPlayback == mode,
+                            onClick = { HomeCatalogSettingsRepository.setCollectionGifPlayback(mode) },
+                        )
+                    }
+                }
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
                     title = stringResource(Res.string.layout_catalog_type),
@@ -196,6 +232,18 @@ internal fun LazyListScope.homescreenSettingsContent(
         }
     }
 }
+
+private val CollectionGifPlaybackMode.labelRes: StringResource
+    get() = when (this) {
+        CollectionGifPlaybackMode.Focused -> Res.string.settings_homescreen_collection_gifs_focused
+        CollectionGifPlaybackMode.Always -> Res.string.settings_homescreen_collection_gifs_always
+    }
+
+private val CollectionGifPlaybackMode.descriptionRes: StringResource
+    get() = when (this) {
+        CollectionGifPlaybackMode.Focused -> Res.string.settings_homescreen_collection_gifs_focused_description
+        CollectionGifPlaybackMode.Always -> Res.string.settings_homescreen_collection_gifs_always_description
+    }
 
 @Composable
 private fun HeroSourcesDropdown(

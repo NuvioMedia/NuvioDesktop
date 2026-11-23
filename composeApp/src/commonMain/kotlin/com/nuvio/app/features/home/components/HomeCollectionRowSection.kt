@@ -43,6 +43,7 @@ fun HomeCollectionRowSection(
     modifier: Modifier = Modifier,
     sectionPadding: Dp? = null,
     animateGifs: Boolean = true,
+    animateGifsAlways: Boolean = false,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
 ) {
     if (collection.folders.isEmpty()) return
@@ -53,6 +54,7 @@ fun HomeCollectionRowSection(
             modifier = modifier.fillMaxWidth(),
             sectionPadding = sectionPadding,
             animateGifs = animateGifs,
+            animateGifsAlways = animateGifsAlways,
             onFolderClick = onFolderClick,
         )
     } else {
@@ -62,6 +64,7 @@ fun HomeCollectionRowSection(
                 modifier = Modifier.fillMaxWidth(),
                 sectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value),
                 animateGifs = animateGifs,
+                animateGifsAlways = animateGifsAlways,
                 onFolderClick = onFolderClick,
             )
         }
@@ -74,6 +77,7 @@ private fun HomeCollectionRowSectionContent(
     modifier: Modifier,
     sectionPadding: Dp,
     animateGifs: Boolean,
+    animateGifsAlways: Boolean,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)?,
 ) {
     NuvioShelfSection(
@@ -87,6 +91,7 @@ private fun HomeCollectionRowSectionContent(
         CollectionFolderCard(
             folder = folder,
             animateGifs = animateGifs,
+            animateGifsAlways = animateGifsAlways,
             onClick = onFolderClick?.let { { it(collection.id, folder.id) } },
         )
     }
@@ -97,6 +102,7 @@ private fun CollectionFolderCard(
     folder: CollectionFolder,
     modifier: Modifier = Modifier,
     animateGifs: Boolean = true,
+    animateGifsAlways: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
     val posterCardStyle = rememberPosterCardStyleUiState()
@@ -162,6 +168,7 @@ private fun CollectionFolderCard(
                             animateIfPossible = animateGifs &&
                                 isAnimatedCollectionFolderImage(folder, imageUrl) &&
                                 LocalScreenActive.current,
+                            animateWithoutFocus = animateGifsAlways,
                         )
                     }
                     !folder.coverEmoji.isNullOrBlank() -> {

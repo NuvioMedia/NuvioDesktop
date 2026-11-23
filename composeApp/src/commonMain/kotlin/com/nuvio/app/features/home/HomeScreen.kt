@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,6 +20,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
@@ -29,6 +31,8 @@ import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
+import com.nuvio.app.core.ui.AmbientPalette
+import com.nuvio.app.core.ui.HeroAmbientBackdrop
 import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.LocalNuvioNavBarScrollState
 import com.nuvio.app.core.ui.LocalVerticalBarPadding
@@ -41,6 +45,7 @@ import com.nuvio.app.core.ui.rememberHeroStretchState
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.core.ui.collectMappedAsState
+import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.addons.enabledAddons
@@ -943,6 +948,10 @@ fun HomeScreen(
         addonManifestsLoading = addonManifestsLoading,
         homeCatalogLoading = homeUiState.isLoading,
     )
+    var heroAmbientImageUrl by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(showHeroSlot) {
+        if (!showHeroSlot) heroAmbientImageUrl = null
+    }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val homeSectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value)
@@ -1001,11 +1010,68 @@ fun HomeScreen(
             topChromePadding
         }
 
+        // The ambient backdrop should never fall back to a flat background.
+        // Prefer the focused hero artwork, then the first hero item and finally
+        // the first catalog entry so the wash stays alive even when the hero
+        // slot is disabled or still loading.
+        // Single source of truth for the ambient wash: the page backdrop extracts the
+        // palette and the hero tints its scrims with the very same colors.
+        // When the user disables the "Dynamic ambient background" home setting the whole
+        // layer is skipped: no artwork load, no palette extraction, no glow painting.
+        val dynamicAmbientEnabled = homeSettingsUiState.dynamicAmbientEnabled
+        var pageAmbientPalette by remember { mutableStateOf<AmbientPalette?>(null) }
+
+        LaunchedEffect(dynamicAmbientEnabled) {
+            if (!dynamicAmbientEnabled) {
+                pageAmbientPalette = null
+                heroAmbientImageUrl = null
+            }
+        }
+
+        val pageAmbientUrl = remember(
+            dynamicAmbientEnabled,
+            showHeroSlot,
+            heroAmbientImageUrl,
+            homeUiState.heroItems,
+            homeUiState.sections,
+            continueWatchingItems,
+        ) {
+            if (!dynamicAmbientEnabled) {
+                null
+            } else {
+                heroAmbientImageUrl?.takeIf { it.isNotBlank() }
+                    ?: if (showHeroSlot) {
+                        homeUiState.heroItems.firstOrNull()?.let { it.banner ?: it.poster }
+                    } else {
+                        null
+                    }
+                    ?: continueWatchingItems.firstOrNull()?.let { it.background ?: it.poster ?: it.imageUrl }
+                    ?: homeUiState.sections.asSequence()
+                        .flatMap { section -> section.items.asSequence() }
+                        .mapNotNull { item -> item.banner ?: item.poster }
+                        .firstOrNull()
+            }
+        }
         NuvioScreen(
             modifier = Modifier.fillMaxSize().then(heroStretchModifier),
             horizontalPadding = 0.dp,
             topPadding = effectiveTopPadding,
             listState = homeListState,
+            backgroundColor = if (dynamicAmbientEnabled) {
+                Color.Transparent
+            } else {
+                MaterialTheme.nuvio.colors.background
+            },
+            background = pageAmbientUrl?.let { url ->
+                @Composable {
+                    HeroAmbientBackdrop(
+                        imageUrl = url,
+                        modifier = Modifier.fillMaxSize(),
+                        intensity = 1.15f,
+                        onPaletteChange = { pageAmbientPalette = it },
+                    )
+                }
+            },
         ) {
             if (showHeroSlot) {
                 item(key = "home_hero", contentType = "hero") {
@@ -1035,6 +1101,8 @@ fun HomeScreen(
                                 showImdbRating = homeHeroState.showImdbRating,
                                 showMdbListRatings = homeHeroState.showMdbListRatings,
                                 onItemClick = onPosterClick,
+                                onAmbientImageChange = { heroAmbientImageUrl = it },
+                                ambientPalette = if (dynamicAmbientEnabled) pageAmbientPalette else null,
                             )
 
                             else -> HomeHeroReservedSpace(
@@ -1200,6 +1268,8 @@ fun HomeScreen(
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
                                         animateGifs = animateCollectionGifs,
+                                        animateGifsAlways = homeSettingsUiState.collectionGifPlayback ==
+                                            CollectionGifPlaybackMode.Always,
                                         onFolderClick = onFolderClick,
                                     )
                                 }

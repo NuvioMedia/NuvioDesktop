@@ -16,6 +16,7 @@ internal actual fun CollectionCardRemoteImage(
     modifier: Modifier,
     contentScale: ContentScale,
     animateIfPossible: Boolean,
+    animateWithoutFocus: Boolean,
 ) {
     val context = LocalContext.current
     val request: ImageRequest = remember(context, imageUrl) {

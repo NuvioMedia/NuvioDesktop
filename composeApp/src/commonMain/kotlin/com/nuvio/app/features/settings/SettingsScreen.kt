@@ -77,6 +77,7 @@ import com.nuvio.app.features.addons.hasPendingEnabledManifests
 import com.nuvio.app.features.addons.isWaitingForFirstEnabledManifest
 import com.nuvio.app.features.debrid.DebridSettings
 import com.nuvio.app.features.debrid.DebridSettingsRepository
+import com.nuvio.app.features.home.CollectionGifPlaybackMode
 import com.nuvio.app.features.home.HomeCatalogSettingsItem
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.buildAddonCatalogRefreshSignature
@@ -423,6 +424,8 @@ fun SettingsScreen(
                         homescreenHeroEnabled = homescreenSettingsUiState.heroEnabled,
                         homescreenShowCatalogType = homescreenSettingsUiState.showCatalogType,
                         homescreenHideUnreleasedContent = homescreenSettingsUiState.hideUnreleasedContent,
+                        homescreenDynamicAmbientEnabled = homescreenSettingsUiState.dynamicAmbientEnabled,
+                        homescreenCollectionGifPlayback = homescreenSettingsUiState.collectionGifPlayback,
                         homescreenItems = homescreenSettingsUiState.items,
                         homescreenCatalogLoading = addonManifestsLoading,
                         homescreenCatalogErrorMessage = addonManifestErrorMessage,
@@ -469,6 +472,8 @@ fun SettingsScreen(
                         homescreenHeroEnabled = homescreenSettingsUiState.heroEnabled,
                         homescreenShowCatalogType = homescreenSettingsUiState.showCatalogType,
                         homescreenHideUnreleasedContent = homescreenSettingsUiState.hideUnreleasedContent,
+                        homescreenDynamicAmbientEnabled = homescreenSettingsUiState.dynamicAmbientEnabled,
+                        homescreenCollectionGifPlayback = homescreenSettingsUiState.collectionGifPlayback,
                         homescreenItems = homescreenSettingsUiState.items,
                         homescreenCatalogLoading = addonManifestsLoading,
                         homescreenCatalogErrorMessage = addonManifestErrorMessage,
@@ -527,6 +532,8 @@ private fun MobileSettingsScreen(
     homescreenHeroEnabled: Boolean,
     homescreenShowCatalogType: Boolean,
     homescreenHideUnreleasedContent: Boolean,
+    homescreenDynamicAmbientEnabled: Boolean,
+    homescreenCollectionGifPlayback: CollectionGifPlaybackMode,
     homescreenItems: List<HomeCatalogSettingsItem>,
     homescreenCatalogLoading: Boolean,
     homescreenCatalogErrorMessage: String?,
@@ -774,6 +781,8 @@ private fun MobileSettingsScreen(
                     heroEnabled = homescreenHeroEnabled,
                     showCatalogType = homescreenShowCatalogType,
                     hideUnreleasedContent = homescreenHideUnreleasedContent,
+                    dynamicAmbientEnabled = homescreenDynamicAmbientEnabled,
+                    collectionGifPlayback = homescreenCollectionGifPlayback,
                     items = homescreenItems,
                     isCatalogLoading = homescreenCatalogLoading,
                     catalogErrorMessage = homescreenCatalogErrorMessage,
@@ -887,6 +896,8 @@ private fun TabletSettingsScreen(
     homescreenHeroEnabled: Boolean,
     homescreenShowCatalogType: Boolean,
     homescreenHideUnreleasedContent: Boolean,
+    homescreenDynamicAmbientEnabled: Boolean,
+    homescreenCollectionGifPlayback: CollectionGifPlaybackMode,
     homescreenItems: List<HomeCatalogSettingsItem>,
     homescreenCatalogLoading: Boolean,
     homescreenCatalogErrorMessage: String?,
@@ -1204,6 +1215,8 @@ private fun TabletSettingsScreen(
                             heroEnabled = homescreenHeroEnabled,
                             showCatalogType = homescreenShowCatalogType,
                             hideUnreleasedContent = homescreenHideUnreleasedContent,
+                    dynamicAmbientEnabled = homescreenDynamicAmbientEnabled,
+                    collectionGifPlayback = homescreenCollectionGifPlayback,
                             items = homescreenItems,
                             isCatalogLoading = homescreenCatalogLoading,
                             catalogErrorMessage = homescreenCatalogErrorMessage,

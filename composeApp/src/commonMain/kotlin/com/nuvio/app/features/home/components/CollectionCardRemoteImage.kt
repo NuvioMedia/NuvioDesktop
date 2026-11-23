@@ -12,4 +12,5 @@ internal expect fun CollectionCardRemoteImage(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
     animateIfPossible: Boolean = false,
+    animateWithoutFocus: Boolean = false,
 )
