@@ -41,6 +41,7 @@ object HomeRepository {
 
     private var activeJob: Job? = null
     private var activeRequestKey: String? = null
+    private var loadedRequestKey: String? = null
     private var currentRequestKey: String? = null
     private var currentDefinitions: List<HomeCatalogDefinition> = emptyList()
     private var cachedSections: Map<String, HomeCatalogSection> = emptyMap()
@@ -56,10 +57,19 @@ object HomeRepository {
         currentDefinitions = requests
         val requestCacheKeys = requests.mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
         cachedSections = cachedSections.filterKeys(requestCacheKeys::contains)
-        val requestKey = requests.joinToString(separator = "|", transform = HomeCatalogDefinition::cacheKey)
+        // Sorted: the server's addon list can come back in another order, which does not change
+        // what the home has to load (rows are ordered by the home settings when published).
+        val requestKey = requests.map(HomeCatalogDefinition::cacheKey).sorted().joinToString(separator = "|")
         currentRequestKey = requestKey
 
         if (!force && activeRequestKey == requestKey && _uiState.value.isLoading) return
+        if (!force && loadedRequestKey == requestKey && !_uiState.value.isLoading) {
+            // Same catalogs as the rows already loaded, for example after an addon was renamed:
+            // show the new names without fetching every catalog again.
+            publishCurrentState(isLoading = false, requestKey = requestKey)
+            return
+        }
+        loadedRequestKey = null
         activeRequestKey = requestKey
 
         if (requests.isEmpty()) {
@@ -149,6 +159,7 @@ object HomeRepository {
             cachedSections = loadedSections.toMap()
             lastErrorMessage = firstErrorMessage
             activeRequestKey = null
+            loadedRequestKey = requestKey
             publishCurrentState(
                 isLoading = false,
                 requestKey = requestKey,
@@ -179,6 +190,7 @@ object HomeRepository {
         activeJob?.cancel()
         activeJob = null
         activeRequestKey = null
+        loadedRequestKey = null
         currentRequestKey = null
         currentDefinitions = emptyList()
         cachedSections = emptyMap()
@@ -220,6 +232,9 @@ object HomeRepository {
                 val customTitle = preference?.customTitle.orEmpty()
                 section.copy(
                     title = customTitle.ifBlank { definition.titleFor(snapshot.showCatalogType) },
+                    // The addon name is not part of the cache key, so a rename shows up here.
+                    subtitle = definition.addonName,
+                    addonName = definition.addonName,
                 )
             }
 
