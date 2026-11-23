@@ -298,12 +298,12 @@ fun SettingsScreen(
         // after opening a page (previously there was no ring and Return did nothing).
         val focusManager = LocalFocusManager.current
         LaunchedEffect(page) {
-            if (!ControllerFocusEngine.deferNavigationToCompose) return@LaunchedEffect
+            if (ControllerFocusEngine.hasInteractiveContent.value) return@LaunchedEffect
             if (!ControllerManager.isNavigationActive.value) return@LaunchedEffect
             delay(200)
             // Seed the new page's content even if the sidebar still holds focus, so Return works.
             focusManager.clearFocus(force = true)
-            focusManager.moveFocus(FocusDirection.Next)
+            if (!ContentEntry.request()) focusManager.moveFocus(FocusDirection.Next)
         }
 
         fun openPage(targetPage: SettingsPage) {

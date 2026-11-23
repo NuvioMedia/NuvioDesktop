@@ -185,10 +185,10 @@ actual fun PlatformKeyboardNavigationHost() {
     LaunchedEffect(Unit) {
         ControllerFocusEngine.routeGeneration.collect {
             delay(180)
-            if (!ControllerFocusEngine.deferNavigationToCompose) return@collect
+            if (ControllerFocusEngine.hasInteractiveContent.value) return@collect
             if (FocusPresence.hasAnyFocus) return@collect
             focusManager.clearFocus(force = true)
-            focusManager.moveFocus(FocusDirection.Next)
+            if (!ContentEntry.request()) focusManager.moveFocus(FocusDirection.Next)
         }
     }
 
