@@ -26,11 +26,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlin.math.absoluteValue
 import kotlin.random.Random
 
@@ -41,6 +45,7 @@ object HomeRepository {
 
     private var activeJob: Job? = null
     private var activeRequestKey: String? = null
+    private var loadedRequestKey: String? = null
     private var currentRequestKey: String? = null
     private var currentDefinitions: List<HomeCatalogDefinition> = emptyList()
     private var cachedSections: Map<String, HomeCatalogSection> = emptyMap()
@@ -56,10 +61,19 @@ object HomeRepository {
         currentDefinitions = requests
         val requestCacheKeys = requests.mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
         cachedSections = cachedSections.filterKeys(requestCacheKeys::contains)
-        val requestKey = requests.joinToString(separator = "|", transform = HomeCatalogDefinition::cacheKey)
+        // Sorted: the server's addon list can come back in another order, which does not change
+        // what the home has to load (rows are ordered by the home settings when published).
+        val requestKey = requests.map(HomeCatalogDefinition::cacheKey).sorted().joinToString(separator = "|")
         currentRequestKey = requestKey
 
         if (!force && activeRequestKey == requestKey && _uiState.value.isLoading) return
+        if (!force && loadedRequestKey == requestKey && !_uiState.value.isLoading) {
+            // Same catalogs as the rows already loaded, for example after an addon was renamed:
+            // show the new names without fetching every catalog again.
+            publishCurrentState(isLoading = false, requestKey = requestKey)
+            return
+        }
+        loadedRequestKey = null
         activeRequestKey = requestKey
 
         if (requests.isEmpty()) {
@@ -99,40 +113,68 @@ object HomeRepository {
                 }
                 .mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
             val attemptedKeys = mutableSetOf<String>()
+            val desktopContinuations = mutableMapOf<String, DesktopRowContinuation>()
             var heroSourcesPublished = false
             var firstErrorMessage: String? = null
-            var batchIndex = 0
 
-            prioritizedRequests.chunked(HOME_CATALOG_FETCH_BATCH_SIZE).forEach { batch ->
-                if (activeRequestKey != requestKey) return@launch
-                val results = batch.map { request ->
-                    async {
-                        request to runCatching {
-                            request.toSection(forceRefresh = force)
+            // Up to HOME_CATALOG_FETCH_BATCH_SIZE catalogs load at a time, in priority order, and a
+            // slot goes to the next catalog as soon as its own one answers. With fixed batches one
+            // slow addon held back every row after it until it answered. The first rows are still
+            // published together, once all of them have answered, so the top of the home does not
+            // shift while it fills in.
+            val firstRowKeys = prioritizedRequests
+                .take(HOME_CATALOG_FETCH_BATCH_SIZE)
+                .mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
+            val finished = Channel<Pair<HomeCatalogDefinition, Result<LoadedHomeRow>>>(Channel.UNLIMITED)
+            val slots = Semaphore(HOME_CATALOG_FETCH_BATCH_SIZE)
+            val fetches = prioritizedRequests.map { request ->
+                launch {
+                    slots.withPermit {
+                        finished.send(request to runCatching { request.toRow(forceRefresh = force) })
+                    }
+                }
+            }
+            var firstRowsPublished = false
+            var finishedSincePublish = 0
+
+            repeat(prioritizedRequests.size) {
+                val (request, result) = finished.receive()
+                if (activeRequestKey != requestKey) {
+                    fetches.forEach(Job::cancel)
+                    return@launch
+                }
+
+                result.getOrNull()?.let { row ->
+                    val cacheKey = request.cacheKey
+                    val earlier = loadedSections[cacheKey]
+                    if (!force && earlier != null && earlier.continuesWith(row.section)) {
+                        desktopContinuations.remove(cacheKey)
+                    } else {
+                        loadedSections[cacheKey] = row.section
+                        val continuation = row.continuation
+                        if (continuation != null) {
+                            desktopContinuations[cacheKey] = continuation
+                        } else {
+                            desktopContinuations.remove(cacheKey)
                         }
                     }
-                }.awaitAll()
-
-                if (activeRequestKey != requestKey) return@launch
-
-                results.mapNotNull { (request, result) ->
-                    result.getOrNull()?.let { section -> request.cacheKey to section }
-                }.forEach { (cacheKey, section) ->
-                    loadedSections[cacheKey] = section
                 }
                 if (firstErrorMessage == null) {
-                    firstErrorMessage = results.firstNotNullOfOrNull { (_, result) ->
-                        result.exceptionOrNull()?.message
-                    }
+                    firstErrorMessage = result.exceptionOrNull()?.message
                 }
-                batch.mapTo(attemptedKeys, HomeCatalogDefinition::cacheKey)
+                attemptedKeys += request.cacheKey
+                finishedSincePublish++
                 val heroSourcesResolved = attemptedKeys.containsAll(heroSourceKeys)
+                val firstRowsReady = attemptedKeys.containsAll(firstRowKeys)
                 cachedSections = loadedSections.toMap()
                 lastErrorMessage = firstErrorMessage
                 if (
-                    batchIndex == 0 ||
-                    (batchIndex + 1) % HOME_CATALOG_PUBLISH_INTERVAL == 0 ||
-                    (heroSourcesResolved && !heroSourcesPublished)
+                    (firstRowsReady && !firstRowsPublished) ||
+                    (
+                        firstRowsPublished &&
+                            finishedSincePublish >= HOME_CATALOG_FETCH_BATCH_SIZE * HOME_CATALOG_PUBLISH_INTERVAL
+                        ) ||
+                    (firstRowsReady && heroSourcesResolved && !heroSourcesPublished)
                 ) {
                     publishCurrentState(
                         isLoading = true,
@@ -140,8 +182,9 @@ object HomeRepository {
                         heroSourcesResolved = heroSourcesResolved,
                     )
                     heroSourcesPublished = heroSourcesResolved
+                    firstRowsPublished = true
+                    finishedSincePublish = 0
                 }
-                batchIndex++
             }
 
             if (activeRequestKey != requestKey) return@launch
@@ -149,6 +192,7 @@ object HomeRepository {
             cachedSections = loadedSections.toMap()
             lastErrorMessage = firstErrorMessage
             activeRequestKey = null
+            loadedRequestKey = requestKey
             publishCurrentState(
                 isLoading = false,
                 requestKey = requestKey,
@@ -159,6 +203,14 @@ object HomeRepository {
                 refreshSources = true,
                 requestKey = requestKey,
             )
+            if (desktopContinuations.isNotEmpty()) {
+                completeDesktopRows(
+                    definitions = prioritizedRequests,
+                    continuations = desktopContinuations,
+                    requestKey = requestKey,
+                    forceRefresh = force,
+                )
+            }
         }
     }
 
@@ -179,6 +231,7 @@ object HomeRepository {
         activeJob?.cancel()
         activeJob = null
         activeRequestKey = null
+        loadedRequestKey = null
         currentRequestKey = null
         currentDefinitions = emptyList()
         cachedSections = emptyMap()
@@ -195,6 +248,7 @@ object HomeRepository {
         isLoading: Boolean,
         requestKey: String?,
         heroSourcesResolved: Boolean = !isLoading,
+        keepHeroItems: Boolean = false,
     ) {
         val snapshot = HomeCatalogSettingsRepository.snapshot()
         val preferences = snapshot.preferences
@@ -220,6 +274,9 @@ object HomeRepository {
                 val customTitle = preference?.customTitle.orEmpty()
                 section.copy(
                     title = customTitle.ifBlank { definition.titleFor(snapshot.showCatalogType) },
+                    // The addon name is not part of the cache key, so a rename shows up here.
+                    subtitle = definition.addonName,
+                    addonName = definition.addonName,
                 )
             }
 
@@ -247,10 +304,11 @@ object HomeRepository {
             emptyList()
         }
         lastPublishedCatalogHeroEmpty = snapshot.heroEnabled && catalogHeroItems.isEmpty()
-        val heroItems = if (snapshot.heroEnabled) {
-            catalogHeroItems.ifEmpty { cachedCollectionHeroItems }
-        } else {
-            emptyList()
+        val currentHeroItems = _uiState.value.heroItems
+        val heroItems = when {
+            !snapshot.heroEnabled -> emptyList()
+            keepHeroItems && currentHeroItems.isNotEmpty() -> currentHeroItems
+            else -> catalogHeroItems.ifEmpty { cachedCollectionHeroItems }
         }
 
         val nextState = HomeUiState(
@@ -262,24 +320,20 @@ object HomeRepository {
         if (_uiState.value != nextState) _uiState.value = nextState
     }
 
-    private suspend fun HomeCatalogDefinition.toSection(forceRefresh: Boolean): HomeCatalogSection {
-        serverConnectionId?.let { connectionId -> return toServerSection(connectionId) }
+    private suspend fun HomeCatalogDefinition.toRow(forceRefresh: Boolean): LoadedHomeRow {
+        serverConnectionId?.let { connectionId -> return LoadedHomeRow(toServerSection(connectionId)) }
         CustomPosterUrlRepository.ensureLoaded()
         val pattern = CustomPosterUrlRepository.patternForScreen(com.nuvio.app.core.poster.CustomPosterScreen.HOME)
-        val page = if (isDesktop) {
-            fetchDesktopHomePreview(forceRefresh)
-        } else {
-            fetchCatalogPage(
-                manifestUrl = manifestUrl,
-                type = type,
-                catalogId = catalogId,
-                maxItems = HOME_CATALOG_PREVIEW_FETCH_LIMIT,
-                forceRefresh = forceRefresh,
-            )
-        }
+        val page = fetchCatalogPage(
+            manifestUrl = manifestUrl,
+            type = type,
+            catalogId = catalogId,
+            maxItems = if (isDesktop) DESKTOP_HOME_ROW_ITEM_LIMIT else HOME_CATALOG_PREVIEW_FETCH_LIMIT,
+            forceRefresh = forceRefresh,
+        )
         val items = if (pattern.isNotBlank()) page.items.withCustomPosterUrls(pattern) else page.items
         if (items.isEmpty()) {
-            return HomeCatalogSection(
+            return LoadedHomeRow(HomeCatalogSection(
                 key = key,
                 title = defaultTitle,
                 subtitle = addonName,
@@ -293,10 +347,10 @@ object HomeRepository {
                 items = emptyList(),
                 availableItemCount = 0,
                 hasMore = false,
-            )
+            ))
         }
 
-        return HomeCatalogSection(
+        val section = HomeCatalogSection(
             key = key,
             title = defaultTitle,
             subtitle = addonName,
@@ -311,36 +365,104 @@ object HomeRepository {
             availableItemCount = page.rawItemCount,
             hasMore = supportsPagination && page.nextSkip != null,
         )
+        return LoadedHomeRow(
+            section = section,
+            continuation = if (isDesktop) {
+                desktopRowContinuation(supportsPagination, page, items.size)
+            } else {
+                null
+            },
+        )
     }
 
-    private suspend fun HomeCatalogDefinition.fetchDesktopHomePreview(forceRefresh: Boolean): CatalogPage {
+    /** Fetches the pages of a desktop row after the ones already loaded, up to the row limit. */
+    private suspend fun HomeCatalogDefinition.fetchDesktopRowRest(
+        continuation: DesktopRowContinuation,
+        loadedItemCount: Int,
+        forceRefresh: Boolean,
+    ): CatalogPage {
         var items = emptyList<MetaPreview>()
         var rawItemCount = 0
-        var nextSkip: Int? = null
-        var pagesFetched = 0
-        do {
+        var nextSkip: Int? = continuation.nextSkip
+        var pagesFetched = continuation.pagesFetched
+        while (
+            nextSkip != null &&
+            loadedItemCount + items.size < DESKTOP_HOME_ROW_ITEM_LIMIT &&
+            pagesFetched < DESKTOP_HOME_ROW_MAX_PAGES
+        ) {
             val page = fetchCatalogPage(
                 manifestUrl = manifestUrl,
                 type = type,
                 catalogId = catalogId,
                 skip = nextSkip,
-                maxItems = DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT - items.size,
+                maxItems = DESKTOP_HOME_ROW_ITEM_LIMIT - loadedItemCount - items.size,
                 forceRefresh = forceRefresh,
             )
             items = mergeCatalogItems(items, page.items)
             rawItemCount += page.rawItemCount
             nextSkip = page.nextSkip
             pagesFetched++
-        } while (
-            supportsPagination && nextSkip != null && items.size < DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT &&
-            pagesFetched < DESKTOP_HOME_CATALOG_PREVIEW_MAX_PAGES
-        )
+        }
         return CatalogPage(
-            items = items.take(DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT),
+            items = items,
             rawItemCount = rawItemCount,
             nextSkip = nextSkip,
         )
     }
+
+    /**
+     * Completes desktop rows that were shown with their first page only, a batch at a time,
+     * publishing after each batch. Stops when a newer home load has started.
+     */
+    private suspend fun completeDesktopRows(
+        definitions: List<HomeCatalogDefinition>,
+        continuations: Map<String, DesktopRowContinuation>,
+        requestKey: String,
+        forceRefresh: Boolean,
+    ) = coroutineScope {
+        val pending = definitions.mapNotNull { definition ->
+            continuations[definition.cacheKey]?.let { continuation -> definition to continuation }
+        }
+        pending.chunked(HOME_CATALOG_FETCH_BATCH_SIZE).forEach { batch ->
+            if (currentRequestKey != requestKey) return@coroutineScope
+            val pages = batch.map { (definition, continuation) ->
+                async {
+                    val loadedItemCount = cachedSections[definition.cacheKey]?.items?.size
+                        ?: return@async null
+                    runCatching {
+                        definition.fetchDesktopRowRest(continuation, loadedItemCount, forceRefresh)
+                    }.getOrNull()?.let { page -> Triple(definition.cacheKey, continuation, page) }
+                }
+            }.awaitAll().filterNotNull()
+            if (currentRequestKey != requestKey) return@coroutineScope
+
+            val pattern = CustomPosterUrlRepository.patternForScreen(
+                com.nuvio.app.core.poster.CustomPosterScreen.HOME,
+            )
+            val updated = cachedSections.toMutableMap()
+            var changed = false
+            pages.forEach { (cacheKey, continuation, page) ->
+                val section = updated[cacheKey] ?: return@forEach
+                val laterItems = if (pattern.isNotBlank()) page.items.withCustomPosterUrls(pattern) else page.items
+                val extended = section.extendedWith(page.copy(items = laterItems), continuation)
+                if (extended != section) {
+                    updated[cacheKey] = extended
+                    changed = true
+                }
+            }
+            if (changed) {
+                cachedSections = updated
+                // The hero was picked when the home appeared; growing rows must not reshuffle it.
+                publishCurrentState(isLoading = false, requestKey = requestKey, keepHeroItems = true)
+            }
+        }
+    }
+
+    private class LoadedHomeRow(
+        val section: HomeCatalogSection,
+        /** Set for desktop rows shown with their first page only. */
+        val continuation: DesktopRowContinuation? = null,
+    )
 
     private suspend fun HomeCatalogDefinition.toServerSection(connectionId: String): HomeCatalogSection {
         val target = CatalogTarget.Server(connectionId, catalogId, type)
@@ -523,8 +645,6 @@ private const val HOME_COLLECTION_HERO_SOURCE_LIMIT = 6
 private const val HOME_COLLECTION_HERO_SOURCE_ITEM_LIMIT = 8
 private const val HOME_CATALOG_FETCH_BATCH_SIZE = 4
 private const val HOME_CATALOG_PREVIEW_FETCH_LIMIT = 18
-private const val DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT = 64
-private const val DESKTOP_HOME_CATALOG_PREVIEW_MAX_PAGES = 4
 private const val HOME_CATALOG_PUBLISH_INTERVAL = 2
 
 private fun prioritizeDefinitions(
@@ -544,3 +664,4 @@ private fun prioritizeDefinitions(
     }
     return priority + remainder
 }
+

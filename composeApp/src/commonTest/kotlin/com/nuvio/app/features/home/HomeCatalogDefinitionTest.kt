@@ -1,5 +1,6 @@
 package com.nuvio.app.features.home
 
+import com.nuvio.app.features.addons.AddonCatalog
 import com.nuvio.app.features.addons.AddonManifest
 import com.nuvio.app.features.addons.AddonResource
 import com.nuvio.app.features.addons.ManagedAddon
@@ -64,4 +65,41 @@ class HomeCatalogDefinitionTest {
         assertNotEquals(pendingSignature, loadedSignature)
         assertNotEquals(failedSignature, loadedSignature)
     }
+
+    @Test
+    fun `catalog cache keys ignore the addon display name and refresh state`() {
+        val localAddon = catalogAddon()
+        val serverAddon = localAddon.copy(userSetName = "My addon", errorMessage = "Timed out")
+
+        val localKeys = buildHomeCatalogDefinitions(listOf(localAddon)).map(HomeCatalogDefinition::cacheKey)
+        val serverDefinitions = buildHomeCatalogDefinitions(listOf(serverAddon))
+
+        assertEquals(localKeys, serverDefinitions.map(HomeCatalogDefinition::cacheKey))
+        assertEquals("My addon", serverDefinitions.single().addonName)
+    }
+
+    @Test
+    fun `catalog cache keys change when the manifest changes`() {
+        val addon = catalogAddon()
+        val updated = addon.copy(manifest = addon.manifest?.copy(version = "2.0.0"))
+
+        assertNotEquals(
+            buildHomeCatalogDefinitions(listOf(addon)).single().cacheKey,
+            buildHomeCatalogDefinitions(listOf(updated)).single().cacheKey,
+        )
+    }
+
+    private fun catalogAddon() = ManagedAddon(
+        manifestUrl = "https://example.test/manifest.json",
+        manifest = AddonManifest(
+            id = "addon",
+            name = "Addon",
+            description = "",
+            version = "1.0.0",
+            resources = listOf(AddonResource(name = "catalog", types = listOf("movie"))),
+            types = listOf("movie"),
+            catalogs = listOf(AddonCatalog(type = "movie", id = "popular", name = "Popular")),
+            transportUrl = "https://example.test/manifest.json",
+        ),
+    )
 }
