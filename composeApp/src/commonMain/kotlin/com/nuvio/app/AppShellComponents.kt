@@ -524,6 +524,7 @@ internal fun TabletFloatingTopBar(
                     TabletTopPillItem(
                         label = stringResource(Res.string.compose_nav_home),
                         selected = selectedTab == AppScreenTab.Home,
+                        focusId = "top_nav_home",
                         onClick = { onTabSelected(AppScreenTab.Home) },
                         labelFraction = labelFraction,
                         pillHeight = pillHeight,
@@ -546,6 +547,7 @@ internal fun TabletFloatingTopBar(
                     TabletTopPillItem(
                         label = stringResource(Res.string.compose_nav_search),
                         selected = selectedTab == AppScreenTab.Search,
+                        focusId = "top_nav_search",
                         onClick = { onTabSelected(AppScreenTab.Search) },
                         labelFraction = labelFraction,
                         pillHeight = pillHeight,
@@ -568,6 +570,7 @@ internal fun TabletFloatingTopBar(
                     TabletTopPillItem(
                         label = stringResource(Res.string.compose_nav_library),
                         selected = selectedTab == AppScreenTab.Library,
+                        focusId = "top_nav_library",
                         onClick = { onTabSelected(AppScreenTab.Library) },
                         labelFraction = labelFraction,
                         pillHeight = pillHeight,
@@ -590,6 +593,7 @@ internal fun TabletFloatingTopBar(
                     TabletTopPillItem(
                         label = stringResource(Res.string.compose_nav_settings),
                         selected = selectedTab == AppScreenTab.Settings,
+                        focusId = "top_nav_settings",
                         onClick = { onTabSelected(AppScreenTab.Settings) },
                         labelFraction = labelFraction,
                         pillHeight = pillHeight,
@@ -624,6 +628,7 @@ internal fun ContinueWatchingItem.isCloudLibraryContinueWatchingItem(): Boolean 
 private fun TabletTopPillItem(
     label: String,
     selected: Boolean,
+    focusId: String,
     onClick: () -> Unit,
     labelFraction: Float = 1f,
     pillHeight: Dp = 38.dp,
@@ -651,7 +656,17 @@ private fun TabletTopPillItem(
         tonalElevation = if (selected) tokens.elevation.raised else tokens.elevation.flat,
         modifier = Modifier
             .height(pillHeight)
-            .clip(itemShape),
+            .clip(itemShape)
+            .controllerFocusable(
+                id = focusId,
+                zone = ControllerFocusZone.Navigation,
+                groupKey = "top_nav",
+                isDefaultFocus = selected,
+                shape = itemShape,
+                cornerRadius = 16.dp,
+                selectLabel = label,
+                onSelect = onClick,
+            ),
     ) {
         Row(
             modifier = Modifier
@@ -802,6 +817,14 @@ internal fun DesktopHoverSidebar(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { onProfileStackVisibleChange(!profileStackVisible) },
+                    )
+                    .controllerFocusable(
+                        id = "sidebar_profile_trigger",
+                        zone = ControllerFocusZone.Navigation,
+                        shape = RoundedCornerShape(12.dp),
+                        cornerRadius = 12.dp,
+                        selectLabel = activeProfileName,
+                        onSelect = { onProfileStackVisibleChange(!profileStackVisible) },
                     ),
                 contentAlignment = Alignment.Center,
             ) {

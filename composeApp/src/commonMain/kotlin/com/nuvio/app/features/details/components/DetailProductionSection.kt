@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.features.details.MetaCompany
 import com.nuvio.app.features.details.MetaDetails
 import nuvio.composeapp.generated.resources.*
@@ -111,6 +112,7 @@ private fun ProductionChip(
 ) {
     Box(
         modifier = Modifier
+            .nuvioFocusBorder(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(color = ProductionChipBackground)
             .then(

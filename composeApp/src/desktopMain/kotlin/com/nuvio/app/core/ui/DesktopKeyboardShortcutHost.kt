@@ -34,7 +34,10 @@ internal fun DesktopKeyboardShortcutHost() {
             if (nowMs - lastEscapeAtMs < ESCAPE_DEBOUNCE_MS) return@KeyEventDispatcher true
             lastEscapeAtMs = nowMs
             val back = DesktopEscapeShortcut.onBack ?: return@KeyEventDispatcher false
-            back()
+            // Run the handler after the current key dispatch finishes. Acting inside the AWT
+            // dispatcher could dispose the focused popup's root while Compose was still handling
+            // the key ("RootNodeOwner is already disposed").
+            javax.swing.SwingUtilities.invokeLater { back() }
             true
         }
         KeyboardFocusManager.getCurrentKeyboardFocusManager()
