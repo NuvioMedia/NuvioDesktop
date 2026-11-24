@@ -2209,6 +2209,13 @@ static void nuvioMpvWakeup(void *ctx) {
         mpv_event *event = mpv_wait_event(mpv, 0);
         if (!event || event->event_id == MPV_EVENT_NONE) break;
         switch (event->event_id) {
+            case MPV_EVENT_END_FILE: {
+                const auto *end = static_cast<const mpv_event_end_file *>(event->data);
+                if (end && end->reason == MPV_END_FILE_REASON_ERROR) {
+                    [self sendPlayerEvent:@"mpvEndFileError" value:end->error];
+                }
+                break;
+            }
             case MPV_EVENT_PROPERTY_CHANGE: {
                 mpv_event_property *prop = (mpv_event_property *)event->data;
                 if (event->reply_userdata == 2 && prop && prop->format == MPV_FORMAT_STRING) {
