@@ -1288,6 +1288,9 @@ compose.desktop {
             "--add-opens=java.desktop/sun.lwawt.macosx=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.awt.windows=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED",
+            // The player bridge, JNA and Skiko load native libraries with System.load. JDK 25
+            // warns about it at startup and later JDKs will block it unless this is set.
+            "--enable-native-access=ALL-UNNAMED",
             // Without these the JVM sizes the heap from the machine's RAM (about
             // 1 GB initial and a quarter of RAM as maximum) and G1 keeps hundreds
             // of MB committed for a live set of roughly 100 MB.
