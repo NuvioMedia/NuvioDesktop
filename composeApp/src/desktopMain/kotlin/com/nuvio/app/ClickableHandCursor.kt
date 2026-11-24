@@ -40,11 +40,14 @@ internal fun ClickableHandCursor(window: ComposeWindow) {
 private const val HandCursorEventMask =
     AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK
 
-private class HandCursorController(private val window: ComposeWindow) : AWTEventListener {
+internal class HandCursorController(private val window: ComposeWindow) : AWTEventListener {
     private val handCursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
     private var overridden: Component? = null
     private var cursorBeforeOverride: Cursor? = null
     private var pending: MouseEvent? = null
+    private var invokeLaterScheduled: Boolean = false
+    private var pendingForce: Boolean = false
+    private var hasWheelEvent: Boolean = false
     private var lastWheelEventNanos: Long = 0L
     private var lastLookupNanos: Long = 0L
     private var lastCheckedSource: Component? = null
@@ -77,8 +80,10 @@ private class HandCursorController(private val window: ComposeWindow) : AWTEvent
         if (mouseEvent is MouseWheelEvent) {
             // Never walk the Compose semantics tree on the EDT during active wheel scrolling;
             // refresh once after wheel input pauses.
+            hasWheelEvent = true
             lastWheelEventNanos = now
             pending = mouseEvent
+            pendingForce = true
             scheduleDeferredUpdate(WheelIdleRefreshDelayMs, now)
             return
         }
@@ -86,31 +91,44 @@ private class HandCursorController(private val window: ComposeWindow) : AWTEvent
         val isMotion = mouseEvent.id == MouseEvent.MOUSE_MOVED &&
             (mouseEvent.modifiersEx and AnyButtonDownMask == 0)
         if (isMotion) {
-            val wheelElapsed = now - lastWheelEventNanos
-            if (wheelElapsed < WheelQuietWindowNanos) {
-                pending = mouseEvent
-                val remainingMs = ((WheelQuietWindowNanos - wheelElapsed) / 1_000_000L).toInt().coerceAtLeast(1)
-                scheduleDeferredUpdate(remainingMs, now)
-                return
+            if (hasWheelEvent) {
+                val wheelElapsed = now - lastWheelEventNanos
+                if (wheelElapsed < WheelQuietWindowNanos) {
+                    pending = mouseEvent
+                    pendingForce = true
+                    val remainingMs = ((WheelQuietWindowNanos - wheelElapsed) / 1_000_000L).toInt().coerceAtLeast(1)
+                    scheduleDeferredUpdate(remainingMs, now)
+                    return
+                }
             }
-            val elapsed = now - lastLookupNanos
-            if (elapsed < MotionThrottleNanos) {
-                pending = mouseEvent
-                val remainingMs = ((MotionThrottleNanos - elapsed) / 1_000_000L).toInt().coerceAtLeast(1)
-                scheduleDeferredUpdate(remainingMs, now)
-                return
+            if (lastLookupNanos != 0L) {
+                val elapsed = now - lastLookupNanos
+                if (elapsed < MotionThrottleNanos) {
+                    pending = mouseEvent
+                    val remainingMs = ((MotionThrottleNanos - elapsed) / 1_000_000L).toInt().coerceAtLeast(1)
+                    scheduleDeferredUpdate(remainingMs, now)
+                    return
+                }
             }
         }
 
         deferredUpdateTimer.stop()
         scheduledFireNanos = 0L
-        val alreadyScheduled = pending != null
         pending = mouseEvent
+        if (!isMotion) pendingForce = true
         // Runs after Compose has handled the event, so its own cursor choice is already applied.
-        if (!alreadyScheduled) SwingUtilities.invokeLater { update(force = !isMotion) }
+        if (!invokeLaterScheduled) {
+            invokeLaterScheduled = true
+            SwingUtilities.invokeLater {
+                invokeLaterScheduled = false
+                update(force = false)
+            }
+        }
     }
 
     private fun update(force: Boolean) {
+        val effectiveForce = force || pendingForce
+        pendingForce = false
         if (disposed) return
         val event = pending ?: return
         pending = null
@@ -122,7 +140,7 @@ private class HandCursorController(private val window: ComposeWindow) : AWTEvent
             return
         }
         val point = event.point
-        if (!force && source === lastCheckedSource) {
+        if (!effectiveForce && source === lastCheckedSource) {
             val prev = lastCheckedPoint
             if (prev != null &&
                 kotlin.math.abs(point.x - prev.x) < MinMoveDeltaPx &&
@@ -156,6 +174,9 @@ private class HandCursorController(private val window: ComposeWindow) : AWTEvent
         disposed = true
         deferredUpdateTimer.stop()
         scheduledFireNanos = 0L
+        invokeLaterScheduled = false
+        pendingForce = false
+        hasWheelEvent = false
         pending = null
         lastCheckedSource = null
         lastCheckedPoint = null
