@@ -7,6 +7,8 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.Orientation
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -322,6 +324,7 @@ private fun PersonDetailContent(
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .nuvioDesktopDragScroll(scrollState, Orientation.Vertical)
                                 .verticalScroll(scrollState)
                                 .windowInsetsPadding(WindowInsets.statusBars)
                                 .padding(top = 48.dp),
@@ -440,6 +443,7 @@ private fun WidePersonDetailContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .nuvioDesktopDragScroll(contentScrollState, Orientation.Vertical)
                     .verticalScroll(contentScrollState)
                     .padding(start = 40.dp, bottom = 40.dp),
                 verticalArrangement = Arrangement.spacedBy(34.dp),
@@ -535,6 +539,7 @@ private fun PersonIdentitySidebar(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .nuvioDesktopDragScroll(scrollState, Orientation.Vertical)
                 .verticalScroll(scrollState)
                 .padding(
                     start = 40.dp,

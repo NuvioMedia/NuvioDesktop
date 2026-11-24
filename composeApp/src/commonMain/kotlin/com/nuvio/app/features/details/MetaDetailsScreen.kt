@@ -103,6 +103,7 @@ import com.nuvio.app.core.ui.PosterZoomAnchor
 import com.nuvio.app.core.ui.PosterZoomAnchorHolder
 import com.nuvio.app.core.ui.PosterZoomOverlayAction
 import com.nuvio.app.core.ui.desktopPageHorizontalPaddingForWidth
+import androidx.compose.foundation.gestures.Orientation
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.core.ui.ScreenActivityEffect
 import com.nuvio.app.core.ui.TrackingListPickerDialog
@@ -1305,6 +1306,7 @@ fun MetaDetailsScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .nestedScroll(heroStretchState.nestedScrollConnection)
+                                    .nuvioDesktopDragScroll(listState, Orientation.Vertical)
                                     .zIndex(1f),
                             ) {
                                 if (useDesktopDetailLayout) {

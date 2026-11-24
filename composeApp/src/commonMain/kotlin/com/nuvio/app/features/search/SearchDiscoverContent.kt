@@ -22,6 +22,7 @@ import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.ui.NuvioDropdownChip
 import com.nuvio.app.core.ui.NuvioDropdownOption
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.home.components.PosterGridRow
 import com.nuvio.app.features.home.components.PosterGridSkeletonRow
@@ -137,8 +138,11 @@ private fun DiscoverFilterRow(
     onGenreSelected: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val filterScrollState = rememberScrollState()
     Row(
-        modifier = modifier.horizontalScroll(rememberScrollState()),
+        modifier = modifier
+            .nuvioDesktopDragScroll(filterScrollState)
+            .horizontalScroll(filterScrollState),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         NuvioDropdownChip(
