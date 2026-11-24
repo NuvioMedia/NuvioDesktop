@@ -3,6 +3,8 @@ package com.nuvio.app
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -14,9 +16,15 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.CachePolicy
 import coil3.request.crossfade
 import coil3.svg.SvgDecoder
+import com.nuvio.app.controller.ControllerManager
+import com.nuvio.app.controller.LocalIsControllerNavigationActive
 import com.nuvio.app.core.poster.CustomPosterFallbackInterceptor
+import com.nuvio.app.core.ui.CardDepthStyleRepository
+import com.nuvio.app.core.ui.LocalCardDepthStyleUiState
+import com.nuvio.app.core.ui.LocalPosterCardStyleUiState
 import com.nuvio.app.core.ui.NativeProfileSwitcherController
 import com.nuvio.app.core.ui.NuvioTheme
+import com.nuvio.app.core.ui.PosterCardStyleRepository
 import com.nuvio.app.core.ui.nuvioTrackFocusPresence
 import com.nuvio.app.core.ui.PlatformKeyboardNavigationHost
 import com.nuvio.app.core.ui.addPlatformDecoders
@@ -110,6 +118,15 @@ internal fun AppEnvironment(content: @Composable () -> Unit) {
     }.collectAsStateWithLifecycle()
 
     val customThemeColors by ThemeSettingsRepository.customThemeColors.collectAsStateWithLifecycle()
+    val posterCardStyleUiState by remember {
+        PosterCardStyleRepository.ensureLoaded()
+        PosterCardStyleRepository.uiState
+    }.collectAsState()
+    val cardDepthStyleUiState by remember {
+        CardDepthStyleRepository.ensureLoaded()
+        CardDepthStyleRepository.uiState
+    }.collectAsState()
+    val isControllerNavigationActive by ControllerManager.isNavigationActive.collectAsState()
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize().nuvioTrackFocusPresence()) {
         NuvioTheme(
@@ -118,8 +135,14 @@ internal fun AppEnvironment(content: @Composable () -> Unit) {
             customThemeColors = customThemeColors,
             desktopUiScale = desktopUiScaleForWindow(maxWidth.value, maxHeight.value),
         ) {
-            PlatformKeyboardNavigationHost()
-            content()
+            CompositionLocalProvider(
+                LocalPosterCardStyleUiState provides posterCardStyleUiState,
+                LocalCardDepthStyleUiState provides cardDepthStyleUiState,
+                LocalIsControllerNavigationActive provides isControllerNavigationActive,
+            ) {
+                PlatformKeyboardNavigationHost()
+                content()
+            }
         }
     }
 }

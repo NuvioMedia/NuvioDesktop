@@ -11,10 +11,13 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import java.awt.AWTEvent
 import java.awt.Component
 import java.awt.Cursor
+import java.awt.Point
 import java.awt.Toolkit
 import java.awt.event.AWTEventListener
 import java.awt.event.MouseEvent
+import java.awt.event.MouseWheelEvent
 import javax.swing.SwingUtilities
+import javax.swing.Timer
 
 /**
  * Shows the hand cursor while the mouse is over anything clickable in [window].
@@ -29,7 +32,7 @@ internal fun ClickableHandCursor(window: ComposeWindow) {
         Toolkit.getDefaultToolkit().addAWTEventListener(controller, HandCursorEventMask)
         onDispose {
             Toolkit.getDefaultToolkit().removeAWTEventListener(controller)
-            controller.release()
+            controller.dispose()
         }
     }
 }
@@ -42,24 +45,96 @@ private class HandCursorController(private val window: ComposeWindow) : AWTEvent
     private var overridden: Component? = null
     private var cursorBeforeOverride: Cursor? = null
     private var pending: MouseEvent? = null
+    private var lastWheelEventNanos: Long = 0L
+    private var lastLookupNanos: Long = 0L
+    private var lastCheckedSource: Component? = null
+    private var lastCheckedPoint: Point? = null
+    private var disposed: Boolean = false
+    private var scheduledFireNanos: Long = 0L
+    private val deferredUpdateTimer = Timer(WheelIdleRefreshDelayMs) {
+        scheduledFireNanos = 0L
+        update(force = true)
+    }.apply {
+        isRepeats = false
+    }
+
+    private fun scheduleDeferredUpdate(delayMs: Int, now: Long) {
+        val clampedDelayMs = delayMs.coerceAtLeast(1)
+        val targetFireNanos = now + clampedDelayMs * 1_000_000L
+        if (deferredUpdateTimer.isRunning && targetFireNanos <= scheduledFireNanos) return
+        scheduledFireNanos = targetFireNanos
+        deferredUpdateTimer.initialDelay = clampedDelayMs
+        deferredUpdateTimer.restart()
+    }
 
     override fun eventDispatched(event: AWTEvent) {
+        if (disposed) return
         val mouseEvent = event as? MouseEvent ?: return
         val source = mouseEvent.component ?: return
         if (source !== window && !SwingUtilities.isDescendingFrom(source, window)) return
+
+        val now = System.nanoTime()
+        if (mouseEvent is MouseWheelEvent) {
+            // Never walk the Compose semantics tree on the EDT during active wheel scrolling;
+            // refresh once after wheel input pauses.
+            lastWheelEventNanos = now
+            pending = mouseEvent
+            scheduleDeferredUpdate(WheelIdleRefreshDelayMs, now)
+            return
+        }
+
+        val isMotion = mouseEvent.id == MouseEvent.MOUSE_MOVED &&
+            (mouseEvent.modifiersEx and AnyButtonDownMask == 0)
+        if (isMotion) {
+            val wheelElapsed = now - lastWheelEventNanos
+            if (wheelElapsed < WheelQuietWindowNanos) {
+                pending = mouseEvent
+                val remainingMs = ((WheelQuietWindowNanos - wheelElapsed) / 1_000_000L).toInt().coerceAtLeast(1)
+                scheduleDeferredUpdate(remainingMs, now)
+                return
+            }
+            val elapsed = now - lastLookupNanos
+            if (elapsed < MotionThrottleNanos) {
+                pending = mouseEvent
+                val remainingMs = ((MotionThrottleNanos - elapsed) / 1_000_000L).toInt().coerceAtLeast(1)
+                scheduleDeferredUpdate(remainingMs, now)
+                return
+            }
+        }
+
+        deferredUpdateTimer.stop()
+        scheduledFireNanos = 0L
         val alreadyScheduled = pending != null
         pending = mouseEvent
         // Runs after Compose has handled the event, so its own cursor choice is already applied.
-        if (!alreadyScheduled) SwingUtilities.invokeLater(::update)
+        if (!alreadyScheduled) SwingUtilities.invokeLater { update(force = !isMotion) }
     }
 
-    private fun update() {
+    private fun update(force: Boolean) {
+        if (disposed) return
         val event = pending ?: return
         pending = null
         val source = event.component ?: return
-        val wantsHand = event.id != MouseEvent.MOUSE_EXITED &&
-            event.modifiersEx and AnyButtonDownMask == 0 &&
-            isOverClickable(source, event)
+        if (event.id == MouseEvent.MOUSE_EXITED || event.modifiersEx and AnyButtonDownMask != 0) {
+            lastCheckedSource = null
+            lastCheckedPoint = null
+            release()
+            return
+        }
+        val point = event.point
+        if (!force && source === lastCheckedSource) {
+            val prev = lastCheckedPoint
+            if (prev != null &&
+                kotlin.math.abs(point.x - prev.x) < MinMoveDeltaPx &&
+                kotlin.math.abs(point.y - prev.y) < MinMoveDeltaPx
+            ) {
+                return
+            }
+        }
+        lastLookupNanos = System.nanoTime()
+        lastCheckedSource = source
+        lastCheckedPoint = Point(point)
+        val wantsHand = isOverClickable(source, event)
         if (wantsHand) apply(source) else release()
     }
 
@@ -75,6 +150,16 @@ private class HandCursorController(private val window: ComposeWindow) : AWTEvent
         cursorBeforeOverride = if (component.isCursorSet) current else null
         overridden = component
         component.cursor = handCursor
+    }
+
+    fun dispose() {
+        disposed = true
+        deferredUpdateTimer.stop()
+        scheduledFireNanos = 0L
+        pending = null
+        lastCheckedSource = null
+        lastCheckedPoint = null
+        release()
     }
 
     fun release() {
@@ -117,5 +202,9 @@ private class HandCursorController(private val window: ComposeWindow) : AWTEvent
     private companion object {
         const val AnyButtonDownMask =
             MouseEvent.BUTTON1_DOWN_MASK or MouseEvent.BUTTON2_DOWN_MASK or MouseEvent.BUTTON3_DOWN_MASK
+        const val WheelIdleRefreshDelayMs = 120
+        const val WheelQuietWindowNanos = 120_000_000L
+        const val MotionThrottleNanos = 32_000_000L
+        const val MinMoveDeltaPx = 2
     }
 }

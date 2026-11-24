@@ -119,6 +119,7 @@ internal fun HomePosterHoverPreview(
     onClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    anchorInteractionSource: MutableInteractionSource? = null,
     content: @Composable (Modifier) -> Unit,
 ) {
     if (!isDesktop) {
@@ -134,27 +135,79 @@ internal fun HomePosterHoverPreview(
         return
     }
 
-    if (PosterZoomOverlayCoordinator.isVisible) {
-        content(modifier)
-        return
-    }
-
-    val anchorInteractionSource = remember { MutableInteractionSource() }
-    val previewInteractionSource = remember { MutableInteractionSource() }
-    val anchorHovered by anchorInteractionSource.collectIsHoveredAsState()
-    val previewHovered by previewInteractionSource.collectIsHoveredAsState()
-    var previewVisible by remember(item.type, item.id) { mutableStateOf(false) }
+    val resolvedAnchor = anchorInteractionSource ?: remember { MutableInteractionSource() }
+    val anchorHovered by resolvedAnchor.collectIsHoveredAsState()
     var popupMounted by remember(item.type, item.id) { mutableStateOf(false) }
     var previewDismissedByScroll by remember(item.type, item.id) { mutableStateOf(false) }
+    var pendingTrackingRemoval by remember(item.type, item.id) {
+        mutableStateOf<PendingTrackingMembershipRemoval?>(null)
+    }
+
+    if (previewDismissedByScroll && !anchorHovered && !popupMounted) {
+        previewDismissedByScroll = false
+    }
+
+    val needsHoverHost = !PosterZoomOverlayCoordinator.isVisible &&
+        ((anchorHovered && !previewDismissedByScroll) || popupMounted)
+
+    Box(modifier = modifier) {
+        content(Modifier.hoverable(resolvedAnchor))
+
+        if (needsHoverHost) {
+            HomePosterHoverPreviewActiveHost(
+                item = item,
+                isWatched = isWatched,
+                anchorHovered = anchorHovered,
+                popupMounted = popupMounted,
+                onPopupMountedChange = { popupMounted = it },
+                previewDismissedByScroll = previewDismissedByScroll,
+                onPreviewDismissedByScrollChange = { previewDismissedByScroll = it },
+                onPendingTrackingRemovalChange = { pendingTrackingRemoval = it },
+                openDelayMillis = posterCardStyle.hoverPreviewOpenDelayMillis,
+                trailerPlaybackEnabled = trailerPlaybackEnabled,
+                trailerSoundEnabled = posterCardStyle.hoverPreviewTrailerSoundEnabled,
+                trailerStartSeconds = posterCardStyle.hoverPreviewTrailerStartSeconds,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+        }
+    }
+
+    pendingTrackingRemoval?.let { pending ->
+        TrackingMembershipRemovalConfirmationHost(
+            pending = pending,
+            onPendingChange = { pendingTrackingRemoval = it },
+        )
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun HomePosterHoverPreviewActiveHost(
+    item: MetaPreview,
+    isWatched: Boolean,
+    anchorHovered: Boolean,
+    popupMounted: Boolean,
+    onPopupMountedChange: (Boolean) -> Unit,
+    previewDismissedByScroll: Boolean,
+    onPreviewDismissedByScrollChange: (Boolean) -> Unit,
+    onPendingTrackingRemovalChange: (PendingTrackingMembershipRemoval?) -> Unit,
+    openDelayMillis: Int,
+    trailerPlaybackEnabled: Boolean,
+    trailerSoundEnabled: Boolean,
+    trailerStartSeconds: Int,
+    onClick: (() -> Unit)?,
+    onLongClick: (() -> Unit)?,
+) {
+    val previewInteractionSource = remember { MutableInteractionSource() }
+    val previewHovered by previewInteractionSource.collectIsHoveredAsState()
+    var previewVisible by remember(item.type, item.id) { mutableStateOf(false) }
     var trailerRequestId by remember(item.type, item.id) { mutableIntStateOf(0) }
     var trailerResolutionPending by remember(item.type, item.id) { mutableStateOf(false) }
     var trailerPlaybackSource by remember(item.type, item.id) {
         mutableStateOf<TrailerPlaybackSource?>(null)
     }
     var previewIsSaved by remember(item.type, item.id) { mutableStateOf(false) }
-    var pendingTrackingRemoval by remember(item.type, item.id) {
-        mutableStateOf<PendingTrackingMembershipRemoval?>(null)
-    }
     val actionScope = rememberCoroutineScope()
     val libraryItem = remember(item) { item.toLibraryItem(savedAtEpochMs = 0L) }
     val trackingListsUpdateFailedMessage = stringResource(Res.string.tracking_lists_update_failed)
@@ -169,19 +222,19 @@ internal fun HomePosterHoverPreview(
     LaunchedEffect(
         anchorHovered,
         previewHovered,
-        posterCardStyle.hoverPreviewOpenDelayMillis,
+        openDelayMillis,
         previewDismissedByScroll,
     ) {
         if (previewDismissedByScroll) {
             if (!anchorHovered && !previewHovered) {
-                previewDismissedByScroll = false
+                onPreviewDismissedByScrollChange(false)
             }
             return@LaunchedEffect
         }
         if (anchorHovered || previewHovered) {
             if (!popupMounted) {
-                delay(posterCardStyle.hoverPreviewOpenDelayMillis.toLong())
-                popupMounted = true
+                delay(openDelayMillis.toLong())
+                onPopupMountedChange(true)
                 withFrameNanos { }
             }
             previewVisible = true
@@ -189,7 +242,7 @@ internal fun HomePosterHoverPreview(
             delay(HoverPreviewCloseDelayMillis)
             previewVisible = false
             delay(HoverPreviewExitDurationMillis.toLong())
-            popupMounted = false
+            onPopupMountedChange(false)
         }
     }
 
@@ -262,12 +315,14 @@ internal fun HomePosterHoverPreview(
                     operation = { toggleMembership(emptySet()) },
                     onSuccess = { result ->
                         if (result.requiresRemovalConfirmation) {
-                            pendingTrackingRemoval = PendingTrackingMembershipRemoval(
-                                itemTitle = libraryItem.name,
-                                confirmations = result.requiredRemovalConfirmations,
-                                retry = toggleMembership,
-                                onApplied = completeUpdate,
-                                onFailure = showFailure,
+                            onPendingTrackingRemovalChange(
+                                PendingTrackingMembershipRemoval(
+                                    itemTitle = libraryItem.name,
+                                    confirmations = result.requiredRemovalConfirmations,
+                                    retry = toggleMembership,
+                                    onApplied = completeUpdate,
+                                    onFailure = showFailure,
+                                ),
                             )
                         } else {
                             completeUpdate(result)
@@ -280,75 +335,64 @@ internal fun HomePosterHoverPreview(
         }
     }
 
-    Box(modifier = modifier) {
-        content(Modifier.hoverable(anchorInteractionSource))
-
-        if (popupMounted) {
-            Popup(
-                popupPositionProvider = positionProvider,
-                properties = PopupProperties(focusable = false),
+    if (popupMounted) {
+        Popup(
+            popupPositionProvider = positionProvider,
+            properties = PopupProperties(focusable = false),
+        ) {
+            AnimatedVisibility(
+                visible = previewVisible,
+                enter = fadeIn(
+                    animationSpec = tween(
+                        durationMillis = HoverPreviewEnterDurationMillis,
+                        easing = NuvioTokens.Motion.decelerate,
+                    ),
+                ) + scaleIn(
+                    animationSpec = tween(
+                        durationMillis = HoverPreviewEnterDurationMillis,
+                        easing = NuvioTokens.Motion.emphasized,
+                    ),
+                    initialScale = 0.9f,
+                ) + slideInVertically(
+                    animationSpec = tween(
+                        durationMillis = HoverPreviewEnterDurationMillis,
+                        easing = NuvioTokens.Motion.decelerate,
+                    ),
+                    initialOffsetY = { height -> height / 18 },
+                ),
+                exit = fadeOut(
+                    animationSpec = tween(HoverPreviewExitDurationMillis),
+                ) + scaleOut(
+                    animationSpec = tween(HoverPreviewExitDurationMillis),
+                    targetScale = 0.97f,
+                ) + slideOutVertically(
+                    animationSpec = tween(HoverPreviewExitDurationMillis),
+                    targetOffsetY = { height -> height / 32 },
+                ),
             ) {
-                AnimatedVisibility(
-                    visible = previewVisible,
-                    enter = fadeIn(
-                        animationSpec = tween(
-                            durationMillis = HoverPreviewEnterDurationMillis,
-                            easing = NuvioTokens.Motion.decelerate,
-                        ),
-                    ) + scaleIn(
-                        animationSpec = tween(
-                            durationMillis = HoverPreviewEnterDurationMillis,
-                            easing = NuvioTokens.Motion.emphasized,
-                        ),
-                        initialScale = 0.9f,
-                    ) + slideInVertically(
-                        animationSpec = tween(
-                            durationMillis = HoverPreviewEnterDurationMillis,
-                            easing = NuvioTokens.Motion.decelerate,
-                        ),
-                        initialOffsetY = { height -> height / 18 },
-                    ),
-                    exit = fadeOut(
-                        animationSpec = tween(HoverPreviewExitDurationMillis),
-                    ) + scaleOut(
-                        animationSpec = tween(HoverPreviewExitDurationMillis),
-                        targetScale = 0.97f,
-                    ) + slideOutVertically(
-                        animationSpec = tween(HoverPreviewExitDurationMillis),
-                        targetOffsetY = { height -> height / 32 },
-                    ),
-                ) {
-                    HomePosterPreviewCard(
-                        item = item,
-                        isWatched = isWatched,
-                        isSaved = previewIsSaved,
-                        trailerEnabled = trailerPlaybackEnabled,
-                        trailerSoundEnabled = posterCardStyle.hoverPreviewTrailerSoundEnabled,
-                        trailerStartSeconds = posterCardStyle.hoverPreviewTrailerStartSeconds,
-                        trailerPlaybackSource = trailerPlaybackSource,
-                        modifier = Modifier
-                            .platformTouchScroll()
-                            .hoverable(previewInteractionSource)
-                            .onPointerEvent(PointerEventType.Scroll) {
-                                previewDismissedByScroll = true
-                                previewVisible = false
-                                popupMounted = false
-                            },
-                        onClick = onClick,
-                        onLongClick = onLongClick,
-                        onWatchedClick = onWatchedClick,
-                        onSaveClick = onSaveClick,
-                    )
-                }
+                HomePosterPreviewCard(
+                    item = item,
+                    isWatched = isWatched,
+                    isSaved = previewIsSaved,
+                    trailerEnabled = trailerPlaybackEnabled,
+                    trailerSoundEnabled = trailerSoundEnabled,
+                    trailerStartSeconds = trailerStartSeconds,
+                    trailerPlaybackSource = trailerPlaybackSource,
+                    modifier = Modifier
+                        .platformTouchScroll()
+                        .hoverable(previewInteractionSource)
+                        .onPointerEvent(PointerEventType.Scroll) {
+                            onPreviewDismissedByScrollChange(true)
+                            previewVisible = false
+                            onPopupMountedChange(false)
+                        },
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    onWatchedClick = onWatchedClick,
+                    onSaveClick = onSaveClick,
+                )
             }
         }
-    }
-
-    pendingTrackingRemoval?.let { pending ->
-        TrackingMembershipRemovalConfirmationHost(
-            pending = pending,
-            onPendingChange = { pendingTrackingRemoval = it },
-        )
     }
 }
 

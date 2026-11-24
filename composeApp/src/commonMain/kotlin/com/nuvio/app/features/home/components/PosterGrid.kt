@@ -30,6 +30,7 @@ import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.NuvioAsyncImage
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.NuvioDesktopImageScaling
 import com.nuvio.app.core.ui.NuvioPosterWatchedOverlay
 import com.nuvio.app.core.ui.SkeletonPoster
 import com.nuvio.app.core.ui.desktopPosterHoverScale
@@ -155,8 +156,9 @@ private fun PosterGridTile(
                         if (hasFallback) {
                             coil3.request.ImageRequest.Builder(platformContext)
                                 .data(item.poster)
-                                .memoryCacheKeyExtras(
-                                    mapOf(com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY to item.rawPosterUrl!!)
+                                .memoryCacheKeyExtra(
+                                    com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY,
+                                    item.rawPosterUrl!!,
                                 )
                                 .build()
                         } else {
@@ -169,6 +171,7 @@ private fun PosterGridTile(
                             contentDescription = item.name,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,
+                            desktopImageScaling = NuvioDesktopImageScaling.Card,
                             desktopAnimation = rememberAnimatedArtworkAnimation(),
                         )
                     } else {

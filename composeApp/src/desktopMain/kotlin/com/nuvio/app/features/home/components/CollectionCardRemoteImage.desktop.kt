@@ -21,6 +21,7 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.nuvio.app.core.storage.DesktopStorage
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.nuvio.app.core.ui.NuvioDesktopImageScaling
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
@@ -38,6 +39,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Canvas
 import org.jetbrains.skia.Codec
@@ -253,8 +255,17 @@ internal actual fun CollectionCardRemoteImage(
         if (currentHolder != null && currentHolder.frameDelaysMs.isNotEmpty()) {
             var frameIndex by remember(imageUrl) { mutableStateOf(0) }
 
-            // Allocate ONLY ONE single reusable Skia Bitmap for this card while hovered
-            val singleBitmap = remember(imageUrl, currentHolder) {
+            // Double-buffer decoded frames so background writes never mutate the bitmap Compose is drawing.
+            val bitmapA = remember(imageUrl, currentHolder) {
+                try {
+                    Bitmap().apply {
+                        allocPixels(ImageInfo.makeN32Premul(currentHolder.targetWidth, currentHolder.targetHeight))
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            val bitmapB = remember(imageUrl, currentHolder) {
                 try {
                     Bitmap().apply {
                         allocPixels(ImageInfo.makeN32Premul(currentHolder.targetWidth, currentHolder.targetHeight))
@@ -277,10 +288,13 @@ internal actual fun CollectionCardRemoteImage(
                 } else null
             }
 
-            DisposableEffect(singleBitmap, fullBitmap) {
+            DisposableEffect(bitmapA, bitmapB, fullBitmap) {
                 onDispose {
                     try {
-                        singleBitmap?.close()
+                        bitmapA?.close()
+                    } catch (_: Exception) {}
+                    try {
+                        bitmapB?.close()
                     } catch (_: Exception) {}
                     try {
                         fullBitmap?.close()
@@ -288,30 +302,40 @@ internal actual fun CollectionCardRemoteImage(
                 }
             }
 
-            if (singleBitmap != null) {
-                LaunchedEffect(imageUrl, currentHolder, singleBitmap, fullBitmap) {
+            if (bitmapA != null && bitmapB != null) {
+                LaunchedEffect(imageUrl, currentHolder, bitmapA, bitmapB, fullBitmap) {
+                    var useA = true
                     while (true) {
-                        try {
-                            if (currentHolder.needsScale && fullBitmap != null) {
-                                currentHolder.codec.readPixels(fullBitmap, frameIndex)
-                                val skiaImg = Image.makeFromBitmap(fullBitmap)
-                                try {
-                                    Canvas(singleBitmap).drawImageRect(
-                                        skiaImg,
-                                        Rect.makeWH(currentHolder.width.toFloat(), currentHolder.height.toFloat()),
-                                        Rect.makeWH(currentHolder.targetWidth.toFloat(), currentHolder.targetHeight.toFloat()),
-                                        SamplingMode.LINEAR,
-                                        null,
-                                        true,
-                                    )
-                                } finally {
-                                    skiaImg.close()
+                        val backBitmap = if (useA) bitmapA else bitmapB
+                        val decodedFrame = withContext(Dispatchers.Default) {
+                            runCatching {
+                                if (currentHolder.needsScale && fullBitmap != null) {
+                                    currentHolder.codec.readPixels(fullBitmap, frameIndex)
+                                    val skiaImg = Image.makeFromBitmap(fullBitmap)
+                                    try {
+                                        Canvas(backBitmap).use { canvas ->
+                                            canvas.drawImageRect(
+                                                skiaImg,
+                                                Rect.makeWH(currentHolder.width.toFloat(), currentHolder.height.toFloat()),
+                                                Rect.makeWH(currentHolder.targetWidth.toFloat(), currentHolder.targetHeight.toFloat()),
+                                                SamplingMode.LINEAR,
+                                                null,
+                                                true,
+                                            )
+                                        }
+                                    } finally {
+                                        skiaImg.close()
+                                    }
+                                } else {
+                                    currentHolder.codec.readPixels(backBitmap, frameIndex)
                                 }
-                            } else {
-                                currentHolder.codec.readPixels(singleBitmap, frameIndex)
-                            }
-                            composeBitmap = singleBitmap.asComposeImageBitmap()
-                        } catch (_: Exception) {}
+                                backBitmap.asComposeImageBitmap()
+                            }.getOrNull()
+                        }
+                        if (decodedFrame != null) {
+                            composeBitmap = decodedFrame
+                            useA = !useA
+                        }
 
                         val delayMs = currentHolder.frameDelaysMs.getOrElse(frameIndex) { 100L }
                         delay(delayMs)
@@ -339,13 +363,14 @@ internal actual fun CollectionCardRemoteImage(
     }
 
     Box(modifier = modifier.hoverable(hoverInteractionSource)) {
-        // Stacked Base Layer: uses NuvioAsyncImage with desktop high-quality anti-aliased scaling
+        // Stacked Base Layer: uses NuvioAsyncImage with desktop high-quality background downscaling
         AsyncImage(
             model = request,
             contentDescription = contentDescription,
             modifier = Modifier.matchParentSize(),
             contentScale = contentScale,
-            filterQuality = FilterQuality.High,
+            filterQuality = FilterQuality.Medium,
+            desktopImageScaling = NuvioDesktopImageScaling.Card,
         )
 
         val animatedFrame = composeBitmap
@@ -355,7 +380,7 @@ internal actual fun CollectionCardRemoteImage(
                 contentDescription = contentDescription,
                 modifier = Modifier.matchParentSize(),
                 contentScale = contentScale,
-                filterQuality = FilterQuality.High,
+                filterQuality = FilterQuality.Medium,
             )
         }
     }

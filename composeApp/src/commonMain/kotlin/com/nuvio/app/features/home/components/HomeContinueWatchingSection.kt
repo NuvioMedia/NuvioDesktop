@@ -33,7 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -50,6 +50,7 @@ import com.nuvio.app.core.ui.DisintegratingContainer
 import com.nuvio.app.core.ui.DisintegrationRequest
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.NuvioDesktopImageScaling
 import com.nuvio.app.core.ui.NuvioProgressBar
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.NuvioShelfSection
@@ -743,9 +744,7 @@ private fun ContinueWatchingCard(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(if (shouldBlurArtwork) Modifier.blur(18.dp) else Modifier)
-                    .drawWithContent {
-                        drawContent()
-
+                    .drawWithCache {
                         val startY = size.height * 0.45f
                         val gradient = Brush.verticalGradient(
                             colorStops = arrayOf(
@@ -756,12 +755,16 @@ private fun ContinueWatchingCard(
                             startY = startY,
                             endY = size.height,
                         )
-
-                        drawRect(
-                            brush = gradient,
-                            topLeft = Offset(-2f, startY),
-                            size = Size(size.width + 4f, (size.height - startY) + 4f),
-                        )
+                        val rectTopLeft = Offset(-2f, startY)
+                        val rectSize = Size(size.width + 4f, (size.height - startY) + 4f)
+                        onDrawWithContent {
+                            drawContent()
+                            drawRect(
+                                brush = gradient,
+                                topLeft = rectTopLeft,
+                                size = rectSize,
+                            )
+                        }
                     },
                 contentScale = ContentScale.Crop,
                 desktopAnimation = rememberAnimatedArtworkAnimation(),
@@ -900,10 +903,16 @@ private fun ContinueWatchingWideCard(
     onLongClick: (() -> Unit)?,
 ) {
     val cornerRadius = rememberPosterCardStyleUiState().cornerRadiusDp.dp
+    val artworkUrl = item.continueWatchingArtworkUrl(useEpisodeThumbnails)
     Row(
         modifier = Modifier
             .nuvioFocusBorder(RoundedCornerShape(cornerRadius))
-            .posterCardClickable(onClick = onClick, onLongClick = onLongClick)
+            .posterCardClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                zoomImageUrl = artworkUrl,
+                zoomCornerRadius = cornerRadius,
+            )
             .width(layout.wideCardWidth)
             .height(layout.wideCardHeight)
             .clip(RoundedCornerShape(cornerRadius))
@@ -914,7 +923,6 @@ private fun ContinueWatchingWideCard(
                 shape = RoundedCornerShape(cornerRadius),
             ),
     ) {
-        val artworkUrl = item.continueWatchingArtworkUrl(useEpisodeThumbnails)
         val shouldBlurArtwork = item.shouldBlurContinueWatchingArtwork(
             blurUnwatchedEpisodes = blurNextUp,
             useEpisodeThumbnails = useEpisodeThumbnails,
@@ -1074,6 +1082,7 @@ private fun ContinueWatchingPosterCard(
                         .fillMaxSize()
                         .then(if (shouldBlurArtwork) Modifier.blur(18.dp) else Modifier),
                     contentScale = if (item.isCloudLibraryItem()) ContentScale.Fit else ContentScale.Crop,
+                    desktopImageScaling = NuvioDesktopImageScaling.Card,
                     desktopAnimation = rememberAnimatedArtworkAnimation(),
                 )
             }
@@ -1187,6 +1196,7 @@ private fun ArtworkPanel(
                     .fillMaxSize()
                     .then(if (blurred) Modifier.blur(18.dp) else Modifier),
                 contentScale = contentScale,
+                desktopImageScaling = NuvioDesktopImageScaling.Card,
                 desktopAnimation = rememberAnimatedArtworkAnimation(),
             )
         }

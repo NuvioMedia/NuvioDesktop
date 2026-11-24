@@ -368,7 +368,7 @@ internal object DesktopControllerInput {
 
             if (connectedIndex == -1) {
                 if (now < rescanAt) {
-                    sleepQuietly()
+                    runCatching { Thread.sleep((rescanAt - now).coerceIn(1L, RESCAN_INTERVAL_MS)) }
                     continue
                 }
                 rescanAt = now + RESCAN_INTERVAL_MS
@@ -604,7 +604,8 @@ internal object DesktopControllerInput {
                     )
                 }
 
-                Thread.sleep(POLL_INTERVAL_MS.coerceAtLeast(1L))
+                val sleepMs = if (controllers.isEmpty()) 250L else POLL_INTERVAL_MS.coerceAtLeast(1L)
+                Thread.sleep(sleepMs)
             }
         } finally {
             controllers.values.forEach { runCatching { sdl.SDL_GameControllerClose(it) } }

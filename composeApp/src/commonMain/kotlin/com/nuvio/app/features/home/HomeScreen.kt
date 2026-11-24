@@ -107,6 +107,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -197,10 +198,23 @@ fun HomeScreen(
     }
 
     LaunchedEffect(homeListState, navBarScrollState) {
-        snapshotFlow {
-            (homeListState.firstVisibleItemIndex * 80f) + homeListState.firstVisibleItemScrollOffset.toFloat()
-        }.collect { calculatedOffset ->
-            navBarScrollState?.updateScrollOffset(AppScreenTab.Home, calculatedOffset)
+        val scrollState = navBarScrollState ?: return@LaunchedEffect
+        if (isDesktop) {
+            // Desktop TopBar only checks whether Home has scrolled past its 35px threshold; emit
+            // once per crossing instead of mutating Compose snapshot state on every scroll pixel.
+            snapshotFlow {
+                homeListState.firstVisibleItemIndex > 0 || homeListState.firstVisibleItemScrollOffset > 35
+            }
+                .distinctUntilChanged()
+                .collect { scrolledAway ->
+                    scrollState.updateScrollOffset(AppScreenTab.Home, if (scrolledAway) 100f else 0f)
+                }
+        } else {
+            snapshotFlow {
+                (homeListState.firstVisibleItemIndex * 80f) + homeListState.firstVisibleItemScrollOffset.toFloat()
+            }.collect { calculatedOffset ->
+                scrollState.updateScrollOffset(AppScreenTab.Home, calculatedOffset)
+            }
         }
     }
 
@@ -348,20 +362,6 @@ fun HomeScreen(
     val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
     val activeProfileId = profileState.activeProfile?.profileIndex ?: 1
     val cwCacheGeneration by ContinueWatchingEnrichmentCache.generation.collectAsStateWithLifecycle()
-    var hasUserScrolledContinueWatching by remember(activeProfileId) { mutableStateOf(false) }
-    var hasUserScrolledUpcoming by remember(activeProfileId) { mutableStateOf(false) }
-
-    LaunchedEffect(activeProfileId, continueWatchingListState) {
-        snapshotFlow { continueWatchingListState.isScrollInProgress }.collect { isScrolling ->
-            if (isScrolling) hasUserScrolledContinueWatching = true
-        }
-    }
-
-    LaunchedEffect(activeProfileId, upcomingListState) {
-        snapshotFlow { upcomingListState.isScrollInProgress }.collect { isScrolling ->
-            if (isScrolling) hasUserScrolledUpcoming = true
-        }
-    }
 
     var nextUpItemsBySeries by remember(activeProfileId, effectiveWatchProgressSource) {
         mutableStateOf<Map<String, Pair<Long, ContinueWatchingItem>>>(emptyMap())
@@ -579,8 +579,6 @@ fun HomeScreen(
     val hasContinueWatchingRows = continueWatchingItems.isNotEmpty() || upcomingItems.isNotEmpty()
 
     LaunchedEffect(activeProfileId) {
-        hasUserScrolledContinueWatching = false
-        hasUserScrolledUpcoming = false
         continueWatchingListState.scrollToItem(0)
         upcomingListState.scrollToItem(0)
     }
@@ -642,15 +640,17 @@ fun HomeScreen(
         if (completedSeriesCandidates.isEmpty()) {
             nextUpItemsBySeries = emptyMap()
             processedNextUpContentIds = emptySet()
-            saveContinueWatchingSnapshots(
-                profileId = activeProfileId,
-                source = effectiveWatchProgressSource,
-                cacheGeneration = cwCacheGeneration,
-                nextUpItemsBySeries = emptyMap(),
-                visibleContinueWatchingEntries = visibleContinueWatchingEntries,
-                todayIsoDate = CurrentDateProvider.todayIsoDate(),
-                seedLastWatchedMap = emptyMap(),
-            )
+            withContext(Dispatchers.Default) {
+                saveContinueWatchingSnapshots(
+                    profileId = activeProfileId,
+                    source = effectiveWatchProgressSource,
+                    cacheGeneration = cwCacheGeneration,
+                    nextUpItemsBySeries = emptyMap(),
+                    visibleContinueWatchingEntries = visibleContinueWatchingEntries,
+                    todayIsoDate = CurrentDateProvider.todayIsoDate(),
+                    seedLastWatchedMap = emptyMap(),
+                )
+            }
             return@ScreenActivityEffect
         }
 
@@ -989,7 +989,7 @@ fun HomeScreen(
         }
 
         val heroStretchState = rememberHeroStretchState(homeListState)
-        val heroStretchModifier = if (showHeroSlot) {
+        val heroStretchModifier = if (showHeroSlot && !isDesktop) {
             Modifier.nestedScroll(heroStretchState.nestedScrollConnection)
         } else {
             Modifier
@@ -1208,6 +1208,13 @@ fun HomeScreen(
                             val section = sectionsMap[settingsItem.key]
                             if (section != null && section.items.isNotEmpty()) {
                                 item(key = keyedSettingsItem.lazyKey, contentType = "catalog") {
+                                    val viewAllClick = remember(onCatalogClick, section, homeCatalogPreviewLimit) {
+                                        if (section.canOpenCatalog(homeCatalogPreviewLimit)) {
+                                            onCatalogClick?.let { cb -> { cb(section) } }
+                                        } else {
+                                            null
+                                        }
+                                    }
                                     HomeCatalogRowSection(
                                         section = section,
                                         entries = if (isDesktop) {
@@ -1219,11 +1226,7 @@ fun HomeScreen(
                                         },
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
-                                        onViewAllClick = if (section.canOpenCatalog(homeCatalogPreviewLimit)) {
-                                            onCatalogClick?.let { { it(section) } }
-                                        } else {
-                                            null
-                                        },
+                                        onViewAllClick = viewAllClick,
                                         watchedKeys = watchedUiState.watchedKeys,
                                         fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                                         onPosterClick = onPosterClick,
