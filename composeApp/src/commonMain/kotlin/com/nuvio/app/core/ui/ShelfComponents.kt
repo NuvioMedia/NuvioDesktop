@@ -59,7 +59,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.util.VelocityTracker
-import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -187,6 +186,167 @@ fun <T> NuvioShelfSection(
 private val DesktopDragScrollTouchSlop = 8.dp
 private val DesktopDragScrollMinFlingVelocity = 50.dp
 private val DesktopDragScrollMaxFlingVelocity = 8000.dp
+
+private const val DesktopDragStopThresholdMs = 40L
+private const val DesktopDragVelocityWindowMs = 100L
+private const val DesktopDragDirectionJitterPx = 4f
+private const val DesktopDragSampleCapacity = 32
+
+private class DesktopDragVelocityEstimator(
+    private val horizontal: Boolean,
+) {
+    private val velocityTracker = VelocityTracker()
+    private val sampleStartTimes = LongArray(DesktopDragSampleCapacity)
+    private val sampleEndTimes = LongArray(DesktopDragSampleCapacity)
+    private val sampleAxisDeltas = FloatArray(DesktopDragSampleCapacity)
+    private var sampleHead = 0
+    private var sampleCount = 0
+    private var lastEventTimeMs = 0L
+    private var cumulativeAxisPos = 0f
+    private var lastSignificantSign = 0f
+    private var pendingOppositeDelta = 0f
+
+    private fun toOffset(axisPos: Float): Offset =
+        if (horizontal) Offset(axisPos, 0f) else Offset(0f, axisPos)
+
+    private fun Velocity.toAxis(): Float = if (horizontal) x else y
+
+    private fun clearSamples() {
+        sampleHead = 0
+        sampleCount = 0
+    }
+
+    private fun pushSample(startTimeMs: Long, endTimeMs: Long, axisDelta: Float) {
+        if (sampleCount > 0) {
+            val lastIdx = (sampleHead + sampleCount - 1) % DesktopDragSampleCapacity
+            if (sampleEndTimes[lastIdx] == endTimeMs) {
+                sampleAxisDeltas[lastIdx] += axisDelta
+                return
+            }
+        }
+        if (endTimeMs <= startTimeMs) return
+        val insertIdx = if (sampleCount < DesktopDragSampleCapacity) {
+            (sampleHead + sampleCount).also { sampleCount++ } % DesktopDragSampleCapacity
+        } else {
+            sampleHead.also { sampleHead = (sampleHead + 1) % DesktopDragSampleCapacity }
+        }
+        sampleStartTimes[insertIdx] = startTimeMs
+        sampleEndTimes[insertIdx] = endTimeMs
+        sampleAxisDeltas[insertIdx] = axisDelta
+    }
+
+    fun start(timeMs: Long) {
+        velocityTracker.resetTracking()
+        clearSamples()
+        lastEventTimeMs = timeMs
+        cumulativeAxisPos = 0f
+        lastSignificantSign = 0f
+        pendingOppositeDelta = 0f
+        velocityTracker.addPosition(timeMs, Offset.Zero)
+    }
+
+    fun addDelta(timeMs: Long, axisDelta: Float) {
+        if (axisDelta == 0f) return
+        val dt = timeMs - lastEventTimeMs
+        if (dt < 0L) return
+        if (dt >= DesktopDragStopThresholdMs) {
+            start(timeMs)
+            lastSignificantSign = sign(axisDelta)
+            cumulativeAxisPos = axisDelta
+            velocityTracker.addPosition(timeMs, toOffset(cumulativeAxisPos))
+            return
+        }
+
+        val deltaSign = sign(axisDelta)
+        val acceptedDelta: Float
+        if (lastSignificantSign != 0f && deltaSign != lastSignificantSign) {
+            pendingOppositeDelta += axisDelta
+            if (abs(pendingOppositeDelta) < DesktopDragDirectionJitterPx) {
+                return
+            }
+            acceptedDelta = pendingOppositeDelta
+            pendingOppositeDelta = 0f
+            val prevTimeMs = lastEventTimeMs
+            velocityTracker.resetTracking()
+            clearSamples()
+            lastSignificantSign = sign(acceptedDelta)
+            velocityTracker.addPosition(prevTimeMs, Offset.Zero)
+            cumulativeAxisPos = acceptedDelta
+            velocityTracker.addPosition(timeMs, toOffset(cumulativeAxisPos))
+            pushSample(prevTimeMs, timeMs, acceptedDelta)
+            lastEventTimeMs = timeMs
+            return
+        } else {
+            pendingOppositeDelta = 0f
+            acceptedDelta = axisDelta
+            if (abs(acceptedDelta) >= DesktopDragDirectionJitterPx || lastSignificantSign == 0f) {
+                lastSignificantSign = deltaSign
+            }
+        }
+
+        val prevTimeMs = lastEventTimeMs
+        cumulativeAxisPos += acceptedDelta
+        velocityTracker.addPosition(timeMs, toOffset(cumulativeAxisPos))
+        pushSample(prevTimeMs, timeMs, acceptedDelta)
+        lastEventTimeMs = timeMs
+    }
+
+    fun calculateAxisVelocity(
+        releaseTimeMs: Long,
+        minVelocityPx: Float,
+        maxVelocityPx: Float,
+    ): Float {
+        if (releaseTimeMs - lastEventTimeMs >= DesktopDragStopThresholdMs) {
+            return 0f
+        }
+        val windowStartCutoffMs = releaseTimeMs - DesktopDragVelocityWindowMs
+        var totalDelta = 0f
+        var windowFirstStartMs = Long.MAX_VALUE
+        var windowLastEndMs = Long.MIN_VALUE
+        var consistentDirection = true
+        var expectedSign = 0f
+        var qualifyingSamples = 0
+        for (i in 0 until sampleCount) {
+            val idx = (sampleHead + i) % DesktopDragSampleCapacity
+            val endMs = sampleEndTimes[idx]
+            if (endMs < windowStartCutoffMs) continue
+            val delta = sampleAxisDeltas[idx]
+            if (delta == 0f) continue
+            val s = sign(delta)
+            if (expectedSign == 0f) {
+                expectedSign = s
+            } else if (s != expectedSign) {
+                consistentDirection = false
+            }
+            totalDelta += delta
+            if (sampleStartTimes[idx] < windowFirstStartMs) {
+                windowFirstStartMs = sampleStartTimes[idx]
+            }
+            if (endMs > windowLastEndMs) {
+                windowLastEndMs = endMs
+            }
+            qualifyingSamples++
+        }
+
+        val lsqVelocity = velocityTracker.calculateVelocity(
+            Velocity(maxVelocityPx, maxVelocityPx),
+        ).toAxis()
+
+        var rawVelocity = lsqVelocity
+        if (qualifyingSamples > 0 && windowLastEndMs > windowFirstStartMs) {
+            val windowAvgSpeed = (totalDelta * 1000f / (windowLastEndMs - windowFirstStartMs))
+                .coerceIn(-maxVelocityPx, maxVelocityPx)
+            if (
+                consistentDirection &&
+                windowAvgSpeed != 0f &&
+                (rawVelocity == 0f || sign(rawVelocity) != sign(windowAvgSpeed))
+            ) {
+                rawVelocity = windowAvgSpeed
+            }
+        }
+        return if (abs(rawVelocity) >= minVelocityPx) rawVelocity else 0f
+    }
+}
 
 private val NoOpDesktopDragNestedScrollConnection = object : NestedScrollConnection {}
 
@@ -371,8 +531,8 @@ internal fun Modifier.nuvioDesktopDragScroll(
                         down = mainDown
                     }
 
-                    val velocityTracker = VelocityTracker().apply {
-                        addPointerInputChange(down)
+                    val velocityEstimator = DesktopDragVelocityEstimator(horizontal).apply {
+                        start(down.uptimeMillis)
                     }
                     var totalDx = 0f
                     var totalDy = 0f
@@ -384,22 +544,15 @@ internal fun Modifier.nuvioDesktopDragScroll(
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (change.isConsumed) break
                             val released = !change.pressed || !event.buttons.isPrimaryPressed
-                            if (!released || !change.pressed) {
-                                velocityTracker.addPointerInputChange(change)
-                            }
 
                             if (released) {
                                 if (dragging) {
                                     change.consume()
-                                    val measured = velocityTracker.calculateVelocity(
-                                        Velocity(maxFlingVelocityPx, maxFlingVelocityPx),
+                                    val axisVelocity = velocityEstimator.calculateAxisVelocity(
+                                        releaseTimeMs = change.uptimeMillis,
+                                        minVelocityPx = minFlingVelocityPx,
+                                        maxVelocityPx = maxFlingVelocityPx,
                                     )
-                                    val rawAxisVelocity = measured.toAxis()
-                                    val axisVelocity = if (abs(rawAxisVelocity) >= minFlingVelocityPx) {
-                                        rawAxisVelocity
-                                    } else {
-                                        0f
-                                    }
                                     dragChannel?.let { channel ->
                                         stopDispatched = true
                                         channel.trySend(DesktopDragScrollEvent.Stop(toVelocity(axisVelocity)))
@@ -410,6 +563,7 @@ internal fun Modifier.nuvioDesktopDragScroll(
 
                             val delta = change.position - change.previousPosition
                             val axisDelta = if (horizontal) delta.x else delta.y
+                            velocityEstimator.addDelta(change.uptimeMillis, axisDelta)
                             if (!dragging) {
                                 totalDx += delta.x
                                 totalDy += delta.y
