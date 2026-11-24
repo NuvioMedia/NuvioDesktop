@@ -790,7 +790,7 @@ object ControllerFocusEngine {
             manualSidebarOpen = false
             invokeGlobalHandler { it.onExitNavigationZone?.invoke(); false }
         }
-        if (previousId != null && previousId != node.id) {
+        if (previousId != null && previousId != node.id && ControllerManager.isNavigationActive.value) {
             ControllerSoundPlayer.playNavigate()
         }
         if (triggerScroll) {
