@@ -31,6 +31,7 @@ import com.nuvio.app.features.player.SubtitleOutlineColorSwatches
 import com.nuvio.app.features.player.SubtitleStyleState
 import com.nuvio.app.features.player.SubtitleTrack
 import com.nuvio.app.features.player.inferForcedSubtitleTrack
+import com.nuvio.app.features.player.subtitleFormatBadgeForCodec
 import com.nuvio.app.features.player.toStorageHexString
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -1052,7 +1053,7 @@ internal class NativePlayerController(
             SubtitleTrack(
                 index = track.index,
                 id = track.id,
-                label = track.label,
+                label = track.label.takeUnless { it.equals(track.language, ignoreCase = true) }.orEmpty(),
                 language = track.language.takeUnless(String::isBlank),
                 isSelected = track.selected,
                 isForced = track.forced || inferForcedSubtitleTrack(
@@ -1060,6 +1061,7 @@ internal class NativePlayerController(
                     language = track.language,
                     trackId = track.id,
                 ),
+                formatBadge = subtitleFormatBadgeForCodec(track.codec),
             )
         }
 
@@ -1138,11 +1140,15 @@ internal class NativePlayerController(
         }
     }
 
+    override val supportsAssStyleCustomization = true
+
+    override val rendersAssNatively = true
+
     override fun applySubtitleStyle(style: SubtitleStyleState, useLibass: Boolean) {
         pendingSubtitleStyle = style
-        pendingUseLibass = useLibass
+        pendingUseLibass = !style.appearance.customizeAss
         handle.takeIf { it != 0L }?.let { current ->
-            applySubtitleStyle(current, style, useLibass)
+            applySubtitleStyle(current, style, !style.appearance.customizeAss)
         }
     }
 
@@ -1213,6 +1219,7 @@ private data class NativeMpvTrack(
     val id: String = "",
     val label: String = "",
     val language: String = "",
+    val codec: String = "",
     val selected: Boolean = false,
     val forced: Boolean = false,
 )
@@ -1279,7 +1286,7 @@ private fun SubtitleStyleState.toMpvSubtitleShadow(): MpvSubtitleShadow {
 }
 
 private fun SubtitleStyleState.toMpvSubtitleFontSize(): Float =
-    (fontSizeSp * 3f).coerceIn(18f, 96f)
+    (fontSizeSp * 3f).coerceIn(18f, 120f)
 
 private fun Int.toHexByte(): String {
     val digits = "0123456789ABCDEF"
@@ -1478,6 +1485,8 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         appendJsonField("subtitleAddonsTabLabel", subtitleAddonsTabLabel)
         append(',')
         appendJsonField("subtitleStyleTabLabel", subtitleStyleTabLabel)
+        append(',')
+        appendJsonField("customSubtitleStyleLabel", customSubtitleStyleLabel)
         append(',')
         appendJsonField("forcedLabel", forcedLabel)
         append(',')
@@ -1727,6 +1736,10 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         appendJsonField("selectedAddonSubtitleId", selectedAddonSubtitleId)
         append(',')
         appendJsonField("useCustomSubtitles", useCustomSubtitles)
+        append(',')
+        appendJsonField("showCustomSubtitleStyleToggle", showCustomSubtitleStyleToggle)
+        append(',')
+        appendJsonField("customSubtitleStylingEnabled", customSubtitleStylingEnabled)
         append(',')
         appendJsonField("subtitleDelayMs", subtitleDelayMs)
         append(',')
@@ -1996,6 +2009,8 @@ private fun StringBuilder.appendSubtitleOptionItemJson(item: PlayerControlSubtit
     appendJsonField("title", item.title)
     append(',')
     appendJsonField("metadata", item.metadata)
+    append(',')
+    appendJsonField("formatBadge", item.formatBadge)
     append(',')
     appendJsonField("isSelected", item.isSelected)
     append(',')

@@ -2472,6 +2472,13 @@ button:disabled {
   min-width: 0;
 }
 
+.style-toggle-section {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
 .custom-subtitle-style-controls {
   display: contents;
 }
@@ -2857,10 +2864,40 @@ button:disabled {
   color: color-mix(in srgb, var(--theme-on-accent) 90%, transparent);
 }
 
+.subtitle-option-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .subtitle-option-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   color: inherit;
   font-size: 16px;
   line-height: 24px;
+}
+
+.subtitle-format-chip {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  color: rgba(255, 255, 255, .78);
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+.subtitle-option-row.selected .subtitle-format-chip {
+  background: color-mix(in srgb, var(--theme-on-accent) 14%, transparent);
+  color: color-mix(in srgb, var(--theme-on-accent) 90%, transparent);
 }
 
 .subtitle-option-metadata,
@@ -3743,6 +3780,7 @@ svg {
 }
 
 .autosynced-chip {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -3761,6 +3799,7 @@ svg {
 }
 
 .subtitle-source-row {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;

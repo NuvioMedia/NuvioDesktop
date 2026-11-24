@@ -101,6 +101,9 @@ const subtitleStyleRail = document.getElementById("subtitleStyleRail");
 const subtitleStyleRailTitle = document.getElementById("subtitleStyleRailTitle");
 const addonSubtitleList = document.getElementById("addonSubtitleList");
 const subtitleStylePanel = document.getElementById("subtitleStylePanel");
+const customSubtitleStyleSection = document.getElementById("customSubtitleStyleSection");
+const customSubtitleStyleLabel = document.getElementById("customSubtitleStyleLabel");
+const customSubtitleStyleToggle = document.getElementById("customSubtitleStyleToggle");
 const subtitleDelayLabel = document.getElementById("subtitleDelayLabel");
 const subtitleDelayMinus = document.getElementById("subtitleDelayMinus");
 const subtitleDelayValue = document.getElementById("subtitleDelayValue");
@@ -273,6 +276,7 @@ let state = {
   subtitleBuiltInTabLabel: "Built-in",
   subtitleAddonsTabLabel: "Addons",
   subtitleStyleTabLabel: "Style",
+  customSubtitleStyleLabel: "Customize ASS/SSA styling",
   forcedLabel: "Forced",
   noneLabel: "None",
   fetchSubtitlesLabel: "Tap to fetch subtitles",
@@ -374,6 +378,8 @@ let state = {
   isLoadingAddonSubtitles: false,
   selectedAddonSubtitleId: "",
   useCustomSubtitles: false,
+  showCustomSubtitleStyleToggle: false,
+  customSubtitleStylingEnabled: false,
   subtitleDelayMs: 0,
   hasSelectedAddonSubtitle: false,
   subtitleAutoSyncCapturedPositionMs: -1,
@@ -421,6 +427,13 @@ let pendingIsPlaying = null;
 let pendingPlaybackTimer = 0;
 let lastNativeIsPlaying = true;
 let suppressNextPointerToggleClick = false;
+let pendingCustomSubtitleStyling = null;
+let pendingCustomSubtitleStylingTimer = 0;
+const clearPendingCustomSubtitleStyling = () => {
+  pendingCustomSubtitleStyling = null;
+  window.clearTimeout(pendingCustomSubtitleStylingTimer);
+  pendingCustomSubtitleStylingTimer = 0;
+};
 let pendingSpeedIndex = null;
 let pendingSpeedTimer = 0;
 let submitIntroDraft = {
@@ -1100,6 +1113,7 @@ const setModalVisibility = (modal, visible, animated = true) => {
 const closePlayerModal = (notifyDismiss = false, animated = true) => {
   const closingModal = activeModal;
   activeModal = "";
+  clearPendingCustomSubtitleStyling();
   if (fontPickerOpen) setFontPickerOpen(false);
   modalElements.forEach(modal => {
     setModalVisibility(modal, false, animated);
@@ -1275,6 +1289,7 @@ const subtitleSelectionOptions = () => normalizeItems(state.subtitleOptionItems)
   sourceLabel: String(item.sourceLabel || ""),
   title: String(item.title || ""),
   metadata: String(item.metadata || ""),
+  formatBadge: String(item.formatBadge || ""),
   selected: Boolean(item.isSelected),
   autoSynced: Boolean(item.isAutoSynced),
   index: Number(item.index) || 0,
@@ -1299,6 +1314,7 @@ const resetSubtitleSelectionState = () => {
     ? selectedLanguageKey
     : (selected ? selected.languageKey : "__off__");
   pendingSubtitleOptionId = String(state.selectedSubtitleOptionId || (selected ? selected.id : ""));
+  clearPendingCustomSubtitleStyling();
 };
 
 const appendSubtitleLanguageRow = item => {
@@ -1310,6 +1326,7 @@ const appendSubtitleLanguageRow = item => {
     activeSubtitleLanguageKey = item.key;
     const options = subtitleSelectionOptions().filter(option => option.languageKey === item.key);
     pendingSubtitleOptionId = options.some(option => option.id === pendingSubtitleOptionId) ? pendingSubtitleOptionId : "";
+    clearPendingCustomSubtitleStyling();
     showHiddenSubtitles();
     if (item.key === "__off__") send("selectBuiltInSubtitleTrack", -1);
     renderSubtitleModal();
@@ -1341,6 +1358,7 @@ const appendSubtitleOptionRow = option => {
   row.addEventListener("click", event => {
     event.stopPropagation();
     pendingSubtitleOptionId = option.id;
+    clearPendingCustomSubtitleStyling();
     showHiddenSubtitles();
     if (option.kind === "builtIn") send("selectBuiltInSubtitleTrack", option.index);
     else send("selectAddonSubtitle", option.index);
@@ -1364,10 +1382,19 @@ const appendSubtitleOptionRow = option => {
     sourceRow.appendChild(chip);
   }
   copy.appendChild(sourceRow);
+  const titleRow = document.createElement("span");
+  titleRow.className = "subtitle-option-title-row";
   const title = document.createElement("span");
   title.className = "subtitle-option-title";
   title.textContent = option.title;
-  copy.appendChild(title);
+  titleRow.appendChild(title);
+  if (option.formatBadge) {
+    const badge = document.createElement("span");
+    badge.className = "subtitle-format-chip";
+    badge.textContent = option.formatBadge;
+    titleRow.appendChild(badge);
+  }
+  copy.appendChild(titleRow);
   if (option.metadata) {
     const metadata = document.createElement("span");
     metadata.className = "subtitle-option-metadata";
@@ -1426,6 +1453,7 @@ const renderSubtitleSelectionRails = () => {
     option.id === pendingSubtitleOptionId || (!pendingSubtitleOptionId && option.selected));
   subtitleStyleRail.hidden = !styleVisible;
   subtitleStyleRail.parentElement.classList.toggle("style-visible", styleVisible);
+  if (!styleVisible && fontPickerOpen) setFontPickerOpen(false);
   if (styleVisible) renderSubtitleStylePanel();
 };
 
@@ -1510,12 +1538,30 @@ const renderAutoSyncCues = () => {
 
 const renderSubtitleStylePanel = () => {
   const style = state.subtitleStyle || {};
+  const pendingOption = pendingSubtitleOptionId && pendingSubtitleOptionId !== String(state.selectedSubtitleOptionId || "")
+    ? subtitleSelectionOptions().find(option => option.id === pendingSubtitleOptionId)
+    : null;
+  const showCustomStyleToggle = pendingOption
+    ? false
+    : state.showCustomSubtitleStyleToggle === true;
+  const storedCustomStyling = state.customSubtitleStylingEnabled === true;
+  if (!showCustomStyleToggle || (pendingCustomSubtitleStyling !== null && pendingCustomSubtitleStyling === storedCustomStyling)) {
+    clearPendingCustomSubtitleStyling();
+  }
+  const customStylingEnabled = pendingCustomSubtitleStyling ?? storedCustomStyling;
   subtitleDelayLabel.textContent = state.subtitleDelayLabel || "Subtitle Delay";
   subtitleDelayValue.textContent = formatDelay(state.subtitleDelayMs);
   subtitleDelayReset.textContent = state.resetLabel || "Reset";
   autoSyncLabel.textContent = state.autoSyncLabel || "Auto Sync";
   autoSyncReload.textContent = state.reloadSmallLabel || "Reload";
   autoSyncCapture.textContent = state.captureLineLabel || "Capture";
+  customSubtitleStyleSection.hidden = !showCustomStyleToggle;
+  customSubtitleStyleLabel.textContent = state.customSubtitleStyleLabel || "Customize ASS/SSA styling";
+  customSubtitleStyleToggle.textContent = customStylingEnabled
+    ? (state.onLabel || "On")
+    : (state.offLabel || "Off");
+  customSubtitleStyleToggle.classList.toggle("primary", customStylingEnabled);
+  customSubtitleStyleToggle.setAttribute("aria-pressed", customStylingEnabled ? "true" : "false");
   fontSizeLabel.textContent = state.fontSizeLabel || "Font Size";
   fontSizeValue.textContent = `${Number(style.fontSizeSp) || 18}sp`;
   outlineLabel.textContent = state.outlineLabel || "Outline";
@@ -3299,6 +3345,19 @@ autoSyncCapture.addEventListener("click", event => {
   event.stopPropagation();
   send("subtitleAutoSyncCapture", 0);
 });
+customSubtitleStyleToggle.addEventListener("click", event => {
+  event.stopPropagation();
+  if (state.showCustomSubtitleStyleToggle !== true) return;
+  const current = pendingCustomSubtitleStyling ?? (state.customSubtitleStylingEnabled === true);
+  pendingCustomSubtitleStyling = !current;
+  renderSubtitleStylePanel();
+  send("subtitleCustomStyleToggle", 0);
+  window.clearTimeout(pendingCustomSubtitleStylingTimer);
+  pendingCustomSubtitleStylingTimer = window.setTimeout(() => {
+    clearPendingCustomSubtitleStyling();
+    if (activeModal === "subtitles" && !subtitleStyleRail.hidden) renderSubtitleStylePanel();
+  }, 1500);
+});
 fontSizeMinus.addEventListener("click", event => {
   event.stopPropagation();
   send("subtitleFontSizeDelta", -2);
@@ -3383,6 +3442,7 @@ shadowSizePlus.addEventListener("click", event => {
 });
 subtitleStyleReset.addEventListener("click", event => {
   event.stopPropagation();
+  clearPendingCustomSubtitleStyling();
   send("subtitleStyleReset", 0);
 });
 
@@ -3639,17 +3699,9 @@ window.playerUpdate = update => {
   if (typeof volumeLevel === "number" && volumeLevel > 0) {
     preMuteVolumeLevel = volumeLevel;
   }
-  if (subtitleTracksChanged && activeModal === "subtitles") {
-    const selected = selectedSubtitleOption(subtitleSelectionOptions());
-    if (selected) {
-      activeSubtitleLanguageKey = selected.languageKey;
-      pendingSubtitleOptionId = selected.id;
-    }
-  }
   if (unchanged) return;
   renderChrome();
   if ((audioTracksChanged && activeModal === "audio") ||
-      (subtitleTracksChanged && activeModal === "subtitles") ||
       (nativeIsPlaying && activeModal === "chapters")) {
     renderActiveModal();
   }
@@ -3709,6 +3761,10 @@ window.playerControls = nextState => {
       (state.selectedSubtitleOptionId || "") !== previousSelectedSubtitleOptionId)
   ) {
     resetSubtitleSelectionState();
+  }
+  if (state.showCustomSubtitleStyleToggle !== true ||
+      (pendingCustomSubtitleStyling !== null && pendingCustomSubtitleStyling === (state.customSubtitleStylingEnabled === true))) {
+    clearPendingCustomSubtitleStyling();
   }
   const preventModalAutoScrolling = activeModal === "sources" || activeModal === "episodes";
   render(preventModalAutoScrolling);

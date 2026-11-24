@@ -22,7 +22,9 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <clocale>
+#include <cmath>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
@@ -115,6 +117,16 @@ struct Player {
     // delivered): Kotlin dedups by structure and may never resend, so this is
     // also what restores the page after a web-process crash/reload.
     std::string pendingControlsJson;
+    std::mutex subtitleStyleMutex;
+    bool hasAppliedSubtitleStyle = false;
+    bool subtitleUseLibass = true;
+    bool subtitleBold = false;
+    double subtitleFontSize = 54.0;
+    int64_t subtitleRawPosition = 90;
+    std::string appliedSubtitleAssOverride;
+    std::string appliedSubtitleAssStyleOverride;
+    double appliedSubtitleScale = 1.0;
+    int64_t appliedSubtitlePosition = 90;
     std::atomic<bool> firstFrameShown{false};  // gates the loading-screen composite
     // Keyboard shortcuts render a small feedback toast in the page without
     // revealing the chrome, so they open the composite gate for a bounded
@@ -925,7 +937,7 @@ std::string mpvGetStr(mpv_handle *mpv, const std::string &name) {
 
 // Build the formatted track list both the controls webview and the Kotlin
 // NativeMpvTrack decoder expect (macOS parity — mirrors tracksJsonForType):
-// [{"index":N,"id":"..","label":"..","language":"..","selected":bool,"forced":bool}]
+// [{"index":N,"id":"..","label":"..","language":"..","codec":"..","selected":bool,"forced":bool}]
 // (raw mpv track-list JSON does NOT match: id is an int, no index/label, lang!=language.)
 std::string buildTracksJson(mpv_handle *mpv, const char *wantedType) {
     if (!mpv) return "[]";
@@ -973,7 +985,7 @@ std::string buildTracksJson(mpv_handle *mpv, const char *wantedType) {
             extra += d;
         };
         if (isAudio) appendDetail(channels);
-        appendDetail(codec);
+        if (!isSub) appendDetail(codec);
         std::string label = extra.empty() ? base : base + " (" + extra + ")";
 
         if (!first) out += ",";
@@ -982,6 +994,7 @@ std::string buildTracksJson(mpv_handle *mpv, const char *wantedType) {
              + ",\"id\":\"" + std::to_string(id) + "\""
              + ",\"label\":\"" + jsonEscape(label) + "\""
              + ",\"language\":\"" + jsonEscape(lang) + "\""
+             + ",\"codec\":\"" + jsonEscape(codec) + "\""
              + ",\"selected\":" + (selected ? "true" : "false")
              + ",\"forced\":" + (forced ? "true" : "false")
              + "}";
@@ -990,6 +1003,8 @@ std::string buildTracksJson(mpv_handle *mpv, const char *wantedType) {
     out += "]";
     return out;
 }
+
+static void syncLinuxSubtitleTrackOverride(Player *p, bool force);
 
 gboolean pushPlayerUpdate(gpointer data) {
     auto *player = static_cast<Player *>(data);
@@ -1025,6 +1040,7 @@ gboolean pushPlayerUpdate(gpointer data) {
     volumeLevel = std::max(0.0, std::min(kMaxVolumePercent / 100.0, volumeLevel));
     bool paused = mpvGetFlag(player->mpv, "pause");
     bool loading = playerLoading(player);
+    syncLinuxSubtitleTrackOverride(player, false);
     std::string audioTracks = buildTracksJson(player->mpv, "audio");
     std::string subtitleTracks = buildTracksJson(player->mpv, "sub");
     char head[224];
@@ -1776,6 +1792,7 @@ JNIEXPORT jlong JNICALL NP(create)(
         mpv_set_option_string(m, "input-cursor", "no");
         mpv_set_option_string(m, "cursor-autohide", "no");
         mpv_set_option_string(m, "keep-open", "yes");
+        mpv_set_option_string(m, "sub-ass-override", "no");
         mpv_set_option_string(m, "volume-max", "200");
         mpv_set_option_string(m, "idle", "yes");
         mpv_set_option_string(m, "vo", "gpu");
@@ -2144,13 +2161,73 @@ JNIEXPORT void JNICALL NP(setSubtitleDelayMs)(JNIEnv *, jobject, jlong handle, j
     if (p) mpvSetDouble(p->mpv, "sub-delay", delayMs / 1000.0);
 }
 
+static void syncLinuxSubtitleTrackOverride(Player *p, bool force) {
+    if (!p || !p->mpv) return;
+    std::lock_guard<std::mutex> lock(p->subtitleStyleMutex);
+    if (!p->hasAppliedSubtitleStyle) return;
+    std::string codec = mpvGetStr(p->mpv, "current-tracks/sub/codec");
+    for (char &ch : codec) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    bool isAss = codec == "ass" || codec == "ssa";
+    double assScale = p->subtitleFontSize / 54.0;
+    std::string assOverride = !isAss
+        ? "no"
+        : (!p->subtitleUseLibass ? "force" : (std::abs(assScale - 1.0) <= 0.001 ? "no" : "scale"));
+    double effectiveScale = assOverride == "scale" ? assScale : 1.0;
+    int64_t effectivePosition = assOverride == "scale" ? 100 : p->subtitleRawPosition;
+    std::string styleOverride = assOverride == "force"
+        ? (p->subtitleBold ? "Bold=1" : "Bold=0")
+        : "";
+
+    bool overrideChanged = force || p->appliedSubtitleAssOverride != assOverride;
+    bool styleOverrideChanged = force || overrideChanged || p->appliedSubtitleAssStyleOverride != styleOverride;
+    bool scaleChanged = force || p->appliedSubtitleScale != effectiveScale;
+    bool positionChanged = force || p->appliedSubtitlePosition != effectivePosition;
+
+    if (overrideChanged) {
+        mpv_set_property_string(p->mpv, "sub-ass-override", assOverride.c_str());
+    }
+    if (styleOverrideChanged) {
+        const char *styleOverridesCommand[] = {
+            "change-list",
+            "sub-ass-style-overrides",
+            styleOverride.empty() ? "clr" : "set",
+            styleOverride.empty() ? "" : styleOverride.c_str(),
+            nullptr
+        };
+        mpv_command(p->mpv, styleOverridesCommand);
+    }
+    if (scaleChanged) {
+        mpvSetDouble(p->mpv, "sub-scale", effectiveScale);
+    }
+    if (positionChanged) {
+        std::string pos = std::to_string(effectivePosition);
+        mpv_set_property_string(p->mpv, "sub-pos", pos.c_str());
+    }
+    p->appliedSubtitleAssOverride = assOverride;
+    p->appliedSubtitleAssStyleOverride = styleOverride;
+    p->appliedSubtitleScale = effectiveScale;
+    p->appliedSubtitlePosition = effectivePosition;
+}
+
 JNIEXPORT void JNICALL NP(applySubtitleStyle)(
     JNIEnv *env, jobject, jlong handle, jstring textColor, jstring backgroundColor,
     jstring outlineColor, jfloat outlineSize, jboolean bold, jfloat fontSize, jint subPos,
     jboolean useLibass, jboolean stripSdh) {
     Player *p = asPlayer(handle);
     if (!p) return;
-    mpv_set_property_string(p->mpv, "sub-ass-override", "no");
+    double size = std::max(18.0, std::min(120.0, static_cast<double>(fontSize)));
+    int64_t position = std::max(0, std::min(150, static_cast<int>(subPos)));
+    {
+        std::lock_guard<std::mutex> lock(p->subtitleStyleMutex);
+        p->hasAppliedSubtitleStyle = true;
+        p->subtitleUseLibass = useLibass == JNI_TRUE;
+        p->subtitleBold = bold == JNI_TRUE;
+        p->subtitleFontSize = size;
+        p->subtitleRawPosition = position;
+    }
+    syncLinuxSubtitleTrackOverride(p, true);
     mpv_set_property_string(p->mpv, "sub-color", jstringToUtf8(env, textColor).c_str());
     mpv_set_property_string(p->mpv, "sub-border-color", jstringToUtf8(env, outlineColor).c_str());
     std::string background = jstringToUtf8(env, backgroundColor);
@@ -2161,10 +2238,7 @@ JNIEXPORT void JNICALL NP(applySubtitleStyle)(
     std::string border = std::to_string(outlineSize);
     mpv_set_property_string(p->mpv, "sub-border-size", border.c_str());
     mpv_set_property_string(p->mpv, "sub-bold", bold == JNI_TRUE ? "yes" : "no");
-    std::string size = std::to_string(fontSize);
-    mpv_set_property_string(p->mpv, "sub-font-size", size.c_str());
-    std::string pos = std::to_string(subPos);
-    mpv_set_property_string(p->mpv, "sub-pos", pos.c_str());
+    mpvSetDouble(p->mpv, "sub-font-size", size);
     // Strip captions written for deaf and hard-of-hearing viewers.
     mpv_set_property_string(p->mpv, "sub-filter-sdh", stripSdh == JNI_TRUE ? "yes" : "no");
     mpv_set_property_string(p->mpv, "sub-filter-sdh-harder", stripSdh == JNI_TRUE ? "yes" : "no");
