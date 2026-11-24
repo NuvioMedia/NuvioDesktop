@@ -10,6 +10,9 @@
  *
  * Both backends normalise their input into the same events and feed [ControllerManager], so the
  * spatial focus engine is platform independent.
+ *
+ * XInput reports the pad to every process, focused or not, so on Windows input is dropped while
+ * another application is in front (see [ForegroundGate]).
  */
 package com.nuvio.app.controller
 
@@ -19,6 +22,7 @@ import com.sun.jna.Library
 import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.Structure
+import com.sun.jna.ptr.IntByReference
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.max
@@ -84,10 +88,17 @@ internal object DesktopControllerInput {
      * detection would let a held input on one pad mask the same input on another, which made a
      * second controller look dead until the first one was touched.
      */
-    private class PadState {
+    internal class PadState(
+        private val dispatch: (ControllerEvent) -> Unit = ControllerManager::dispatchEvent,
+    ) {
         private val heldDirections = HashMap<ControllerDirection, Long>()
         private val repeatAt = HashMap<ControllerDirection, Long>()
         private val heldButtons = HashSet<XboxButton>()
+
+        // Input that was already held when the app came back to the front. It is ignored until
+        // released, so a button pressed for another app does not fire here on the way back.
+        private val suppressedDirections = HashSet<ControllerDirection>()
+        private val suppressedButtons = HashSet<XboxButton>()
 
         fun update(
             directions: Set<ControllerDirection>,
@@ -96,19 +107,19 @@ internal object DesktopControllerInput {
         ) {
             for (direction in ControllerDirection.entries) {
                 val pressed = direction in directions
+                if (direction in suppressedDirections) {
+                    if (!pressed) suppressedDirections.remove(direction)
+                    continue
+                }
                 val previous = heldDirections[direction]
                 if (pressed) {
                     if (previous == null) {
                         heldDirections[direction] = now
                         repeatAt[direction] = now + REPEAT_FIRST_DELAY_MS
-                        ControllerManager.dispatchEvent(
-                            ControllerEvent.Navigate(direction, isRepeat = false),
-                        )
+                        dispatch(ControllerEvent.Navigate(direction, isRepeat = false))
                     } else if (now >= (repeatAt[direction] ?: Long.MAX_VALUE)) {
                         repeatAt[direction] = now + REPEAT_INTERVAL_MS
-                        ControllerManager.dispatchEvent(
-                            ControllerEvent.Navigate(direction, isRepeat = true),
-                        )
+                        dispatch(ControllerEvent.Navigate(direction, isRepeat = true))
                     }
                 } else {
                     heldDirections.remove(direction)
@@ -118,35 +129,105 @@ internal object DesktopControllerInput {
 
             for (button in XboxButton.entries) {
                 val pressed = button in buttons
+                if (button in suppressedButtons) {
+                    if (!pressed) suppressedButtons.remove(button)
+                    continue
+                }
                 if (pressed && heldButtons.add(button)) {
-                    ControllerManager.dispatchEvent(ControllerEvent.ButtonPressed(button))
+                    dispatch(ControllerEvent.ButtonPressed(button))
                 } else if (!pressed && heldButtons.remove(button)) {
-                    ControllerManager.dispatchEvent(ControllerEvent.ButtonReleased(button))
+                    dispatch(ControllerEvent.ButtonReleased(button))
                 }
             }
+        }
+
+        /** Releases every button the app was told is held, so nothing stays pressed, then resets. */
+        fun releaseAll() {
+            heldButtons.forEach { dispatch(ControllerEvent.ButtonReleased(it)) }
+            reset()
+        }
+
+        /** Ignores the given held input until it is released. */
+        fun suppressHeld(directions: Set<ControllerDirection>, buttons: Set<XboxButton>) {
+            reset()
+            suppressedDirections += directions
+            suppressedButtons += buttons
         }
 
         fun reset() {
             heldDirections.clear()
             repeatAt.clear()
             heldButtons.clear()
+            suppressedDirections.clear()
+            suppressedButtons.clear()
         }
 
         /** Directions currently held from the previous poll, used for stick hysteresis. */
-        fun activeDirections(): Set<ControllerDirection> = heldDirections.keys
+        fun activeDirections(): Set<ControllerDirection> = heldDirections.keys + suppressedDirections
     }
 
     /** Right-stick scrolling, shared by all pads (the strongest deflection wins). */
-    private class AnalogScrollState {
+    internal class AnalogScrollState(
+        private val dispatch: (ControllerEvent) -> Unit = ControllerManager::dispatchEvent,
+    ) {
         private var lastSentAt = 0L
+        private var waitForCenter = false
 
         fun update(analogDx: Float, analogDy: Float, now: Long) {
-            if (abs(analogDx) > 0.01f || abs(analogDy) > 0.01f) {
-                ControllerManager.dispatchEvent(ControllerEvent.AnalogScroll(analogDx, analogDy))
+            val moving = abs(analogDx) > 0.01f || abs(analogDy) > 0.01f
+            if (waitForCenter) {
+                if (!moving) waitForCenter = false
+                return
+            }
+            if (moving) {
+                dispatch(ControllerEvent.AnalogScroll(analogDx, analogDy))
                 lastSentAt = now
             } else if (now - lastSentAt < 120L) {
-                ControllerManager.dispatchEvent(ControllerEvent.AnalogScroll(0f, 0f))
+                dispatch(ControllerEvent.AnalogScroll(0f, 0f))
             }
+        }
+
+        /** Ends a scroll in progress. */
+        fun stop() {
+            if (lastSentAt != 0L) dispatch(ControllerEvent.AnalogScroll(0f, 0f))
+            lastSentAt = 0L
+        }
+
+        /** Ignores the stick until it has been back at rest once. */
+        fun suppressUntilCentered() {
+            waitForCenter = true
+        }
+    }
+
+    /**
+     * Keeps a pad from driving the app while another application is in front, where a game would
+     * otherwise also pause, seek or close the player.
+     */
+    internal class ForegroundGate {
+        private var inForeground = true
+
+        /** Returns whether this poll's input should reach the app. */
+        fun allow(
+            foreground: Boolean,
+            pad: PadState,
+            analog: AnalogScrollState,
+            directions: Set<ControllerDirection>,
+            buttons: Set<XboxButton>,
+        ): Boolean {
+            if (!foreground) {
+                if (inForeground) {
+                    pad.releaseAll()
+                    analog.stop()
+                    inForeground = false
+                }
+                return false
+            }
+            if (!inForeground) {
+                pad.suppressHeld(directions, buttons)
+                analog.suppressUntilCentered()
+                inForeground = true
+            }
+            return true
         }
     }
 
@@ -213,6 +294,36 @@ internal object DesktopControllerInput {
         fun XInputGetState(dwUserIndex: Int, state: XInputState): Int
     }
 
+    interface User32Library : Library {
+        fun GetForegroundWindow(): Pointer?
+        fun GetWindowThreadProcessId(hWnd: Pointer, lpdwProcessId: IntByReference): Int
+        fun IsIconic(hWnd: Pointer): Boolean
+    }
+
+    private val user32: User32Library? by lazy {
+        runCatching { Native.load("user32", User32Library::class.java) }
+            .onFailure { log.w(it) { "user32 not available - controller input is not limited to the foreground" } }
+            .getOrNull()
+    }
+
+    private val currentProcessId = ProcessHandle.current().pid()
+
+    /**
+     * True when the window in front belongs to this process (the app window, or the player that is
+     * embedded in it as a child window) and is not minimised: minimising can leave the app's window
+     * as the foreground window until something else is activated. Without user32 the input is never
+     * dropped.
+     */
+    private fun isAppInForeground(): Boolean {
+        val library = user32 ?: return true
+        val window = runCatching { library.GetForegroundWindow() }.getOrNull() ?: return false
+        val processId = IntByReference()
+        val thread = runCatching { library.GetWindowThreadProcessId(window, processId) }.getOrDefault(0)
+        if (thread == 0) return true
+        if (processId.value.toLong() != currentProcessId) return false
+        return !runCatching { library.IsIconic(window) }.getOrDefault(false)
+    }
+
     private const val ERROR_DEVICE_NOT_CONNECTED = 1167
     private const val USER_INDEXES = 4
 
@@ -248,6 +359,7 @@ internal object DesktopControllerInput {
         val state = XInputState()
         val input = PadState()
         val analog = AnalogScrollState()
+        val gate = ForegroundGate()
         var connectedIndex = -1
         var rescanAt = 0L
 
@@ -313,8 +425,10 @@ internal object DesktopControllerInput {
             val ax = thumbRx.takeIf { abs(it) >= ANALOG_SCROLL_DEADZONE } ?: 0f
             val ay = thumbRy.takeIf { abs(it) >= ANALOG_SCROLL_DEADZONE } ?: 0f
 
-            input.update(directions, buttons, now)
-            analog.update(ax, -ay, now)
+            if (gate.allow(isAppInForeground(), input, analog, directions, buttons)) {
+                input.update(directions, buttons, now)
+                analog.update(ax, -ay, now)
+            }
             Thread.sleep(POLL_INTERVAL_MS.coerceAtLeast(1L))
         }
     }
