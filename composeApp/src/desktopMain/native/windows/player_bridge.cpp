@@ -49,8 +49,18 @@ typedef enum mpv_format {
 typedef enum mpv_event_id {
     MPV_EVENT_NONE = 0,
     MPV_EVENT_SHUTDOWN = 1,
+    MPV_EVENT_END_FILE = 7,
     MPV_EVENT_VIDEO_RECONFIG = 17,
 } mpv_event_id;
+
+typedef enum mpv_end_file_reason {
+    MPV_END_FILE_REASON_ERROR = 4,
+} mpv_end_file_reason;
+
+typedef struct mpv_event_end_file {
+    mpv_end_file_reason reason;
+    int error;
+} mpv_event_end_file;
 
 typedef struct mpv_event {
     mpv_event_id event_id;
@@ -2086,6 +2096,12 @@ private:
             }
             if (event->event_id == MPV_EVENT_VIDEO_RECONFIG) {
                 updateRtxVideoFilter();
+            }
+            if (event->event_id == MPV_EVENT_END_FILE) {
+                const auto *end = static_cast<const mpv_event_end_file *>(event->data);
+                if (end && end->reason == MPV_END_FILE_REASON_ERROR) {
+                    sendPlayerEvent("mpvEndFileError", end->error);
+                }
             }
         }
     }

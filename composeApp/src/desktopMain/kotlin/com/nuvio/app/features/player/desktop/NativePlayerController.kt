@@ -125,9 +125,15 @@ internal class NativePlayerController(
     private var onEvent: (String, Double) -> Boolean = { _, _ -> false }
     private var onScrubChange: (Long) -> Boolean = { false }
     private var onScrubFinished: (Long) -> Boolean = { false }
-    private val eventSink = NativePlayerEventSink { type, value ->
+    private fun eventSinkFor(source: PendingSource) = NativePlayerEventSink { type, value ->
         SwingUtilities.invokeLater {
-            handlePlayerEvent(type, value)
+            if (type == "mpvEndFileError") {
+                if (!releaseRequested && pendingSource === source) {
+                    source.onError("Playback failed (mpv error ${value.toInt()}).")
+                }
+            } else {
+                handlePlayerEvent(type, value)
+            }
         }
     }
 
@@ -324,7 +330,7 @@ internal class NativePlayerController(
                         pending.decoderPriority,
                         pending.nvidiaRtxSuperResolutionEnabled,
                         pending.nvidiaRtxHdrEnabled,
-                        eventSink,
+                        eventSinkFor(pending),
                     ).also { if (it == 0L) error("Native player did not return a handle.") }
                 }.onSuccess { created ->
                     val accepted = synchronized(lifecycleLock) {
