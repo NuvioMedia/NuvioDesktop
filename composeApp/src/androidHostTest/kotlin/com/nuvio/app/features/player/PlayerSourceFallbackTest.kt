@@ -9,6 +9,7 @@ import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.features.watchprogress.WatchProgressStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.junit.After
@@ -157,6 +158,28 @@ class PlayerSourceFallbackTest {
         assertNull(runtime.autoSelectedSourceUrl)
         assertEquals(0, runtime.sourceFallbackAttempts)
         assertFalse(runtime.tryFallbackToNextSourceAfterError("failed"))
+    }
+
+    @Test
+    fun startupTimeoutDuringALinkRefreshDoesNotStartAFallback() {
+        val runtime = runtime()
+        runtime.credentialRefreshJob = Job()
+
+        runtime.onSourceStartupTimeout("timed out")
+
+        assertNull(runtime.sourceFallbackJob)
+        assertEquals(0, runtime.sourceFallbackAttempts)
+    }
+
+    @Test
+    fun errorDuringAFallbackDoesNotStartALinkRefresh() {
+        val runtime = runtime()
+        runtime.activeSourceUrl = "$failedUrl?token=expired"
+        runtime.autoSelectedSourceUrl = runtime.activeSourceUrl
+        runtime.sourceFallbackJob = Job()
+
+        assertTrue(runtime.tryRefreshExpiredLinkAfterError("failed"))
+        assertNull(runtime.credentialRefreshJob)
     }
 
     private fun settings() = PlayerSettingsUiState(
