@@ -582,6 +582,7 @@ internal class NativePlayerController(
                     onDesktopFullscreenChanged()
                 }
             }
+            "playbackFailed" -> reportPlaybackFailure(value.toInt())
             "dragWindow" -> NativePlayerBridge.beginWindowDrag(handle)
             "volumeChange" -> setFallbackVolume(value.toFloat())
             "volumeChangeTemporary" -> setTemporaryVolume(value.toFloat())
@@ -1178,6 +1179,19 @@ internal class NativePlayerController(
             shadowOffset = shadow.offset,
             shadowBlur = shadow.blur,
         )
+    }
+
+    private fun reportPlaybackFailure(mpvError: Int) {
+        val current = handle.takeIf { it != 0L } ?: return
+        val pending = pendingSource ?: return
+        if (releaseRequested) return
+        val reason = runCatching { NativePlayerBridge.playbackFailureText(current) }
+            .getOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: "mpv error $mpvError"
+        log.w { "playback failed handle=$current mpvError=$mpvError reason=$reason" }
+        pending.onError("Unable to play this stream ($reason).")
     }
 
     private fun decodeTracks(readJson: (Long) -> String): List<NativeMpvTrack> {

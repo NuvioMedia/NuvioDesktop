@@ -49,8 +49,13 @@ typedef enum mpv_format {
 typedef enum mpv_event_id {
     MPV_EVENT_NONE = 0,
     MPV_EVENT_SHUTDOWN = 1,
+    MPV_EVENT_END_FILE = 7,
     MPV_EVENT_VIDEO_RECONFIG = 17,
 } mpv_event_id;
+
+typedef enum mpv_end_file_reason {
+    MPV_END_FILE_REASON_ERROR = 4,
+} mpv_end_file_reason;
 
 typedef struct mpv_event {
     mpv_event_id event_id;
@@ -58,6 +63,11 @@ typedef struct mpv_event {
     uint64_t reply_userdata;
     void *data;
 } mpv_event;
+
+typedef struct mpv_event_end_file {
+    mpv_end_file_reason reason;
+    int error;
+} mpv_event_end_file;
 }
 
 namespace {
@@ -1221,6 +1231,11 @@ public:
         return tracksJsonForType("audio");
     }
 
+    std::string playbackFailureText() {
+        std::lock_guard<std::mutex> lock(playbackFailureMutex);
+        return playbackFileError;
+    }
+
     std::string subtitleTracksJson() {
         return tracksJsonForType("sub");
     }
@@ -1417,6 +1432,9 @@ private:
     std::string appliedVideoFilter;
     std::atomic_bool shuttingDown = false;
     std::atomic_bool hwdecLogged = false;  // one-shot log for hwdec-current
+
+    std::mutex playbackFailureMutex;
+    std::string playbackFileError;
 
     bool hasAppliedSubtitleStyle = false;
     bool appliedSubtitleUseLibass = false;
@@ -2086,6 +2104,16 @@ private:
             }
             if (event->event_id == MPV_EVENT_VIDEO_RECONFIG) {
                 updateRtxVideoFilter();
+            }
+            if (event->event_id == MPV_EVENT_END_FILE) {
+                auto *endFile = static_cast<mpv_event_end_file *>(event->data);
+                if (endFile && endFile->reason == MPV_END_FILE_REASON_ERROR && !stopping.load()) {
+                    {
+                        std::lock_guard<std::mutex> lock(playbackFailureMutex);
+                        playbackFileError = mpvApi().errorText(endFile->error);
+                    }
+                    sendPlayerEvent("playbackFailed", (double)endFile->error);
+                }
             }
         }
     }
@@ -2936,6 +2964,12 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_audioTracksJson(JNIEnv *env, jobject, jlong handle) {
     auto player = playerFromHandle(handle);
     return newJavaStringUtf8(env, player ? player->audioTracksJson() : "[]");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_playbackFailureText(JNIEnv *env, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    return newJavaStringUtf8(env, player ? player->playbackFailureText() : "");
 }
 
 extern "C" JNIEXPORT jstring JNICALL
