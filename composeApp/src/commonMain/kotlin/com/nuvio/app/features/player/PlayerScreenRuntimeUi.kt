@@ -403,6 +403,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
         colorLabel = stringResource(Res.string.compose_player_color),
         textOpacityLabel = stringResource(Res.string.compose_player_text_opacity),
         outlineColorLabel = stringResource(Res.string.compose_player_outline_color),
+        outlineWidthLabel = stringResource(Res.string.subtitle_outline_width),
         fontLabel = stringResource(Res.string.subtitle_font),
         backgroundColorLabel = stringResource(Res.string.settings_playback_subtitle_background_color),
         backgroundOpacityLabel = stringResource(Res.string.subtitle_background_opacity),
@@ -1251,6 +1252,11 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
         "subtitleOutlineColor" -> {
             SubtitleColorSwatches.getOrNull(value.toInt())?.let { color ->
                 updateActiveSubtitleStyle { style -> style.copy(outlineColor = color) }
+            }
+        }
+        "subtitleOutlineWidth" -> {
+            updateActiveSubtitleStyle { style ->
+                style.copy(outlineWidth = (style.outlineWidth + value.toInt()).coerceIn(subtitleOutlineWidthRange))
             }
         }
         "subtitleBackgroundColor" -> {

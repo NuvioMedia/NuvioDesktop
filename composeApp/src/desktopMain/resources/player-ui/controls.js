@@ -137,6 +137,10 @@ const backgroundOpacityValue = document.getElementById("backgroundOpacityValue")
 const backgroundOpacityMinus = document.getElementById("backgroundOpacityMinus");
 const backgroundOpacityPlus = document.getElementById("backgroundOpacityPlus");
 const outlineColorSection = document.getElementById("outlineColorSection");
+const outlineWidthSection = document.getElementById("outlineWidthSection");
+const outlineWidthValue = document.getElementById("outlineWidthValue");
+const outlineWidthMinus = document.getElementById("outlineWidthMinus");
+const outlineWidthPlus = document.getElementById("outlineWidthPlus");
 const shadowOpacitySection = document.getElementById("shadowOpacitySection");
 const shadowSizeSection = document.getElementById("shadowSizeSection");
 let fontPickerOpen = false;
@@ -163,6 +167,7 @@ const textOpacityMinus = document.getElementById("textOpacityMinus");
 const textOpacityValue = document.getElementById("textOpacityValue");
 const textOpacityPlus = document.getElementById("textOpacityPlus");
 const outlineColorLabel = document.getElementById("outlineColorLabel");
+const outlineWidthLabel = document.getElementById("outlineWidthLabel");
 const outlineColorSwatches = document.getElementById("outlineColorSwatches");
 const subtitleStyleReset = document.getElementById("subtitleStyleReset");
 const sourceModal = document.getElementById("sourceModal");
@@ -294,6 +299,7 @@ let state = {
   colorLabel: "Color",
   textOpacityLabel: "Text Opacity",
   outlineColorLabel: "Outline Color",
+  outlineWidthLabel: "Outline width",
   noSubtitleLinesFoundLabel: "No subtitle lines found",
   resetDefaultsLabel: "Reset Defaults",
   onLabel: "On",
@@ -389,6 +395,7 @@ let state = {
   subtitleStyle: {
     textColor: "#FFFFFFFF",
     outlineColor: "#FF000000",
+    outlineWidth: 2,
     outlineEnabled: true,
     bold: false,
     fontSizeSp: 18,
@@ -1577,6 +1584,8 @@ const renderSubtitleStylePanel = () => {
   const textAlpha = Math.round((parseArgb(style.textColor).alpha / 255) * 100);
   textOpacityValue.textContent = `${textAlpha}%`;
   outlineColorLabel.textContent = state.outlineColorLabel || "Outline Color";
+  outlineWidthLabel.textContent = state.outlineWidthLabel || "Outline width";
+  outlineWidthValue.textContent = String(Number(style.outlineWidth) || 2);
   subtitleStyleReset.textContent = state.resetDefaultsLabel || "Reset Defaults";
   subtitleFontLabel.textContent = state.fontLabel || "Font";
   const activeFont = (state.subtitleFonts || []).find(font => font.id === (style.fontId || "default"));
@@ -1596,6 +1605,7 @@ const renderSubtitleStylePanel = () => {
   backgroundOpacityValue.textContent = `${Math.round((parseArgb(style.backgroundColor).alpha / 255) * 100)}%`;
   renderSwatches(backgroundColorSwatches, state.subtitleColorSwatches, style.backgroundColor, "subtitleBackgroundColor");
   outlineColorSection.hidden = !style.outlineEnabled;
+  outlineWidthSection.hidden = !style.outlineEnabled;
   shadowOpacitySection.hidden = !style.shadowEnabled;
   shadowSizeSection.hidden = !style.shadowEnabled;
   renderAutoSyncCues();
@@ -3403,6 +3413,14 @@ backgroundOpacityPlus.addEventListener("click", event => {
   event.stopPropagation();
   const style = state.subtitleStyle || {};
   send("subtitleBackgroundOpacity", Math.min(100, Math.round((parseArgb(style.backgroundColor).alpha / 255) * 100) + 5));
+});
+outlineWidthMinus.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleOutlineWidth", -1);
+});
+outlineWidthPlus.addEventListener("click", event => {
+  event.stopPropagation();
+  send("subtitleOutlineWidth", 1);
 });
 subtitleFontRow.addEventListener("click", event => {
   event.stopPropagation();
