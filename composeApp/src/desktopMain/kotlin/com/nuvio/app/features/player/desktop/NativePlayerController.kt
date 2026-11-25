@@ -1251,7 +1251,7 @@ private fun SubtitleStyleState.toMpvSubtitlePosition(): Int =
 
 private const val OUTLINED_SHADOW_OPACITY_SCALE = 0.47f
 
-private data class MpvSubtitleShadow(
+internal data class MpvSubtitleShadow(
     val color: String,
     val offset: Float,
     val blur: Float,
@@ -1259,12 +1259,16 @@ private data class MpvSubtitleShadow(
     val outlineSize: Float,
 )
 
-private fun SubtitleStyleState.toMpvSubtitleShadow(): MpvSubtitleShadow {
+internal fun SubtitleStyleState.toMpvSubtitleShadow(): MpvSubtitleShadow {
     val outlineSize = if (outlineEnabled) outlineWidth.toFloat() else 0f
     val outlineColor = outlineColor.toMpvColorString()
+    // From mpv 0.39, sub-shadow-color is an alias of sub-back-color, and it is set after
+    // sub-back-color. In background-box mode, send the box color so the user's background
+    // color survives. Older mpv (the bundled macOS 0.38) ignores the shadow color in box mode.
+    val boxColor = backgroundColor.takeIf { it.alpha > 0f }?.toMpvColorString()
     if (!appearance.shadowEnabled) {
         return MpvSubtitleShadow(
-            color = "#00000000",
+            color = boxColor ?: "#00000000",
             offset = 0f,
             blur = 0f,
             outlineColor = outlineColor,
@@ -1276,7 +1280,7 @@ private fun SubtitleStyleState.toMpvSubtitleShadow(): MpvSubtitleShadow {
     val opacityScale = if (softened && !needsGlyphGuard) OUTLINED_SHADOW_OPACITY_SCALE else 1f
     val shadowAlpha = (appearance.shadowOpacity * 255 / 100 * opacityScale).roundToInt().coerceIn(0, 255)
     return MpvSubtitleShadow(
-        color = "#" + shadowAlpha.toHexByte() + "000000",
+        color = boxColor ?: ("#" + shadowAlpha.toHexByte() + "000000"),
         offset = appearance.shadowSize.toFloat(),
         blur = if (softened) (appearance.shadowSize * 0.5f + 1f).coerceIn(1.5f, 4f) else 0f,
         outlineColor = if (needsGlyphGuard) "#00000000" else outlineColor,
