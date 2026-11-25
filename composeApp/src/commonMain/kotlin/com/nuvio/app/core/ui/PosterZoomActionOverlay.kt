@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,7 +70,9 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Geometry of the shelf card that was long-pressed, captured in root coordinates
@@ -217,11 +220,17 @@ fun NuvioPosterZoomActionOverlay(
     }
 
     DisposableEffect(source) {
+        source?.requestLiftCapture()
         onDispose { source?.land() }
     }
 
-    LaunchedEffect(slotBounds != null, phase) {
+    LaunchedEffect(slotBounds != null, phase, source) {
         if (slotBounds == null || phase != PosterZoomPhase.Open) return@LaunchedEffect
+        if (source != null && !source.isLiftCaptureReady) {
+            withTimeoutOrNull(120L) {
+                snapshotFlow { source.isLiftCaptureReady }.first { it }
+            }
+        }
         lifted = source?.lift() == true
         showFallback = !lifted
         launch { scrim.animateTo(1f, tween(durationMillis = 260, easing = NuvioTokens.Motion.standard)) }
@@ -474,13 +483,13 @@ fun NuvioPosterZoomActionOverlay(
                 },
                 modifier = Modifier.fillMaxSize(),
             ) {
-                if (!showFallback && source != null) {
+                if (lifted && source != null) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .drawBehind { drawLiftedPoster(source) },
                     )
-                } else {
+                } else if (showFallback) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()

@@ -23,26 +23,30 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.nuvio.app.controller.ControllerManager
+import com.nuvio.app.controller.rememberIsControllerNavigationActive
 import com.nuvio.app.isDesktop
 import kotlin.concurrent.Volatile
 
 fun Modifier.nuvioFocusBorder(
     shape: Shape,
     borderWidth: Dp = 3.dp,
-): Modifier = composed {
-    var focused by remember { mutableStateOf(false) }
-    val navigating by ControllerManager.isNavigationActive.collectAsState()
-    val tokens = MaterialTheme.nuvio
+): Modifier = if (!isDesktop) {
     this
-        .onFocusChanged { focused = it.isFocused }
-        .then(
-            if (focused && navigating && isDesktop) Modifier.border(
-                width = borderWidth,
-                color = tokens.colors.focusRing,
-                shape = shape,
-            ) else Modifier,
-        )
+} else {
+    composed {
+        var focused by remember { mutableStateOf(false) }
+        val navigating = rememberIsControllerNavigationActive()
+        val tokens = MaterialTheme.nuvio
+        this
+            .onFocusChanged { focused = it.isFocused }
+            .then(
+                if (focused && navigating) Modifier.border(
+                    width = borderWidth,
+                    color = tokens.colors.focusRing,
+                    shape = shape,
+                ) else Modifier,
+            )
+    }
 }
 
 /**

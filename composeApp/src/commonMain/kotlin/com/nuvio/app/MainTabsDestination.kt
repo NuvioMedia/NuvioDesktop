@@ -117,22 +117,6 @@ internal fun MainTabsDestination(
         val navBarStyleSetting by remember { ThemeSettingsRepository.navBarStyle }.collectAsStateWithLifecycle()
         val homeCatalogSettingsUiState by remember { HomeCatalogSettingsRepository.uiState }.collectAsStateWithLifecycle()
 
-        val sidebarHoverSource = remember { MutableInteractionSource() }
-        val isSidebarHovered by sidebarHoverSource.collectIsHoveredAsState()
-        var isProfileStackVisible by remember { mutableStateOf(false) }
-
-        val isSidebarExpanded = when (navBarStyleSetting) {
-            NavBarStyle.EXPANDED -> true
-            NavBarStyle.COMPACT -> isProfileStackVisible
-            else -> isSidebarHovered || isProfileStackVisible // ADAPTIVE
-        }
-
-        val animatedSidebarWidth by animateDpAsState(
-            targetValue = if (isSidebarExpanded) DesktopSidebarExpandedWidth else DesktopSidebarCollapsedWidth,
-            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
-            label = "desktop_sidebar_width",
-        )
-
         val isSidebarAlwaysExpanded = useDesktopSidebar && navBarStyleSetting == NavBarStyle.EXPANDED
         val contentStartPadding = if (useDesktopSidebar) {
             if (isSidebarAlwaysExpanded) DesktopSidebarExpandedWidth else DesktopSidebarCollapsedWidth
@@ -141,43 +125,50 @@ internal fun MainTabsDestination(
         }
         val navBarGlowEnabled by ThemeSettingsRepository.navBarGlowEnabled.collectAsStateWithLifecycle()
         var isTopProfileSwitcherOpen by remember { mutableStateOf(false) }
-        val floatingNavigationItems = listOf(
-            FloatingNavigationItem(
-                selected = selectedTab == AppScreenTab.Home,
-                onClick = { onTabSelected(AppScreenTab.Home) },
-                icon = Icons.Filled.Home,
-                label = stringResource(Res.string.compose_nav_home),
-            ),
-            FloatingNavigationItem(
-                selected = selectedTab == AppScreenTab.Search,
-                onClick = { onTabSelected(AppScreenTab.Search) },
-                drawable = Res.drawable.sidebar_search,
-                label = stringResource(Res.string.compose_nav_search),
-            ),
-            FloatingNavigationItem(
-                selected = selectedTab == AppScreenTab.Library,
-                onClick = { onTabSelected(AppScreenTab.Library) },
-                drawable = Res.drawable.sidebar_library,
-                label = stringResource(Res.string.compose_nav_library),
-            ),
-            FloatingNavigationItem(
-                selected = selectedTab == AppScreenTab.Settings,
-                onClick = { onTabSelected(AppScreenTab.Settings) },
-                label = stringResource(if (isDesktop) Res.string.compose_nav_settings else Res.string.compose_nav_profile),
-                content = { onClick ->
-                    ProfileSwitcherTab(
-                        selected = selectedTab == AppScreenTab.Settings,
-                        onClick = onClick,
-                        onProfileSelected = onProfileSelected,
-                        onAddProfileRequested = onAddProfileRequested,
-                        hazeState = navBarHazeState,
-                        onPopupStateChanged = { isTopProfileSwitcherOpen = it },
-                        avatarSize = if (isDesktop && screenWidth < 800.dp) 26 else if (isDesktop && screenWidth > 1600.dp) 30 else 28,
-                        popupBelowAnchor = isDesktop || isTabletLayout,
-                    )
-                },
-            ),
-        )
+        val needsFloatingNavigationItems = useDesktopTopBar ||
+            (isTabletLayout && !useNativeBottomTabs && !isDesktop) ||
+            (!isDesktop && !isTabletLayout && !useNativeBottomTabs && navBarStyleSetting != NavBarStyle.CLASSIC)
+        val floatingNavigationItems = if (needsFloatingNavigationItems) {
+            listOf(
+                FloatingNavigationItem(
+                    selected = selectedTab == AppScreenTab.Home,
+                    onClick = { onTabSelected(AppScreenTab.Home) },
+                    icon = Icons.Filled.Home,
+                    label = stringResource(Res.string.compose_nav_home),
+                ),
+                FloatingNavigationItem(
+                    selected = selectedTab == AppScreenTab.Search,
+                    onClick = { onTabSelected(AppScreenTab.Search) },
+                    drawable = Res.drawable.sidebar_search,
+                    label = stringResource(Res.string.compose_nav_search),
+                ),
+                FloatingNavigationItem(
+                    selected = selectedTab == AppScreenTab.Library,
+                    onClick = { onTabSelected(AppScreenTab.Library) },
+                    drawable = Res.drawable.sidebar_library,
+                    label = stringResource(Res.string.compose_nav_library),
+                ),
+                FloatingNavigationItem(
+                    selected = selectedTab == AppScreenTab.Settings,
+                    onClick = { onTabSelected(AppScreenTab.Settings) },
+                    label = stringResource(if (isDesktop) Res.string.compose_nav_settings else Res.string.compose_nav_profile),
+                    content = { onClick ->
+                        ProfileSwitcherTab(
+                            selected = selectedTab == AppScreenTab.Settings,
+                            onClick = onClick,
+                            onProfileSelected = onProfileSelected,
+                            onAddProfileRequested = onAddProfileRequested,
+                            hazeState = navBarHazeState,
+                            onPopupStateChanged = { isTopProfileSwitcherOpen = it },
+                            avatarSize = if (isDesktop && screenWidth < 800.dp) 26 else if (isDesktop && screenWidth > 1600.dp) 30 else 28,
+                            popupBelowAnchor = isDesktop || isTabletLayout,
+                        )
+                    },
+                ),
+            )
+        } else {
+            emptyList()
+        }
 
         Scaffold(
             modifier = Modifier
@@ -229,14 +220,19 @@ internal fun MainTabsDestination(
                 } else {
                     !useNativeBottomTabs && navBarStyleSetting != NavBarStyle.CLASSIC
                 }
-                val shouldAttachNestedScroll = if (isDesktop || isTabletLayout) {
+                val navBarUsesScrollState = !useDesktopSidebar && (
+                    useDesktopTopBar ||
+                        useFloatingTopBar ||
+                        (!isDesktop && !isTabletLayout && !useNativeBottomTabs && navBarStyleSetting != NavBarStyle.CLASSIC)
+                    )
+                val shouldAttachNestedScroll = navBarUsesScrollState && if (isDesktop || isTabletLayout) {
                     true
                 } else {
                     navBarStyleSetting == NavBarStyle.ADAPTIVE
                 }
                 CompositionLocalProvider(
                     LocalNuvioBottomNavigationOverlayPadding provides if (useNativeBottomTabs) 49.dp else if (!isDesktop && !isTabletLayout && navBarStyleSetting != NavBarStyle.CLASSIC) 72.dp else 0.dp,
-                    LocalNuvioNavBarScrollState provides navBarScrollState,
+                    LocalNuvioNavBarScrollState provides if (navBarUsesScrollState) navBarScrollState else null,
                 ) {
                     AppTabHost(
                         selectedTab = selectedTab,
@@ -256,16 +252,12 @@ internal fun MainTabsDestination(
                 }
 
                 if (useDesktopSidebar) {
-                    DesktopHoverSidebar(
+                    DesktopHoverSidebarHost(
                         selectedTab = selectedTab,
+                        navBarStyleSetting = navBarStyleSetting,
                         onTabSelected = onTabSelected,
                         onProfileSelected = onProfileSelected,
                         onAddProfileRequested = onAddProfileRequested,
-                        sidebarExpanded = isSidebarExpanded,
-                        sidebarWidth = animatedSidebarWidth,
-                        hoverSource = sidebarHoverSource,
-                        profileStackVisible = isProfileStackVisible,
-                        onProfileStackVisibleChange = { isProfileStackVisible = it },
                         modifier = Modifier.align(Alignment.CenterStart),
                     )
                 }
@@ -335,4 +327,43 @@ internal fun MainTabsDestination(
             }
         }
     }
+}
+
+@Composable
+private fun DesktopHoverSidebarHost(
+    selectedTab: AppScreenTab,
+    navBarStyleSetting: NavBarStyle,
+    onTabSelected: (AppScreenTab) -> Unit,
+    onProfileSelected: (NuvioProfile) -> Unit,
+    onAddProfileRequested: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val sidebarHoverSource = remember { MutableInteractionSource() }
+    val isSidebarHovered by sidebarHoverSource.collectIsHoveredAsState()
+    var isProfileStackVisible by remember { mutableStateOf(false) }
+
+    val isSidebarExpanded = when (navBarStyleSetting) {
+        NavBarStyle.EXPANDED -> true
+        NavBarStyle.COMPACT -> isProfileStackVisible
+        else -> isSidebarHovered || isProfileStackVisible
+    }
+
+    val animatedSidebarWidth by animateDpAsState(
+        targetValue = if (isSidebarExpanded) DesktopSidebarExpandedWidth else DesktopSidebarCollapsedWidth,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "desktop_sidebar_width",
+    )
+
+    DesktopHoverSidebar(
+        selectedTab = selectedTab,
+        onTabSelected = onTabSelected,
+        onProfileSelected = onProfileSelected,
+        onAddProfileRequested = onAddProfileRequested,
+        sidebarExpanded = isSidebarExpanded,
+        sidebarWidth = animatedSidebarWidth,
+        hoverSource = sidebarHoverSource,
+        profileStackVisible = isProfileStackVisible,
+        onProfileStackVisibleChange = { isProfileStackVisible = it },
+        modifier = modifier,
+    )
 }

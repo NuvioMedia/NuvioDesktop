@@ -17,11 +17,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
@@ -30,6 +32,15 @@ import com.nuvio.app.core.ui.jelly.JellyNavigationBar
 import com.nuvio.app.features.settings.NavBarStyle
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
+
+private val DesktopNavPillShape = RoundedCornerShape(50)
+private val DesktopNavTopSheenBrush = Brush.verticalGradient(
+    listOf(
+        Color.White.copy(alpha = 0.14f),
+        Color.White.copy(alpha = 0.03f),
+        Color.Transparent,
+    ),
+)
 
 @Composable
 internal fun DesktopNavigationBar(
@@ -49,8 +60,10 @@ internal fun DesktopNavigationBar(
     val isHovered by interactionSource.collectIsHoveredAsState()
     val isHomeSelected = items.first().selected
     val isSettingsSelected = items.last().selected
-    val scrollOffset = scrollState?.totalScrollOffset ?: 0f
-    val isScrolledAwayFromTop = scrollOffset > if (isSettingsSelected) 70f else 35f
+    val scrollThreshold = if (isSettingsSelected) 70f else 35f
+    val isScrolledAwayFromTop by remember(scrollState, scrollThreshold) {
+        derivedStateOf { (scrollState?.totalScrollOffset ?: 0f) > scrollThreshold }
+    }
     val isFrosted = isHovered || profileSwitcherOpen ||
         ((isHomeSelected || isSettingsSelected) && isScrolledAwayFromTop)
     val labelFraction by animateFloatAsState(
@@ -58,12 +71,12 @@ internal fun DesktopNavigationBar(
         animationSpec = tween(320, easing = FastOutSlowInEasing),
         label = "desktop_nav_labels",
     )
-    val surfaceColor by animateColorAsState(
+    val surfaceColorState = animateColorAsState(
         targetValue = if (isFrosted) Color(0xFF1C1C1E).copy(alpha = 0.30f) else Color(0xFF0F0F11).copy(alpha = 0.20f),
         animationSpec = tween(320, easing = FastOutSlowInEasing),
         label = "desktop_nav_surface",
     )
-    val sheenAlpha by animateFloatAsState(
+    val sheenAlphaState = animateFloatAsState(
         targetValue = if (isFrosted) 1f else 0f,
         animationSpec = tween(320, easing = FastOutSlowInEasing),
         label = "desktop_nav_sheen",
@@ -102,8 +115,9 @@ internal fun DesktopNavigationBar(
             },
         ) {
             Box(
-                modifier = Modifier.matchParentSize()
-                    .clip(RoundedCornerShape(50))
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(DesktopNavPillShape)
                     .then(
                         if (isFrosted && hazeState != null) {
                             Modifier.hazeEffect(state = hazeState) { blurRadius = 14.dp }
@@ -111,16 +125,13 @@ internal fun DesktopNavigationBar(
                             Modifier
                         },
                     )
-                    .background(surfaceColor)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.14f * sheenAlpha),
-                                Color.White.copy(alpha = 0.03f * sheenAlpha),
-                                Color.Transparent,
-                            ),
-                        ),
-                    ),
+                    .drawBehind {
+                        drawRect(surfaceColorState.value)
+                        val sheen = sheenAlphaState.value
+                        if (sheen > 0.005f) {
+                            drawRect(brush = DesktopNavTopSheenBrush, alpha = sheen)
+                        }
+                    },
             )
         }
     }

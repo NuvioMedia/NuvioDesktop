@@ -1222,12 +1222,13 @@ private fun EpisodeListCard(
                 shape = cardShape,
             )
             .nuvioFocusBorder(cardShape)
-            .combinedClickable(
-                enabled = onClick != null || onLongPress != null,
-                onClick = { onClick?.invoke() },
+            .posterCardClickable(
+                onClick = onClick,
                 onLongClick = onLongPress,
-            )
-            .secondaryClick(onLongPress),
+                zoomImageUrl = video.thumbnail ?: fallbackImage,
+                zoomCornerRadius = cornerRadius,
+                hoverScaleEnabled = false,
+            ),
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),

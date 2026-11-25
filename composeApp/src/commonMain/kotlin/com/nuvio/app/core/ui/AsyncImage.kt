@@ -11,8 +11,11 @@ import androidx.compose.ui.layout.ContentScale
 import coil3.ImageLoader
 import coil3.compose.AsyncImagePainter
 
+internal const val DesktopCardDecodeSizePx = 640
+
 internal enum class NuvioDesktopImageScaling {
     Auto,
+    Card,
     Disabled,
 }
 

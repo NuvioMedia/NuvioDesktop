@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -62,11 +63,22 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+
+internal val LocalIsControllerNavigationActive = compositionLocalOf<Boolean?> { null }
+
+@Composable
+internal fun rememberIsControllerNavigationActive(): Boolean {
+    LocalIsControllerNavigationActive.current?.let { return it }
+    val active by ControllerManager.isNavigationActive.collectAsState()
+    return active
+}
 
 enum class ControllerFocusZone {
     Navigation,
@@ -90,8 +102,8 @@ internal class ControllerFocusNode(
     val id: String,
     var zone: ControllerFocusZone,
     var groupKey: String?,
-    var boundsInRoot: Rect = Rect.Zero,
-    var unclippedBoundsInRoot: Rect = Rect.Zero,
+    boundsInRoot: Rect = Rect.Zero,
+    unclippedBoundsInRoot: Rect = Rect.Zero,
     var enabled: Boolean = true,
     var isDefaultFocus: Boolean = false,
     var isTextInput: Boolean = false,
@@ -112,6 +124,29 @@ internal class ControllerFocusNode(
     var rowTotalCount: Int = 0,
     var coroutineScope: CoroutineScope? = null,
 ) {
+    private var cachedBoundsInRoot: Rect = boundsInRoot
+    private var cachedUnclippedBoundsInRoot: Rect = unclippedBoundsInRoot
+    var layoutCoordinates: LayoutCoordinates? = null
+
+    var boundsInRoot: Rect
+        get() = layoutCoordinates?.takeIf { it.isAttached }?.let { coords ->
+            runCatching { coords.boundsInRoot() }.getOrNull()
+        } ?: cachedBoundsInRoot
+        set(value) {
+            cachedBoundsInRoot = value
+        }
+
+    var unclippedBoundsInRoot: Rect
+        get() = layoutCoordinates?.takeIf { it.isAttached }?.let { coords ->
+            runCatching {
+                val pos = coords.positionInRoot()
+                Rect(pos.x, pos.y, pos.x + coords.size.width, pos.y + coords.size.height)
+            }.getOrNull()
+        } ?: cachedUnclippedBoundsInRoot
+        set(value) {
+            cachedUnclippedBoundsInRoot = value
+        }
+
     val isVisibleAndValid: Boolean
         get() = enabled && (
             (boundsInRoot.height > 2f && (
@@ -198,12 +233,8 @@ object ControllerFocusEngine {
         _isTopBarVisibleByScroll.value = visible
     }
 
-    private val _hasInteractiveContent = MutableStateFlow(false)
-    val hasInteractiveContent: StateFlow<Boolean> = _hasInteractiveContent.asStateFlow()
-
-    private fun updateInteractiveContentStatus() {
-        _hasInteractiveContent.value = nodes.values.any { it.zone == ControllerFocusZone.Content && it.isVisibleAndValid }
-    }
+    val hasInteractiveContent: Boolean
+        get() = nodes.values.any { it.zone == ControllerFocusZone.Content && it.isVisibleAndValid }
 
     private var lastFocusedByZone = mutableMapOf<ControllerFocusZone, String>()
     private var lastFocusedByGroup = mutableMapOf<String, String>()
@@ -421,7 +452,6 @@ object ControllerFocusEngine {
                         suppressVerticalScroll = true,
                         suppressHorizontalScroll = false,
                     )
-                    updateInteractiveContentStatus()
                     return
                 } else {
                     _focusedNodeId.value = null
@@ -451,7 +481,6 @@ object ControllerFocusEngine {
                             }
                         }
                     }
-                    updateInteractiveContentStatus()
                     return
                 }
             } else {
@@ -471,13 +500,12 @@ object ControllerFocusEngine {
                 _focusedNodeSnapshot.value = null
             }
         }
-        updateInteractiveContentStatus()
         ensureValidFocus()
     }
 
     internal fun upsertNode(node: ControllerFocusNode) {
         nodes[node.id] = node
-        updateInteractiveContentStatus()
+        if (!ControllerManager.isNavigationActive.value) return
         val currentId = _focusedNodeId.value
         val activeOverlayNodes = nodes.values.filter { it.zone == ControllerFocusZone.Overlay && it.isVisibleAndValid }
         if (activeOverlayNodes.isNotEmpty()) {
@@ -559,6 +587,7 @@ object ControllerFocusEngine {
 
     internal fun removeNode(id: String) {
         val removed = nodes.remove(id)
+        if (!ControllerManager.isNavigationActive.value && _focusedNodeId.value != id) return
         if (_focusedNodeId.value == id) {
             _focusedNodeId.value = null
             _focusedNodeSnapshot.value = null
@@ -589,7 +618,6 @@ object ControllerFocusEngine {
                 isInternalCleanupFocus = false
             }
         }
-        updateInteractiveContentStatus()
     }
 
     /**
@@ -2373,6 +2401,7 @@ fun RegisterControllerVerticalScroll(
     lazyGridState: LazyGridState? = null,
 ): Modifier {
     val isScreenActive = LocalScreenActive.current
+    val isControllerActive = rememberIsControllerNavigationActive()
     val scope = rememberCoroutineScope()
     var focusVisibilityJob by remember { mutableStateOf<Job?>(null) }
     DisposableEffect(lazyListState, scrollState, lazyGridState, isScreenActive) {
@@ -2392,8 +2421,8 @@ fun RegisterControllerVerticalScroll(
             )
         }
     }
-    LaunchedEffect(lazyListState, scrollState, lazyGridState, isScreenActive) {
-        if (!isScreenActive) return@LaunchedEffect
+    LaunchedEffect(lazyListState, scrollState, lazyGridState, isScreenActive, isControllerActive) {
+        if (!isScreenActive || !isControllerActive) return@LaunchedEffect
         var lastIndex = lazyListState?.firstVisibleItemIndex ?: lazyGridState?.firstVisibleItemIndex ?: 0
         var lastOffset = lazyListState?.firstVisibleItemScrollOffset
             ?: lazyGridState?.firstVisibleItemScrollOffset
@@ -2487,35 +2516,12 @@ fun Modifier.controllerFocusable(
     }
     val effectiveSelectLabel = actionLabel ?: selectLabel
     val effectiveFocusScale = scaleOnFocus ?: focusScale
-    val isControllerActive by ControllerManager.isNavigationActive.collectAsState()
+    val isControllerActive = rememberIsControllerNavigationActive()
     val isScreenActive = LocalScreenActive.current
     val effectiveEnabled = enabled && isScreenActive
-    val focusedNodeId by ControllerFocusEngine.focusedNodeId.collectAsState()
-    val isFocused = effectiveEnabled && isControllerActive && focusedNodeId == effectiveId
 
     val effectiveZone = zone ?: ambientZone
     val effectiveGroupKey = groupKey ?: ambientGroupKey
-
-    val coroutineScope = rememberCoroutineScope()
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-
-    LaunchedEffect(isFocused) {
-        if (isFocused) {
-            runCatching { bringIntoViewRequester.bringIntoView() }
-        }
-    }
-
-    val latestOnSelect by rememberUpdatedState(onSelect)
-    val latestOnSecondary by rememberUpdatedState(onSecondaryAction)
-    val latestOnTertiary by rememberUpdatedState(onTertiaryAction)
-    val latestOnFocused by rememberUpdatedState(onFocused)
-    val latestMoveUp by rememberUpdatedState(onMoveUp)
-    val latestMoveDown by rememberUpdatedState(onMoveDown)
-    val latestMoveLeft by rememberUpdatedState(onMoveLeft)
-    val latestMoveRight by rememberUpdatedState(onMoveRight)
-
-    var latestBounds by remember { mutableStateOf(Rect.Zero) }
-    var latestUnclippedBounds by remember { mutableStateOf(Rect.Zero) }
 
     val node = remember(effectiveId) {
         ControllerFocusNode(
@@ -2533,21 +2539,7 @@ fun Modifier.controllerFocusable(
     node.selectLabel = effectiveSelectLabel
     node.secondaryActionLabel = secondaryActionLabel
     node.tertiaryActionLabel = tertiaryActionLabel
-    node.onSelect = { latestOnSelect() }
-    node.onSecondaryAction = latestOnSecondary
-    node.onTertiaryAction = latestOnTertiary
-    node.onMoveUp = latestMoveUp
-    node.onMoveDown = latestMoveDown
-    node.onMoveLeft = latestMoveLeft
-    node.onMoveRight = latestMoveRight
     node.rowLazyListState = ambientRowState
-    node.coroutineScope = coroutineScope
-    node.onFocusedWithOption = { _ ->
-        latestOnFocused?.invoke()
-    }
-    node.onFocused = {
-        latestOnFocused?.invoke()
-    }
 
     DisposableEffect(effectiveId, effectiveEnabled) {
         if (effectiveEnabled) {
@@ -2556,7 +2548,67 @@ fun Modifier.controllerFocusable(
             ControllerFocusEngine.removeNode(effectiveId)
         }
         onDispose {
+            node.layoutCoordinates = null
             ControllerFocusEngine.removeNode(effectiveId)
+        }
+    }
+
+    // Fast path when no controller/keyboard navigation is active: skip coroutineScope,
+    // rememberUpdatedState wrappers, focus collectors, animations, graphicsLayer, and bounds checks.
+    if (!isControllerActive) {
+        node.onSelect = onSelect
+        node.onSecondaryAction = onSecondaryAction
+        node.onTertiaryAction = onTertiaryAction
+        node.onMoveUp = onMoveUp
+        node.onMoveDown = onMoveDown
+        node.onMoveLeft = onMoveLeft
+        node.onMoveRight = onMoveRight
+        node.onFocusedWithOption = onFocused?.let { cb -> { _ -> cb() } }
+        node.onFocused = onFocused
+        return@composed this.onGloballyPositioned { coordinates ->
+            node.layoutCoordinates = coordinates
+        }
+    }
+
+    val coroutineScope = rememberCoroutineScope()
+    val latestOnSelect by rememberUpdatedState(onSelect)
+    val latestOnSecondary by rememberUpdatedState(onSecondaryAction)
+    val latestOnTertiary by rememberUpdatedState(onTertiaryAction)
+    val latestOnFocused by rememberUpdatedState(onFocused)
+    val latestMoveUp by rememberUpdatedState(onMoveUp)
+    val latestMoveDown by rememberUpdatedState(onMoveDown)
+    val latestMoveLeft by rememberUpdatedState(onMoveLeft)
+    val latestMoveRight by rememberUpdatedState(onMoveRight)
+
+    node.onSelect = { latestOnSelect() }
+    node.onSecondaryAction = latestOnSecondary
+    node.onTertiaryAction = latestOnTertiary
+    node.onMoveUp = latestMoveUp
+    node.onMoveDown = latestMoveDown
+    node.onMoveLeft = latestMoveLeft
+    node.onMoveRight = latestMoveRight
+    node.coroutineScope = coroutineScope
+    node.onFocusedWithOption = { _ ->
+        latestOnFocused?.invoke()
+    }
+    node.onFocused = {
+        latestOnFocused?.invoke()
+    }
+
+    val isFocused by remember(effectiveId, effectiveEnabled) {
+        if (!effectiveEnabled) {
+            MutableStateFlow(false)
+        } else {
+            ControllerFocusEngine.focusedNodeId
+                .map { it == effectiveId }
+                .distinctUntilChanged()
+        }
+    }.collectAsState(initial = effectiveEnabled && ControllerFocusEngine.focusedNodeId.value == effectiveId)
+
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            runCatching { bringIntoViewRequester.bringIntoView() }
         }
     }
 
@@ -2576,9 +2628,19 @@ fun Modifier.controllerFocusable(
         }
     }
 
-    val focusedSnapshot by ControllerFocusEngine.focusedNodeSnapshot.collectAsState()
-    val isSiblingActiveInGroup = !isFocused && isControllerActive && effectiveGroupKey != null &&
-        focusedSnapshot?.groupKey == effectiveGroupKey
+    val isSiblingActiveInGroup by remember(effectiveGroupKey, isFocused) {
+        if (isFocused || effectiveGroupKey == null) {
+            MutableStateFlow(false)
+        } else {
+            ControllerFocusEngine.focusedNodeSnapshot
+                .map { it?.groupKey == effectiveGroupKey }
+                .distinctUntilChanged()
+        }
+    }.collectAsState(
+        initial = !isFocused &&
+            effectiveGroupKey != null &&
+            ControllerFocusEngine.focusedNodeSnapshot.value?.groupKey == effectiveGroupKey,
+    )
     val targetAlpha = if (isSiblingActiveInGroup) 0.82f else 1f
     val animatedAlpha by animateFloatAsState(
         targetValue = targetAlpha,
@@ -2601,21 +2663,10 @@ fun Modifier.controllerFocusable(
     this
         .bringIntoViewRequester(bringIntoViewRequester)
         .onGloballyPositioned { coordinates ->
-            val bounds = if (coordinates.isAttached) coordinates.boundsInRoot() else Rect.Zero
-            val unclippedBounds = if (coordinates.isAttached) {
-                val pos = coordinates.positionInRoot()
-                Rect(pos.x, pos.y, pos.x + coordinates.size.width, pos.y + coordinates.size.height)
-            } else {
-                Rect.Zero
-            }
-            if (bounds != latestBounds || unclippedBounds != latestUnclippedBounds) {
-                latestBounds = bounds
-                latestUnclippedBounds = unclippedBounds
-                node.boundsInRoot = bounds
-                node.unclippedBoundsInRoot = unclippedBounds
-                if (effectiveEnabled) {
-                    ControllerFocusEngine.upsertNode(node)
-                }
+            val wasUnplaced = node.layoutCoordinates == null
+            node.layoutCoordinates = coordinates
+            if (wasUnplaced && effectiveEnabled) {
+                ControllerFocusEngine.upsertNode(node)
             }
         }
         .zIndex(if (isFocused) 15f else 0f)
@@ -2801,9 +2852,14 @@ fun Modifier.controllerFocusable(
  */
 @Composable
 fun isControllerNodeFocused(id: String): Boolean {
-    val isControllerActive by ControllerManager.isNavigationActive.collectAsState()
-    val focusedNodeId by ControllerFocusEngine.focusedNodeId.collectAsState()
-    return isControllerActive && focusedNodeId == id
+    val isControllerActive = rememberIsControllerNavigationActive()
+    if (!isControllerActive) return false
+    val isFocused by remember(id) {
+        ControllerFocusEngine.focusedNodeId
+            .map { it == id }
+            .distinctUntilChanged()
+    }.collectAsState(initial = ControllerFocusEngine.focusedNodeId.value == id)
+    return isFocused
 }
 
 

@@ -1,7 +1,7 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,9 +40,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -619,12 +623,15 @@ fun NuvioPosterCard(
     isWatched: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    hoverInteractionSource: MutableInteractionSource? = null,
 ) {
     val posterCardStyle = rememberPosterCardStyleUiState()
     val tokens = MaterialTheme.nuvio
     val effectiveBasePosterWidthDp = basePosterWidthDp ?: posterCardStyle.widthDp
     val cardWidth = shape.cardWidth(basePosterWidthDp = effectiveBasePosterWidthDp)
-    val cardShape = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
+    val cardShape = remember(posterCardStyle.cornerRadiusDp) {
+        RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
+    }
     val catalogLogoOverlaySize = catalogLogoOverlaySize(
         basePosterWidthDp = effectiveBasePosterWidthDp,
         shape = shape,
@@ -633,7 +640,10 @@ fun NuvioPosterCard(
 
     Column(
         modifier = Modifier
-            .desktopPosterHoverScale()
+            .desktopPosterHoverScale(
+                interactionSource = hoverInteractionSource ?: remember { MutableInteractionSource() },
+                attachHoverable = hoverInteractionSource == null,
+            )
             .then(modifier)
             .width(cardWidth),
         verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
@@ -670,8 +680,9 @@ fun NuvioPosterCard(
                     if (hasFallback) {
                         coil3.request.ImageRequest.Builder(platformContext)
                             .data(imageUrl)
-                            .memoryCacheKeyExtras(
-                                mapOf(com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY to fallbackImageUrl!!)
+                            .memoryCacheKeyExtra(
+                                com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY,
+                                fallbackImageUrl!!,
                             )
                             .build()
                     } else {
@@ -683,6 +694,7 @@ fun NuvioPosterCard(
                     contentDescription = title,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop,
+                    desktopImageScaling = NuvioDesktopImageScaling.Card,
                     desktopAnimation = posterCardStyle.animatedArtworkMode.toDesktopAnimation(),
                 )
             } else {
@@ -941,33 +953,42 @@ private fun NuvioPosterShape.cardWidth(basePosterWidthDp: Int): Dp =
 internal fun Modifier.desktopPosterHoverScale(
     enabled: Boolean = true,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    attachHoverable: Boolean = true,
 ): Modifier {
     if (!enabled || !isDesktop) return this
 
     val hovered by interactionSource.collectIsHoveredAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (hovered) DesktopPosterHoverScale else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
-        label = "desktop_poster_hover_scale",
-    )
+    // Avoid creating 40+ idle GraphicsLayers and spring animations for cards that have never been
+    // hovered while scrolling through catalog shelves.
+    var everHovered by remember(interactionSource) { mutableStateOf(false) }
+    if (hovered) everHovered = true
+    val hoverModifier = if (attachHoverable) Modifier.hoverable(interactionSource) else Modifier
+    if (!everHovered) {
+        return this.then(hoverModifier)
+    }
 
-    val isScaling = hovered || scale != 1f
-
-    return this
-        .then(
-            if (isScaling) {
-                Modifier
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                    }
-                    .zIndex(1f)
-            } else {
-                Modifier
-            },
+    val scaleAnim = remember(interactionSource) { Animatable(1f) }
+    LaunchedEffect(hovered) {
+        scaleAnim.animateTo(
+            targetValue = if (hovered) DesktopPosterHoverScale else 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
         )
-        .hoverable(interactionSource)
+    }
+    val elevated by remember(interactionSource) {
+        derivedStateOf { hovered || scaleAnim.value > 1.001f }
+    }
+
+    // Defer reading scaleAnim.value to the graphicsLayer draw phase so spring frames never
+    // recompose the card subtree as posters pass under a stationary cursor during scroll.
+    return this
+        .graphicsLayer {
+            val s = scaleAnim.value
+            scaleX = s
+            scaleY = s
+        }
+        .zIndex(if (elevated) 1f else 0f)
+        .then(hoverModifier)
 }

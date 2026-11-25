@@ -4,6 +4,7 @@ import coil3.ComponentRegistry
 import coil3.ImageLoader
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
+import coil3.request.crossfade
 import coil3.network.CacheStrategy
 import coil3.network.NetworkClient
 import coil3.network.NetworkFetcher
@@ -150,7 +151,9 @@ private class OkHttpSourceResponseBody(
 }
 
 internal actual fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoader.Builder {
-    return memoryCache {
+    // Disable multi-frame alpha crossfades on desktop so scrolling through poster rows does not
+    // continuously composite dozens of transitioning image layers on top of scroll frames.
+    return crossfade(false).memoryCache {
         MemoryCache.Builder()
             .maxSizeBytes(ImageMemoryCacheBytes)
             .build()
@@ -172,4 +175,5 @@ internal actual fun ComponentRegistry.Builder.addPlatformDecoders() {
     )
     add(SkiaGifDecoder.Factory())
     add(SvgEmbeddedImageDecoder.Factory())
+    add(HighQualitySkiaImageDecoder.Factory())
 }

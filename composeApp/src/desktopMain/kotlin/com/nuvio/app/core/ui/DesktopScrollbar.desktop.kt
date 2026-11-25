@@ -58,22 +58,28 @@ internal actual fun NuvioDesktopVerticalScrollbar(
     )
 }
 
+private val DesktopScrollbarShape = RoundedCornerShape(100)
+
 @Composable
 private fun nuvioDesktopScrollbarStyle(backgroundColor: Color?): ScrollbarStyle {
     val colorScheme = MaterialTheme.colorScheme
-    val adaptiveThumbColor = backgroundColor?.let { color ->
-        if (color.luminance() > EqualBlackWhiteContrastLuminance) Color.Black else Color.White
+    val onSurfaceVariant = colorScheme.onSurfaceVariant
+    val primary = colorScheme.primary
+    return androidx.compose.runtime.remember(backgroundColor, onSurfaceVariant, primary) {
+        val adaptiveThumbColor = backgroundColor?.let { color ->
+            if (color.luminance() > EqualBlackWhiteContrastLuminance) Color.Black else Color.White
+        }
+        ScrollbarStyle(
+            minimalHeight = 48.dp,
+            thickness = 6.dp,
+            shape = DesktopScrollbarShape,
+            hoverDurationMillis = 180,
+            unhoverColor = adaptiveThumbColor?.copy(alpha = 0.72f)
+                ?: onSurfaceVariant.copy(alpha = 0.34f),
+            hoverColor = adaptiveThumbColor?.copy(alpha = 0.94f)
+                ?: primary.copy(alpha = 0.78f),
+        )
     }
-    return ScrollbarStyle(
-        minimalHeight = 48.dp,
-        thickness = 6.dp,
-        shape = RoundedCornerShape(100),
-        hoverDurationMillis = 180,
-        unhoverColor = adaptiveThumbColor?.copy(alpha = 0.72f)
-            ?: colorScheme.onSurfaceVariant.copy(alpha = 0.34f),
-        hoverColor = adaptiveThumbColor?.copy(alpha = 0.94f)
-            ?: colorScheme.primary.copy(alpha = 0.78f),
-    )
 }
 
 private const val EqualBlackWhiteContrastLuminance = 0.179f
