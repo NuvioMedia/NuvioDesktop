@@ -55,7 +55,6 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.max
 import com.nuvio.app.core.i18n.localizedEpisodeTitle
-import com.nuvio.app.isDesktop
 
 internal enum class GestureFeedbackIcon {
     Speed,
@@ -179,41 +178,25 @@ internal fun PauseMetadataOverlay(
     ) {
         val compactHeight = maxHeight < 420.dp
         val veryCompactHeight = maxHeight < 340.dp
-        val isLargeScreen = (isDesktop || maxWidth >= 960.dp) && !compactHeight
         val topPadding = if (compactHeight) 24.dp else 40.dp
         val bottomPadding = when {
             veryCompactHeight -> 24.dp
             compactHeight -> 40.dp
-            isLargeScreen -> 100.dp
             else -> 120.dp
         }
         val logoHeight = when {
             veryCompactHeight -> 48.dp
             compactHeight -> 64.dp
-            isLargeScreen -> 150.dp
             else -> 96.dp
         }
-        val titleFontScale = when {
-            compactHeight -> 1.35f
-            isLargeScreen -> 2.2f
-            else -> 1.8f
+        val titleFontScale = if (compactHeight) 1.35f else 1.8f
+        val descriptionStyle = if (compactHeight) {
+            MaterialTheme.nuvioTypeScale.bodyMd.copy(lineHeight = 20.sp)
+        } else {
+            MaterialTheme.nuvioTypeScale.bodyLg.copy(lineHeight = 24.sp)
         }
-        val descriptionStyle = when {
-            compactHeight -> MaterialTheme.nuvioTypeScale.bodyMd.copy(lineHeight = 20.sp)
-            isLargeScreen -> MaterialTheme.nuvioTypeScale.bodyLg.copy(fontSize = 19.sp, lineHeight = 28.sp)
-            else -> MaterialTheme.nuvioTypeScale.bodyLg.copy(lineHeight = 24.sp)
-        }
-        val descriptionMaxLines = when {
-            compactHeight -> 2
-            isLargeScreen -> 6
-            else -> 3
-        }
-        val descriptionWidthFraction = when {
-            compactHeight -> 0.82f
-            isLargeScreen -> 0.30f
-            else -> 0.62f
-        }
-        val titleWidthFraction = if (isLargeScreen) 0.35f else 1f
+        val descriptionMaxLines = if (compactHeight) 2 else 3
+        val descriptionWidthFraction = if (compactHeight) 0.82f else 0.62f
 
         Column(
             modifier = Modifier
@@ -228,7 +211,7 @@ internal fun PauseMetadataOverlay(
         ) {
             Text(
                 text = stringResource(Res.string.compose_player_youre_watching),
-                style = if (isLargeScreen) MaterialTheme.nuvioTypeScale.titleMd else MaterialTheme.nuvioTypeScale.bodyLg,
+                style = MaterialTheme.nuvioTypeScale.bodyLg,
                 color = Color(0xFFB8B8B8),
             )
             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(if (compactHeight) 8.dp else 12.dp))
@@ -239,22 +222,19 @@ internal fun PauseMetadataOverlay(
                     contentDescription = title,
                     contentScale = ContentScale.Fit,
                     alignment = Alignment.BottomStart,
-                    modifier = Modifier
-                        .height(logoHeight)
-                        .widthIn(max = if (isLargeScreen) 500.dp else 360.dp),
+                    modifier = Modifier.height(logoHeight),
                     onError = { logoLoadError = true },
                 )
             } else {
                 Text(
                     text = title,
                     style = MaterialTheme.nuvioTypeScale.displayMd.copy(
-                        fontSize = max(metrics.titleSize.value * titleFontScale, if (isLargeScreen) 40f else 32f).sp,
+                        fontSize = max(metrics.titleSize.value * titleFontScale, 32f).sp,
                         fontWeight = FontWeight.ExtraBold,
                     ),
                     color = Color.White,
                     maxLines = if (compactHeight) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth(titleWidthFraction),
                 )
             }
 
@@ -266,7 +246,7 @@ internal fun PauseMetadataOverlay(
 
             Text(
                 text = episodeInfo,
-                style = if (isLargeScreen) MaterialTheme.nuvioTypeScale.titleMd else MaterialTheme.nuvioTypeScale.bodyLg,
+                style = MaterialTheme.nuvioTypeScale.bodyLg,
                 color = Color(0xFFCCCCCC),
                 modifier = Modifier.padding(top = if (compactHeight) 6.dp else 8.dp),
             )
@@ -274,13 +254,11 @@ internal fun PauseMetadataOverlay(
             if (!episodeTitle.isNullOrBlank()) {
                 Text(
                     text = localizedEpisodeTitle(episodeTitle, episodeNumber) ?: episodeTitle,
-                    style = if (isLargeScreen) MaterialTheme.nuvioTypeScale.titleLg else MaterialTheme.nuvioTypeScale.titleMd,
+                    style = MaterialTheme.nuvioTypeScale.titleLg,
                     color = Color.White,
                     maxLines = if (compactHeight) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .padding(top = if (compactHeight) 8.dp else 12.dp)
-                        .fillMaxWidth(titleWidthFraction),
+                    modifier = Modifier.padding(top = if (compactHeight) 8.dp else 12.dp),
                 )
             }
 
