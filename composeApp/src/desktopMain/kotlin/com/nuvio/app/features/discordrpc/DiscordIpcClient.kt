@@ -51,7 +51,7 @@ private data class SetActivityCommand(
     val args: SetActivityArgs,
 )
 
-private interface DiscordPipe : Closeable {
+internal interface DiscordPipe : Closeable {
     fun write(bytes: ByteArray)
     fun readFully(buffer: ByteArray)
 }
@@ -134,14 +134,19 @@ private fun readFrame(pipe: DiscordPipe): Pair<Int, String> {
     return opcode to payloadBytes.toString(Charsets.UTF_8)
 }
 
-internal class DiscordIpcClient(private val clientId: String) {
+internal enum class SetActivityResult { Applied, Rejected, Disconnected }
+
+internal class DiscordIpcClient(
+    private val clientId: String,
+    private val transportFactory: () -> DiscordPipe? = ::openTransport,
+) {
     private val log = Logger.withTag("DiscordIpcClient")
     private val pid = ProcessHandle.current().pid().toInt()
     private var pipe: DiscordPipe? = null
 
     suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
         if (pipe != null) return@withContext true
-        val opened = openTransport() ?: return@withContext false
+        val opened = transportFactory() ?: return@withContext false
         try {
             writeFrame(opened, OpcodeHandshake, discordIpcJson.encodeToString(HandshakePayload(v = 1, clientId = clientId)))
             val (opcode, payload) = readFrame(opened)
@@ -159,8 +164,8 @@ internal class DiscordIpcClient(private val clientId: String) {
         }
     }
 
-    suspend fun setActivity(activity: DiscordActivity?): Boolean = withContext(Dispatchers.IO) {
-        val currentPipe = pipe ?: return@withContext false
+    suspend fun setActivity(activity: DiscordActivity?): SetActivityResult = withContext(Dispatchers.IO) {
+        val currentPipe = pipe ?: return@withContext SetActivityResult.Disconnected
         try {
             val command = SetActivityCommand(
                 cmd = "SET_ACTIVITY",
@@ -178,13 +183,20 @@ internal class DiscordIpcClient(private val clientId: String) {
             check(responseCommand == "SET_ACTIVITY" && responseNonce == command.nonce) {
                 "unexpected Discord response cmd=$responseCommand evt=$responseEvent nonce=$responseNonce"
             }
-            true
+            // Discord answers an activity it refuses (a field too long, an unaccepted key, ...) with
+            // evt=ERROR on the same nonce and keeps showing the previous activity, so this is not a success.
+            if (responseEvent == "ERROR") {
+                val message = response["data"]?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull
+                log.w { "Discord rejected the activity: $message" }
+                return@withContext SetActivityResult.Rejected
+            }
+            SetActivityResult.Applied
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             log.d { "setActivity failed: ${e.message}" }
             disconnect()
-            false
+            SetActivityResult.Disconnected
         }
     }
 

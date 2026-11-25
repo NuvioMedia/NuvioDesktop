@@ -9,13 +9,31 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
-private class DiscordDisconnected : Exception()
+internal class DiscordDisconnected : Exception()
+
+// Publishes each distinct presence update. Throws DiscordDisconnected when the connection drops.
+internal suspend fun DiscordIpcClient.publishPresence(
+    snapshots: Flow<PresenceSnapshot?>,
+    onPublished: (DiscordActivity) -> Unit,
+) {
+    var last: DiscordActivity? = null
+    snapshots.collect { snapshot ->
+        val activity = snapshot?.toDiscordActivity() ?: IdleActivity
+        if (activity == last) return@collect
+        val result = publishActivity(activity)
+        if (result == SetActivityResult.Disconnected) throw DiscordDisconnected()
+        // Remember it even when refused, so the same payload is not re-sent on every update.
+        last = activity
+        onPublished(activity)
+    }
+}
 
 private const val ReconnectDelayMs = 15_000L
 
@@ -53,15 +71,7 @@ internal object DiscordPresenceManager {
                 if (connected) {
                     lastActivity = null
                     try {
-                        AppPresenceState.current.collect { snapshot ->
-                            val activity = snapshot?.toDiscordActivity() ?: IdleActivity
-                            if (activity == lastActivity) return@collect
-                            if (client.setActivity(activity)) {
-                                lastActivity = activity
-                            } else {
-                                throw DiscordDisconnected()
-                            }
-                        }
+                        client.publishPresence(AppPresenceState.current) { lastActivity = it }
                     } catch (e: DiscordDisconnected) {
                         log.d { "Discord IPC disconnected, retrying" }
                     }
@@ -97,18 +107,60 @@ private fun String.toDiscordEpisodeLabel(): String {
 }
 
 
-private fun PresenceSnapshot.toDiscordActivity(): DiscordActivity = when (this) {
+// Discord refuses the whole activity (evt=ERROR) when a text field is outside 2..128 characters
+// or an image key/URL is longer than 300 characters (SET_ACTIVITY schema of discord/embedded-app-sdk).
+private const val MaxActivityTextLength = 128
+private const val MaxActivityImageLength = 300
+private const val PausedSuffix = " • Paused"
+
+internal fun String?.toDiscordActivityText(maxLength: Int = MaxActivityTextLength): String? {
+    val text = this?.trim().orEmpty()
+    if (text.isEmpty()) return null
+    val clamped = if (text.length > maxLength) {
+        // Cut on a code point boundary: a split surrogate pair would be sent as "?".
+        val cut = text.take(maxLength - 1).let { if (it.last().isHighSurrogate()) it.dropLast(1) else it }
+        cut.trimEnd() + "…"
+    } else {
+        text
+    }
+    return clamped.padEnd(2)
+}
+
+internal fun String?.toDiscordActivityImage(): String? =
+    this?.trim()?.takeIf { url ->
+        url.length <= MaxActivityImageLength &&
+            (url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true))
+    }
+
+// Fallback for an activity Discord refused: drops the fields clients disagree on (custom name, artwork).
+private fun DiscordActivity.withoutOptionalFields(): DiscordActivity = copy(name = null, assets = null)
+
+// Keeps the presence in step with the app: when Discord refuses the activity, retry once with only the plain text fields.
+internal suspend fun DiscordIpcClient.publishActivity(activity: DiscordActivity): SetActivityResult {
+    val result = setActivity(activity)
+    if (result != SetActivityResult.Rejected) return result
+    return setActivity(activity.withoutOptionalFields())
+}
+
+internal fun PresenceSnapshot.toDiscordActivity(): DiscordActivity = when (this) {
     is PresenceSnapshot.Tab -> DiscordActivity(type = WatchingActivityType, details = "Browsing ${tab.name}")
-    is PresenceSnapshot.Details -> DiscordActivity(type = WatchingActivityType, details = "Viewing $title")
+    is PresenceSnapshot.Details -> DiscordActivity(type = WatchingActivityType, details = "Viewing $title".toDiscordActivityText())
     is PresenceSnapshot.Player -> {
         val episode = episodeLabel?.toDiscordEpisodeLabel()
+        val displayTitle = title.toDiscordActivityText()
         // Discord expects Unix timestamps in seconds, not milliseconds.
         val startSecs = (System.currentTimeMillis() - positionMs) / 1_000L
         DiscordActivity(
             type = WatchingActivityType,
-            name = title, // Show the media title under the pseudo when the client honors it.
-            details = title, // Always keep the title here as a fallback for clients that ignore `name`.
-            state = if (isPlaying) episode else episode?.let { "$it • Paused" } ?: "Paused",
+            name = displayTitle, // Show the media title under the pseudo when the client honors it.
+            details = displayTitle, // Always keep the title here as a fallback for clients that ignore `name`.
+            state = if (isPlaying) {
+                episode.toDiscordActivityText()
+            } else {
+                // Shorten the episode first so a long label cannot cut the suffix and look like playback.
+                episode.toDiscordActivityText(MaxActivityTextLength - PausedSuffix.length)
+                    ?.let { "${it.trimEnd()}$PausedSuffix" } ?: "Paused"
+            },
             timestamps = if (isPlaying) {
                 // start + end -> Discord renders a live progress bar with time remaining.
                 DiscordActivityTimestamps(
@@ -118,7 +170,7 @@ private fun PresenceSnapshot.toDiscordActivity(): DiscordActivity = when (this) 
             } else {
                 null
             },
-            assets = posterUrl?.let { DiscordActivityAssets(largeImage = it, largeText = title) },
+            assets = posterUrl.toDiscordActivityImage()?.let { DiscordActivityAssets(largeImage = it, largeText = displayTitle) },
         )
     }
 }

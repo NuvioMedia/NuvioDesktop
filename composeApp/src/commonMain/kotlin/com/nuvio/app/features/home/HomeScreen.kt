@@ -103,10 +103,12 @@ import com.nuvio.app.features.watching.domain.isReleasedBy
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.home.components.HomeCollectionRowSection
+import com.nuvio.app.features.home.components.prefetchDesktopPosterItems
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
@@ -947,6 +949,61 @@ fun HomeScreen(
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val homeSectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value)
         val posterCardStyle = rememberPosterCardStyleUiState()
+        if (isDesktop && sectionsMap.isNotEmpty()) {
+            val platformContext = coil3.compose.LocalPlatformContext.current
+            val isLandscapeMode = posterCardStyle.catalogLandscapeModeEnabled
+            val alwaysShowLandscapeClearlogo = posterCardStyle.alwaysShowLandscapeClearlogo
+            val animatedPrefetch = posterCardStyle.animatedArtworkMode != com.nuvio.app.core.ui.AnimatedArtworkMode.Off
+            val orderedHomeRows = remember(keyedEnabledHomeItems, sectionsMap, collectionsMap) {
+                keyedEnabledHomeItems.mapNotNull { keyedItem ->
+                    val settingsItem = keyedItem.value
+                    if (settingsItem.isCollection) {
+                        collectionsMap[settingsItem.key] ?: return@mapNotNull null
+                        keyedItem.lazyKey to null
+                    } else {
+                        val section = sectionsMap[settingsItem.key] ?: return@mapNotNull null
+                        if (section.items.isEmpty()) return@mapNotNull null
+                        keyedItem.lazyKey to section
+                    }
+                }
+            }
+            val homeRowIndexByKey = remember(orderedHomeRows) {
+                orderedHomeRows.withIndex().associate { (index, pair) -> pair.first to index }
+            }
+            LaunchedEffect(
+                homeListState,
+                orderedHomeRows,
+                isLandscapeMode,
+                alwaysShowLandscapeClearlogo,
+                animatedPrefetch,
+            ) {
+                snapshotFlow {
+                    homeListState.layoutInfo.visibleItemsInfo
+                        .lastOrNull { it.key in homeRowIndexByKey }
+                        ?.key
+                }
+                    .distinctUntilChanged()
+                    .collectLatest { lastVisibleRowKey ->
+                        if (orderedHomeRows.isEmpty()) return@collectLatest
+                        delay(80L)
+                        val lastRowIndex = lastVisibleRowKey?.let { homeRowIndexByKey[it] } ?: -1
+                        val startRow = (lastRowIndex + 1).coerceAtLeast(0)
+                        val endRow = (startRow + 2).coerceAtMost(orderedHomeRows.size)
+                        for (rowIndex in startRow until endRow) {
+                            val section = orderedHomeRows[rowIndex].second ?: continue
+                            prefetchDesktopPosterItems(
+                                platformContext = platformContext,
+                                items = section.items,
+                                startIndex = 0,
+                                endIndexExclusive = minOf(8, section.items.size),
+                                isLandscapeMode = isLandscapeMode,
+                                alwaysShowLandscapeClearlogo = alwaysShowLandscapeClearlogo,
+                                animated = animatedPrefetch,
+                            )
+                        }
+                    }
+            }
+        }
         val homeCatalogPreviewLimit = if (isDesktop) {
             homeCatalogPreviewLimitForWidth(
                 maxWidthDp = maxWidth.value,
@@ -1234,6 +1291,14 @@ fun HomeScreen(
                                     )
                                 }
                             }
+                        }
+                    }
+
+                    if (homeUiState.isLoading) {
+                        item(key = "home_loading_more_catalogs", contentType = "skeleton") {
+                            HomeSkeletonRow(
+                                horizontalPadding = if (isDesktop) homeSectionPadding else 16.dp,
+                            )
                         }
                     }
                 }

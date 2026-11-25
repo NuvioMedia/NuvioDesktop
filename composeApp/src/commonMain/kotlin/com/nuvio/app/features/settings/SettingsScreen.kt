@@ -7,8 +7,10 @@ import com.nuvio.app.controller.ControllerFocusEngine
 import com.nuvio.app.controller.ControllerManager
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.ui.FocusPresence
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.isDesktop
 
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -1054,7 +1056,8 @@ private fun TabletSettingsScreen(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .nestedScroll(rootSearchRevealConnection),
+                        .nestedScroll(rootSearchRevealConnection)
+                        .nuvioDesktopDragScroll(listState, Orientation.Vertical),
                     contentPadding = PaddingValues(
                         start = 40.dp,
                         top = topOffset,

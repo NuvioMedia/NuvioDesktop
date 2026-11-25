@@ -3,6 +3,8 @@ package com.nuvio.app.features.details
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.Orientation
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -247,6 +249,7 @@ private fun EntityBrowseContent(
                         modifier = Modifier
                             .fillMaxSize()
                             .then(scrollViewportModifier)
+                            .nuvioDesktopDragScroll(scrollState, Orientation.Vertical)
                             .verticalScroll(scrollState)
                             .windowInsetsPadding(WindowInsets.statusBars)
                             .padding(top = 56.dp),
@@ -338,6 +341,7 @@ private fun WideEntityBrowseContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .then(scrollViewportModifier)
+                        .nuvioDesktopDragScroll(scrollState, Orientation.Vertical)
                         .verticalScroll(scrollState)
                         .padding(start = 40.dp, bottom = 40.dp),
                     verticalArrangement = Arrangement.spacedBy(34.dp),
@@ -377,6 +381,7 @@ private fun EntityIdentitySidebar(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .nuvioDesktopDragScroll(scrollState, Orientation.Vertical)
                 .verticalScroll(scrollState)
                 .padding(
                     start = 40.dp,
