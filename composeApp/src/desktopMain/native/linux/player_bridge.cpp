@@ -1692,6 +1692,56 @@ void runEventLoop(Player *player) {
     }
 }
 
+static void syncLinuxSubtitleTrackOverride(Player *p, bool force) {
+    if (!p || !p->mpv) return;
+    std::lock_guard<std::mutex> lock(p->subtitleStyleMutex);
+    if (!p->hasAppliedSubtitleStyle) return;
+    std::string codec = mpvGetStr(p->mpv, "current-tracks/sub/codec");
+    for (char &ch : codec) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    bool isAss = codec == "ass" || codec == "ssa";
+    double assScale = p->subtitleFontSize / 54.0;
+    std::string assOverride = !isAss
+        ? "no"
+        : (!p->subtitleUseLibass ? "force" : (std::abs(assScale - 1.0) <= 0.001 ? "no" : "scale"));
+    double effectiveScale = assOverride == "scale" ? assScale : 1.0;
+    int64_t effectivePosition = assOverride == "scale" ? 100 : p->subtitleRawPosition;
+    std::string styleOverride = assOverride == "force"
+        ? (p->subtitleBold ? "Bold=1" : "Bold=0")
+        : "";
+
+    bool overrideChanged = force || p->appliedSubtitleAssOverride != assOverride;
+    bool styleOverrideChanged = force || overrideChanged || p->appliedSubtitleAssStyleOverride != styleOverride;
+    bool scaleChanged = force || p->appliedSubtitleScale != effectiveScale;
+    bool positionChanged = force || p->appliedSubtitlePosition != effectivePosition;
+
+    if (overrideChanged) {
+        mpv_set_property_string(p->mpv, "sub-ass-override", assOverride.c_str());
+    }
+    if (styleOverrideChanged) {
+        const char *styleOverridesCommand[] = {
+            "change-list",
+            "sub-ass-style-overrides",
+            styleOverride.empty() ? "clr" : "set",
+            styleOverride.empty() ? "" : styleOverride.c_str(),
+            nullptr
+        };
+        mpv_command(p->mpv, styleOverridesCommand);
+    }
+    if (scaleChanged) {
+        mpvSetDouble(p->mpv, "sub-scale", effectiveScale);
+    }
+    if (positionChanged) {
+        std::string pos = std::to_string(effectivePosition);
+        mpv_set_property_string(p->mpv, "sub-pos", pos.c_str());
+    }
+    p->appliedSubtitleAssOverride = assOverride;
+    p->appliedSubtitleAssStyleOverride = styleOverride;
+    p->appliedSubtitleScale = effectiveScale;
+    p->appliedSubtitlePosition = effectivePosition;
+}
+
 } // namespace
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *) {
@@ -2159,56 +2209,6 @@ JNIEXPORT void JNICALL NP(setSubtitleVisible)(JNIEnv *, jobject, jlong handle, j
 JNIEXPORT void JNICALL NP(setSubtitleDelayMs)(JNIEnv *, jobject, jlong handle, jint delayMs) {
     Player *p = asPlayer(handle);
     if (p) mpvSetDouble(p->mpv, "sub-delay", delayMs / 1000.0);
-}
-
-static void syncLinuxSubtitleTrackOverride(Player *p, bool force) {
-    if (!p || !p->mpv) return;
-    std::lock_guard<std::mutex> lock(p->subtitleStyleMutex);
-    if (!p->hasAppliedSubtitleStyle) return;
-    std::string codec = mpvGetStr(p->mpv, "current-tracks/sub/codec");
-    for (char &ch : codec) {
-        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    }
-    bool isAss = codec == "ass" || codec == "ssa";
-    double assScale = p->subtitleFontSize / 54.0;
-    std::string assOverride = !isAss
-        ? "no"
-        : (!p->subtitleUseLibass ? "force" : (std::abs(assScale - 1.0) <= 0.001 ? "no" : "scale"));
-    double effectiveScale = assOverride == "scale" ? assScale : 1.0;
-    int64_t effectivePosition = assOverride == "scale" ? 100 : p->subtitleRawPosition;
-    std::string styleOverride = assOverride == "force"
-        ? (p->subtitleBold ? "Bold=1" : "Bold=0")
-        : "";
-
-    bool overrideChanged = force || p->appliedSubtitleAssOverride != assOverride;
-    bool styleOverrideChanged = force || overrideChanged || p->appliedSubtitleAssStyleOverride != styleOverride;
-    bool scaleChanged = force || p->appliedSubtitleScale != effectiveScale;
-    bool positionChanged = force || p->appliedSubtitlePosition != effectivePosition;
-
-    if (overrideChanged) {
-        mpv_set_property_string(p->mpv, "sub-ass-override", assOverride.c_str());
-    }
-    if (styleOverrideChanged) {
-        const char *styleOverridesCommand[] = {
-            "change-list",
-            "sub-ass-style-overrides",
-            styleOverride.empty() ? "clr" : "set",
-            styleOverride.empty() ? "" : styleOverride.c_str(),
-            nullptr
-        };
-        mpv_command(p->mpv, styleOverridesCommand);
-    }
-    if (scaleChanged) {
-        mpvSetDouble(p->mpv, "sub-scale", effectiveScale);
-    }
-    if (positionChanged) {
-        std::string pos = std::to_string(effectivePosition);
-        mpv_set_property_string(p->mpv, "sub-pos", pos.c_str());
-    }
-    p->appliedSubtitleAssOverride = assOverride;
-    p->appliedSubtitleAssStyleOverride = styleOverride;
-    p->appliedSubtitleScale = effectiveScale;
-    p->appliedSubtitlePosition = effectivePosition;
 }
 
 JNIEXPORT void JNICALL NP(applySubtitleStyle)(
