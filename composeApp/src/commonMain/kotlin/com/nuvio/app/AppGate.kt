@@ -70,6 +70,7 @@ import com.nuvio.app.features.watchprogress.ContinueWatchingEnrichmentCache
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.navigation.AppRoute
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -358,6 +359,19 @@ internal fun AppGate(
         }
     }
 
+    // Entering with the cached profiles runs outside the effect below. That effect restarts
+    // whenever the network condition settles (Unknown -> Checking -> Online) or the session is
+    // validated, and each restart used to cancel the profile switch and start it over, so the
+    // app only showed its content after the server had answered.
+    var cachedProfileEntry by remember { mutableStateOf<Job?>(null) }
+
+    fun enterWithCachedProfiles(cachedProfiles: List<NuvioProfile>) {
+        if (cachedProfileEntry?.isActive == true) return
+        cachedProfileEntry = gateScope.launch {
+            enterProfileGate(cachedProfiles, syncOnEnter = false)
+        }
+    }
+
     LaunchedEffect(authState, networkStatusUiState.condition, profileState.profiles) {
         val cachedProfiles = profileState.profiles
         val hasCachedProfileAccess =
@@ -373,15 +387,16 @@ internal fun AppGate(
         when (authState) {
             is AuthState.Loading -> {
                 if (hasCachedProfileAccess) {
-                    enterProfileGate(cachedProfiles, syncOnEnter = false)
+                    enterWithCachedProfiles(cachedProfiles)
                 } else {
                     gateScreen = AppGateScreen.Loading.name
                 }
             }
             is AuthState.Unauthenticated -> {
                 if (allowCachedProfileAccess) {
-                    enterProfileGate(cachedProfiles, syncOnEnter = false)
+                    enterWithCachedProfiles(cachedProfiles)
                 } else {
+                    cachedProfileEntry?.cancel()
                     ProfileRepository.clearInMemory()
                     profileSelectionLoading = false
                     profileSelectionTransitionActive = false
@@ -391,6 +406,10 @@ internal fun AppGate(
             is AuthState.Authenticated -> {
                 val authenticatedState = authState as AuthState.Authenticated
                 ProfileRepository.ensureLoaded(authenticatedState.userId)
+                // An entry with the cached profile that is still running selects the same
+                // profile; let it finish rather than switching to it again. The main content
+                // pulls the profile from the server once the session is authenticated.
+                cachedProfileEntry?.join()
                 if (gateScreen == AppGateScreen.Loading.name || gateScreen == AppGateScreen.Auth.name) {
                     enterProfileGate(ProfileRepository.state.value.profiles, syncOnEnter = true)
                 }

@@ -35,6 +35,8 @@ fun ControllerNavigationHost(
     onBack: () -> Boolean,
     onBumperLeft: (() -> Boolean)? = null,
     onBumperRight: (() -> Boolean)? = null,
+    onSearch: (() -> Boolean)? = null,
+    onOpenNavigation: (() -> Boolean)? = null,
 ) {
     val routeIdentity = when (currentRoute) {
         is DetailRoute -> "DetailRoute:${currentRoute.type}:${currentRoute.id}"
@@ -49,14 +51,21 @@ fun ControllerNavigationHost(
     LaunchedEffect(currentRoute, selectedTab) {
         ControllerFocusEngine.isHomeTabActive =
             currentRoute is TabsRoute && selectedTab == AppScreenTab.Home
-        ControllerFocusEngine.deferNavigationToCompose = when (currentRoute) {
+        val deferToCompose = when (currentRoute) {
             // Screens instrumented with controllerFocusable are driven by the spatial engine.
             is TabsRoute, is CatalogRoute, is FolderDetailRoute, is EntityBrowseRoute -> false
             // Details, streams, player and settings leaves rely on Compose focus instead.
             null -> false
             else -> true
         }
+        ControllerFocusEngine.deferNavigationToCompose = deferToCompose
         ControllerFocusEngine.onRouteOrTabChanged("$routeIdentity:$selectedTab")
+        if (deferToCompose) {
+            // Compose owns focus on these routes; drop any spatial selection so the engine ring
+            // does not stay frozen on a node while Compose focus moves (details rails looked
+            // like they could not move left/right).
+            ControllerFocusEngine.clearFocus()
+        }
         ControllerManager.updateScreenContext(
             when {
                 currentRoute is PlayerRoute -> ControllerScreenContext(
@@ -122,6 +131,8 @@ fun ControllerNavigationHost(
         onBack = onBack,
         onBumperLeft = onBumperLeft,
         onBumperRight = onBumperRight,
+        onActionY = onSearch,
+        onMenuButton = onOpenNavigation,
     )
 }
 

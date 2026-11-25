@@ -216,6 +216,8 @@ object ControllerFocusEngine {
         /** Viewport bounds in root coordinates, tracked by [RegisterControllerVerticalScroll]. */
         var viewportTopInRoot: Float = Float.NaN,
         var viewportHeight: Float = 0f,
+        var viewportLeftInRoot: Float = Float.NaN,
+        var viewportWidth: Float = 0f,
     )
 
     private val registeredScrollables = mutableListOf<ControllerScrollableEntry>()
@@ -232,8 +234,12 @@ object ControllerFocusEngine {
         val lastFocusedByGroup: Map<String, String>,
     )
 
+    private const val PENDING_RESTORE_POLL_MS = 40L
+    private const val PENDING_RESTORE_TIMEOUT_MS = 1500L
+
     private val routeFocusHistory = mutableMapOf<String, RouteFocusMemory>()
     private var pendingRestoredNodeId: String? = null
+    private var pendingRestoredAt = 0L
     private var pendingRestoreFallbackJob: Job? = null
     private var isInternalCleanupFocus: Boolean = false
 
@@ -288,6 +294,8 @@ object ControllerFocusEngine {
         lazyGridState: LazyGridState? = null,
         topInRoot: Float,
         height: Float,
+        leftInRoot: Float = Float.NaN,
+        width: Float = 0f,
     ) {
         registeredScrollables.firstOrNull {
             (lazyListState != null && it.lazyListState === lazyListState) ||
@@ -296,10 +304,13 @@ object ControllerFocusEngine {
         }?.let { entry ->
             entry.viewportTopInRoot = topInRoot
             entry.viewportHeight = height
+            entry.viewportLeftInRoot = leftInRoot
+            entry.viewportWidth = width
         }
     }
 
-    internal fun getActiveScrollable(): ControllerScrollableEntry? {        val valid = registeredScrollables.filter { entry ->
+    internal fun getActiveScrollable(): ControllerScrollableEntry? {
+        val valid = registeredScrollables.filter { entry ->
             val l = entry.lazyListState
             val s = entry.scrollState
             val g = entry.lazyGridState
@@ -312,6 +323,48 @@ object ControllerFocusEngine {
             entry.lazyListState?.layoutInfo?.visibleItemsInfo?.isNotEmpty() == true ||
             entry.lazyGridState?.layoutInfo?.visibleItemsInfo?.isNotEmpty() == true
         } ?: valid.lastOrNull() ?: registeredScrollables.lastOrNull()
+    }
+
+    /**
+     * Keeps the spatial selection on screen after a programmatic or lazy-list scroll.
+     *
+     * Lazy containers can keep an item composed while it leaves the viewport, so the focused node
+     * stays "valid" but is no longer visible and its ring disappears. When that happens, move the
+     * selection to the nearest visible content item without scrolling again.
+     */
+    internal fun ensureFocusWithinActiveViewport() {
+        val entry = getActiveScrollable() ?: return
+        val viewportTop = entry.viewportTopInRoot.takeIf { it.isFinite() } ?: return
+        val viewportHeight = entry.viewportHeight
+        if (viewportHeight <= 0f) return
+        val viewportBottom = viewportTop + viewportHeight
+        val viewportLeft = entry.viewportLeftInRoot.takeIf { it.isFinite() } ?: Float.NEGATIVE_INFINITY
+        val viewportRight = if (viewportLeft.isFinite()) viewportLeft + entry.viewportWidth else Float.POSITIVE_INFINITY
+
+        val current = _focusedNodeId.value?.let { nodes[it] }?.takeIf { it.isVisibleAndValid } ?: return
+        if (current.zone != ControllerFocusZone.Content) return
+
+        // Only act when the focused item is completely outside the viewport. A card that merely
+        // peeks in at the bottom (the next row) must keep the focus, otherwise the ring jumps to
+        // the row below while the user is still on the current one.
+        val bounds = current.boundsInRoot
+        val overlapsVertically = bounds.bottom > viewportTop + 2f && bounds.top < viewportBottom - 2f
+        if (overlapsVertically) return
+
+        val candidates = nodes.values.filter {
+            it.zone == ControllerFocusZone.Content &&
+                it.id != current.id &&
+                it.isVisibleAndValid &&
+                it.boundsInRoot.top >= viewportTop + 2f &&
+                it.boundsInRoot.bottom <= viewportBottom - 2f &&
+                it.boundsInRoot.center.x in viewportLeft..viewportRight
+        }
+        if (candidates.isEmpty()) return
+
+        val sameGroup = candidates.filter { it.groupKey != null && it.groupKey == current.groupKey }
+        val pool = sameGroup.ifEmpty { candidates }
+        val target = pool.minByOrNull { abs(it.boundsInRoot.center.y - bounds.center.y) } ?: return
+        focusNodeInternal(target, triggerScroll = false)
     }
 
     fun setNavigationZoneExpanded(expanded: Boolean) {
@@ -374,9 +427,15 @@ object ControllerFocusEngine {
                     _focusedNodeId.value = null
                     _focusedNodeSnapshot.value = null
                     pendingRestoredNodeId = targetId
+                    pendingRestoredAt = System.currentTimeMillis()
                     val scope = activeCoroutineScope ?: nodes.values.firstNotNullOfOrNull { it.coroutineScope }
                     pendingRestoreFallbackJob = scope?.launch {
-                        delay(240)
+                        var waited = 0L
+                        while (pendingRestoredNodeId == targetId && waited < PENDING_RESTORE_TIMEOUT_MS) {
+                            delay(PENDING_RESTORE_POLL_MS)
+                            waited += PENDING_RESTORE_POLL_MS
+                            if (nodes[targetId]?.isVisibleAndValid == true) break
+                        }
                         if (pendingRestoredNodeId == targetId) {
                             val lateNode = nodes[targetId]?.takeIf { it.isVisibleAndValid }
                             pendingRestoredNodeId = null
@@ -449,6 +508,7 @@ object ControllerFocusEngine {
                 )
                 return
             }
+            if (System.currentTimeMillis() - pendingRestoredAt < PENDING_RESTORE_TIMEOUT_MS) return
         }
 
         if (currentId == node.id) {
@@ -532,6 +592,39 @@ object ControllerFocusEngine {
         updateInteractiveContentStatus()
     }
 
+    /**
+     * Scrolls the active container by one page. Used on Compose-driven screens where Compose focus
+     * reaches the last focusable element but the page still has content below/above it.
+     */
+    fun scrollActivePage(down: Boolean): Boolean {
+        val entry = getActiveScrollable() ?: return false
+        val listState = entry.lazyListState
+        val gridState = entry.lazyGridState
+        val scrollState = entry.scrollState
+        val viewport = listState?.layoutInfo?.viewportSize?.height?.toFloat()
+            ?: gridState?.layoutInfo?.viewportSize?.height?.toFloat()
+            ?: 720f
+        val delta = if (down) viewport * 0.7f else -viewport * 0.7f
+        entry.scope.launch {
+            when {
+                listState != null -> runCatching { listState.scrollBy(delta) }
+                gridState != null -> runCatching { gridState.scrollBy(delta) }
+                scrollState != null -> runCatching { scrollState.scrollBy(delta) }
+            }
+        }
+        return true
+    }
+
+    /** Focuses the topmost node of a group (used by popups and sheets). */
+    fun focusFirstInGroup(groupKey: String): Boolean {
+        val node = nodes.values
+            .filter { it.groupKey == groupKey && it.isVisibleAndValid }
+            .minWithOrNull(compareBy({ it.boundsInRoot.top }, { it.boundsInRoot.left }))
+            ?: return false
+        focusNodeInternal(node, triggerScroll = false)
+        return true
+    }
+
     fun requestFocus(id: String, triggerScroll: Boolean = true): Boolean {
         val node = nodes[id]?.takeIf { it.isVisibleAndValid } ?: return false
         hasUserNavigatedOnCurrentRoute = true
@@ -594,6 +687,13 @@ object ControllerFocusEngine {
 
         val contentNodes = nodes.values.filter { it.zone == ControllerFocusZone.Content && it.isVisibleAndValid }
         if (contentNodes.isNotEmpty()) {
+            // On Home prefer real shelf posters over header/search nodes when no memory is available,
+            // so returning from a detail screen never parks focus in the search field.
+            val candidates = if (isHomeTabActive) {
+                contentNodes.filter { it.groupKey?.startsWith("shelf_") == true }.ifEmpty { contentNodes }
+            } else {
+                contentNodes
+            }
             val routeSavedId = activeRouteKey?.let { routeFocusHistory[it]?.focusedNodeId }
             val rememberedId = routeSavedId ?: lastFocusedByZone[ControllerFocusZone.Content]
             val remembered = rememberedId?.let { id -> contentNodes.firstOrNull { it.id == id } }
@@ -602,7 +702,7 @@ object ControllerFocusEngine {
                 return true
             }
             if (preferBounds != null && preferZone == ControllerFocusZone.Content) {
-                val nearest = contentNodes.minByOrNull {
+                val nearest = candidates.minByOrNull {
                     hypot(
                         (it.boundsInRoot.center.x - preferBounds.center.x).toDouble(),
                         (it.boundsInRoot.center.y - preferBounds.center.y).toDouble(),
@@ -613,11 +713,11 @@ object ControllerFocusEngine {
                     return true
                 }
             }
-            val defaultNode = contentNodes.firstOrNull { it.isDefaultFocus }
-            val settingsSidebarTopNode = contentNodes
+            val defaultNode = candidates.firstOrNull { it.isDefaultFocus }
+            val settingsSidebarTopNode = candidates
                 .filter { it.groupKey == "settings_sidebar" }
                 .minByOrNull { it.boundsInRoot.top }
-            val topLeftNode = contentNodes.minWithOrNull(
+            val topLeftNode = candidates.minWithOrNull(
                 compareBy<ControllerFocusNode> { (it.boundsInRoot.top / 32f).toInt() }
                     .thenBy { it.boundsInRoot.left },
             )
@@ -662,6 +762,13 @@ object ControllerFocusEngine {
         suppressHorizontalScroll: Boolean = false,
         direction: ControllerDirection? = null,
     ) {
+        // On Compose-driven routes the engine must not draw its ring at all: Compose owns focus.
+        // A stale ring here made the details rails look frozen while Compose moved its own focus.
+        if (deferNavigationToCompose) {
+            _focusedNodeId.value = null
+            _focusedNodeSnapshot.value = null
+            return
+        }
         val previousId = _focusedNodeId.value
         _focusedNodeId.value = node.id
         _focusedNodeSnapshot.value = node.toSnapshot()
@@ -683,7 +790,7 @@ object ControllerFocusEngine {
             manualSidebarOpen = false
             invokeGlobalHandler { it.onExitNavigationZone?.invoke(); false }
         }
-        if (previousId != null && previousId != node.id) {
+        if (previousId != null && previousId != node.id && ControllerManager.isNavigationActive.value) {
             ControllerSoundPlayer.playNavigate()
         }
         if (triggerScroll) {
@@ -1203,16 +1310,15 @@ object ControllerFocusEngine {
             }
 
             if (abs(delta) > 4f) {
-                val smoothScrollSpec = tween<Float>(
-                    durationMillis = 300,
-                    easing = FastOutSlowInEasing,
-                )
+                // Center the newly focused row immediately. An animated scroll (300 ms) cannot
+                // finish between key repeats, so rows used to stay pinned at the screen edge where
+                // the ring was clipped and looked like it had disappeared.
                 if (listState != null) {
-                    runCatching { listState.animateScrollBy(delta, smoothScrollSpec) }
+                    runCatching { listState.scrollBy(delta) }
                 } else if (gridState != null) {
-                    runCatching { gridState.animateScrollBy(delta, smoothScrollSpec) }
+                    runCatching { gridState.scrollBy(delta) }
                 } else if (scrollState != null) {
-                    runCatching { scrollState.animateScrollBy(delta, smoothScrollSpec) }
+                    runCatching { scrollState.scrollBy(delta) }
                 }
             }
         }
@@ -1640,6 +1746,19 @@ object ControllerFocusEngine {
             }
             return true
         } else if (direction == ControllerDirection.Up) {
+            // The Home hero lives outside the shelf rows; focus it explicitly when the user moves
+            // up from the first row so Up reaches "View Details" before the top bar.
+            if (effectiveRowIndex <= 0) {
+                val heroNode = nodes.values.firstOrNull {
+                    it.groupKey == "home_hero" &&
+                        it.isVisibleAndValid &&
+                        it.boundsInRoot.center.y < current.boundsInRoot.center.y - 8f
+                }
+                if (heroNode != null) {
+                    focusNodeInternal(heroNode, triggerScroll = true, direction = direction)
+                    return true
+                }
+            }
             if (effectiveRowIndex > 0) {
                 val prevRow = composedRows[effectiveRowIndex - 1]
                 val targetNode = selectBestTargetNodeInRow(current, prevRow)
@@ -2029,6 +2148,15 @@ object ControllerFocusEngine {
             }
         }
 
+        // At the edge of a content row (e.g. the last poster of a shelf) consume horizontal input
+        // instead of leaking to Compose's focus search: the fallback moved an invisible Compose
+        // focus and made the spatial ring blink on and off at the end of the row.
+        if (activeZone == ControllerFocusZone.Content &&
+            (direction == ControllerDirection.Left || direction == ControllerDirection.Right)
+        ) {
+            return true
+        }
+
         return false
     }
 
@@ -2246,6 +2374,7 @@ fun RegisterControllerVerticalScroll(
 ): Modifier {
     val isScreenActive = LocalScreenActive.current
     val scope = rememberCoroutineScope()
+    var focusVisibilityJob by remember { mutableStateOf<Job?>(null) }
     DisposableEffect(lazyListState, scrollState, lazyGridState, isScreenActive) {
         if (isScreenActive) {
             ControllerFocusEngine.registerVerticalScrollable(
@@ -2286,6 +2415,16 @@ fun RegisterControllerVerticalScroll(
             } else if (idx < lastIndex || (idx == lastIndex && off < lastOffset - 8)) {
                 ControllerFocusEngine.setTopBarVisibleByScroll(true)
             }
+            // A lazy container can keep the focused item composed after it leaves the viewport,
+            // which hides its ring while the list keeps scrolling. Once scrolling settles, pull the
+            // selection back to the nearest visible item.
+            if (ControllerManager.isNavigationActive.value) {
+                focusVisibilityJob?.cancel()
+                focusVisibilityJob = scope.launch {
+                    delay(260)
+                    ControllerFocusEngine.ensureFocusWithinActiveViewport()
+                }
+            }
             lastIndex = idx
             lastOffset = off
         }
@@ -2300,6 +2439,8 @@ fun RegisterControllerVerticalScroll(
             lazyGridState = lazyGridState,
             topInRoot = bounds.top,
             height = bounds.height,
+            leftInRoot = bounds.left,
+            width = bounds.width,
         )
     }
 }
@@ -2333,10 +2474,16 @@ fun Modifier.controllerFocusable(
     onMoveDown: (() -> Boolean)? = null,
     onMoveLeft: (() -> Boolean)? = null,
     onMoveRight: (() -> Boolean)? = null,
+    /** Appends the ambient group key to [id] so the same card in two rows gets distinct ids. */
+    dedupeByGroup: Boolean = false,
     onSelect: () -> Unit,
 ): Modifier = composed {
-    val effectiveId = remember(id) {
-        id.ifEmpty { "ctrl_node_${++autoControllerNodeCounter}" }
+    val ambientZone = LocalControllerFocusZone.current
+    val ambientGroupKey = LocalControllerGroupKey.current
+    val ambientRowState = LocalControllerRowLazyListState.current
+    val effectiveId = remember(id, ambientGroupKey, dedupeByGroup) {
+        val base = id.ifEmpty { "ctrl_node_${++autoControllerNodeCounter}" }
+        if (dedupeByGroup && !ambientGroupKey.isNullOrEmpty()) "$base@$ambientGroupKey" else base
     }
     val effectiveSelectLabel = actionLabel ?: selectLabel
     val effectiveFocusScale = scaleOnFocus ?: focusScale
@@ -2346,13 +2493,17 @@ fun Modifier.controllerFocusable(
     val focusedNodeId by ControllerFocusEngine.focusedNodeId.collectAsState()
     val isFocused = effectiveEnabled && isControllerActive && focusedNodeId == effectiveId
 
-    val ambientZone = LocalControllerFocusZone.current
-    val ambientGroupKey = LocalControllerGroupKey.current
-    val ambientRowState = LocalControllerRowLazyListState.current
     val effectiveZone = zone ?: ambientZone
     val effectiveGroupKey = groupKey ?: ambientGroupKey
 
     val coroutineScope = rememberCoroutineScope()
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            runCatching { bringIntoViewRequester.bringIntoView() }
+        }
+    }
 
     val latestOnSelect by rememberUpdatedState(onSelect)
     val latestOnSecondary by rememberUpdatedState(onSecondaryAction)
@@ -2448,6 +2599,7 @@ fun Modifier.controllerFocusable(
     )
 
     this
+        .bringIntoViewRequester(bringIntoViewRequester)
         .onGloballyPositioned { coordinates ->
             val bounds = if (coordinates.isAttached) coordinates.boundsInRoot() else Rect.Zero
             val unclippedBounds = if (coordinates.isAttached) {

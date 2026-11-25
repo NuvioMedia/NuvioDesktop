@@ -22,16 +22,29 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import com.nuvio.app.controller.ControllerFocusEngine
+import com.nuvio.app.controller.ControllerFocusZone
+import com.nuvio.app.controller.ControllerManager
+import com.nuvio.app.controller.RegisterControllerHandler
+import com.nuvio.app.controller.controllerFocusable
 import com.nuvio.app.isWindows
+import kotlinx.coroutines.delay
+
+private var bottomSheetActionFocusCounter = 0
 
 private val SheetShape = RoundedCornerShape(NuvioTokens.Space.s28)
 
@@ -47,6 +60,44 @@ fun NuvioModalBottomSheet(
     fullHeight: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // Sheets are Compose overlays with their own scrollable content. Let Compose own focus while a
+    // sheet is visible: arrow keys then scroll long option lists natively, instead of the spatial
+    // engine moving between registered rows without being able to scroll the sheet.
+    val focusManager = LocalFocusManager.current
+    // Route the desktop arrows/pad into this popup's focus owner while it is visible.
+    DisposableEffect(focusManager) {
+        ComposePopupFocus.push(focusManager)
+        onDispose { ComposePopupFocus.pop(focusManager) }
+    }
+    DisposableEffect(Unit) {
+        val previousDefer = ControllerFocusEngine.deferNavigationToCompose
+        ControllerFocusEngine.deferNavigationToCompose = false
+        ControllerFocusEngine.clearFocus()
+        onDispose { ControllerFocusEngine.deferNavigationToCompose = previousDefer }
+    }
+    RegisterControllerHandler(
+        key = "nuvio_bottom_sheet",
+        onBack = {
+            onDismissRequest()
+            true
+        },
+    )
+    // Escape is captured by the AWT dispatcher before Compose sees it; put the sheet on top of the
+    // Escape stack so it closes instead of leaving the page underneath.
+    PlatformBackHandler(enabled = true) {
+        onDismissRequest()
+    }
+    LaunchedEffect(Unit) {
+        if (!ControllerManager.isNavigationActive.value) return@LaunchedEffect
+        delay(220)
+        // Sheets made of action rows are driven by the spatial engine (white ring + bring-into-view);
+        // forms without rows fall back to Compose focus.
+        if (!ControllerFocusEngine.focusFirstInGroup("bottom_sheet_actions")) {
+            focusManager.clearFocus(force = true)
+            focusManager.moveFocus(FocusDirection.Next)
+        }
+    }
+
     if (usesNativeNuvioBottomSheet) {
         NuvioNativeModalBottomSheet(
             onDismissRequest = onDismissRequest,
@@ -112,12 +163,25 @@ fun NuvioBottomSheetActionRow(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     selected: Boolean = false,
+    focusId: String? = null,
     trailingContent: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val tokens = MaterialTheme.nuvio
+    val actionFocusId = remember(focusId) {
+        focusId ?: "bottom_sheet_action_${++bottomSheetActionFocusCounter}"
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // Compose owns focus inside sheets; the border must be outside the clickable target.
+            .nuvioFocusBorder(tokens.shapes.compactCard)
+            .controllerFocusable(
+                id = actionFocusId,
+                zone = ControllerFocusZone.Overlay,
+                groupKey = "bottom_sheet_actions",
+                selectLabel = title,
+                onSelect = onClick,
+            )
             .padding(horizontal = NuvioTokens.Space.s8)
             .heightIn(min = NuvioTokens.Space.s56)
             .clip(tokens.shapes.compactCard)

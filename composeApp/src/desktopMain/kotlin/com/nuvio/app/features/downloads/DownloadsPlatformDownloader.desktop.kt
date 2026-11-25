@@ -172,6 +172,7 @@ internal actual object DownloadsPlatformDownloader {
         )
         var downloadedBytes = startingBytes
         onProgress(downloadedBytes, totalBytes)
+        var lastProgressAtNanos = System.nanoTime()
 
         response.body().use { input ->
             FileOutputStream(tempFile, appendToTemp).use { output ->
@@ -198,6 +199,7 @@ internal actual object DownloadsPlatformDownloader {
                 onProgress(downloadedBytes, totalBytes)
             }
         }
+        onProgress(downloadedBytes, totalBytes)
 
         // A server that ends the stream early would otherwise leave a truncated file marked as completed.
         if (totalBytes != null && downloadedBytes < totalBytes) {
@@ -245,6 +247,7 @@ private class DesktopDownloadsTaskHandle(
 }
 
 private const val MaxTransientRetries = 10
+private const val ProgressIntervalNanos = 1_000_000_000L
 private const val MaxRetryDelayMs = 30_000L
 
 private const val DOWNLOAD_BUFFER_SIZE = 64 * 1024

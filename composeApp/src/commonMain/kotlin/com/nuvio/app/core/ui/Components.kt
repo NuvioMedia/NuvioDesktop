@@ -284,6 +284,9 @@ fun NuvioIconActionButton(
     val tokens = MaterialTheme.nuvio
     IconButton(
         modifier = modifier
+            // Compose focus moves between icon buttons on Compose-driven screens (settings,
+            // add-on manager); without a border the selection is invisible.
+            .nuvioFocusBorder(tokens.shapes.avatar)
             .background(
                 color = tokens.colors.background.copy(alpha = 0.001f),
                 shape = tokens.shapes.avatar,

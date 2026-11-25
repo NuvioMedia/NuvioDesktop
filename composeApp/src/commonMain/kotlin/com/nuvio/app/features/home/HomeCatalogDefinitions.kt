@@ -75,8 +75,12 @@ private fun buildHomeCatalogDescriptorSignature(
     manifest: AddonManifest,
     catalog: AddonCatalog,
 ): String {
+    // Only what changes the fetched rows belongs here. The addon's display name and its refresh
+    // state used to be part of it, so applying the server's addon list at startup (which brings
+    // the names) gave every catalog a new cache key and the home threw away the rows it had
+    // already loaded.
     val signature = CatalogDescriptorSignature()
-    signature.addAddon(addon)
+    signature.add(addon.manifestUrl)
     signature.addManifest(manifest)
     signature.addCatalog(catalog)
     return signature.value()

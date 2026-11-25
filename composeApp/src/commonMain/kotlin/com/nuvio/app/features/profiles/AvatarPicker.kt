@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.nuvio.app.core.ui.nuvioFocusBorder
 
 @Composable
 internal fun AvatarPicker(
@@ -66,6 +67,9 @@ private fun AvatarChoiceItem(
 ) {
     Box(
         modifier = modifier
+            // Compose owns focus on the edit-profile page; without a border the avatar grid had
+            // no visible selection and the arrows appeared to skip over it.
+            .nuvioFocusBorder(CircleShape)
             .clip(CircleShape)
             .background(
                 avatar.bgColor?.let(::parseHexColor)

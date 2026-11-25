@@ -40,6 +40,8 @@ internal fun JellyNavigationBar(
     glowStrength: Float = 1f,
     horizontalLabels: Boolean = false,
     iconSize: Dp = if (compactSize) 24.dp else 28.dp,
+    /** Optional spatial-focus ids (one per item) used by the controller navigation engine. */
+    focusIdForIndex: ((Int) -> String)? = null,
     surface: @Composable BoxScope.() -> Unit,
 ) {
     if (items.isEmpty()) return
@@ -142,7 +144,16 @@ internal fun JellyNavigationBar(
                             JellyTabRow(items, labelFraction, motion, active = true, compactSize = compactSize, modifier = Modifier.matchParentSize(), horizontalLabels = horizontalLabels, iconSize = iconSize)
                         }
                     }
-                    JellyTabTargets(items, labelFraction, motion, compactSize, Modifier.matchParentSize(), horizontalLabels, iconSize)
+                    JellyTabTargets(
+                        items,
+                        labelFraction,
+                        motion,
+                        compactSize,
+                        Modifier.matchParentSize(),
+                        horizontalLabels,
+                        iconSize,
+                        focusIdForIndex,
+                    )
                 }
             }
         }

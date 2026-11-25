@@ -277,6 +277,7 @@ fun DetailHero(
                     } else {
                         Text(
                             text = meta.name,
+                            modifier = Modifier.fillMaxWidth(),
                             style = if (isTablet) MaterialTheme.typography.displaySmall else MaterialTheme.typography.displayLarge,
                             color = MaterialTheme.colorScheme.onBackground,
                             textAlign = TextAlign.Center,

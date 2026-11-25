@@ -43,6 +43,9 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.controller.ControllerFocusZone
+import com.nuvio.app.controller.ControllerManager
+import com.nuvio.app.controller.controllerFocusable
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
 import com.nuvio.app.core.ui.NuvioInputField
@@ -113,9 +116,14 @@ fun SearchScreen(
         }
     }
 
+    var handledFocusRequests by rememberSaveable { mutableStateOf(0) }
     ScreenActivityEffect(searchFocusRequestCount) { screenActive ->
         if (screenActive && searchFocusRequestCount > 0) {
-            focusRequester.requestFocus()
+            val fresh = searchFocusRequestCount > handledFocusRequests
+            handledFocusRequests = searchFocusRequestCount
+            if (fresh || !ControllerManager.isNavigationActive.value) {
+                focusRequester.requestFocus()
+            }
         }
     }
 
@@ -294,6 +302,14 @@ fun SearchScreen(
                             shape = RoundedCornerShape(NuvioTokens.Radius.xl),
                             modifier = Modifier
                                 .focusRequester(focusRequester)
+                                .controllerFocusable(
+                                    id = "search_input_field",
+                                    zone = ControllerFocusZone.Content,
+                                    groupKey = "search_header",
+                                    isTextInput = true,
+                                    selectLabel = "Search",
+                                    onSelect = { focusRequester.requestFocus() },
+                                )
                                 .onFocusChanged {
                                     isSearchFocused = it.isFocused
                                     if (query.isNotBlank()) focusRequester.captureFocus()
