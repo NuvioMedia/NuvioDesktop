@@ -274,7 +274,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
             subtitleFontImportFailed = result.isFailure
             result.getOrNull()?.let {
                 subtitleFontsRevision++
-                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(appearance = subtitleStyle.appearance.copy(fontId = it.id)))
+                updateActiveSubtitleStyle { style -> style.copy(appearance = style.appearance.copy(fontId = it.id)) }
             }
         }
         LaunchedEffect(subtitleFontImportToken) {
@@ -385,6 +385,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
         subtitleBuiltInTabLabel = stringResource(Res.string.compose_player_built_in),
         subtitleAddonsTabLabel = stringResource(Res.string.addon_title),
         subtitleStyleTabLabel = stringResource(Res.string.compose_player_style),
+        customSubtitleStyleLabel = stringResource(Res.string.subtitle_customize_ass),
         forcedLabel = stringResource(Res.string.settings_playback_option_forced),
         noneLabel = stringResource(Res.string.compose_player_none),
         fetchSubtitlesLabel = stringResource(Res.string.compose_player_fetch_subtitles),
@@ -488,7 +489,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
         isLoadingAddonSubtitles = isLoadingAddonSubtitles,
         selectedAddonSubtitleId = selectedAddonSubtitleId.orEmpty(),
         useCustomSubtitles = useCustomSubtitles,
-        subtitleStyle = subtitleStyle,
+        showCustomSubtitleStyleToggle = isAssSubtitleStyleActive && playerController?.supportsAssStyleCustomization == true,
+        customSubtitleStylingEnabled = activeSubtitleStyle.appearance.customizeAss,
+        subtitleStyle = activeSubtitleStyle,
         subtitleDelayMs = subtitleDelayMs,
         hasSelectedAddonSubtitle = selectedAddonSubtitle != null,
         subtitleAutoSyncCapturedPositionMs = subtitleAutoSyncState.capturedPositionMs ?: -1L,
@@ -1163,6 +1166,11 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
             }
             isUserExplicitSubtitleSelection = true
             preferredSubtitleSelectionApplied = true
+            if (index >= 0 && subtitleTracks.none { it.index == index }) {
+                playerController?.getSubtitleTracks()?.let { refreshed ->
+                    if (refreshed.isNotEmpty()) subtitleTracks = refreshed
+                }
+            }
             selectedSubtitleIndex = index
             selectedAddonSubtitleId = null
             useCustomSubtitles = false
@@ -1211,40 +1219,48 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
             val cue = playerControlsNearestSubtitleCues().getOrNull(value.toInt()) ?: return true
             applySubtitleAutoSyncCue(cue)
         }
+        "subtitleCustomStyleToggle" -> {
+            if (isAssSubtitleStyleActive && playerController?.supportsAssStyleCustomization == true) {
+                val assStyle = playerSettingsUiState.assSubtitleStyle
+                PlayerSettingsRepository.setAssSubtitleStyle(
+                    assStyle.copy(appearance = assStyle.appearance.copy(customizeAss = !assStyle.appearance.customizeAss)),
+                )
+            }
+        }
         "subtitleFontSizeDelta" -> {
-            PlayerSettingsRepository.setSubtitleStyle(
-                subtitleStyle.copy(fontSizeSp = (subtitleStyle.fontSizeSp + value.toInt()).coerceIn(subtitleFontSizeRangeSp)),
-            )
+            updateActiveSubtitleStyle { style ->
+                style.copy(fontSizeSp = (style.fontSizeSp + value.toInt()).coerceIn(subtitleFontSizeRangeSp))
+            }
         }
         "subtitleOutlineToggle" -> {
-            PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(outlineEnabled = !subtitleStyle.outlineEnabled))
+            updateActiveSubtitleStyle { style -> style.copy(outlineEnabled = !style.outlineEnabled) }
         }
         "subtitleBoldToggle" -> {
-            PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(bold = !subtitleStyle.bold))
+            updateActiveSubtitleStyle { style -> style.copy(bold = !style.bold) }
         }
         "subtitleBottomOffsetDelta" -> {
-            PlayerSettingsRepository.setSubtitleStyle(
-                subtitleStyle.copy(bottomOffset = (subtitleStyle.bottomOffset + value.toInt()).coerceIn(0, 200)),
-            )
+            updateActiveSubtitleStyle { style ->
+                style.copy(bottomOffset = (style.bottomOffset + value.toInt()).coerceIn(0, 200))
+            }
         }
         "subtitleTextColor" -> {
             SubtitleColorSwatches.getOrNull(value.toInt())?.let { color ->
-                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(textColor = color.copy(alpha = subtitleStyle.textColor.alpha)))
+                updateActiveSubtitleStyle { style -> style.copy(textColor = color.copy(alpha = style.textColor.alpha)) }
             }
         }
         "subtitleOutlineColor" -> {
             SubtitleColorSwatches.getOrNull(value.toInt())?.let { color ->
-                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(outlineColor = color))
+                updateActiveSubtitleStyle { style -> style.copy(outlineColor = color) }
             }
         }
         "subtitleBackgroundColor" -> {
             SubtitleColorSwatches.getOrNull(value.toInt())?.let { color ->
-                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(backgroundColor = color.copy(alpha = subtitleStyle.backgroundColor.alpha)))
+                updateActiveSubtitleStyle { style -> style.copy(backgroundColor = color.copy(alpha = style.backgroundColor.alpha)) }
             }
         }
         "subtitleBackgroundOpacity" -> {
             val alpha = (value.toFloat() / 100f).coerceIn(0f, 1f)
-            PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(backgroundColor = subtitleStyle.backgroundColor.copy(alpha = alpha)))
+            updateActiveSubtitleStyle { style -> style.copy(backgroundColor = style.backgroundColor.copy(alpha = alpha)) }
         }
         "subtitleFontImport" -> {
             subtitleFontImportFailed = false
@@ -1258,41 +1274,58 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
                 if (subtitleStyle.appearance.fontId == font.id) {
                     PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(appearance = subtitleStyle.appearance.copy(fontId = "default")))
                 }
+                val assStyle = playerSettingsUiState.assSubtitleStyle
+                if (assStyle.appearance.fontId == font.id) {
+                    PlayerSettingsRepository.setAssSubtitleStyle(assStyle.copy(appearance = assStyle.appearance.copy(fontId = "default")))
+                }
             }
         }
         "subtitleTextOpacity" -> {
             val alpha = (value.toFloat() / 100f).coerceIn(0f, 1f)
-            PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(textColor = subtitleStyle.textColor.copy(alpha = alpha)))
+            updateActiveSubtitleStyle { style -> style.copy(textColor = style.textColor.copy(alpha = alpha)) }
         }
         "subtitleFont" -> {
             val fonts = BuiltInSubtitleFonts + SubtitleFonts.installed().map { it.id }
             fonts.getOrNull(value.toInt())?.let { id ->
-                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(appearance = subtitleStyle.appearance.copy(fontId = id)))
+                updateActiveSubtitleStyle { style -> style.copy(appearance = style.appearance.copy(fontId = id)) }
             }
         }
         "subtitleShadowToggle" -> {
-            val appearance = subtitleStyle.appearance
-            PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(appearance = appearance.copy(shadowEnabled = !appearance.shadowEnabled)))
+            updateActiveSubtitleStyle { style ->
+                val appearance = style.appearance
+                style.copy(appearance = appearance.copy(shadowEnabled = !appearance.shadowEnabled))
+            }
         }
         "subtitleShadowOpacityDelta" -> {
-            val appearance = subtitleStyle.appearance
-            PlayerSettingsRepository.setSubtitleStyle(
-                subtitleStyle.copy(appearance = appearance.copy(shadowOpacity = (appearance.shadowOpacity + value.toInt()).coerceIn(0, 100))),
-            )
+            updateActiveSubtitleStyle { style ->
+                val appearance = style.appearance
+                style.copy(appearance = appearance.copy(shadowOpacity = (appearance.shadowOpacity + value.toInt()).coerceIn(0, 100)))
+            }
         }
         "subtitleShadowSizeDelta" -> {
-            val appearance = subtitleStyle.appearance
-            PlayerSettingsRepository.setSubtitleStyle(
-                subtitleStyle.copy(appearance = appearance.copy(shadowSize = (appearance.shadowSize + value.toInt()).coerceIn(1, 8))),
-            )
+            updateActiveSubtitleStyle { style ->
+                val appearance = style.appearance
+                style.copy(appearance = appearance.copy(shadowSize = (appearance.shadowSize + value.toInt()).coerceIn(1, 8)))
+            }
         }
-        "subtitleStyleReset" -> PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.resetAppearance())
+        "subtitleStyleReset" -> updateActiveSubtitleStyle(SubtitleStyleState::resetAppearance)
         "parentalGuideComplete" -> {
             showParentalGuide = false
         }
         else -> return handlePartyControlsEvent(type, value)
     }
     return true
+}
+
+private fun PlayerScreenRuntime.updateActiveSubtitleStyle(
+    transform: (SubtitleStyleState) -> SubtitleStyleState,
+) {
+    val updated = transform(activeSubtitleStyle)
+    if (isAssSubtitleStyleActive) {
+        PlayerSettingsRepository.setAssSubtitleStyle(updated)
+    } else {
+        PlayerSettingsRepository.setSubtitleStyle(updated)
+    }
 }
 
 private const val PLAYER_VOLUME_STEP = 0.05f
@@ -1788,6 +1821,7 @@ private fun PlayerScreenRuntime.buildPlayerControlSubtitleSelection(): PlayerCon
                         option.track.index,
                     ),
                     metadata = forcedLabel.takeIf { option.track.isForced }.orEmpty(),
+                    formatBadge = option.track.formatBadge?.label.orEmpty(),
                     isSelected = option.id == selectedOptionId,
                 )
 
@@ -1803,6 +1837,7 @@ private fun PlayerScreenRuntime.buildPlayerControlSubtitleSelection(): PlayerCon
                         metadata = option.subtitle.display.takeIf {
                             it.isNotBlank() && it != title
                         }.orEmpty(),
+                        formatBadge = option.subtitle.formatBadge?.label.orEmpty(),
                         isSelected = option.id == selectedOptionId,
                         isAutoSynced = option.id == selectedOptionId && option.subtitle.url == autoSyncedUrl,
                     )
@@ -2035,7 +2070,7 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
         },
         onAudioModalDismissed = { showAudioModal = false },
         showAudioDelay = playerController?.supportsAudioDelay == true,
-        supportsAssStyleCustomization = playerController?.supportsAssStyleCustomization == true,
+        supportsAssStyleCustomization = isAssSubtitleStyleActive && playerController?.supportsAssStyleCustomization == true,
         audioDelayMs = audioDelayMs,
         onAudioDelayChanged = { delayMs -> setAudioDelay(delayMs) },
         showAudioAmplification = playerController?.supportsAudioAmplification == true,

@@ -59,8 +59,14 @@ internal fun PlayerScreenRuntime.refreshAudioTracksIfChanged() {
         return
     }
     val tracks = controller.getAudioTracks()
+    val subTracks = controller.getSubtitleTracks()
     // The engine caches its track list, so the same instance means nothing changed.
-    if (tracks !== audioTracks && tracks != audioTracks) {
+    val audioChanged = tracks !== audioTracks && tracks != audioTracks
+    val subsChanged = subTracks !== subtitleTracks && (
+        subtitleTracksStructureKey(subTracks) != subtitleTracksStructureKey(subtitleTracks) ||
+            (!useCustomSubtitles && subTracks != subtitleTracks)
+        )
+    if (audioChanged || subsChanged) {
         refreshTracks()
     }
 }

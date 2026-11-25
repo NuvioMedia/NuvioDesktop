@@ -168,6 +168,7 @@ static constexpr double kMaxVolumePercent = 200.0;
                                   subPos:(int)subPos
                                useLibass:(BOOL)useLibass
                                 stripSdh:(BOOL)stripSdh;
+- (void)syncSubtitleTrackOverride;
 - (void)applySubtitleAppearanceWithFont:(NSString *)font
                               fontsDir:(NSString *)fontsDir
                            shadowColor:(NSString *)shadowColor
@@ -1152,6 +1153,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     std::atomic_bool _cachedPaused;
     std::atomic_bool _cachedLoading;
     std::atomic_bool _cachedEnded;
+    std::mutex _subtitleStyleMutex;
     BOOL _hasAppliedSubtitleStyle;
     BOOL _appliedSubtitleUseLibass;
     NSString *_appliedSubtitleTextColor;
@@ -1160,7 +1162,11 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     double _appliedSubtitleOutlineSize;
     BOOL _appliedSubtitleBold;
     double _appliedSubtitleFontSize;
+    int64_t _appliedSubtitleRawPosition;
     int64_t _appliedSubtitlePosition;
+    double _appliedSubtitleScale;
+    NSString *_appliedSubtitleAssOverride;
+    NSString *_appliedSubtitleAssStyleOverride;
     BOOL _appliedSubtitleStripSdh;
 }
 
@@ -1741,6 +1747,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     setMpvOptionString(_mpv, "input-default-bindings", "yes");
     setMpvOptionString(_mpv, "input-vo-keyboard", "no");
     setMpvOptionString(_mpv, "keep-open", "yes");
+    setMpvOptionString(_mpv, "sub-ass-override", "no");
     setMpvOptionString(_mpv, "volume-max", "200");
     setMpvOptionString(_mpv, "vo", "libmpv");
     setMpvOptionString(_mpv, "ao", "avfoundation,coreaudio,");
@@ -2189,6 +2196,7 @@ static void nuvioMpvWakeup(void *ctx) {
     if (!mpv) return;
     _mpvDrainStopped.store(false);
     mpv_observe_property(mpv, 2, "current-ao", MPV_FORMAT_STRING);
+    mpv_observe_property(mpv, 3, "current-tracks/sub/codec", MPV_FORMAT_STRING);
     mpv_set_wakeup_callback(mpv, nuvioMpvWakeup, (__bridge void *)self);
 }
 
@@ -2229,6 +2237,8 @@ static void nuvioMpvWakeup(void *ctx) {
                         // old softvol drained out of the renderer's queue).
                         [self applyVolumeSplit:_requestedVolumePercent.load()];
                     }
+                } else if (event->reply_userdata == 3) {
+                    [self syncSubtitleTrackOverride];
                 }
                 break;
             }
@@ -2552,57 +2562,54 @@ static void nuvioMpvWakeup(void *ctx) {
                                useLibass:(BOOL)useLibass
                                 stripSdh:(BOOL)stripSdh {
     if (!_mpv) return;
-    double size = MAX(18.0, MIN(96.0, fontSize));
-    double scale = 1.0;
+    std::lock_guard<std::mutex> styleLock(_subtitleStyleMutex);
+    double size = MAX(18.0, MIN(120.0, fontSize));
     int64_t position = MAX(0, MIN(150, subPos));
     double outline = MAX(0.0, MIN(8.0, outlineSize));
     NSString *resolvedTextColor = textColor ?: @"#FFFFFFFF";
     NSString *resolvedBackgroundColor = backgroundColor ?: @"#00000000";
     NSString *resolvedOutlineColor = outlineColor ?: @"#FF000000";
 
-    BOOL modeChanged = !_hasAppliedSubtitleStyle || _appliedSubtitleUseLibass != useLibass;
-    BOOL sizeChanged = !_hasAppliedSubtitleStyle || _appliedSubtitleFontSize != size;
-    BOOL positionChanged = !_hasAppliedSubtitleStyle || _appliedSubtitlePosition != position;
-    BOOL boldChanged = !_hasAppliedSubtitleStyle || _appliedSubtitleBold != bold;
-    BOOL textColorChanged = !_hasAppliedSubtitleStyle || ![_appliedSubtitleTextColor isEqualToString:resolvedTextColor];
+    BOOL firstApply = !_hasAppliedSubtitleStyle;
+    BOOL modeChanged = firstApply || _appliedSubtitleUseLibass != useLibass;
+    BOOL sizeChanged = firstApply || _appliedSubtitleFontSize != size;
+    BOOL boldChanged = firstApply || _appliedSubtitleBold != bold;
+    BOOL textColorChanged = firstApply || ![_appliedSubtitleTextColor isEqualToString:resolvedTextColor];
     BOOL backgroundColorChanged =
-        !_hasAppliedSubtitleStyle || ![_appliedSubtitleBackgroundColor isEqualToString:resolvedBackgroundColor];
+        firstApply || ![_appliedSubtitleBackgroundColor isEqualToString:resolvedBackgroundColor];
     BOOL outlineColorChanged =
-        !_hasAppliedSubtitleStyle || ![_appliedSubtitleOutlineColor isEqualToString:resolvedOutlineColor];
-    BOOL outlineSizeChanged = !_hasAppliedSubtitleStyle || _appliedSubtitleOutlineSize != outline;
-    BOOL stripSdhChanged = !_hasAppliedSubtitleStyle || _appliedSubtitleStripSdh != stripSdh;
+        firstApply || ![_appliedSubtitleOutlineColor isEqualToString:resolvedOutlineColor];
+    BOOL outlineSizeChanged = firstApply || _appliedSubtitleOutlineSize != outline;
+    BOOL stripSdhChanged = firstApply || _appliedSubtitleStripSdh != stripSdh;
 
-    if (modeChanged) {
-        [self setStringProperty:"sub-ass-override" value:@"no"];
-    }
-    if (modeChanged) {
-        const char *styleOverridesCommand[] = {"change-list", "sub-ass-style-overrides", "clr", "", NULL};
-        mpv_command(_mpv, styleOverridesCommand);
-    }
-    if (modeChanged || sizeChanged) {
-        mpv_set_property(_mpv, "sub-scale", MPV_FORMAT_DOUBLE, &scale);
+    _appliedSubtitleUseLibass = useLibass;
+    _appliedSubtitleBold = bold;
+    _appliedSubtitleFontSize = size;
+    _appliedSubtitleRawPosition = position;
+    _hasAppliedSubtitleStyle = YES;
+
+    BOOL assModeChanged = [self syncSubtitleTrackOverrideLocked:firstApply];
+
+    if (firstApply || sizeChanged || assModeChanged) {
         mpv_set_property(_mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
-    }
-    if (modeChanged || positionChanged) {
-        mpv_set_property(_mpv, "sub-pos", MPV_FORMAT_INT64, &position);
     }
 
     {
-        if (modeChanged || textColorChanged) {
+        if (modeChanged || assModeChanged || textColorChanged) {
             [self setStringProperty:"sub-color" value:resolvedTextColor];
         }
-        if (modeChanged || backgroundColorChanged) {
+        if (modeChanged || assModeChanged || backgroundColorChanged) {
             [self setStringProperty:"sub-back-color" value:resolvedBackgroundColor];
             [self setStringProperty:"sub-border-style"
                               value:[resolvedBackgroundColor hasPrefix:@"#00"] ? @"outline-and-shadow" : @"background-box"];
         }
-        if (modeChanged || outlineColorChanged) {
+        if (modeChanged || assModeChanged || outlineColorChanged) {
             [self setStringProperty:"sub-outline-color" value:resolvedOutlineColor];
         }
-        if (modeChanged || boldChanged) {
+        if (modeChanged || assModeChanged || boldChanged) {
             [self setStringProperty:"sub-bold" value:bold ? @"yes" : @"no"];
         }
-        if (modeChanged || outlineSizeChanged) {
+        if (modeChanged || assModeChanged || outlineSizeChanged) {
             mpv_set_property(_mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
         }
     }
@@ -2611,16 +2618,65 @@ static void nuvioMpvWakeup(void *ctx) {
         [self setStringProperty:"sub-filter-sdh-harder" value:stripSdh ? @"yes" : @"no"];
     }
 
-    _hasAppliedSubtitleStyle = YES;
-    _appliedSubtitleUseLibass = useLibass;
     _appliedSubtitleTextColor = resolvedTextColor;
     _appliedSubtitleBackgroundColor = resolvedBackgroundColor;
     _appliedSubtitleOutlineColor = resolvedOutlineColor;
     _appliedSubtitleOutlineSize = outline;
-    _appliedSubtitleBold = bold;
-    _appliedSubtitleFontSize = size;
-    _appliedSubtitlePosition = position;
     _appliedSubtitleStripSdh = stripSdh;
+}
+
+- (void)syncSubtitleTrackOverride {
+    if (!_mpv) return;
+    std::lock_guard<std::mutex> styleLock(_subtitleStyleMutex);
+    if (!_hasAppliedSubtitleStyle) return;
+    [self syncSubtitleTrackOverrideLocked:NO];
+}
+
+- (BOOL)syncSubtitleTrackOverrideLocked:(BOOL)force {
+    if (!_mpv) return NO;
+    NSString *subCodec = [[[self stringProperty:"current-tracks/sub/codec" fallback:@""]
+        stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] lowercaseString];
+    BOOL isAss = [subCodec isEqualToString:@"ass"] || [subCodec isEqualToString:@"ssa"];
+    double assScale = _appliedSubtitleFontSize / 54.0;
+    NSString *assOverride = !isAss
+        ? @"no"
+        : (!_appliedSubtitleUseLibass ? @"force" : (fabs(assScale - 1.0) <= 0.001 ? @"no" : @"scale"));
+    double effectiveScale = [assOverride isEqualToString:@"scale"] ? assScale : 1.0;
+    int64_t effectivePosition = [assOverride isEqualToString:@"scale"] ? 100 : _appliedSubtitleRawPosition;
+    NSString *styleOverride = [assOverride isEqualToString:@"force"]
+        ? (_appliedSubtitleBold ? @"Bold=1" : @"Bold=0")
+        : @"";
+
+    BOOL overrideChanged = force || ![_appliedSubtitleAssOverride isEqualToString:assOverride];
+    BOOL styleOverrideChanged = force || overrideChanged || ![_appliedSubtitleAssStyleOverride isEqualToString:styleOverride];
+    BOOL scaleChanged = force || _appliedSubtitleScale != effectiveScale;
+    BOOL positionChanged = force || _appliedSubtitlePosition != effectivePosition;
+
+    if (overrideChanged) {
+        [self setStringProperty:"sub-ass-override" value:assOverride];
+    }
+    if (styleOverrideChanged) {
+        const char *styleOverridesCommand[] = {
+            "change-list",
+            "sub-ass-style-overrides",
+            styleOverride.length == 0 ? "clr" : "set",
+            styleOverride.length == 0 ? "" : styleOverride.UTF8String,
+            NULL
+        };
+        mpv_command(_mpv, styleOverridesCommand);
+    }
+    if (scaleChanged) {
+        mpv_set_property(_mpv, "sub-scale", MPV_FORMAT_DOUBLE, &effectiveScale);
+    }
+    if (positionChanged) {
+        mpv_set_property(_mpv, "sub-pos", MPV_FORMAT_INT64, &effectivePosition);
+    }
+
+    _appliedSubtitleAssOverride = assOverride;
+    _appliedSubtitleAssStyleOverride = styleOverride;
+    _appliedSubtitleScale = effectiveScale;
+    _appliedSubtitlePosition = effectivePosition;
+    return overrideChanged;
 }
 
 - (double)doubleProperty:(const char *)name fallback:(double)fallback {
@@ -2730,6 +2786,7 @@ static void nuvioMpvWakeup(void *ctx) {
             @"id": [NSString stringWithFormat:@"%lld", trackId],
             @"label": label ?: @"",
             @"language": language ?: @"",
+            @"codec": codec ?: @"",
             @"selected": @(selected),
             @"forced": @(forced),
         }];
@@ -2759,7 +2816,9 @@ static void nuvioMpvWakeup(void *ctx) {
         ?: ([type isEqualToString:@"sub"]
             ? [NSString stringWithFormat:@"Subtitle %d", index + 1]
             : [NSString stringWithFormat:@"Track %d", index + 1]);
-    NSString *codecName = [self codecDisplayName:codec] ?: [self codecDisplayName:decoderDescription];
+    NSString *codecName = [type isEqualToString:@"sub"]
+        ? nil
+        : ([self codecDisplayName:codec] ?: [self codecDisplayName:decoderDescription]);
     NSString *channelName = [type isEqualToString:@"audio"]
         ? [self channelLayoutNameWithChannels:channels channelCount:channelCount]
         : nil;
