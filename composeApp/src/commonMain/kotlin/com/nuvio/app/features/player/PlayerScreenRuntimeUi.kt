@@ -1879,7 +1879,10 @@ private fun formatPlayerControlsCueTimestamp(timeMs: Long): String {
 
 @Composable
 private fun PlayerScreenRuntime.buildPlayerControlEpisodeItems(): List<PlayerControlEpisodeItem> {
+    if (playerMetaVideos.isEmpty()) return emptyList()
     val items = mutableListOf<PlayerControlEpisodeItem>()
+    // byVideoId is a computed property that regroups every progress entry, so read it once.
+    val progressByVideoId = watchProgressUiState.byVideoId
     for ((index, video) in playerMetaVideos.withIndex()) {
         if (video.season == null && video.episode == null) continue
         val episodeVideoId = buildPlaybackVideoId(
@@ -1888,7 +1891,7 @@ private fun PlayerScreenRuntime.buildPlayerControlEpisodeItems(): List<PlayerCon
             episodeNumber = video.episode,
             fallbackVideoId = video.id,
         )
-        val isWatched = watchProgressUiState.byVideoId[episodeVideoId]?.isEffectivelyCompleted == true ||
+        val isWatched = progressByVideoId[episodeVideoId]?.isEffectivelyCompleted == true ||
             WatchingState.isEpisodeWatched(
                 watchedKeys = watchedUiState.watchedKeys,
                 metaType = parentMetaType,
