@@ -233,12 +233,8 @@ object ControllerFocusEngine {
         _isTopBarVisibleByScroll.value = visible
     }
 
-    private val _hasInteractiveContent = MutableStateFlow(false)
-    val hasInteractiveContent: StateFlow<Boolean> = _hasInteractiveContent.asStateFlow()
-
-    private fun updateInteractiveContentStatus() {
-        // Avoid O(N) boundsInRoot() scans on every node registration/removal; no consumer observes this flow.
-    }
+    val hasInteractiveContent: Boolean
+        get() = nodes.values.any { it.zone == ControllerFocusZone.Content && it.isVisibleAndValid }
 
     private var lastFocusedByZone = mutableMapOf<ControllerFocusZone, String>()
     private var lastFocusedByGroup = mutableMapOf<String, String>()
@@ -456,7 +452,6 @@ object ControllerFocusEngine {
                         suppressVerticalScroll = true,
                         suppressHorizontalScroll = false,
                     )
-                    updateInteractiveContentStatus()
                     return
                 } else {
                     _focusedNodeId.value = null
@@ -486,7 +481,6 @@ object ControllerFocusEngine {
                             }
                         }
                     }
-                    updateInteractiveContentStatus()
                     return
                 }
             } else {
@@ -506,14 +500,12 @@ object ControllerFocusEngine {
                 _focusedNodeSnapshot.value = null
             }
         }
-        updateInteractiveContentStatus()
         ensureValidFocus()
     }
 
     internal fun upsertNode(node: ControllerFocusNode) {
         nodes[node.id] = node
         if (!ControllerManager.isNavigationActive.value) return
-        updateInteractiveContentStatus()
         val currentId = _focusedNodeId.value
         val activeOverlayNodes = nodes.values.filter { it.zone == ControllerFocusZone.Overlay && it.isVisibleAndValid }
         if (activeOverlayNodes.isNotEmpty()) {
@@ -626,7 +618,6 @@ object ControllerFocusEngine {
                 isInternalCleanupFocus = false
             }
         }
-        updateInteractiveContentStatus()
     }
 
     /**
@@ -687,7 +678,6 @@ object ControllerFocusEngine {
         preferBounds: Rect? = null,
         preferZone: ControllerFocusZone? = null,
     ): Boolean {
-        updateInteractiveContentStatus()
         val overlayNodes = nodes.values.filter { it.zone == ControllerFocusZone.Overlay && it.isVisibleAndValid }
         if (overlayNodes.isNotEmpty()) {
             val current = _focusedNodeId.value?.let { nodes[it] }
