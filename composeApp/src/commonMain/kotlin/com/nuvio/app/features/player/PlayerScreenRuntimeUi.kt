@@ -1254,7 +1254,7 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
                 updateActiveSubtitleStyle { style -> style.copy(outlineColor = color) }
             }
         }
-        "subtitleOutlineWidth" -> {
+        "subtitleOutlineWidthDelta" -> {
             updateActiveSubtitleStyle { style ->
                 style.copy(outlineWidth = (style.outlineWidth + value.toInt()).coerceIn(subtitleOutlineWidthRange))
             }

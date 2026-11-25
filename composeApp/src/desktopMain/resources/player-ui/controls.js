@@ -3416,11 +3416,11 @@ backgroundOpacityPlus.addEventListener("click", event => {
 });
 outlineWidthMinus.addEventListener("click", event => {
   event.stopPropagation();
-  send("subtitleOutlineWidth", -1);
+  send("subtitleOutlineWidthDelta", -1);
 });
 outlineWidthPlus.addEventListener("click", event => {
   event.stopPropagation();
-  send("subtitleOutlineWidth", 1);
+  send("subtitleOutlineWidthDelta", 1);
 });
 subtitleFontRow.addEventListener("click", event => {
   event.stopPropagation();
