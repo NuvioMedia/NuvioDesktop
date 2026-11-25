@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
-import com.nuvio.app.core.i18n.localizedByteUnit
 import com.nuvio.app.core.ui.AppPresenceState
 import com.nuvio.app.core.ui.PresenceSnapshot
 import com.nuvio.app.core.ui.nuvio
@@ -1717,10 +1716,10 @@ private fun formatStreamVideoSize(bytes: Long?): String {
     val gib = bytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
     val sizeLabel = if (gib >= 1.0) {
         val roundedGiB = kotlin.math.round(gib * 10.0) / 10.0
-        "$roundedGiB ${localizedByteUnit("GB")}"
+        "$roundedGiB ${stringResource(Res.string.unit_bytes_gb)}"
     } else {
         val mib = bytes.toDouble() / (1024.0 * 1024.0)
-        "${kotlin.math.round(mib).toInt()} ${localizedByteUnit("MB")}"
+        "${kotlin.math.round(mib).toInt()} ${stringResource(Res.string.unit_bytes_mb)}"
     }
     return stringResource(Res.string.streams_size, sizeLabel)
 }
