@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -227,10 +229,13 @@ private fun NuvioDropdownOptionsSheet(
                 color = tokens.colors.textPrimary,
             )
             NuvioBottomSheetDivider()
+            val listState = rememberLazyListState()
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = tokens.breakpoints.largePhone),
+                    .heightIn(max = tokens.breakpoints.largePhone)
+                    .nuvioDesktopDragScroll(listState, Orientation.Vertical),
             ) {
                 items(options) { option ->
                     NuvioBottomSheetActionRow(

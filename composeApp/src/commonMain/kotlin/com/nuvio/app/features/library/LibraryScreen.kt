@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -845,10 +846,12 @@ private fun CloudLibraryToolbar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            val filterScrollState = rememberScrollState()
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .horizontalScroll(rememberScrollState()),
+                    .nuvioDesktopDragScroll(filterScrollState)
+                    .horizontalScroll(filterScrollState),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 NuvioDropdownChip(

@@ -10,6 +10,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -100,7 +101,8 @@ fun NuvioScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .then(scrollViewportModifier),
+                .then(scrollViewportModifier)
+                .nuvioDesktopDragScroll(listState, Orientation.Vertical),
             contentPadding = PaddingValues(
                 start = horizontalPadding,
                 top = topPadding ?: tokens.spacing.screenTop + statusBarTop + nuvioPlatformExtraTopPadding,

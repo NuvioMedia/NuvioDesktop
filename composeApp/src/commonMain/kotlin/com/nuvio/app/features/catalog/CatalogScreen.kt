@@ -1,6 +1,8 @@
 package com.nuvio.app.features.catalog
 
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.core.ui.nuvioFocusBorder
+import androidx.compose.foundation.gestures.Orientation
 import com.nuvio.app.core.ui.rememberAnimatedArtworkAnimation
 import com.nuvio.app.controller.RegisterControllerVerticalScroll
 import androidx.compose.foundation.background
@@ -213,7 +215,9 @@ fun CatalogScreen(
             LazyVerticalGrid(
                 columns = gridCells,
                 state = gridState,
-                modifier = Modifier.fillMaxSize().then(scrollViewportModifier),
+                modifier = Modifier.fillMaxSize()
+                    .then(scrollViewportModifier)
+                    .nuvioDesktopDragScroll(gridState, Orientation.Vertical),
                 contentPadding = PaddingValues(
                     start = pageHorizontalPadding,
                     top = with(androidx.compose.ui.platform.LocalDensity.current) { headerHeightPx.toDp() } + 12.dp,

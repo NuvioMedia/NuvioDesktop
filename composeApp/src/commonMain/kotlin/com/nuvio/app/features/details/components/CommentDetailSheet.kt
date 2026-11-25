@@ -4,6 +4,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -168,6 +170,7 @@ fun CommentDetailSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f, fill = false)
+                    .nuvioDesktopDragScroll(scrollState, Orientation.Vertical)
                     .verticalScroll(scrollState),
             ) {
                 Text(

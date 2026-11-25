@@ -1,5 +1,7 @@
 package com.nuvio.app.features.collection
 
+import androidx.compose.foundation.gestures.Orientation
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
@@ -432,7 +434,9 @@ private fun TabbedGridContent(
                         LazyVerticalGrid(
                             columns = gridCells,
                             state = gridState,
-                            modifier = Modifier.fillMaxSize().then(scrollViewportModifier),
+                            modifier = Modifier.fillMaxSize()
+                                .then(scrollViewportModifier)
+                                .nuvioDesktopDragScroll(gridState, Orientation.Vertical),
                             contentPadding = PaddingValues(
                                 start = pageHorizontalPadding,
                                 end = pageHorizontalPadding,
@@ -530,7 +534,10 @@ private fun RowsContent(
         }
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().then(scrollViewportModifier),
+            modifier = Modifier
+                .fillMaxSize()
+                .then(scrollViewportModifier)
+                .nuvioDesktopDragScroll(listState, Orientation.Vertical),
             contentPadding = PaddingValues(
                 bottom = nuvioSafeBottomPadding(18.dp),
             ),

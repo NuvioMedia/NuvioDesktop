@@ -6,7 +6,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.hoverable
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -807,7 +809,9 @@ internal fun StreamList(
     Box(modifier = modifier.fillMaxWidth()) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .nuvioDesktopDragScroll(listState, Orientation.Vertical),
             contentPadding = PaddingValues(
                 horizontal = 12.dp,
                 vertical = 12.dp,
