@@ -8,6 +8,35 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class ContinueWatchingEnrichmentCacheTest {
+    @Test
+    fun `saving in progress rows preserves next up`() {
+        val profileId = Int.MAX_VALUE
+        val source = WatchProgressSource.TRAKT
+        val generation = ContinueWatchingEnrichmentCache.generation.value
+        val nextUp = listOf(
+            CachedNextUpItem(
+                contentId = "show",
+                contentType = "series",
+                name = "Show",
+                videoId = "show:1:2",
+                season = 1,
+                episode = 2,
+                lastWatched = 1_000L,
+                sortTimestamp = 1_000L,
+                seedSeason = 1,
+                seedEpisode = 1,
+            ),
+        )
+
+        try {
+            assertTrue(ContinueWatchingEnrichmentCache.saveSnapshots(profileId, source, generation, nextUp = nextUp))
+            assertTrue(ContinueWatchingEnrichmentCache.saveSnapshots(profileId, source, generation, inProgress = emptyList()))
+            assertEquals(nextUp, ContinueWatchingEnrichmentCache.getNextUpSnapshot(profileId, source))
+        } finally {
+            ContinueWatchingEnrichmentCache.clearAll(profileId)
+        }
+    }
+
 
     @Test
     fun `storage keys are scoped by profile and effective source`() {

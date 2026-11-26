@@ -97,6 +97,29 @@ class HomeScreenTest {
     }
 
     @Test
+    fun `trakt artwork hydration and unrelated progress keep next up resolution running`() {
+        val candidates = listOf(completedSeriesCandidate(1))
+        val watched = progressEntry(
+            videoId = "show-1:1:1",
+            title = "Show",
+            lastUpdatedEpochMs = 9_999L,
+            episodeNumber = 1,
+            isCompleted = true,
+        )
+        val unrelated = progressEntry("another-show:1:4", "Another show", 2_000L)
+        val hydrated = watched.copy(poster = "poster.jpg", episodeThumbnail = "episode.jpg")
+
+        val initialKey = homeNextUpProgressKey(candidates, listOf(watched, unrelated))
+        assertEquals(
+            initialKey,
+            homeNextUpProgressKey(candidates, listOf(unrelated.copy(lastPositionMs = 240_000L), hydrated)),
+        )
+        assertFalse(
+            initialKey == homeNextUpProgressKey(candidates, listOf(watched.copy(episodeNumber = 2))),
+        )
+    }
+
+    @Test
     fun `build home continue watching items removes duplicate video ids`() {
         val inProgress = progressEntry(
             videoId = "tt0944947:1:4",
