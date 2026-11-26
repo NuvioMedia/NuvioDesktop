@@ -21,7 +21,7 @@ internal fun PlayerScreenRuntime.fetchAddonSubtitlesForActiveItem() {
     // comes from the local engine once the stream is resolved, mirroring NuvioTV where
     // currentStreamUrl is set to the local engine URL for torrents.
     val hashableUrl = p2pResolvedSourceUrl ?: activeSourceUrl
-    if (extras?.videoHash == null && hashableUrl.isNotBlank() &&
+    if (extras?.videoHash.isNullOrBlank() && hashableUrl.isNotBlank() &&
         (hashableUrl.startsWith("http://", true) || hashableUrl.startsWith("https://", true))
     ) {
         // Compute hash lazily — same pattern as NuvioTV.
