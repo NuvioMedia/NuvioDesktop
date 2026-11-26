@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.features.player.AndroidPlaybackEngine
 import com.nuvio.app.features.player.ExternalPlayerApp
 import com.nuvio.app.features.player.ExternalPlayerPlatform
@@ -36,55 +37,62 @@ internal fun PlaybackPlayerSettings(
     var showExternalPlayerDialog by remember { mutableStateOf(false) }
     var showExternalPlayerAppDialog by remember { mutableStateOf(false) }
     var showPlaybackEngineDialog by remember { mutableStateOf(false) }
-    val availableExternalPlayers = ExternalPlayerPlatform.availablePlayers()
+    val externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported
+    val availableExternalPlayers = if (externalPlayerSupported) {
+        ExternalPlayerPlatform.availablePlayers()
+    } else {
+        emptyList()
+    }
     val selectedExternalPlayer = availableExternalPlayers.firstOrNull { it.id == settings.externalPlayerId }
     Column(verticalArrangement = Arrangement.spacedBy(if (isTablet) 18.dp else 12.dp)) {
-        SettingsSection(
-            title = stringResource(Res.string.settings_playback_section_player),
-            isTablet = isTablet,
-        ) {
-            SettingsGroup(isTablet = isTablet) {
-                SettingsNavigationRow(
-                    title = stringResource(Res.string.settings_playback_player_preference),
-                    description = if (settings.externalPlayerEnabled) {
-                        stringResource(Res.string.settings_playback_player_preference_external)
-                    } else {
-                        stringResource(Res.string.settings_playback_player_preference_internal)
-                    },
-                    isTablet = isTablet,
-                    onClick = { showExternalPlayerDialog = true },
-                )
-                if (isIos && settings.externalPlayerEnabled) {
-                    SettingsGroupDivider(isTablet = isTablet)
+        if (externalPlayerSupported) {
+            SettingsSection(
+                title = stringResource(Res.string.settings_playback_section_player),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
                     SettingsNavigationRow(
-                        title = stringResource(Res.string.settings_playback_external_player_app),
-                        description = selectedExternalPlayer?.name
-                            ?: if (availableExternalPlayers.isEmpty()) {
-                                stringResource(Res.string.settings_playback_external_player_none_available)
-                            } else {
-                                stringResource(Res.string.settings_playback_not_set)
-                            },
+                        title = stringResource(Res.string.settings_playback_player_preference),
+                        description = if (settings.externalPlayerEnabled) {
+                            stringResource(Res.string.settings_playback_player_preference_external)
+                        } else {
+                            stringResource(Res.string.settings_playback_player_preference_internal)
+                        },
                         isTablet = isTablet,
-                        onClick = { showExternalPlayerAppDialog = true },
+                        onClick = { showExternalPlayerDialog = true },
                     )
-                }
-                if (!isIos && settings.externalPlayerEnabled) {
-                    SettingsGroupDivider(isTablet = isTablet)
-                    SettingsSwitchRow(
-                        title = stringResource(Res.string.settings_playback_external_player_forward_subtitles),
-                        description = stringResource(Res.string.settings_playback_external_player_forward_subtitles_description),
-                        checked = settings.externalPlayerForwardSubtitles,
-                        isTablet = isTablet,
-                        onCheckedChange = PlayerSettingsRepository::setExternalPlayerForwardSubtitles,
-                    )
-                    SettingsGroupDivider(isTablet = isTablet)
-                    SettingsSwitchRow(
-                        title = stringResource(Res.string.settings_playback_external_player_send_skip_segments),
-                        description = stringResource(Res.string.settings_playback_external_player_send_skip_segments_description),
-                        checked = settings.externalPlayerSendSkipSegments,
-                        isTablet = isTablet,
-                        onCheckedChange = PlayerSettingsRepository::setExternalPlayerSendSkipSegments,
-                    )
+                    if (isIos && settings.externalPlayerEnabled) {
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsNavigationRow(
+                            title = stringResource(Res.string.settings_playback_external_player_app),
+                            description = selectedExternalPlayer?.name
+                                ?: if (availableExternalPlayers.isEmpty()) {
+                                    stringResource(Res.string.settings_playback_external_player_none_available)
+                                } else {
+                                    stringResource(Res.string.settings_playback_not_set)
+                                },
+                            isTablet = isTablet,
+                            onClick = { showExternalPlayerAppDialog = true },
+                        )
+                    }
+                    if (!isIos && settings.externalPlayerEnabled) {
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_playback_external_player_forward_subtitles),
+                            description = stringResource(Res.string.settings_playback_external_player_forward_subtitles_description),
+                            checked = settings.externalPlayerForwardSubtitles,
+                            isTablet = isTablet,
+                            onCheckedChange = PlayerSettingsRepository::setExternalPlayerForwardSubtitles,
+                        )
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_playback_external_player_send_skip_segments),
+                            description = stringResource(Res.string.settings_playback_external_player_send_skip_segments_description),
+                            checked = settings.externalPlayerSendSkipSegments,
+                            isTablet = isTablet,
+                            onCheckedChange = PlayerSettingsRepository::setExternalPlayerSendSkipSegments,
+                        )
+                    }
                 }
             }
         }
@@ -126,7 +134,7 @@ internal fun PlaybackPlayerSettings(
         }
     }
 
-    if (showExternalPlayerDialog) {
+    if (externalPlayerSupported && showExternalPlayerDialog) {
         PlayerPreferenceDialog(
             isExternal = settings.externalPlayerEnabled,
             onPreferenceSelected = { external ->

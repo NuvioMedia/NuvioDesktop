@@ -124,7 +124,12 @@ internal fun settingsSearchEntries(
         PlayerSettingsRepository.ensureLoaded()
         PlayerSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
-    val playbackSections = visiblePlaybackSections(isIos, playerSettings.androidPlaybackEngine, P2pSettingsRepository.isVisible)
+    val playbackSections = visiblePlaybackSections(
+        isIos,
+        playerSettings.androidPlaybackEngine,
+        P2pSettingsRepository.isVisible,
+        externalPlayerSupported,
+    )
     val entries = mutableListOf<SettingsSearchEntry>()
 
     fun add(

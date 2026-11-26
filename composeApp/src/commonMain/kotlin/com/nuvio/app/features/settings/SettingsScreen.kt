@@ -134,6 +134,7 @@ private fun SettingsPage.isEnabledByPolicy(): Boolean =
         SettingsPage.SupportersContributors -> AppFeaturePolicy.supportersContributorsPageEnabled
         SettingsPage.PlaybackP2p -> P2pSettingsRepository.isVisible
         SettingsPage.PlaybackBuffer -> !isIos && !isDesktop
+        SettingsPage.PlaybackPlayer -> playbackPlayerPageHasContent(isIos, isDesktop, AppFeaturePolicy.externalPlayerSupported)
         SettingsPage.Notifications -> AppFeaturePolicy.notificationsEnabled
         else -> true
     }
