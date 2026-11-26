@@ -1,9 +1,11 @@
 package com.nuvio.app
 
+import co.touchlab.kermit.Logger
 import com.nuvio.app.features.autosync.AutoSyncPreferencesDesktop
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.awt.SwingWindow
 import androidx.compose.ui.configureSwingGlobalsForCompose
 import androidx.compose.runtime.DisposableEffect
@@ -11,10 +13,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import com.nuvio.app.core.window.DesktopSystemTrayIcon
+import com.nuvio.app.core.window.shouldHideWindowToTray
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
@@ -44,15 +50,22 @@ import com.nuvio.app.features.player.desktop.registerDesktopAppFullscreenToggle
 import com.nuvio.app.features.player.desktop.trackMaximizedBoundsForCurrentScreen
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.settings.AppIconRepository
+import com.nuvio.app.features.settings.DesktopTraySettings
 import com.nuvio.app.features.settings.applyDesktopRendererPreference
 import com.nuvio.app.features.settings.transparentPreviewResource
 import java.awt.Desktop
+import java.awt.Image
+import java.io.IOException
 import javax.imageio.ImageIO
 import java.awt.Color as AwtColor
 import javax.swing.JComponent
+import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.desktop_tray_open
+import nuvio.composeapp.generated.resources.desktop_tray_quit
 
 private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
+private val log = Logger.withTag("DesktopMain")
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun main(args: Array<String>) {
@@ -78,6 +91,11 @@ fun main(args: Array<String>) {
 
     application {
         val appIconState by AppIconRepository.state.collectAsState()
+        val closeToTrayEnabled by DesktopTraySettings.closeToTray.collectAsState()
+        val trayController = remember { mutableStateOf<DesktopSystemTrayIcon?>(null) }
+        val mainWindow = remember { mutableStateOf<ComposeWindow?>(null) }
+        val trayOpenLabel = stringResource(Res.string.desktop_tray_open)
+        val trayQuitLabel = stringResource(Res.string.desktop_tray_quit)
         val smokePlayerUrl = (
             System.getProperty("nuvio.desktop.smokePlayerUrl")
                 ?: System.getenv("NUVIO_DESKTOP_SMOKE_PLAYER_URL")
@@ -126,11 +144,25 @@ fun main(args: Array<String>) {
             placement = initialPlacement,
         )
         val fullscreenController = remember { DesktopAppFullscreenController() }
-        val closeApplication = {
+        val quitApplication = {
             P2pStreamingEngine.shutdown()
             DiscordPresenceManager.shutdown()
             SentryInitializer.close()
             exitApplication()
+        }
+        val closeApplication = {
+            val window = mainWindow.value
+            if (
+                window != null &&
+                shouldHideWindowToTray(
+                    closeToTrayEnabled = closeToTrayEnabled,
+                    trayIconInstalled = trayController.value?.isInstalled == true,
+                )
+            ) {
+                window.isVisible = false
+            } else {
+                quitApplication()
+            }
         }
 
         SwingWindow(
@@ -145,6 +177,7 @@ fun main(args: Array<String>) {
                 onMinimizeRequest = { windowState.isMinimized = true },
             )
             SideEffect {
+                mainWindow.value = window
                 window.background = NuvioDesktopNativeBackground
                 window.rootPane.background = NuvioDesktopNativeBackground
                 window.contentPane.background = NuvioDesktopNativeBackground
@@ -167,6 +200,50 @@ fun main(args: Array<String>) {
                 // Windows fullscreen is emulated natively and isn't reflected by
                 // WindowPlacement, so it must be re-applied once the window peer exists.
                 fullscreenController.applyRestoredFullscreenState(window, windowState, wasFullscreenOnLastExit)
+            }
+            DisposableEffect(
+                window,
+                appIconState.selected,
+                closeToTrayEnabled,
+                trayOpenLabel,
+                trayQuitLabel,
+            ) {
+                if (!closeToTrayEnabled || !DesktopTraySettings.isSupported) {
+                    onDispose {}
+                } else {
+                    val image = loadDesktopTrayImage(appIconState.selected.key)
+                    if (image == null) {
+                        DesktopTraySettings.setCloseToTray(false)
+                        onDispose {}
+                    } else {
+                        val controller = DesktopSystemTrayIcon(
+                            image = image,
+                            openLabel = trayOpenLabel,
+                            quitLabel = trayQuitLabel,
+                        )
+                        if (
+                            controller.install(
+                                onOpen = {
+                                    windowState.isMinimized = false
+                                    window.isVisible = true
+                                    window.toFront()
+                                    window.requestFocus()
+                                },
+                                onQuit = quitApplication,
+                            )
+                        ) {
+                            trayController.value = controller
+                        } else {
+                            DesktopTraySettings.setCloseToTray(false)
+                        }
+                        onDispose {
+                            controller.remove()
+                            if (trayController.value === controller) {
+                                trayController.value = null
+                            }
+                        }
+                    }
+                }
             }
             LaunchedEffect(windowState) {
                 // Covers OS-driven placement changes too (e.g. the native macOS
@@ -253,6 +330,28 @@ fun main(args: Array<String>) {
                 }
             }
         }
+    }
+}
+
+private fun loadDesktopTrayImage(iconKey: String): Image? {
+    val path = "icons/app-icon-$iconKey-transparent.png"
+    val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(path)
+    if (stream == null) {
+        log.e { "Missing tray icon resource: $path" }
+        return null
+    }
+
+    return try {
+        val image = stream.use(ImageIO::read)
+        if (image == null || image.width <= 0 || image.height <= 0) {
+            log.e { "Invalid tray icon image: $path" }
+            null
+        } else {
+            image
+        }
+    } catch (error: IOException) {
+        log.e(error) { "Failed to read tray icon resource: $path" }
+        null
     }
 }
 

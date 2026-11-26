@@ -41,6 +41,9 @@ import nuvio.composeapp.generated.resources.settings_advanced_section_cache
 import nuvio.composeapp.generated.resources.settings_advanced_section_diagnostics
 import nuvio.composeapp.generated.resources.settings_advanced_section_discord
 import nuvio.composeapp.generated.resources.settings_advanced_section_startup
+import nuvio.composeapp.generated.resources.settings_advanced_section_window_behavior
+import nuvio.composeapp.generated.resources.settings_advanced_close_to_tray
+import nuvio.composeapp.generated.resources.settings_advanced_close_to_tray_description
 import nuvio.composeapp.generated.resources.settings_advanced_section_windows_graphics
 import nuvio.composeapp.generated.resources.settings_advanced_sentry_reports
 import nuvio.composeapp.generated.resources.settings_advanced_sentry_reports_subtitle
@@ -68,6 +71,26 @@ internal fun LazyListScope.advancedSettingsContent(
     isTablet: Boolean,
     rememberLastProfileEnabled: Boolean,
 ) {
+    if (DesktopTraySettings.isSupported) {
+        item {
+            val closeToTray by remember { DesktopTraySettings.closeToTray }.collectAsStateWithLifecycle()
+
+            SettingsSection(
+                title = stringResource(Res.string.settings_advanced_section_window_behavior),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_advanced_close_to_tray),
+                        description = stringResource(Res.string.settings_advanced_close_to_tray_description),
+                        checked = closeToTray,
+                        isTablet = isTablet,
+                        onCheckedChange = DesktopTraySettings::setCloseToTray,
+                    )
+                }
+            }
+        }
+    }
     item {
         SettingsSection(
             title = stringResource(Res.string.settings_advanced_section_startup),

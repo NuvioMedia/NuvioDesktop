@@ -570,12 +570,15 @@
     <string name="settings_search_placeholder">Search settings...</string>
     <string name="settings_search_results_section">RESULTS</string>
     <string name="settings_advanced_section_startup">STARTUP</string>
+    <string name="settings_advanced_section_window_behavior">WINDOW BEHAVIOR</string>
     <string name="settings_advanced_section_windows_graphics">WINDOWS GRAPHICS</string>
     <string name="settings_advanced_section_diagnostics">DIAGNOSTICS</string>
     <string name="settings_advanced_section_discord">DISCORD</string>
     <string name="settings_advanced_section_cache">CACHE</string>
     <string name="settings_advanced_remember_last_profile">Remember Last Profile</string>
     <string name="settings_advanced_remember_last_profile_description">Remember last selected profile at startup</string>
+    <string name="settings_advanced_close_to_tray">Close to system tray</string>
+    <string name="settings_advanced_close_to_tray_description">Keep Nuvio running in the Windows system tray when you close its window.</string>
     <string name="settings_advanced_opengl_renderer">Use OpenGL renderer</string>
     <string name="settings_advanced_opengl_renderer_description">May fix interface stutter or flicker with NVIDIA G-SYNC and some high-refresh-rate displays. Restart Nuvio to apply.</string>
     <string name="settings_advanced_opengl_renderer_external_description">The interface renderer is controlled by SKIKO_RENDER_API or skiko.renderApi. Remove that override to change it here.</string>
@@ -584,6 +587,8 @@
     <string name="settings_advanced_sentry_reports_subtitle_desktop">Send crash reports with safe diagnostic context. On by default.</string>
     <string name="settings_advanced_discord_rich_presence">Discord Rich Presence</string>
     <string name="settings_advanced_discord_rich_presence_description">Show what you're browsing or watching on your Discord profile. Off by default.</string>
+    <string name="desktop_tray_open">Open Nuvio</string>
+    <string name="desktop_tray_quit">Quit Nuvio</string>
     <string name="sentry_enable_dialog_title">Turn on crash reports?</string>
     <string name="sentry_enable_dialog_subtitle">Crash reports help identify device-specific failures without asking you to reproduce the issue with ADB logs.</string>
     <string name="sentry_enable_dialog_subtitle_desktop">Crash reports help identify Windows and macOS failures without asking you to collect logs manually.</string>
