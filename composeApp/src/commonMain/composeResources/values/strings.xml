@@ -468,7 +468,6 @@
     <string name="compose_player_chapter_remaining">%1$s left</string>
     <string name="compose_player_panel_streams">Streams</string>
     <string name="compose_player_playback_error">Playback error</string>
-    <string name="compose_player_playback_speed">Playback Speed</string>
     <string name="compose_player_playing">Playing</string>
     <string name="compose_player_fetch_subtitles">Tap to fetch subtitles</string>
     <string name="compose_player_go_back">Go back</string>
@@ -495,6 +494,8 @@
     <string name="compose_player_brightness_level">Brightness %1$s</string>
     <string name="compose_player_volume_level">Volume %1$s</string>
     <string name="compose_player_muted">Muted</string>
+    <string name="compose_player_mute">Mute</string>
+    <string name="compose_player_unmute">Unmute</string>
     <string name="compose_player_downloaded">Downloaded</string>
     <string name="compose_player_airs_prefix">Airs</string>
     <string name="compose_player_tba">TBA</string>

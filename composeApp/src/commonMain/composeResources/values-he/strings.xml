@@ -473,7 +473,6 @@ Therefore, duplicate the values-he directory as values-iw. Keep both directories
     <string name="compose_player_chapter_remaining">נותרו %1$s</string>
     <string name="compose_player_panel_streams">מקורות</string>
     <string name="compose_player_playback_error">שגיאת הפעלה</string>
-    <string name="compose_player_playback_speed">מהירות הפעלה</string>
     <string name="compose_player_playing">מופעל</string>
     <string name="compose_player_fetch_subtitles">יש להקיש כדי להביא כתוביות</string>
     <string name="compose_player_go_back">חזרה</string>
