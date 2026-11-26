@@ -169,11 +169,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         // falling back to the next source. It has an effect only where that fallback applies.
         val startupTimeoutSeconds = playerSettingsUiState.streamAutoPlayFallbackStartupTimeoutSeconds
         delay(startupTimeoutSeconds * 1_000L)
-        if (!initialLoadCompleted && errorMessage == null) {
-            tryFallbackToNextSourceAfterError(
-                getString(Res.string.player_error_source_startup_timeout, startupTimeoutSeconds),
-            )
-        }
+        onSourceStartupTimeout(getString(Res.string.player_error_source_startup_timeout, startupTimeoutSeconds))
     }
 
     LaunchedEffect(
@@ -993,6 +989,16 @@ internal fun PlayerScreenRuntime.removeFailedStreamFromCache() {
 }
 
 /**
+ * Treats a source that has not finished loading in time as failed. A source whose link is being
+ * refreshed already failed and is being replaced; the refresh falls back itself if it fails.
+ */
+internal fun PlayerScreenRuntime.onSourceStartupTimeout(message: String) {
+    if (initialLoadCompleted || errorMessage != null) return
+    if (credentialRefreshJob?.isActive == true) return
+    tryFallbackToNextSourceAfterError(message)
+}
+
+/**
  * Fetches the playing source again from its add-on (re-resolving debrid) and continues from the
  * same position when its link has likely expired:
  * - a link reopened from the reuse-last-link cache, which may have expired since it was saved;
@@ -1003,6 +1009,8 @@ internal fun PlayerScreenRuntime.removeFailedStreamFromCache() {
 internal fun PlayerScreenRuntime.tryRefreshExpiredLinkAfterError(message: String?): Boolean {
     if (ServerStreams.isServerSourceId(activeProviderAddonId)) return retryServerSourceAfterError(message)
     if (credentialRefreshJob?.isActive == true) return true
+    // The next source is already being started in place of this one.
+    if (sourceFallbackJob?.isActive == true) return true
     val failedUrl = activeSourceUrl
     if (failedUrl.isBlank()) return false
     val fromLinkCache = failedUrl == linkCacheSourceUrl
