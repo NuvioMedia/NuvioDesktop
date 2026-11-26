@@ -4,6 +4,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.isIos
@@ -21,7 +22,12 @@ internal fun LazyListScope.playbackSettingsContent(
         }.collectAsStateWithLifecycle()
         when (page) {
             SettingsPage.Playback -> {
-                val sections = visiblePlaybackSections(isIos, settings.androidPlaybackEngine, P2pSettingsRepository.isVisible)
+                val sections = visiblePlaybackSections(
+                    isIos,
+                    settings.androidPlaybackEngine,
+                    P2pSettingsRepository.isVisible,
+                    AppFeaturePolicy.externalPlayerSupported,
+                )
                 SettingsGroup(isTablet = isTablet) {
                     sections.forEachIndexed { index, section ->
                         if (index > 0) SettingsGroupDivider(isTablet = isTablet)

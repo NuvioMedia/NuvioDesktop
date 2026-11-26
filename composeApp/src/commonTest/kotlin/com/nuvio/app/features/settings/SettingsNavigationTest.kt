@@ -34,8 +34,20 @@ class SettingsNavigationTest {
     @Test
     fun bufferOptionsFollowThePlatformAndPlaybackEngine() {
         AndroidPlaybackEngine.entries.forEach { engine ->
-            val android = visiblePlaybackSections(ios = false, engine = engine, p2pVisible = false)
-            val ios = visiblePlaybackSections(ios = true, engine = engine, p2pVisible = false)
+            val android = visiblePlaybackSections(
+                ios = false,
+                engine = engine,
+                p2pVisible = false,
+                externalPlayerSupported = true,
+                desktop = false,
+            )
+            val ios = visiblePlaybackSections(
+                ios = true,
+                engine = engine,
+                p2pVisible = false,
+                externalPlayerSupported = true,
+                desktop = false,
+            )
             assertEquals(engine != AndroidPlaybackEngine.Libmpv, PlaybackSection.Buffer in android)
             assertFalse(PlaybackSection.Buffer in ios)
             assertFalse(PlaybackSection.P2p in android)
@@ -43,7 +55,72 @@ class SettingsNavigationTest {
             assertTrue(PlaybackSection.Interface in android)
             assertTrue(PlaybackSection.Interface in ios)
         }
-        assertTrue(PlaybackSection.P2p in visiblePlaybackSections(false, AndroidPlaybackEngine.Auto, true))
+        assertTrue(
+            PlaybackSection.P2p in visiblePlaybackSections(
+                ios = false,
+                engine = AndroidPlaybackEngine.Auto,
+                p2pVisible = true,
+                externalPlayerSupported = true,
+                desktop = false,
+            ),
+        )
+    }
+
+    @Test
+    fun playerPageIsHiddenOnDesktopWithoutExternalPlayerSupport() {
+        AndroidPlaybackEngine.entries.forEach { engine ->
+            val unsupported = visiblePlaybackSections(
+                ios = false,
+                engine = engine,
+                p2pVisible = false,
+                externalPlayerSupported = false,
+                desktop = true,
+            )
+            val supported = visiblePlaybackSections(
+                ios = false,
+                engine = engine,
+                p2pVisible = false,
+                externalPlayerSupported = true,
+                desktop = true,
+            )
+            assertFalse(PlaybackSection.Player in unsupported)
+            assertTrue(PlaybackSection.Player in supported)
+            assertTrue(PlaybackSection.Interface in unsupported)
+        }
+    }
+
+    @Test
+    fun playerPageStaysOnMobile() {
+        listOf(true, false).forEach { externalPlayerSupported ->
+            AndroidPlaybackEngine.entries.forEach { engine ->
+                val android = visiblePlaybackSections(
+                    ios = false,
+                    engine = engine,
+                    p2pVisible = false,
+                    externalPlayerSupported = externalPlayerSupported,
+                    desktop = false,
+                )
+                assertTrue(PlaybackSection.Player in android)
+            }
+        }
+        val ios = visiblePlaybackSections(
+            ios = true,
+            engine = AndroidPlaybackEngine.Auto,
+            p2pVisible = false,
+            externalPlayerSupported = true,
+            desktop = false,
+        )
+        assertTrue(PlaybackSection.Player in ios)
+    }
+
+    @Test
+    fun playerPageHasContentOnlyWithExternalPlayerOrDecoderSettings() {
+        assertFalse(playbackPlayerPageHasContent(ios = false, desktop = true, externalPlayerSupported = false))
+        assertTrue(playbackPlayerPageHasContent(ios = false, desktop = true, externalPlayerSupported = true))
+        assertTrue(playbackPlayerPageHasContent(ios = false, desktop = false, externalPlayerSupported = false))
+        assertTrue(playbackPlayerPageHasContent(ios = false, desktop = false, externalPlayerSupported = true))
+        assertFalse(playbackPlayerPageHasContent(ios = true, desktop = false, externalPlayerSupported = false))
+        assertTrue(playbackPlayerPageHasContent(ios = true, desktop = false, externalPlayerSupported = true))
     }
 
     @Test

@@ -21,13 +21,22 @@ internal enum class PlaybackSection(
     P2p(SettingsPage.PlaybackP2p, Res.string.settings_playback_page_p2p_description),
 }
 
+internal fun playbackPlayerPageHasContent(
+    ios: Boolean,
+    desktop: Boolean,
+    externalPlayerSupported: Boolean,
+): Boolean = externalPlayerSupported || (!ios && !desktop)
+
 internal fun visiblePlaybackSections(
     ios: Boolean,
     engine: AndroidPlaybackEngine,
     p2pVisible: Boolean,
+    externalPlayerSupported: Boolean,
+    desktop: Boolean = isDesktop,
 ): List<PlaybackSection> = PlaybackSection.entries.filter { section ->
     when (section) {
-        PlaybackSection.Buffer -> !ios && !isDesktop && engine != AndroidPlaybackEngine.Libmpv
+        PlaybackSection.Player -> playbackPlayerPageHasContent(ios, desktop, externalPlayerSupported)
+        PlaybackSection.Buffer -> !ios && !desktop && engine != AndroidPlaybackEngine.Libmpv
         PlaybackSection.P2p -> p2pVisible
         else -> true
     }
