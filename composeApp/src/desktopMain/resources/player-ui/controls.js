@@ -2601,7 +2601,7 @@ const syncSkipPromptPlacement = showSkip => {
     skipPrompt.style.getPropertyValue("--skip-prompt-lift"),
   ) || 0);
   let targetLift = 0;
-  if (showSkip && state.controlsVisible && (title.textContent || episode.textContent)) {
+  if (showSkip && !state.isInPip && state.controlsVisible && (title.textContent || episode.textContent)) {
     const rootTop = root.getBoundingClientRect().top;
     const metadataTop = playbackMetadata.getBoundingClientRect().top - rootTop;
     const promptBottom = skipPrompt.offsetTop + skipPrompt.offsetHeight + currentLift;
