@@ -194,23 +194,10 @@ private val LanguageCodeAliases = mapOf(
     "pt-br" to "pt-BR",
     "br" to "pt-BR",
     "pob" to "pt-BR",
-    "eng" to "en",
-    "spa" to "es",
     "es-419" to "es-419",
     "es_419" to "es-419",
     "es-la" to "es-419",
     "es-lat" to "es-419",
-    "fra" to "fr",
-    "fre" to "fr",
-    "deu" to "de",
-    "ger" to "de",
-    "ita" to "it",
-    "por" to "pt",
-    "rus" to "ru",
-    "jpn" to "ja",
-    "kor" to "ko",
-    "zho" to "zh",
-    "chi" to "zh",
     "zht" to "zh-TW",
     "zhs" to "zh-CN",
     "chi-tw" to "zh-TW",
@@ -219,85 +206,6 @@ private val LanguageCodeAliases = mapOf(
     "zh_tw" to "zh-TW",
     "zh-cn" to "zh-CN",
     "zh_cn" to "zh-CN",
-    "ara" to "ar",
-    "hin" to "hi",
-    "nld" to "nl",
-    "dut" to "nl",
-    "pol" to "pl",
-    "swe" to "sv",
-    "nor" to "no",
-    "dan" to "da",
-    "fin" to "fi",
-    "tur" to "tr",
-    "ell" to "el",
-    "gre" to "el",
-    "heb" to "he",
-    "tha" to "th",
-    "vie" to "vi",
-    "ind" to "id",
-    "msa" to "ms",
-    "may" to "ms",
-    "ces" to "cs",
-    "cze" to "cs",
-    "hun" to "hu",
-    "ron" to "ro",
-    "rum" to "ro",
-    "ukr" to "uk",
-    "bul" to "bg",
-    "hrv" to "hr",
-    "srp" to "sr",
-    "slk" to "sk",
-    "slo" to "sk",
-    "slv" to "sl",
-    "cat" to "ca",
-    "alb" to "sq",
-    "sqi" to "sq",
-    "bos" to "bs",
-    "mac" to "mk",
-    "mkd" to "mk",
-    "lav" to "lv",
-    "lit" to "lt",
-    "est" to "et",
-    "isl" to "is",
-    "ice" to "is",
-    "glg" to "gl",
-    "baq" to "eu",
-    "eus" to "eu",
-    "wel" to "cy",
-    "cym" to "cy",
-    "gle" to "ga",
-    "ben" to "bn",
-    "tam" to "ta",
-    "tel" to "te",
-    "mal" to "ml",
-    "kan" to "kn",
-    "mar" to "mr",
-    "pan" to "pa",
-    "guj" to "gu",
-    "urd" to "ur",
-    "fas" to "fa",
-    "per" to "fa",
-    "amh" to "am",
-    "swa" to "sw",
-    "zul" to "zu",
-    "afr" to "af",
-    "mlt" to "mt",
-    "bel" to "be",
-    "geo" to "ka",
-    "kat" to "ka",
-    "arm" to "hy",
-    "hye" to "hy",
-    "aze" to "az",
-    "kaz" to "kk",
-    "uzb" to "uz",
-    "mon" to "mn",
-    "khm" to "km",
-    "lao" to "lo",
-    "mya" to "my",
-    "bur" to "my",
-    "sin" to "si",
-    "nep" to "ne",
-    "tgl" to "tl",
     "fil" to "tl",
 )
 
@@ -414,6 +322,7 @@ fun normalizeLanguageCode(language: String?): String? {
     }
 
     LanguageCodeAliases[raw]?.let { return it.replace('_', '-').lowercase() }
+    iso639Part1Code(raw)?.let { return it }
     LanguageNameAliases[tokenized]?.let { return it }
     LanguageNameAliases.entries
         .sortedByDescending { it.key.length }
@@ -425,8 +334,14 @@ fun normalizeLanguageCode(language: String?): String? {
         }
         ?.let { return it.value }
 
+    // Media3 and older BCP 47 tags put the variety after the macrolanguage: "no-nob", "zh-cmn", "hbs-srp", "ms-ind".
+    raw.split('-').getOrNull(1)
+        ?.takeIf { it.length == 3 && it.all(Char::isLetter) }
+        ?.let(::iso639Part1Code)
+        ?.let { return it }
+
     val primary = raw.substringBefore('-')
-    val primaryAlias = LanguageCodeAliases[primary]?.replace('_', '-')?.lowercase()
+    val primaryAlias = (LanguageCodeAliases[primary] ?: iso639Part1Code(primary))?.replace('_', '-')?.lowercase()
     val suffix = raw.substringAfter('-', "")
     return if (suffix.isBlank()) {
         primaryAlias ?: primary
@@ -608,12 +523,18 @@ fun countryToLanguageCode(country: String?): String? {
     return COUNTRY_TO_LANGUAGE_MAP[normalized]
 }
 
+// TMDB's original_language list has two codes that are not ISO 639-1: "cn" (Cantonese) and "mo" (Moldavian).
+private val TmdbOnlyLanguageCodes = mapOf("cn" to "yue", "mo" to "ro")
+
+internal fun normalizeContentLanguageCode(language: String?): String? =
+    normalizeLanguageCode(language)?.let { TmdbOnlyLanguageCodes[it] ?: it }
+
 /**
  * Resolves the original content language as an ISO 639-1 code.
  * Falls back to country-based inference when the explicit language field is absent.
  */
 fun resolveContentLanguage(language: String?, country: String?): String? {
-    normalizeLanguageCode(language)?.let { return it }
+    normalizeContentLanguageCode(language)?.let { return it }
     countryToLanguageCode(country)?.let { return it }
     return null
 }
