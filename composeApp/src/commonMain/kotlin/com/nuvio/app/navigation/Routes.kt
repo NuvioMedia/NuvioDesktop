@@ -129,6 +129,12 @@ data class CollectionEditorPageRoute(
 ) : AppRoute
 
 @Serializable
+data class CollectionDetailRoute(
+    val collectionId: String,
+    override val title: String = "",
+) : AppRoute
+
+@Serializable
 data class FolderDetailRoute(
     val collectionId: String,
     val folderId: String,

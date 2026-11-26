@@ -3,8 +3,11 @@ package com.nuvio.app
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import com.nuvio.app.features.collection.CollectionDetailScreen
 import com.nuvio.app.features.collection.CollectionEditorPage
 import com.nuvio.app.features.collection.CollectionEditorScreen
 import com.nuvio.app.features.collection.CollectionManagementScreen
@@ -14,6 +17,7 @@ import com.nuvio.app.features.collection.FolderDetailScreen
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.settings.SettingsScreen
 import com.nuvio.app.navigation.AppRoute
+import com.nuvio.app.navigation.CollectionDetailRoute
 import com.nuvio.app.navigation.CollectionEditorPageRoute
 import com.nuvio.app.navigation.CollectionEditorRoute
 import com.nuvio.app.navigation.CollectionsRoute
@@ -139,6 +143,30 @@ internal fun CollectionEditorPageDestination(
                     collectionId = route.collectionId,
                     pageName = nextPage.name,
                     title = title,
+                ),
+            )
+        },
+    )
+}
+
+@Composable
+internal fun CollectionDetailDestination(
+    route: CollectionDetailRoute,
+    navController: NuvioNavigator,
+) {
+    val onBack = rememberGuardedPopBackStack(navController, route)
+    val collections by CollectionRepository.collections.collectAsState()
+    val collection = collections.firstOrNull { it.id == route.collectionId }
+    CollectionDetailScreen(
+        title = collection?.title ?: route.title,
+        folders = collection?.folders.orEmpty(),
+        onBack = onBack,
+        onFolderClick = { folder ->
+            navController.navigate(
+                FolderDetailRoute(
+                    collectionId = route.collectionId,
+                    folderId = folder.id,
+                    title = folder.title,
                 ),
             )
         },
