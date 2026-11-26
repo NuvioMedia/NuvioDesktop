@@ -14,6 +14,7 @@ internal object DesktopCache {
         files.forEach { (relativePath, bytes) ->
             writeIfChanged(resolveTarget(directory, relativePath), bytes)
         }
+        pruneOtherVersions(namespace, directory)
         return directory
     }
 
@@ -31,7 +32,21 @@ internal object DesktopCache {
                 }
             }
         }
+        pruneOtherVersions(namespace, directory)
         return directory
+    }
+
+    /**
+     * Version directories are content addressed, so every desktop update installs a
+     * new one. Without this the previous native player payload (~110 MB) and player
+     * UI copies stayed on disk forever. Best effort: files still held open by another
+     * instance are skipped, and the leftover directory is retried on the next launch.
+     */
+    private fun pruneOtherVersions(namespace: String, keep: Path) {
+        val cacheDir = DesktopStorage.cacheDir
+        val root = cacheDir.resolve(namespace).normalize()
+        if (!root.startsWith(cacheDir) || keep.parent != root) return
+        pruneVersionDirectories(root, keep)
     }
 
     private fun versionedDirectory(namespace: String, versionInputs: Map<String, ByteArray>): Path {
@@ -82,6 +97,21 @@ internal object DesktopCache {
             }
         } finally {
             Files.deleteIfExists(pending)
+        }
+    }
+}
+
+internal fun pruneVersionDirectories(root: Path, keep: Path) {
+    if (!Files.isDirectory(root)) return
+    if (keep.parent != root) return
+    val keepName = keep.fileName?.toString() ?: return
+    runCatching {
+        Files.newDirectoryStream(root).use { entries ->
+            for (entry in entries) {
+                if (entry.fileName.toString() == keepName) continue
+                if (!Files.isDirectory(entry)) continue
+                runCatching { entry.toFile().deleteRecursively() }
+            }
         }
     }
 }
