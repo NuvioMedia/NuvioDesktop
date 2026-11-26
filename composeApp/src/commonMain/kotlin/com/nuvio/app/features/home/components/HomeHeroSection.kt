@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
@@ -33,6 +34,10 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,6 +56,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -716,6 +722,7 @@ private fun DesktopHomeHeroFrame(
                         end = contentHorizontalPadding,
                         bottom = space.s40,
                     ),
+                showArrows = true,
             )
         }
     }
@@ -727,6 +734,7 @@ private fun HeroPageIndicatorRow(
     pagerState: PagerState,
     coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
+    showArrows: Boolean = false,
 ) {
     if (itemCount <= 1) return
 
@@ -735,6 +743,15 @@ private fun HeroPageIndicatorRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (showArrows) {
+            HeroPageArrowButton(
+                icon = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                onClick = {
+                    coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                },
+                modifier = Modifier.padding(end = 4.dp),
+            )
+        }
         repeat(itemCount) { index ->
             val page = heroPageForItem(pagerState.currentPage, index, itemCount)
             val activeFraction = heroPageVisibility(pagerState, page)
@@ -753,6 +770,42 @@ private fun HeroPageIndicatorRow(
                     }
                     .width(8.dp + (24.dp * activeFraction))
                     .height(8.dp),
+            )
+        }
+        if (showArrows) {
+            HeroPageArrowButton(
+                icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                onClick = {
+                    coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                },
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeroPageArrowButton(
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        modifier = modifier.size(40.dp),
+        shape = CircleShape,
+        color = colorScheme.surfaceVariant.copy(alpha = 0.82f),
+        contentColor = colorScheme.onSurface,
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(26.dp),
             )
         }
     }

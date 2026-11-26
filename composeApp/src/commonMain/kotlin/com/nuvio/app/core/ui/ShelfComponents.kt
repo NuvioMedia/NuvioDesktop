@@ -152,6 +152,7 @@ fun <T> NuvioShelfSection(
                 LazyRow(
                     state = state,
                     modifier = rowModifier
+                        .nuvioDesktopRowScrollArrows(state)
                         .nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current)
                         .nuvioDesktopDragScroll(state),
                     contentPadding = rowContentPadding.withVerticalBar(),

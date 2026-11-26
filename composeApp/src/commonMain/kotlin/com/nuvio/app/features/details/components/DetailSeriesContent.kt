@@ -71,6 +71,7 @@ import com.nuvio.app.core.ui.NuvioProgressBar
 import com.nuvio.app.core.ui.backdropControlColor
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.nuvioDesktopRowScrollArrows
 import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
 import com.nuvio.app.core.ui.posterCardClickable
@@ -519,6 +520,7 @@ private fun SeasonTextChipScrollRow(
     LazyRow(
         state = seasonListState,
         modifier = Modifier
+            .nuvioDesktopRowScrollArrows(seasonListState)
             .nuvioHorizontalScrollBleed(horizontalScrollPadding)
             .fillMaxWidth()
             .nuvioDesktopDragScroll(seasonListState)
@@ -598,6 +600,7 @@ private fun SeasonPosterScrollRow(
     LazyRow(
         state = seasonListState,
         modifier = Modifier
+            .nuvioDesktopRowScrollArrows(seasonListState)
             .nuvioHorizontalScrollBleed(horizontalScrollPadding)
             .fillMaxWidth()
             .nuvioDesktopDragScroll(seasonListState)
@@ -752,6 +755,7 @@ private fun EpisodeHorizontalRow(
     LazyRow(
         state = listState,
         modifier = Modifier
+            .nuvioDesktopRowScrollArrows(listState)
             .nuvioHorizontalScrollBleed(horizontalScrollPadding)
             .fillMaxWidth()
             .nuvioDesktopDragScroll(listState),
