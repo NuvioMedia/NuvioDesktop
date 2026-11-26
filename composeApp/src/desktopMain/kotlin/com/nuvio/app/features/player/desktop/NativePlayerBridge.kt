@@ -21,6 +21,10 @@ internal object NativePlayerBridge {
         "concrt140.dll",
         "WebView2Loader.dll",
     )
+    // Declared before loadFailure so the value recorded while loading is not reset by a later initializer.
+    @Volatile
+    var nativeLibraryDirectory: File? = null
+        private set
     private val preloadStarted = AtomicBoolean(false)
 
     private val log = Logger.withTag("NativePlayerBridge")
@@ -196,12 +200,14 @@ internal object NativePlayerBridge {
         findPackagedApplicationLibrary(platformDir, libraryName)?.let { packagedLibrary ->
             loadNativeRuntimeDependencies(platform, packagedLibrary.parentFile)
             System.load(packagedLibrary.absolutePath)
+            nativeLibraryDirectory = packagedLibrary.parentFile
             return
         }
         findLocalBuildLibrary(platformDir, libraryName)?.let { localLibrary ->
             copyLocalRuntimeResources(platformDir, localLibrary.parentFile)
             loadNativeRuntimeDependencies(platform, localLibrary.parentFile)
             System.load(localLibrary.absolutePath)
+            nativeLibraryDirectory = localLibrary.parentFile
             return
         }
 
@@ -214,6 +220,7 @@ internal object NativePlayerBridge {
         val directory = DesktopCache.installVersionedResources("native-player-bridge/$platformDir", resources).toFile()
         loadNativeRuntimeDependencies(platform, directory)
         System.load(directory.resolve(libraryName).absolutePath)
+        nativeLibraryDirectory = directory
     }
 
     private fun findPackagedApplicationLibrary(platformDir: String, libraryName: String): File? {
