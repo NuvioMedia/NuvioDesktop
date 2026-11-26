@@ -917,7 +917,7 @@ button:disabled {
   height: var(--header-icon);
 }
 
-/* PiP keeps only playback, captions/audio, volume, restore action, and pause overlay. */
+/* Keep playback controls and the active skip prompt in PiP. */
 .player.pip-mode {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
   border-radius: 8px;
@@ -931,7 +931,6 @@ button:disabled {
 .player.pip-mode [data-command="episodes"],
 .player.pip-mode [data-command="playNextEpisode"],
 .player.pip-mode .next-episode-card,
-.player.pip-mode .skip-prompt,
 .player.pip-mode .parental-guide,
 .player.pip-mode .opening-overlay {
   display: none !important;
@@ -943,6 +942,23 @@ button:disabled {
 
 .player.pip-mode .header-actions {
   margin-left: auto;
+}
+
+.player.pip-mode .skip-prompt {
+  top: calc(10px + env(safe-area-inset-top));
+  bottom: auto;
+  left: 10px;
+  min-width: 0;
+  max-width: calc(100% - 2 * var(--header-button) - var(--hp) - 40px);
+}
+
+.player.pip-mode .skip-prompt-row {
+  padding: 7px 10px;
+}
+
+.player.pip-mode .skip-prompt-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player.pip-mode .action-row {
