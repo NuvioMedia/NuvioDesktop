@@ -36,6 +36,7 @@ import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.collection.CollectionFolder
 import com.nuvio.app.features.home.PosterShape
+import com.nuvio.app.isDesktop
 
 @Composable
 fun HomeCollectionRowSection(
@@ -44,6 +45,7 @@ fun HomeCollectionRowSection(
     sectionPadding: Dp? = null,
     animateGifs: Boolean = true,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
+    onCollectionClick: ((Collection) -> Unit)? = null,
 ) {
     if (collection.folders.isEmpty()) return
 
@@ -54,6 +56,7 @@ fun HomeCollectionRowSection(
             sectionPadding = sectionPadding,
             animateGifs = animateGifs,
             onFolderClick = onFolderClick,
+            onCollectionClick = onCollectionClick,
         )
     } else {
         BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -63,6 +66,7 @@ fun HomeCollectionRowSection(
                 sectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value),
                 animateGifs = animateGifs,
                 onFolderClick = onFolderClick,
+                onCollectionClick = onCollectionClick,
             )
         }
     }
@@ -75,12 +79,14 @@ private fun HomeCollectionRowSectionContent(
     sectionPadding: Dp,
     animateGifs: Boolean,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)?,
+    onCollectionClick: ((Collection) -> Unit)?,
 ) {
     NuvioShelfSection(
         title = collection.title,
         entries = collection.folders,
         modifier = modifier,
         headerHorizontalPadding = sectionPadding,
+        onTitleClick = onCollectionClick?.takeIf { isDesktop }?.let { open -> { open(collection) } },
         rowContentPadding = PaddingValues(horizontal = sectionPadding),
         key = { folder -> "collection_${collection.id}_folder_${folder.id}" },
     ) { folder ->
@@ -93,7 +99,7 @@ private fun HomeCollectionRowSectionContent(
 }
 
 @Composable
-private fun CollectionFolderCard(
+internal fun CollectionFolderCard(
     folder: CollectionFolder,
     modifier: Modifier = Modifier,
     animateGifs: Boolean = true,

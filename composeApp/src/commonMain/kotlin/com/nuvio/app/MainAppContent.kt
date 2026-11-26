@@ -1629,6 +1629,11 @@ internal fun MainAppContent(
                                 },
                                 onCollectionsSettingsClick = { navController.navigate(CollectionsRoute(collectionsTitle)) },
                                 onWatchPartySettingsClick = { navController.navigate(PartyRoute(title = watchPartyTitle)) },
+                                onCollectionClick = { collection ->
+                                    navController.navigate(
+                                        CollectionDetailRoute(collectionId = collection.id, title = collection.title),
+                                    )
+                                },
                                 onFolderClick = { collectionId, folderId ->
                                     val folderTitle = CollectionRepository.collections.value
                                         .firstOrNull { it.id == collectionId }
@@ -1873,6 +1878,9 @@ internal fun MainAppContent(
                         route = route,
                         navController = navController,
                     )
+                }
+                entry<CollectionDetailRoute> { route ->
+                    CollectionDetailDestination(route = route, navController = navController)
                 }
                 entry<FolderDetailRoute> { route ->
                     FolderDestination(
