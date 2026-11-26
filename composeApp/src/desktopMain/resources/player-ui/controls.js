@@ -239,6 +239,10 @@ let state = {
   pauseLabel: "Pause",
   closeLabel: "Close player",
   lockLabel: "Lock player controls",
+  muteLabel: "Mute",
+  unmuteLabel: "Unmute",
+  showRemainingTimeLabel: "Show remaining time",
+  showElapsedTimeLabel: "Show elapsed time",
   unlockLabel: "Unlock player controls",
   submitIntroLabel: "Submit Intro",
   videoSettingsLabel: "Video settings",
@@ -643,7 +647,7 @@ const syncVolumeControl = () => {
   volumeSlider.setAttribute("title", label);
   volumeIcon.setAttribute("href", percent === 0 ? "#icon-volume-muted" : "#icon-volume");
   if (volumeButton) {
-    const btnLabel = percent === 0 ? "Unmute" : "Mute";
+    const btnLabel = percent === 0 ? (state.unmuteLabel || "Unmute") : (state.muteLabel || "Mute");
     volumeButton.setAttribute("aria-label", btnLabel);
     volumeButton.setAttribute("title", btnLabel);
   }
@@ -1193,7 +1197,7 @@ const speedOptions = [
   { value: 0.25, label: "0.25x" },
   { value: 0.5, label: "0.5x" },
   { value: 0.75, label: "0.75x" },
-  { value: 1.0, label: "1x (Normal)" },
+  { value: 1.0, label: "1x" },
   { value: 1.25, label: "1.25x" },
   { value: 1.5, label: "1.5x" },
   { value: 1.75, label: "1.75x" },
@@ -2812,6 +2816,9 @@ const renderChrome = () => {
   const bufferedPositionMs = Math.max(0, Number(state.bufferedPositionMs) || 0);
   const isPlaying = Boolean(state.isPlaying);
   const showError = renderPlaybackError();
+  const timeLabelAria = timeLabelShowRemaining
+    ? (state.showElapsedTimeLabel || "Show elapsed time")
+    : (state.showRemainingTimeLabel || "Show remaining time");
   root.classList.toggle("pip-mode", Boolean(state.isInPip));
   if (!state.isInPip && isPipLocked) setPipLocked(false);
   root.classList.toggle("chrome-hidden", Boolean(showError || !state.controlsVisible));
@@ -2834,6 +2841,8 @@ const renderChrome = () => {
   setTextContent(audioLabel, state.audioLabel || "Audio");
   setTextContent(sourcesLabel, state.sourcesLabel || "Sources");
   setTextContent(episodesLabel, state.episodesLabel || "Episodes");
+  setAttr(timeLabel, "aria-label", timeLabelAria);
+  setAttr(timeLabel, "title", timeLabelAria);
   setActionButtonLabel("resize", state.resizeModeLabel || "Fit");
   setActionButtonLabel("speed", state.playbackSpeedLabel || "1x");
   setActionButtonLabel("subtitles", state.subtitlesLabel || "Subs");
