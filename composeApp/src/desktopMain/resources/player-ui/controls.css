@@ -2551,7 +2551,10 @@ button:disabled {
   font-weight: 500;
 }
 
-#outlineColorLabel {
+#outlineColorLabel,
+#outlineWidthLabel,
+#shadowOpacityLabel,
+#shadowSizeLabel {
   color: var(--theme-text-secondary);
   font-size: 12px;
   line-height: 18px;
@@ -3469,7 +3472,10 @@ button.action:focus-visible {
     line-height: 22px;
   }
 
-  #outlineColorLabel {
+  #outlineColorLabel,
+  #outlineWidthLabel,
+  #shadowOpacityLabel,
+  #shadowSizeLabel {
     font-size: 14px;
     line-height: 20px;
   }

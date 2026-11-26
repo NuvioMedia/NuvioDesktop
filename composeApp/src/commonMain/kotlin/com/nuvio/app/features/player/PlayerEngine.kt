@@ -208,6 +208,7 @@ data class PlayerControlsState(
     val colorLabel: String = "Color",
     val textOpacityLabel: String = "Text Opacity",
     val outlineColorLabel: String = "Outline Color",
+    val outlineWidthLabel: String = "Outline width",
     val fontLabel: String = "Font",
     val backgroundColorLabel: String = "Background Color",
     val backgroundOpacityLabel: String = "Background opacity",
