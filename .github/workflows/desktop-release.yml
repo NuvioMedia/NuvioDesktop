@@ -899,7 +899,7 @@ jobs:
 
       - name: Install Linux AppImage build dependencies
         run: |
-          bash ./scripts/linux/install-desktop-build-dependencies.sh zsync
+          bash ./scripts/linux/install-desktop-build-dependencies.sh zsync fonts-noto-color-emoji
 
       - name: Set up Java
         uses: actions/setup-java@v5
