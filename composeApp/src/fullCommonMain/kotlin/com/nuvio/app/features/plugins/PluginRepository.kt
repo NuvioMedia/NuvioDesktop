@@ -3,7 +3,7 @@ package com.nuvio.app.features.plugins
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.features.addons.encodeUnsafeHttpUrlCharacters
-import com.nuvio.app.features.addons.httpGetText
+import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.tmdb.TmdbService
 import com.nuvio.app.features.plugins.runtime.PluginRuntime
@@ -68,6 +68,8 @@ private data class LoadedPluginState(
     val requiresMigration: Boolean,
 )
 
+private val PLUGIN_NO_CACHE_HEADERS = mapOf("Cache-Control" to "no-cache")
+
 actual object PluginRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val log = Logger.withTag("PluginRepository")
@@ -90,11 +92,8 @@ actual object PluginRepository {
         ensureStateLoadedForProfile(effectiveProfileId)
         if (!shouldRefreshStoredRepos) return
 
-        val state = _uiState.value
-        val nowEpochMs = currentEpochMillis()
-        state.repositories.filter { repo ->
-            shouldRefreshRepository(repo, state.scrapers, nowEpochMs)
-        }.forEach { repo ->
+        // Mirror addons: refresh repositories and scraper code on every cold start/profile switch.
+        _uiState.value.repositories.forEach { repo ->
             refreshRepositoryInternal(repo.manifestUrl, pushAfterRefresh = false, ensureInitialized = false)
         }
     }
@@ -381,7 +380,7 @@ actual object PluginRepository {
             PluginRuntime.executePlugin(
                 code = scraper.code,
                 tmdbId = resolvedTmdbId,
-                mediaType = jsPluginMediaType(normalizePluginType(mediaType), scraper.supportedTypes, season, episode),
+                mediaType = normalizePluginType(mediaType),
                 season = season,
                 episode = episode,
                 scraperId = scraper.id,
@@ -409,7 +408,7 @@ actual object PluginRepository {
     ): Pair<PluginRepositoryItem, List<PluginScraper>> {
         val storageProfileId = currentProfileId
         return withContext(Dispatchers.Default) {
-            val payload = httpGetText(manifestUrl)
+            val payload = httpGetTextWithHeaders(manifestUrl, PLUGIN_NO_CACHE_HEADERS)
             val manifest = PluginManifestParser.parse(payload)
             val baseUrl = manifestUrl.substringBefore("?").removeSuffix("/manifest.json")
 
@@ -422,7 +421,7 @@ actual object PluginRepository {
                         "$baseUrl/${info.filename.trimStart('/')}"
                     }
                     runCatching {
-                        val code = httpGetText(codeUrl)
+                        val code = httpGetTextWithHeaders(codeUrl, PLUGIN_NO_CACHE_HEADERS)
                         val scraperId = "${manifestUrl.lowercase()}:${info.id}"
                         val cached = PluginStorage.saveScraperCode(
                             profileId = storageProfileId,
