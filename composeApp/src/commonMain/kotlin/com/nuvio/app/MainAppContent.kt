@@ -70,7 +70,9 @@ import com.nuvio.app.core.sync.AppForegroundMonitor
 import com.nuvio.app.core.sync.AppVisibility
 import com.nuvio.app.core.sync.ProfileSettingsSync
 import com.nuvio.app.core.sync.SyncManager
+import com.nuvio.app.core.ui.DesktopPosterOverlayWarmupProbe
 import com.nuvio.app.core.ui.DisintegrationRequestController
+import com.nuvio.app.core.ui.rememberDesktopPosterOverlayWarmupActive
 import com.nuvio.app.core.ui.NativeTabBridge
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioContinueWatchingActionSheet
@@ -302,6 +304,7 @@ internal fun MainAppContent(
         val posterOverlayHazeState = rememberHazeState()
         var selectedContinueWatchingForActions by remember { mutableStateOf<ContinueWatchingItem?>(null) }
         var selectedContinueWatchingZoomAnchor by remember { mutableStateOf<PosterZoomAnchor?>(null) }
+        var continueWatchingOpenGeneration by remember { mutableIntStateOf(0) }
         val libraryDisintegrationRequests = remember { DisintegrationRequestController<String>() }
         val continueWatchingDisintegrationRequests = remember { DisintegrationRequestController<String>() }
         var requestedSettingsPageName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1333,9 +1336,21 @@ internal fun MainAppContent(
 
         val onContinueWatchingLongPress: (ContinueWatchingItem) -> Unit = { item ->
             hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+            focusManager.clearFocus(force = true)
             val zoomAnchor = PosterZoomAnchorHolder.consume()
-            selectedContinueWatchingZoomAnchor = zoomAnchor
-            selectedContinueWatchingForActions = item
+            val generation = ++continueWatchingOpenGeneration
+            if (zoomAnchor != null) {
+                coroutineScope.launch {
+                    withFrameNanos { }
+                    if (continueWatchingOpenGeneration == generation) {
+                        selectedContinueWatchingZoomAnchor = zoomAnchor
+                        selectedContinueWatchingForActions = item
+                    }
+                }
+            } else {
+                selectedContinueWatchingZoomAnchor = null
+                selectedContinueWatchingForActions = item
+            }
         }
 
         // Desktop has no system back, so mouse Back joins Esc in Compose's window back
@@ -1377,11 +1392,20 @@ internal fun MainAppContent(
                         }
                     },
             ) {
+            val posterOverlayVisible = selectedPosterActionTarget != null || selectedContinueWatchingZoomAnchor != null
+            val desktopOverlayWarmupActive = if (isDesktop && ownsAppRuntime) {
+                rememberDesktopPosterOverlayWarmupActive(
+                    enabled = rootContentReady && launchOverlayState.isIdle && !launchOverlayState.currentState,
+                    overlayVisible = posterOverlayVisible,
+                )
+            } else {
+                false
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(
-                        if (selectedPosterActionTarget != null || selectedContinueWatchingZoomAnchor != null) {
+                        if (posterOverlayVisible || desktopOverlayWarmupActive) {
                             Modifier.hazeSource(state = posterOverlayHazeState)
                         } else {
                             Modifier
@@ -1898,6 +1922,10 @@ internal fun MainAppContent(
             }
             }
 
+            if (desktopOverlayWarmupActive) {
+                DesktopPosterOverlayWarmupProbe(hazeState = posterOverlayHazeState)
+            }
+
             selectedPosterActionTarget?.let { posterActionTarget ->
                 key(posterActionTarget) {
                     val preview = posterActionTarget.preview
@@ -2133,6 +2161,7 @@ internal fun MainAppContent(
                             },
                             hazeState = posterOverlayHazeState,
                             onDismissed = {
+                                continueWatchingOpenGeneration++
                                 selectedContinueWatchingForActions = null
                                 selectedContinueWatchingZoomAnchor = null
                             },

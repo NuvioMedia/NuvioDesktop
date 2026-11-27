@@ -83,6 +83,7 @@ internal class PosterLiftSource(
     }
 
     internal fun requestLiftCapture() {
+        if (eagerLayerRecording) return
         if (captureRequestRevision <= lastRecordedRevision) {
             captureRequestRevision = lastRecordedRevision + 1
         }

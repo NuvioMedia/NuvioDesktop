@@ -20,6 +20,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,6 +39,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,6 +109,7 @@ object PosterZoomAnchorHolder {
     fun consume(): PosterZoomAnchor? = pending.also { anchor ->
         pending = null
         if (anchor != null) {
+            anchor.source?.requestLiftCapture()
             PosterZoomOverlayCoordinator.show()
         }
     }
@@ -220,12 +228,15 @@ fun NuvioPosterZoomActionOverlay(
     }
 
     DisposableEffect(source) {
-        source?.requestLiftCapture()
+        if (source != null && !source.isLiftCaptureReady) {
+            source.requestLiftCapture()
+        }
         onDispose { source?.land() }
     }
 
-    LaunchedEffect(slotBounds != null, phase, source) {
-        if (slotBounds == null || phase != PosterZoomPhase.Open) return@LaunchedEffect
+    val slotReady = slotBounds != null
+    LaunchedEffect(slotReady, phase, source) {
+        if (!slotReady || phase != PosterZoomPhase.Open) return@LaunchedEffect
         if (source != null && !source.isLiftCaptureReady) {
             withTimeoutOrNull(120L) {
                 snapshotFlow { source.isLiftCaptureReady }.first { it }
@@ -233,6 +244,10 @@ fun NuvioPosterZoomActionOverlay(
         }
         lifted = source?.lift() == true
         showFallback = !lifted
+        // Let the first lifted frame (and newly attached hazeSource recording) commit
+        // before starting the animation clock so frame-0 setup cannot eat into the spring.
+        withFrameNanos { }
+        if (phase != PosterZoomPhase.Open) return@LaunchedEffect
         launch { scrim.animateTo(1f, tween(durationMillis = 260, easing = NuvioTokens.Motion.standard)) }
         launch { zoom.animateTo(1f, PosterZoomExpandSpring) }
         launch {
@@ -332,9 +347,12 @@ fun NuvioPosterZoomActionOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Color.Black.copy(alpha = 0.45f * scrim.value.coerceIn(0f, 1f)),
-                ),
+                .drawBehind {
+                    val scrimAlpha = 0.45f * scrim.value.coerceIn(0f, 1f)
+                    if (scrimAlpha > 0f) {
+                        drawRect(Color.Black.copy(alpha = scrimAlpha))
+                    }
+                },
         )
 
         Column(
@@ -627,3 +645,110 @@ private fun androidx.compose.ui.unit.Density.posterCornerRadiusPx(
 }
 
 private val PosterZoomFinalCornerRadius = NuvioTokens.Space.s18
+
+private var desktopPosterOverlayWarmedUp = false
+
+/**
+ * One-shot idle warmup controller for desktop's first poster lift overlay.
+ *
+ * Returns `true` for 3 frames after launch settles so the host can briefly attach
+ * its real full-window `hazeSource` and mount [DesktopPosterOverlayWarmupProbe] at
+ * near-zero alpha (visually invisible, non-interactive). That warms full-window Haze
+ * recording, Skia's 36dp blur + 24dp shadow shaders, and the clipped menu/icon/text
+ * layers once per process, then detaches completely with zero ongoing scroll cost.
+ */
+@Composable
+internal fun rememberDesktopPosterOverlayWarmupActive(
+    enabled: Boolean,
+    overlayVisible: Boolean,
+): Boolean {
+    var done by remember { mutableStateOf(desktopPosterOverlayWarmedUp) }
+    var active by remember { mutableStateOf(false) }
+
+    LaunchedEffect(enabled, done) {
+        if (done || !enabled) return@LaunchedEffect
+        delay(600L)
+        if (PosterZoomOverlayCoordinator.isVisible || overlayVisible) {
+            desktopPosterOverlayWarmedUp = true
+            done = true
+            return@LaunchedEffect
+        }
+        active = true
+        repeat(3) { withFrameNanos { } }
+        active = false
+        desktopPosterOverlayWarmedUp = true
+        done = true
+    }
+
+    return active && !overlayVisible && !PosterZoomOverlayCoordinator.isVisible
+}
+
+@Composable
+internal fun DesktopPosterOverlayWarmupProbe(
+    hazeState: HazeState,
+) {
+    val tokens = MaterialTheme.nuvio
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = 0.002f },
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .hazeEffect(state = hazeState) {
+                    blurRadius = 36.dp
+                    inputScale = HazeInputScale.Auto
+                    noiseFactor = 0f
+                    blurredEdgeTreatment = BlurredEdgeTreatment.Rectangle
+                    clipToAreasBounds = false
+                    expandLayerBounds = true
+                    alpha = 0.5f
+                },
+        )
+        Box(
+            modifier = Modifier
+                .size(128.dp)
+                .graphicsLayer {
+                    shape = RoundedCornerShape(PosterZoomFinalCornerRadius)
+                    clip = false
+                    shadowElevation = NuvioTokens.Space.s24.toPx()
+                }
+                .background(tokens.colors.surfaceCard),
+        )
+        Column(
+            modifier = Modifier
+                .width(200.dp)
+                .graphicsLayer {
+                    shape = RoundedCornerShape(NuvioTokens.Space.s20.toPx())
+                    clip = true
+                }
+                .background(tokens.colors.surfaceElevated),
+        ) {
+            Text(
+                text = " ",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = tokens.colors.textPrimary,
+            )
+            Text(
+                text = " ",
+                style = MaterialTheme.typography.bodyMedium,
+                color = tokens.colors.textMuted,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8)) {
+                Text(
+                    text = " ",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = tokens.colors.textPrimary,
+                )
+                Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(NuvioTokens.Icon.md))
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(NuvioTokens.Icon.md))
+                Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(NuvioTokens.Icon.md))
+                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(NuvioTokens.Icon.md))
+                Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(NuvioTokens.Icon.md))
+            }
+        }
+    }
+}
