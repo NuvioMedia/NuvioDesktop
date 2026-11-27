@@ -1788,7 +1788,7 @@ JNIEXPORT jboolean JNICALL NP(initGtkEarly)(JNIEnv *, jobject) {
 
 JNIEXPORT jlong JNICALL NP(create)(
     JNIEnv *env, jobject /*thiz*/, jlong hostViewPtr, jstring sourceUrl,
-    jobjectArray headerLines, jboolean playWhenReady, jlong initialPositionMs,
+    jobjectArray headerLines, jstring lavfOptions, jboolean playWhenReady, jlong initialPositionMs,
     jstring controlsPageUrl, jint decoderPriority,
     jboolean /*nvidiaRtxSuperResolutionEnabled*/, jboolean /*nvidiaRtxHdrEnabled*/, jobject eventSink) {
 
@@ -1827,6 +1827,8 @@ JNIEXPORT jlong JNICALL NP(create)(
         }
         if (!headers.empty()) headerFields = joinHeaderFields(headers);
     }
+    // ClearKey keys for FFmpeg's DASH/MP4/HLS demuxers (see clearKeyLavfOptions). Never logged.
+    const std::string lavf = lavfOptions ? jstringToUtf8(env, lavfOptions) : std::string();
 
     auto configure = [&](mpv_handle *m, const char *gpuCtx, const char *hwdec) {
         // Surface mpv's own diagnostics (drained by the event thread).
@@ -1888,6 +1890,9 @@ JNIEXPORT jlong JNICALL NP(create)(
 
         if (!headerFields.empty()) {
             mpv_set_option_string(m, "http-header-fields", headerFields.c_str());
+        }
+        if (!lavf.empty()) {
+            mpv_set_option_string(m, "demuxer-lavf-o", lavf.c_str());
         }
         if (initialPositionMs > 0) {
             std::string start = std::to_string(initialPositionMs / 1000.0);

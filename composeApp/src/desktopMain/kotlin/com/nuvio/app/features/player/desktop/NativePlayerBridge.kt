@@ -53,6 +53,7 @@ internal object NativePlayerBridge {
         hostViewPtr: Long,
         sourceUrl: String,
         headerLines: Array<String>,
+        lavfOptions: String,
         playWhenReady: Boolean,
         initialPositionMs: Long,
         controlsPageUrl: String,
