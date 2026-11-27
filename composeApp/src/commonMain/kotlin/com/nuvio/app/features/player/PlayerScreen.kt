@@ -50,6 +50,7 @@ internal fun PlayerScreen(
     stream: com.nuvio.app.features.streams.StreamItem? = null,
     sourceFromLinkCache: Boolean = false,
     sourceAutoSelected: Boolean = false,
+    onActiveEpisodeChanged: (ActivePlayerEpisode) -> Unit = {},
 ) {
     PlayerScreenContent(
         PlayerScreenArgs(
@@ -97,6 +98,7 @@ internal fun PlayerScreen(
             stream = stream,
             sourceFromLinkCache = sourceFromLinkCache,
             sourceAutoSelected = sourceAutoSelected,
+            onActiveEpisodeChanged = onActiveEpisodeChanged,
         )
     )
 }

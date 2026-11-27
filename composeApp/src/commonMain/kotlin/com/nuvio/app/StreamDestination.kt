@@ -78,9 +78,8 @@ internal fun StreamDestination(
     onLandscapeLoadingChanged: (Boolean) -> Unit,
 ) {
     val onBack = rememberGuardedPopBackStack(navController, route)
-    val launch = remember(route.launchId) {
-        StreamLaunchStore.get(route.launchId)
-    }
+    val launches by StreamLaunchStore.launchesState.collectAsStateWithLifecycle()
+    val launch = launches[route.launchId]
     if (launch == null) {
         LaunchedEffect(route.launchId) {
             onBack()

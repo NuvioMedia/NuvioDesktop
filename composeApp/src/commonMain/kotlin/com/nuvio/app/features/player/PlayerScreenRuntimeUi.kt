@@ -85,6 +85,26 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
     val episodeTitle = activeEpisodeTitle
     val isEpisode = seasonNumber != null && episodeNumber != null
 
+    LaunchedEffect(
+        activeVideoId,
+        activeSeasonNumber,
+        activeEpisodeNumber,
+        activeEpisodeTitle,
+        activeEpisodeThumbnail,
+        activePauseDescription,
+    ) {
+        args.onActiveEpisodeChanged(
+            ActivePlayerEpisode(
+                videoId = activeVideoId,
+                seasonNumber = activeSeasonNumber,
+                episodeNumber = activeEpisodeNumber,
+                episodeTitle = activeEpisodeTitle,
+                episodeThumbnail = activeEpisodeThumbnail,
+                pauseDescription = activePauseDescription,
+            ),
+        )
+    }
+
     LaunchedEffect(runtime.title, runtime.poster, seasonNumber, episodeNumber, episodeTitle, playbackSnapshot.isPlaying) {
         val episodeLabel = if (isEpisode) {
             val base = "S${seasonNumber}E${episodeNumber}"

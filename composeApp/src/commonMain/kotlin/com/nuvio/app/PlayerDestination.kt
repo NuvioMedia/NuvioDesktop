@@ -4,18 +4,75 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.party.PartyMedia
+import com.nuvio.app.features.player.ActivePlayerEpisode
 import com.nuvio.app.features.player.ExternalPlayerIntentResult
 import com.nuvio.app.features.player.ExternalPlayerPlatform
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.player.PlayerScreen
+import com.nuvio.app.features.player.PlayerStreamsRepository
+import com.nuvio.app.features.streams.StreamLaunchStore
+import com.nuvio.app.features.streams.StreamsRepository
 import com.nuvio.app.features.watchprogress.ResumePromptRepository
 import com.nuvio.app.navigation.NuvioNavigator
 import com.nuvio.app.navigation.PlayerRoute
+import com.nuvio.app.navigation.StreamRoute
+
+internal fun syncUnderlyingStreamRouteOnPlayerExit(
+    navController: NuvioNavigator,
+    activeEpisode: ActivePlayerEpisode,
+) {
+    val underlyingStreamRoute = navController.routes
+        .dropLast(1)
+        .lastOrNull() as? StreamRoute ?: return
+    val existingLaunch = StreamLaunchStore.get(underlyingStreamRoute.launchId) ?: return
+    val targetVideoId = activeEpisode.videoId?.takeIf { it.isNotBlank() } ?: existingLaunch.videoId
+    val episodeChanged =
+        targetVideoId != existingLaunch.videoId ||
+            activeEpisode.seasonNumber != existingLaunch.seasonNumber ||
+            activeEpisode.episodeNumber != existingLaunch.episodeNumber
+    if (!episodeChanged) return
+
+    StreamLaunchStore.update(underlyingStreamRoute.launchId) { current ->
+        current.copy(
+            videoId = targetVideoId,
+            seasonNumber = activeEpisode.seasonNumber,
+            episodeNumber = activeEpisode.episodeNumber,
+            episodeTitle = activeEpisode.episodeTitle,
+            episodeThumbnail = activeEpisode.episodeThumbnail ?: current.episodeThumbnail,
+            pauseDescription = activeEpisode.pauseDescription ?: current.pauseDescription,
+            resumePositionMs = null,
+            resumeProgressFraction = null,
+            manualSelection = true,
+        )
+    }
+
+    val cachedStreams = PlayerStreamsRepository.cachedStreamsFor(
+        type = existingLaunch.type,
+        videoId = targetVideoId,
+        season = activeEpisode.seasonNumber,
+        episode = activeEpisode.episodeNumber,
+    )
+    if (cachedStreams != null) {
+        StreamsRepository.restore(
+            type = existingLaunch.type,
+            videoId = targetVideoId,
+            season = activeEpisode.seasonNumber,
+            episode = activeEpisode.episodeNumber,
+            manualSelection = true,
+            state = cachedStreams,
+        )
+    } else {
+        StreamsRepository.clear()
+    }
+}
 
 @Composable
 internal fun PlayerDestination(
@@ -30,12 +87,33 @@ internal fun PlayerDestination(
     onSystemBackHandlerChanged: (PlayerRoute, (() -> Unit)?) -> Unit,
     onOpenPartyMedia: (PartyMedia) -> Unit,
 ) {
+    val launch = remember(route.launchId) { PlayerLaunchStore.get(route.launchId) }
+    var activeEpisode by remember(route.launchId, launch) {
+        mutableStateOf(
+            ActivePlayerEpisode(
+                videoId = launch?.videoId,
+                seasonNumber = launch?.seasonNumber,
+                episodeNumber = launch?.episodeNumber,
+                episodeTitle = launch?.episodeTitle,
+                episodeThumbnail = launch?.episodeThumbnail,
+                pauseDescription = launch?.pauseDescription,
+            ),
+        )
+    }
+    val beforePlayerPop = remember(navController) {
+        {
+            syncUnderlyingStreamRouteOnPlayerExit(
+                navController = navController,
+                activeEpisode = activeEpisode,
+            )
+            ResumePromptRepository.markPlayerExitedNormally()
+        }
+    }
     val popBack = rememberGuardedPopBackStack(
         navController = navController,
         route = route,
-        beforePop = ResumePromptRepository::markPlayerExitedNormally,
+        beforePop = beforePlayerPop,
     )
-    val launch = remember(route.launchId) { PlayerLaunchStore.get(route.launchId) }
     if (launch == null) {
         LaunchedEffect(route.launchId) {
             popBack()
@@ -48,7 +126,7 @@ internal fun PlayerDestination(
     val onBackBase = rememberGuardedPlayerPopBackStack(
         navController = navController,
         route = route,
-        beforePop = ResumePromptRepository::markPlayerExitedNormally,
+        beforePop = beforePlayerPop,
     )
     val onBack = remember(onBackBase, initialFullscreen, currentFullscreen) {
         { releaseBeforeBack: com.nuvio.app.features.player.PlayerReleaseBeforeBack ->
@@ -103,6 +181,7 @@ internal fun PlayerDestination(
         stream = launch.stream,
         sourceFromLinkCache = launch.sourceFromLinkCache,
         sourceAutoSelected = launch.sourceAutoSelected,
+        onActiveEpisodeChanged = { updated -> activeEpisode = updated },
         onBack = onBack,
         onSystemBackHandlerChanged = registerSystemBack,
         onOpenInExternalPlayer = if (externalPlayerSupported) { { request ->

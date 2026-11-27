@@ -590,4 +590,41 @@ object StreamsRepository {
     fun setOverlayVisible(visible: Boolean, message: String? = null) {
         _uiState.update { it.copy(showDirectAutoPlayOverlay = visible, overlayMessage = message) }
     }
+
+    fun restore(
+        type: String,
+        videoId: String,
+        season: Int? = null,
+        episode: Int? = null,
+        manualSelection: Boolean = false,
+        state: StreamsUiState,
+    ) {
+        val pluginUiState = if (AppFeaturePolicy.pluginsEnabled) {
+            PluginRepository.initialize()
+            PluginRepository.uiState.value
+        } else {
+            PluginsUiState(pluginsEnabled = false)
+        }
+        val requestToken = requestToken(
+            type = type,
+            videoId = videoId,
+            season = season,
+            episode = episode,
+            manualSelection = manualSelection,
+        )
+        val requestKey = "$requestToken::pluginsGrouped=${pluginUiState.groupStreamsByRepository}"
+        PluginRepository.setLocalPluginSearchPaused(true)
+        activeJob?.cancel()
+        activeJob = null
+        activeRequestKey = requestKey
+        _uiState.value = state.copy(
+            requestToken = requestToken,
+            isAnyLoading = false,
+            isDirectAutoPlayFlow = false,
+            showDirectAutoPlayOverlay = false,
+            overlayMessage = null,
+            autoPlayStream = null,
+            autoPlayCandidates = emptyList(),
+        )
+    }
 }
