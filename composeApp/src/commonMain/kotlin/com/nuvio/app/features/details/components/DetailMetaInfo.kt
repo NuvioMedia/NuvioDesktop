@@ -63,7 +63,7 @@ import nuvio.composeapp.generated.resources.rating_imdb
 import nuvio.composeapp.generated.resources.rating_letterboxd
 import nuvio.composeapp.generated.resources.rating_metacritic
 import nuvio.composeapp.generated.resources.rating_rotten_tomatoes
-import nuvio.composeapp.generated.resources.rating_tmdb
+import nuvio.composeapp.generated.resources.rating_tmdb_small
 import nuvio.composeapp.generated.resources.rating_trakt
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.getString
@@ -379,7 +379,7 @@ private val ratingVisuals = listOf(
     RatingVisuals(
         source = PROVIDER_TMDB,
         displayName = "TMDB",
-        logo = Res.drawable.rating_tmdb,
+        logo = Res.drawable.rating_tmdb_small,
         logoWidth = 16.dp,
         valueColor = Color(0xFF01B4E4),
         format = ::formatWhole,
