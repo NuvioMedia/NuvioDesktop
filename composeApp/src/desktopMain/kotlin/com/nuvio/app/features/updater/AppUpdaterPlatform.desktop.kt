@@ -52,6 +52,12 @@ actual object AppUpdaterPlatform {
     actual val isSupported: Boolean
         get() = currentOs != DesktopUpdaterOs.UNKNOWN && linuxInstallMethod != LinuxInstallMethod.FLATPAK
 
+    // An install the updater cannot place (a distribution package such as the
+    // AUR ones, an extracted AppImage, a source build) still hears about new
+    // releases, but has to be updated from outside the app.
+    actual val installsUpdatesInApp: Boolean
+        get() = currentOs != DesktopUpdaterOs.LINUX || linuxInstallsUpdatesInApp(linuxInstallMethod)
+
     actual val releaseSource: AppUpdateReleaseSource = AppUpdateReleaseSource(
         owner = "NuvioMedia",
         repo = "NuvioDesktop",
@@ -260,14 +266,26 @@ private const val packageQueryTimeoutSeconds = 3L
 private const val appImageExitWaitTicks = 100
 
 // A release carries every Linux format at once, so the extension list has to be
-// the one the running install can actually consume. An unresolved install keeps
-// the previous list, leaving source and tarball builds no worse off than before.
+// the one the running install can actually consume. An unresolved install never
+// downloads anything; its list only lets the check find the release to point to.
 internal fun linuxUpdateFileExtensions(method: LinuxInstallMethod): List<String> = when (method) {
     LinuxInstallMethod.APP_IMAGE -> listOf(".AppImage")
     LinuxInstallMethod.RPM -> listOf(".rpm")
     LinuxInstallMethod.DEB -> listOf(".deb")
     LinuxInstallMethod.FLATPAK -> emptyList()
     LinuxInstallMethod.UNKNOWN -> listOf(".deb", ".AppImage")
+}
+
+// Only installs the updater can update: an AppImage replaces itself, and a
+// .deb or .rpm goes to the desktop's package installer. For anything else the
+// download was handed to xdg-open before the app quit, which installed nothing
+// and on some desktops opened the file in a browser (#849).
+internal fun linuxInstallsUpdatesInApp(method: LinuxInstallMethod): Boolean = when (method) {
+    LinuxInstallMethod.APP_IMAGE,
+    LinuxInstallMethod.RPM,
+    LinuxInstallMethod.DEB -> true
+    LinuxInstallMethod.FLATPAK,
+    LinuxInstallMethod.UNKNOWN -> false
 }
 
 internal fun resolveLinuxInstallMethod(
