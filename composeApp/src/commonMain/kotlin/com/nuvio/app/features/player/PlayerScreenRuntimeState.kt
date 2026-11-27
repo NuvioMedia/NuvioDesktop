@@ -31,6 +31,7 @@ internal data class PlayerSurfaceSource(
     val sourceAudioUrl: String?,
     val sourceHeaders: Map<String, String>,
     val sourceResponseHeaders: Map<String, String>,
+    val clearKeys: String?,
     val externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     val streamType: String?,
     val initialPositionMs: Long?,
