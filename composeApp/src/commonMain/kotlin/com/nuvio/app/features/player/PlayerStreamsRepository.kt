@@ -171,6 +171,38 @@ object PlayerStreamsRepository {
         clearEpisodeStreams()
     }
 
+    fun cachedStreamsFor(
+        type: String,
+        videoId: String,
+        season: Int? = null,
+        episode: Int? = null,
+    ): StreamsUiState? {
+        val pluginUiState = if (AppFeaturePolicy.pluginsEnabled) {
+            PluginRepository.initialize()
+            PluginRepository.uiState.value
+        } else {
+            PluginsUiState(pluginsEnabled = false)
+        }
+        val expectedKey = "$type::$videoId::$season::$episode::pluginsGrouped=${pluginUiState.groupStreamsByRepository}"
+        val episodeState = _episodeStreamsState.value
+        if (
+            episodeStreamsRequestKey == expectedKey &&
+            !episodeState.isAnyLoading &&
+            (episodeState.groups.isNotEmpty() || episodeState.emptyStateReason != null)
+        ) {
+            return episodeState
+        }
+        val sourcesState = _sourceState.value
+        if (
+            sourceRequestKey == expectedKey &&
+            !sourcesState.isAnyLoading &&
+            (sourcesState.groups.isNotEmpty() || sourcesState.emptyStateReason != null)
+        ) {
+            return sourcesState
+        }
+        return null
+    }
+
     private fun fetchStreams(
         panelName: String,
         type: String,

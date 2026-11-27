@@ -9,6 +9,15 @@ internal typealias PlayerReleaseBeforeBack = (
 ) -> Unit
 internal typealias PlayerBackRequest = (releaseBeforeBack: PlayerReleaseBeforeBack) -> Unit
 
+internal data class ActivePlayerEpisode(
+    val videoId: String?,
+    val seasonNumber: Int?,
+    val episodeNumber: Int?,
+    val episodeTitle: String?,
+    val episodeThumbnail: String?,
+    val pauseDescription: String?,
+)
+
 internal data class PlayerScreenArgs(
     val profileId: Int,
     val title: String,
@@ -54,4 +63,5 @@ internal data class PlayerScreenArgs(
     val stream: com.nuvio.app.features.streams.StreamItem? = null,
     val sourceFromLinkCache: Boolean = false,
     val sourceAutoSelected: Boolean = false,
+    val onActiveEpisodeChanged: (ActivePlayerEpisode) -> Unit = {},
 )

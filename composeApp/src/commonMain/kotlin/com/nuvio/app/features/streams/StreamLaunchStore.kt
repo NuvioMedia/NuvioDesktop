@@ -1,5 +1,10 @@
 package com.nuvio.app.features.streams
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+
 data class StreamLaunch(
     val profileId: Int,
     val type: String,
@@ -23,22 +28,33 @@ data class StreamLaunch(
 
 object StreamLaunchStore {
     private var nextLaunchId = 1L
-    private val launches = mutableMapOf<Long, StreamLaunch>()
+    private val _launchesState = MutableStateFlow<Map<Long, StreamLaunch>>(emptyMap())
+    val launchesState: StateFlow<Map<Long, StreamLaunch>> = _launchesState.asStateFlow()
 
     fun put(launch: StreamLaunch): Long {
         val launchId = nextLaunchId++
-        launches[launchId] = launch
+        _launchesState.update { it + (launchId to launch) }
         return launchId
     }
 
-    fun get(launchId: Long): StreamLaunch? = launches[launchId]
+    fun get(launchId: Long): StreamLaunch? = _launchesState.value[launchId]
+
+    fun update(launchId: Long, transform: (StreamLaunch) -> StreamLaunch): StreamLaunch? {
+        var updated: StreamLaunch? = null
+        _launchesState.update { current ->
+            val existing = current[launchId] ?: return@update current
+            updated = transform(existing)
+            current + (launchId to updated!!)
+        }
+        return updated
+    }
 
     fun remove(launchId: Long) {
-        launches.remove(launchId)
+        _launchesState.update { it - launchId }
     }
 
     fun clear() {
         nextLaunchId = 1L
-        launches.clear()
+        _launchesState.value = emptyMap()
     }
 }
