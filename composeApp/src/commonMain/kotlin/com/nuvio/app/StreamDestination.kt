@@ -383,12 +383,13 @@ internal fun StreamDestination(
                         filename = cached.filename,
                         videoSize = cached.videoSize,
                         bingeGroup = cached.bingeGroup,
+                        clearKeys = cached.clearKeys,
                     ),
                 ),
                 sourceFromLinkCache = true,
                 sourceAutoSelected = true,
             )
-            if (externalPlayerSupported && playerSettings.externalPlayerEnabled) {
+            if (externalPlayerSupported && playerSettings.externalPlayerEnabled && cached.clearKeys == null) {
                 openExternalPlayback(playerLaunch)
                 StreamsRepository.cancelLoading()
                 StreamsRepository.setOverlayVisible(false)
@@ -525,6 +526,7 @@ internal fun StreamDestination(
                 contentLanguage = resolveLaunchContentLanguage(),
                 addonLogo = stream.addonLogo,
                 streamDescription = stream.streamSubtitle,
+                clearKeys = stream.behaviorHints.clearKeys,
             )
         }
         val playerLaunch = PlayerLaunch(
@@ -560,7 +562,7 @@ internal fun StreamDestination(
             stream = stream,
             sourceAutoSelected = true,
         )
-        if (externalPlayerSupported && playerSettings.externalPlayerEnabled && stream.serverTarget == null) {
+        if (externalPlayerSupported && playerSettings.externalPlayerEnabled && stream.serverTarget == null && stream.behaviorHints.clearKeys == null) {
             openExternalPlayback(playerLaunch)
             StreamsRepository.consumeAutoPlay()
             StreamsRepository.cancelLoading()
@@ -728,6 +730,7 @@ internal fun StreamDestination(
                 contentLanguage = resolveLaunchContentLanguage(),
                 addonLogo = stream.addonLogo,
                 streamDescription = stream.streamSubtitle,
+                clearKeys = stream.behaviorHints.clearKeys,
             )
         }
         val playerLaunch = PlayerLaunch(
@@ -763,7 +766,8 @@ internal fun StreamDestination(
             stream = stream,
         )
 
-        if (!forceInternal && externalPlayerSupported && (forceExternal || playerSettings.externalPlayerEnabled)) {
+        // External players cannot be handed ClearKey keys.
+        if (!forceInternal && externalPlayerSupported && stream.behaviorHints.clearKeys == null && (forceExternal || playerSettings.externalPlayerEnabled)) {
             streamRouteScope.launch {
                 openExternalPlayback(playerLaunch)
                 StreamsRepository.cancelLoading()

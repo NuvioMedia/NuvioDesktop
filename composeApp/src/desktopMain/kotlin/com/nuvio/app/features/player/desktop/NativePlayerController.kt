@@ -48,6 +48,7 @@ internal typealias NativePlayerCreate = (
     Long,
     String,
     Array<String>,
+    String,
     Boolean,
     Long,
     String,
@@ -59,9 +60,9 @@ internal typealias NativePlayerCreate = (
 
 internal class NativePlayerController(
     private val host: NativePlayerHost,
-    private val nativeCreate: NativePlayerCreate = { hostViewPtr, source, headers, playWhenReady, positionMs, controlsUrl, decoder, rtx, rtxHdr, sink ->
+    private val nativeCreate: NativePlayerCreate = { hostViewPtr, source, headers, lavfOptions, playWhenReady, positionMs, controlsUrl, decoder, rtx, rtxHdr, sink ->
         NativePlayerBridge.ensureLoaded()
-        NativePlayerBridge.create(hostViewPtr, source, headers, playWhenReady, positionMs, controlsUrl, decoder, rtx, rtxHdr, sink)
+        NativePlayerBridge.create(hostViewPtr, source, headers, lavfOptions, playWhenReady, positionMs, controlsUrl, decoder, rtx, rtxHdr, sink)
     },
     private val nativeDispose: (Long) -> Unit = NativePlayerBridge::dispose,
     private val nativeSeekTo: (Long, Long) -> Unit = NativePlayerBridge::seekTo,
@@ -141,6 +142,8 @@ internal class NativePlayerController(
     fun attach(
         sourceUrl: String,
         sourceHeaders: Map<String, String>,
+        // libmpv `demuxer-lavf-o` value (ClearKey keys), empty for clear streams.
+        lavfOptions: String = "",
         playWhenReady: Boolean,
         initialPositionMs: Long,
         decoderPriority: Int,
@@ -151,6 +154,7 @@ internal class NativePlayerController(
         val pending = PendingSource(
             sourceUrl = sourceUrl,
             headerLines = sourceHeaders.toHeaderLines(),
+            lavfOptions = lavfOptions,
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs.coerceAtLeast(0L),
             decoderPriority = decoderPriority,
@@ -325,6 +329,7 @@ internal class NativePlayerController(
                         hostViewPtr,
                         resolvedSource,
                         pending.headerLines.toTypedArray(),
+                        pending.lavfOptions,
                         pending.playWhenReady,
                         pending.initialPositionMs,
                         NativePlayerBridge.controlsPageUrl,
@@ -1010,6 +1015,7 @@ internal class NativePlayerController(
         attach(
             sourceUrl = pending.sourceUrl,
             sourceHeaders = pending.headerLines.toHeaderMap(),
+            lavfOptions = pending.lavfOptions,
             playWhenReady = pending.playWhenReady,
             initialPositionMs = pending.initialPositionMs,
             decoderPriority = pending.decoderPriority,
@@ -1306,6 +1312,7 @@ private fun Int.toHexByte(): String {
 private data class PendingSource(
     val sourceUrl: String,
     val headerLines: List<String>,
+    val lavfOptions: String,
     val playWhenReady: Boolean,
     val initialPositionMs: Long,
     val decoderPriority: Int,

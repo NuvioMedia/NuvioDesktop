@@ -123,6 +123,7 @@ static constexpr double kMaxVolumePercent = 200.0;
 - (instancetype)initWithHostView:(NSView *)hostView
                        sourceUrl:(NSString *)sourceUrl
                     headerLines:(NSArray<NSString *> *)headerLines
+                     lavfOptions:(NSString *)lavfOptions
                    playWhenReady:(BOOL)playWhenReady
                 initialPositionMs:(long long)initialPositionMs
                       controlsUrl:(NSString *)controlsUrl
@@ -1173,6 +1174,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 - (instancetype)initWithHostView:(NSView *)hostView
                        sourceUrl:(NSString *)sourceUrl
                     headerLines:(NSArray<NSString *> *)headerLines
+                     lavfOptions:(NSString *)lavfOptions
                    playWhenReady:(BOOL)playWhenReady
                 initialPositionMs:(long long)initialPositionMs
                       controlsUrl:(NSString *)controlsUrl
@@ -1275,6 +1277,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
     [self startMpvWithSource:sourceUrl
                  headerLines:headerLines
+                 lavfOptions:lavfOptions
                 playWhenReady:playWhenReady
              initialPositionMs:initialPositionMs
               decoderPriority:decoderPriority];
@@ -1723,6 +1726,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
 - (void)startMpvWithSource:(NSString *)sourceUrl
                headerLines:(NSArray<NSString *> *)headerLines
+               lavfOptions:(NSString *)lavfOptions
               playWhenReady:(BOOL)playWhenReady
            initialPositionMs:(long long)initialPositionMs
             decoderPriority:(int)decoderPriority {
@@ -1785,6 +1789,10 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         }
         NSString *headers = [escaped componentsJoinedByString:@","];
         setMpvOptionString(_mpv, "http-header-fields", headers.UTF8String);
+    }
+    // ClearKey keys for FFmpeg's DASH/MP4/HLS demuxers (see clearKeyLavfOptions). Never logged.
+    if (lavfOptions.length > 0) {
+        setMpvOptionString(_mpv, "demuxer-lavf-o", lavfOptions.UTF8String);
     }
 
     int initResult = mpv_initialize(_mpv);
@@ -3292,6 +3300,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jlong hostViewPtr,
     jstring sourceUrl,
     jobjectArray headerLines,
+    jstring lavfOptions,
     jboolean playWhenReady,
     jlong initialPositionMs,
     jstring controlsPageUrl,
@@ -3327,6 +3336,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     std::string source = jstringToString(env, sourceUrl);
     std::string controls = jstringToString(env, controlsPageUrl);
     NSArray<NSString *> *headers = jstringArrayToNSArray(env, headerLines);
+    std::string lavf = jstringToString(env, lavfOptions);
     __block MpvWebPlayer *player = nil;
     __block NSString *error = nil;
     runOnMainSync(^{
@@ -3335,6 +3345,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
                 initWithHostView:hostView
                     sourceUrl:[NSString stringWithUTF8String:source.c_str()]
                     headerLines:headers
+                     lavfOptions:[NSString stringWithUTF8String:lavf.c_str()]
                    playWhenReady:playWhenReady == JNI_TRUE
                 initialPositionMs:initialPositionMs
                      controlsUrl:[NSString stringWithUTF8String:controls.c_str()]

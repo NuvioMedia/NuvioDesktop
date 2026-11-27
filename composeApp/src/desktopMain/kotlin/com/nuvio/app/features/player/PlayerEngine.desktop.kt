@@ -49,6 +49,7 @@ actual fun PlatformPlayerSurface(
     sourceAudioUrl: String?,
     sourceHeaders: Map<String, String>,
     sourceResponseHeaders: Map<String, String>,
+    clearKeys: String?,
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     streamType: String?,
     useYoutubeChunkedPlayback: Boolean,
@@ -78,6 +79,7 @@ actual fun PlatformPlayerSurface(
             sourceUrl = sourceUrl,
             sourceAvailable = sourceAvailable,
             sourceHeaders = sourceHeaders,
+            clearKeys = clearKeys,
             externalSubtitles = externalSubtitles,
             modifier = modifier,
             playWhenReady = playWhenReady,
@@ -111,6 +113,7 @@ private fun NativePlayerSurface(
     sourceUrl: String,
     sourceAvailable: Boolean,
     sourceHeaders: Map<String, String>,
+    clearKeys: String?,
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     modifier: Modifier,
     playWhenReady: Boolean,
@@ -213,7 +216,7 @@ private fun NativePlayerSurface(
         )
     }
 
-    DisposableEffect(controller, sourceAvailable, sourceUrl, playbackHeaders) {
+    DisposableEffect(controller, sourceAvailable, sourceUrl, playbackHeaders, clearKeys) {
         onDispose { controller.dispose() }
     }
 
@@ -235,6 +238,7 @@ private fun NativePlayerSurface(
         sourceAvailable,
         sourceUrl,
         playbackHeaders,
+        clearKeys,
         decoderPriority,
         nvidiaRtxSuperResolutionEnabled,
         nvidiaRtxHdrEnabled,
@@ -249,6 +253,7 @@ private fun NativePlayerSurface(
         controller.attach(
             sourceUrl = sourceUrl,
             sourceHeaders = playbackHeaders,
+            lavfOptions = clearKeys?.let(::clearKeyLavfOptions).orEmpty(),
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs,
             decoderPriority = decoderPriority,

@@ -134,7 +134,8 @@ object DownloadsRepository {
             ?.takeIf { it.isNotBlank() }
             ?: return DownloadEnqueueResult.MissingUrl
 
-        if (!sourceUrl.isSupportedDownloadUrl()) {
+        // A ClearKey file would be stored encrypted, with no keys to play it back.
+        if (!sourceUrl.isSupportedDownloadUrl() || stream.behaviorHints.clearKeys != null) {
             return DownloadEnqueueResult.UnsupportedFormat
         }
 

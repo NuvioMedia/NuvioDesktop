@@ -193,6 +193,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
             sourceAudioUrl = activeSourceAudioUrl,
             sourceHeaders = activeSourceHeaders,
             sourceResponseHeaders = activeSourceResponseHeaders,
+            clearKeys = activeStream?.behaviorHints?.clearKeys,
             externalSubtitles = externalSubtitles,
             streamType = activeStreamType,
             initialPositionMs = activeInitialPositionMs.takeIf { it > 0L },
@@ -627,6 +628,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                 sourceAudioUrl = surfaceSource?.sourceAudioUrl,
                 sourceHeaders = surfaceSource?.sourceHeaders.orEmpty(),
                 sourceResponseHeaders = surfaceSource?.sourceResponseHeaders.orEmpty(),
+                clearKeys = surfaceSource?.clearKeys,
                 externalSubtitles = surfaceSource?.externalSubtitles.orEmpty(),
                 streamType = surfaceSource?.streamType,
                 modifier = videoModifier,
@@ -848,7 +850,8 @@ private fun PlayerScreenRuntime.RenderPlayerControls(
             chapters = chapters,
             onChaptersClick = if (chapters.isNotEmpty()) { { openChaptersPanel() } } else null,
             onOpenInExternalPlayer = args.onOpenInExternalPlayer
-                ?.takeUnless { ServerStreams.isServerSourceId(activeProviderAddonId) }
+                // External players cannot be handed ClearKey keys.
+                ?.takeUnless { ServerStreams.isServerSourceId(activeProviderAddonId) || activeStream?.behaviorHints?.clearKeys != null }
                 ?.let { openExternal ->
                 {
                     val loadedSubtitles = addonSubtitles

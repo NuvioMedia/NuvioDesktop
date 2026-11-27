@@ -882,6 +882,10 @@ class WindowsMpvWebPlayer : public std::enable_shared_from_this<WindowsMpvWebPla
     };
 
 public:
+    // ClearKey keys for FFmpeg's DASH/MP4/HLS demuxers (see clearKeyLavfOptions), set before
+    // initialize() starts the UI thread that reads it. Never logged.
+    std::string lavfOptions;
+
     void initialize(
         HWND host,
         const std::string &sourceUrl,
@@ -1886,6 +1890,9 @@ private:
                 }
                 setMpvOptionStringLocked("http-header-fields", headers.c_str());
             }
+            if (!lavfOptions.empty()) {
+                setMpvOptionStringLocked("demuxer-lavf-o", lavfOptions.c_str());
+            }
 
             int initResult = api.initialize(mpv);
             if (initResult < 0) {
@@ -2516,6 +2523,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jlong hostViewPtr,
     jstring sourceUrl,
     jobjectArray headerLines,
+    jstring lavfOptions,
     jboolean playWhenReady,
     jlong initialPositionMs,
     jstring controlsPageUrl,
@@ -2546,6 +2554,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     }
 
     auto player = std::make_shared<WindowsMpvWebPlayer>();
+    player->lavfOptions = jstringToUtf8(env, lavfOptions);
     try {
         player->initialize(
             hostHwnd,
