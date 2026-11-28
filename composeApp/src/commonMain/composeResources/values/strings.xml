@@ -578,6 +578,8 @@
     <string name="settings_advanced_remember_last_profile_description">Remember last selected profile at startup</string>
     <string name="settings_advanced_opengl_renderer">Use OpenGL renderer</string>
     <string name="settings_advanced_opengl_renderer_description">May fix interface stutter or flicker with NVIDIA G-SYNC and some high-refresh-rate displays. Restart Nuvio to apply.</string>
+    <string name="settings_advanced_steady_frame_pacing">Prevent G-SYNC flicker</string>
+    <string name="settings_advanced_steady_frame_pacing_description">On G-SYNC displays, keeps Nuvio drawing at your refresh rate while it is in front so the refresh rate never swings. Stops the brightness flicker OLED monitors show with G-SYNC on, at the cost of extra GPU use.</string>
     <string name="settings_advanced_opengl_renderer_external_description">The interface renderer is controlled by SKIKO_RENDER_API or skiko.renderApi. Remove that override to change it here.</string>
     <string name="settings_advanced_sentry_reports">Sentry Crash Reports</string>
     <string name="settings_advanced_sentry_reports_subtitle">Send crash and ANR reports with safe context. On by default.</string>

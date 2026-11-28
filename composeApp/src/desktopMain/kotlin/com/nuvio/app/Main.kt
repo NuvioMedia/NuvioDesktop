@@ -225,6 +225,8 @@ fun main(args: Array<String>) {
                 }
             }
 
+            VrrSteadyFramePacing(window)
+
             if (smokePlayerUrl == null) {
                 ClickableHandCursor(window)
                 Box(
