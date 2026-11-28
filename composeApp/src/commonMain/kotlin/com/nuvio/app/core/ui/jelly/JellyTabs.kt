@@ -4,6 +4,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,7 +18,6 @@ import androidx.compose.ui.unit.Dp
 import com.nuvio.app.controller.ControllerFocusZone
 import com.nuvio.app.controller.controllerFocusable
 import com.nuvio.app.core.ui.nuvioFocusBorder
-import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -28,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
@@ -40,6 +43,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -53,6 +57,9 @@ import com.nuvio.app.core.ui.visualNavIndex
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.abs
 
+internal val JellyTabInset = 4.dp
+private val HorizontalTabPadding = 8.dp
+private val HorizontalLabelGap = 6.dp
 private val JellyTabFocusShape = RoundedCornerShape(50)
 
 @Composable
@@ -63,9 +70,10 @@ internal fun JellyTabRow(
     active: Boolean,
     compactSize: Boolean,
     modifier: Modifier,
-    horizontalLabels: Boolean = false,
+    horizontalTrack: HorizontalTabTrack? = null,
     iconSize: Dp = if (compactSize) 24.dp else 28.dp,
 ) {
+    val horizontalLabels = horizontalTrack != null
     val tokens = MaterialTheme.nuvio
     val palette = MaterialTheme.themePalette
     val color = if (horizontalLabels && active) tokens.colors.textPrimary else if (active) tokens.colors.accent else tokens.colors.textMuted
@@ -73,19 +81,20 @@ internal fun JellyTabRow(
         .then(if (active && !horizontalLabels) Modifier.gradientMask(palette.accentBrush()) else Modifier)
     val iconTint = if (active) Color.White else color
     Row(
-        modifier = modifier.padding(4.dp).clearAndSetSemantics {},
+        modifier = modifier.padding(JellyTabInset).clearAndSetSemantics {},
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        items.forEach { item ->
+        items.forEachIndexed { index, item ->
+            val slot = horizontalTrack?.slot(index)
             Box(
-                Modifier.weight(1f).fillMaxHeight().graphicsLayer {
+                tabWidth(slot).fillMaxHeight().graphicsLayer {
                     val scale = if (active) motion.frame.contentScale else 1f
                     scaleX = scale
                     scaleY = scale
                 },
                 contentAlignment = Alignment.Center,
             ) {
-                JellyTabContent(item.label, labelFraction, compactSize, horizontalLabels, iconSize, color, active) {
+                JellyTabContent(item.label, labelFraction, compactSize, slot, iconSize, color, active) {
                     when {
                         item.icon != null -> Icon(item.icon, null, iconModifier, tint = iconTint)
                         item.drawable != null -> Icon(painterResource(item.drawable), null, iconModifier, tint = iconTint)
@@ -103,20 +112,21 @@ internal fun JellyTabTargets(
     motion: JellyMotion,
     compactSize: Boolean,
     modifier: Modifier,
-    horizontalLabels: Boolean = false,
+    horizontalTrack: HorizontalTabTrack? = null,
     iconSize: Dp = if (compactSize) 24.dp else 28.dp,
     focusIdForIndex: ((Int) -> String)? = null,
 ) {
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    Row(modifier.padding(horizontal = 4.dp).selectableGroup()) {
+    Row(modifier.padding(horizontal = JellyTabInset).selectableGroup()) {
         items.forEachIndexed { index, item ->
+            val slot = horizontalTrack?.slot(index)
             val visualIndex = visualNavIndex(index, items.size, isRtl)
             val onClick = {
                 motion.select(visualIndex)
                 item.onClick()
             }
             Box(
-                modifier = Modifier.weight(1f).fillMaxHeight()
+                modifier = tabWidth(slot).fillMaxHeight()
                     .nuvioFocusBorder(JellyTabFocusShape)
                     // The top bar is driven by the spatial engine; keep it out of Compose's focus
                     // search so Down from a content list cannot land on a nav pill.
@@ -162,7 +172,7 @@ internal fun JellyTabTargets(
                             scaleY = scale
                         },
                     ) {
-                        JellyTabContent(item.label, labelFraction, compactSize, horizontalLabels, iconSize, Color.Transparent, false) {
+                        JellyTabContent(item.label, labelFraction, compactSize, slot, iconSize, Color.Transparent, false) {
                             item.content(onClick)
                         }
                     }
@@ -173,16 +183,21 @@ internal fun JellyTabTargets(
 }
 
 @Composable
+private fun RowScope.tabWidth(slot: HorizontalTabSlot?): Modifier =
+    if (slot == null) Modifier.weight(1f) else Modifier.width(with(LocalDensity.current) { slot.width.toDp() })
+
+@Composable
 private fun JellyTabContent(
     label: String,
     labelFraction: Float,
     compactSize: Boolean,
-    horizontal: Boolean,
+    slot: HorizontalTabSlot?,
     iconSize: Dp,
     color: Color,
     active: Boolean,
     icon: @Composable () -> Unit,
 ) {
+    val horizontal = slot != null
     val labelStyle = if (horizontal) {
         MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
     } else {
@@ -213,24 +228,34 @@ private fun JellyTabContent(
                 .then(if (horizontal) Modifier else Modifier.fillMaxWidth().padding(horizontal = 4.dp)),
         )
     }
-    if (horizontal) {
+    if (slot != null) {
         Layout(
-            modifier = Modifier.padding(horizontal = 8.dp).clipToBounds(),
+            modifier = Modifier.clipToBounds(),
             content = {
                 iconContent()
-                labelContent()
+                // The label is measured at its expanded width and revealed by clipping, so its size
+                // never feeds back into the icon's position.
+                Box(Modifier.drawWithContent {
+                    val gap = HorizontalLabelGap.roundToPx()
+                    val visible = ((size.width + gap) * labelFraction - gap).coerceAtLeast(0f)
+                    val left = if (layoutDirection == LayoutDirection.Ltr) 0f else size.width - visible
+                    clipRect(left = left, right = left + visible) { this@drawWithContent.drawContent() }
+                }) { labelContent() }
             },
         ) { measurables, constraints ->
-            val iconPlaceable = measurables[0].measure(constraints.copy(minWidth = 0, minHeight = 0))
-            val gap = 6.dp.roundToPx()
-            val labelPlaceable = measurables[1].measure(
-                constraints.copy(minWidth = 0, minHeight = 0, maxWidth = (constraints.maxWidth - iconPlaceable.width - gap).coerceAtLeast(0)),
-            )
-            val width = iconPlaceable.width + ((labelPlaceable.width + gap) * labelFraction).roundToInt()
+            val padding = HorizontalTabPadding.roundToPx()
+            val gap = HorizontalLabelGap.roundToPx()
+            val childConstraints = constraints.copy(minWidth = 0, minHeight = 0)
+            val iconPlaceable = measurables[0].measure(childConstraints.copy(maxWidth = (slot.width - 2 * padding).coerceAtLeast(0)))
+            val expandedInnerWidth = (slot.expanded.width - 2 * padding).coerceAtLeast(0)
+            val labelMaxWidth = (expandedInnerWidth - iconPlaceable.width - gap).coerceAtLeast(0)
+            val labelPlaceable = measurables[1].measure(childConstraints.copy(maxWidth = labelMaxWidth))
             val height = maxOf(iconPlaceable.height, labelPlaceable.height)
-            layout(constraints.constrainWidth(width), constraints.constrainHeight(height)) {
-                iconPlaceable.placeRelative(0, (height - iconPlaceable.height) / 2)
-                labelPlaceable.placeRelative(iconPlaceable.width + gap, (height - labelPlaceable.height) / 2)
+            val expandedContentWidth = (iconPlaceable.width + gap + labelPlaceable.width).coerceAtMost(expandedInnerWidth)
+            layout(constraints.constrainWidth(slot.width), constraints.constrainHeight(height)) {
+                val x = slot.contentStart(iconPlaceable.width, expandedContentWidth, labelFraction, layoutDirection)
+                iconPlaceable.placeRelative(x, (height - iconPlaceable.height) / 2)
+                labelPlaceable.placeRelative(x + iconPlaceable.width + gap, (height - labelPlaceable.height) / 2)
             }
         }
     } else {
