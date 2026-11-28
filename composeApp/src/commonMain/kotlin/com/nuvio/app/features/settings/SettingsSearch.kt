@@ -443,6 +443,15 @@ internal fun settingsSearchEntries(
             section = stringResource(Res.string.settings_advanced_section_windows_graphics),
             category = advancedCategory,
         )
+        addRow(
+            page = SettingsPage.Advanced,
+            key = "desktop-steady-frame-pacing",
+            title = stringResource(Res.string.settings_advanced_steady_frame_pacing),
+            description = stringResource(Res.string.settings_advanced_steady_frame_pacing_description),
+            pageLabel = advancedPage,
+            section = stringResource(Res.string.settings_advanced_section_windows_graphics),
+            category = advancedCategory,
+        )
     }
     if (SentrySettingsRepository.isSupported) {
         addRow(

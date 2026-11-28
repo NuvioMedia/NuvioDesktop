@@ -33,6 +33,8 @@ import nuvio.composeapp.generated.resources.settings_advanced_clear_cw_cache_sub
 import nuvio.composeapp.generated.resources.settings_advanced_discord_rich_presence
 import nuvio.composeapp.generated.resources.settings_advanced_discord_rich_presence_description
 import nuvio.composeapp.generated.resources.settings_advanced_opengl_renderer
+import nuvio.composeapp.generated.resources.settings_advanced_steady_frame_pacing
+import nuvio.composeapp.generated.resources.settings_advanced_steady_frame_pacing_description
 import nuvio.composeapp.generated.resources.settings_advanced_opengl_renderer_description
 import nuvio.composeapp.generated.resources.settings_advanced_opengl_renderer_external_description
 import nuvio.composeapp.generated.resources.settings_advanced_remember_last_profile
@@ -109,6 +111,19 @@ internal fun LazyListScope.advancedSettingsContent(
                         onCheckedChange = { enabled ->
                             DesktopRendererSettings.setUseOpenGl(enabled)
                             useOpenGl = enabled
+                        },
+                    )
+                    var steadyFramePacing by remember {
+                        mutableStateOf(DesktopRendererSettings.steadyFramePacingEnabled)
+                    }
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_advanced_steady_frame_pacing),
+                        description = stringResource(Res.string.settings_advanced_steady_frame_pacing_description),
+                        checked = steadyFramePacing,
+                        isTablet = isTablet,
+                        onCheckedChange = { enabled ->
+                            DesktopRendererSettings.setSteadyFramePacingEnabled(enabled)
+                            steadyFramePacing = enabled
                         },
                     )
                 }
