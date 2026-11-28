@@ -26,9 +26,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.jelly.JellyNavigationBar
+import com.nuvio.app.core.ui.jelly.horizontalTabTrack
 import com.nuvio.app.features.settings.NavBarStyle
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
@@ -88,6 +91,7 @@ internal fun DesktopNavigationBar(
     )
     BoxWithConstraints(
         modifier = modifier.fillMaxWidth().nuvioTrackTopBarFocus().padding(contentPadding).padding(horizontal = 16.dp),
+        // horizontalTabTrack mirrors this centering, including its rounding.
         contentAlignment = Alignment.TopCenter,
     ) {
         val viewportWidth = windowWidth ?: maxWidth
@@ -96,14 +100,24 @@ internal fun DesktopNavigationBar(
             viewportWidth > 1600.dp -> 30.dp
             else -> 28.dp
         }
-        val trackWidth = ((iconSize + 20.dp + 64.dp * labelFraction) * items.size + 8.dp).coerceAtMost(maxWidth)
+        // Each compact tab is as wide as the bar is tall.
+        val tabSize = iconSize + 20.dp
+        val density = LocalDensity.current
+        val track = density.horizontalTabTrack(
+            count = items.size,
+            compactTabWidth = tabSize,
+            labelWidth = 64.dp,
+            availableWidth = constraints.maxWidth,
+            fraction = labelFraction,
+            direction = LocalLayoutDirection.current,
+        )
         JellyNavigationBar(
             items = items,
             labelFraction = labelFraction,
             glowStrength = glowStrength,
-            horizontalLabels = true,
+            horizontalTrack = track,
             iconSize = iconSize,
-            modifier = Modifier.width(trackWidth).height(iconSize + 20.dp).hoverable(interactionSource),
+            modifier = Modifier.width(with(density) { track.width.toDp() }).height(tabSize).hoverable(interactionSource),
             focusIdForIndex = { index ->
                 "top_nav_" + when (index) {
                     0 -> "home"

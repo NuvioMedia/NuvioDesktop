@@ -38,7 +38,7 @@ internal fun JellyNavigationBar(
     modifier: Modifier = Modifier,
     compactSize: Boolean = false,
     glowStrength: Float = 1f,
-    horizontalLabels: Boolean = false,
+    horizontalTrack: HorizontalTabTrack? = null,
     iconSize: Dp = if (compactSize) 24.dp else 28.dp,
     /** Optional spatial-focus ids (one per item) used by the controller navigation engine. */
     focusIdForIndex: ((Int) -> String)? = null,
@@ -126,7 +126,7 @@ internal fun JellyNavigationBar(
                             }
                         },
                     ) {
-                        JellyTabRow(items, labelFraction, motion, active = false, compactSize = compactSize, modifier = Modifier.matchParentSize(), horizontalLabels = horizontalLabels, iconSize = iconSize)
+                        JellyTabRow(items, labelFraction, motion, active = false, compactSize = compactSize, modifier = Modifier.matchParentSize(), horizontalTrack = horizontalTrack, iconSize = iconSize)
                     }
                     if (selectedIndex >= 0) {
                         Box(
@@ -141,7 +141,7 @@ internal fun JellyNavigationBar(
                                     ) { drawContent() }
                                 },
                         ) {
-                            JellyTabRow(items, labelFraction, motion, active = true, compactSize = compactSize, modifier = Modifier.matchParentSize(), horizontalLabels = horizontalLabels, iconSize = iconSize)
+                            JellyTabRow(items, labelFraction, motion, active = true, compactSize = compactSize, modifier = Modifier.matchParentSize(), horizontalTrack = horizontalTrack, iconSize = iconSize)
                         }
                     }
                     JellyTabTargets(
@@ -150,7 +150,7 @@ internal fun JellyNavigationBar(
                         motion,
                         compactSize,
                         Modifier.matchParentSize(),
-                        horizontalLabels,
+                        horizontalTrack,
                         iconSize,
                         focusIdForIndex,
                     )
